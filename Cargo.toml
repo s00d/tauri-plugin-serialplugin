@@ -1,0 +1,22 @@
+[package]
+name = "tauri-plugin-process"
+version = "2.0.0-beta.0"
+description = "Access the current process of your Tauri application."
+edition = "2021"
+authors = ["Tauri Programme within The Commons Conservancy"]
+license = "Apache-2.0 OR MIT"
+rust-version = "1.70"
+links = "tauri-plugin-process"
+
+[package.metadata.docs.rs]
+rustc-args = [ "--cfg", "docsrs" ]
+rustdoc-args = [ "--cfg", "docsrs" ]
+
+[build-dependencies]
+tauri-plugin = "2.0.0-beta.0"
+
+[dependencies]
+serialport = "4.3.0"
+tauri = "2.0.0-beta.1"
+serde = { version = "1.0.196", features = ["derive"] }
+thiserror = "1.0.56"

@@ -1,0 +1,11 @@
+cargo:rustc-cfg=dev
+cargo:rustc-cfg=desktop
+cargo:rustc-cfg=ipc_custom_protocol
+cargo:path__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:path-permission-files
+cargo:event__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:event-permission-files
+cargo:window__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:window-permission-files
+cargo:webview__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:webview-permission-files
+cargo:app__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:app-permission-files
+cargo:resources__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:resources-permission-files
+cargo:menu__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:menu-permission-files
+cargo:tray__CORE_PLUGIN___PERMISSION_FILES_PATH=/Users/s00d/packeges/process/target/debug/build/tauri-328c18043f4ecd63/out/tauri:tray-permission-files

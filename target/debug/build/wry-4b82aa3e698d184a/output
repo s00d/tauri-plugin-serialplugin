@@ -1,0 +1,3 @@
+cargo:rustc-link-lib=framework=WebKit
+cargo:rustc-cfg=macos
+cargo:rustc-cfg=apple

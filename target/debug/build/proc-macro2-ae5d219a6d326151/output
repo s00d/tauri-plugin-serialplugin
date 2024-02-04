@@ -1,0 +1,3 @@
+cargo:rustc-cfg=span_locations
+cargo:rerun-if-changed=build/probe.rs
+cargo:rustc-cfg=wrap_proc_macro
