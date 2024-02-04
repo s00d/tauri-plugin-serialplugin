@@ -1,94 +1,90 @@
-![plugin-process](https://github.com/tauri-apps/plugins-workspace/raw/v2/plugins/process/banner.png)
+Based on the provided code snippet and following the structure of the example you shared, here's a README for the Tauri plugin for serial port communication.
 
-This plugin provides APIs to access the current process. To spawn child processes, see the [`shell`](https://github.com/tauri-apps/tauri-plugin-shell) plugin.
+---
 
-## Install
+# Tauri Plugin - SerialPort
 
-_This plugin requires a Rust version of at least **1.70**_
+This plugin enables Tauri applications to communicate with serial ports, allowing for the reading and writing of data to and from connected serial devices. To manage child processes instead, consider using the [`shell`](https://github.com/tauri-apps/tauri-plugin-shell) plugin.
 
-There are three general methods of installation that we can recommend.
+## Installation
 
-1. Use crates.io and npm (easiest, and requires you to trust that our publishing pipeline worked)
-2. Pull sources directly from Github using git tags / revision hashes (most secure)
-3. Git submodule install this repo in your tauri project and then use file protocol to ingest the source (most secure, but inconvenient to use)
+_This plugin requires Rust version **1.70** or higher._
 
-Install the Core plugin by adding the following to your `Cargo.toml` file:
+There are three recommended methods for installing this plugin:
 
-`src-tauri/Cargo.toml`
+1. **Using crates.io and npm** (easiest, requires trust in our publishing pipeline)
+2. **Directly from GitHub using git tags/revision hashes** (most secure)
+3. **Git submodule in your Tauri project, then using the file protocol for source inclusion** (most secure but less convenient)
+
+### Core Plugin
+
+Add the following to your `Cargo.toml` file under `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-process = "2.0.0-beta"
-# alternatively with Git:
-tauri-plugin-process = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v2" }
+tauri-plugin-serialport = "2.0.0-beta"
 ```
 
-You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
+### JavaScript Bindings
 
-> Note: Since most JavaScript package managers are unable to install packages from git monorepos we provide read-only mirrors of each plugin. This makes installation option 2 more ergonomic to use.
+Install using your preferred package manager:
 
 ```sh
-pnpm add @tauri-apps/plugin-process
+pnpm add tauri-plugin-serialplugin
 # or
-npm add @tauri-apps/plugin-process
+npm add tauri-plugin-serialplugin
 # or
-yarn add @tauri-apps/plugin-process
+yarn add tauri-plugin-serialplugin
 
-# alternatively with Git:
-pnpm add https://github.com/tauri-apps/tauri-plugin-process#v2
+# For direct GitHub installation:
+pnpm add https://github.com/s00d/tauri-plugin-serialplugin#v2
 # or
-npm add https://github.com/tauri-apps/tauri-plugin-process#v2
+npm add https://github.com/s00d/tauri-plugin-serialplugin#v2
 # or
-yarn add https://github.com/tauri-apps/tauri-plugin-process#v2
+yarn add https://github.com/s00d/tauri-plugin-serialport#v2
 ```
 
 ## Usage
 
-First you need to register the core plugin with Tauri:
+First, register the core plugin within your Tauri application's main setup:
 
 `src-tauri/src/main.rs`
 
 ```rust
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_serialport::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 ```
 
-Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
+After registration, you can access the plugin's APIs through the provided JavaScript bindings:
 
 ```javascript
-import { exit, relaunch } from "@tauri-apps/plugin-process";
-// exit the app with the given status code
-await exit(0);
-// restart the app
-await relaunch();
+import { SerialPort } from "tauri-plugin-serialplugin";
+
+// Example: Listing available serial ports
+async function listPorts() {
+  const ports = await SerialPort.available_ports();
+  console.log(ports);
+}
+
+listPorts();
 ```
 
 ## Contributing
 
-PRs accepted. Please make sure to read the Contributing Guide before making a pull request.
+We welcome pull requests! Please ensure you read our Contributing Guide before submitting a pull request.
 
 ## Partners
 
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="middle">
-        <a href="https://crabnebula.dev" target="_blank">
-          <img src="https://github.com/tauri-apps/plugins-workspace/raw/v2/.github/sponsors/crabnebula.svg" alt="CrabNebula" width="283">
-        </a>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-For the complete list of sponsors please visit our [website](https://tauri.app#sponsors) and [Open Collective](https://opencollective.com/tauri).
+Support for this plugin is provided by our generous partners. For a complete list, please visit our [website](https://tauri.app#sponsors) and our [Open Collective](https://opencollective.com/tauri).
 
 ## License
 
-Code: (c) 2015 - Present - The Tauri Programme within The Commons Conservancy.
+This code is dual-licensed under MIT or Apache-2.0, where applicable, © 2019-2023 Tauri Programme within The Commons Conservancy.
 
-MIT or MIT/Apache 2.0 where applicable.
+---
+
+This README provides an overview, installation instructions, and basic usage examples for integrating serial port communication into a Tauri application. Further details and advanced usage should be documented based on the full capabilities of the plugin and its API.

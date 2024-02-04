@@ -2,22 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use crate::error::Error;
+use crate::state::{ReadData, SerialportInfo, SerialportState};
+use serialport::{DataBits, FlowControl, Parity, SerialPortType, StopBits};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::Duration;
-use serialport::{DataBits, FlowControl, Parity, SerialPortType, StopBits};
 use tauri::{AppHandle, Manager, Runtime, State, Window};
-use crate::error::Error;
-use crate::state::{ReadData, SerialportInfo, SerialportState};
-
 
 const UNKNOWN: &str = "Unknown";
 const USB: &str = "USB";
 const BLUETOOTH: &str = "Bluetooth";
 const PCI: &str = "PCI";
-
 
 /// `get_worksheet` gets the file sheet instance according to `path` and `sheet_name`.
 fn get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
@@ -28,11 +26,12 @@ fn get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
     match state.serialports.lock() {
         Ok(mut map) => match map.get_mut(&path) {
             Some(serialport_info) => f(serialport_info),
-            None => {
-                Err(Error::String("serial port not found".to_string()))
-            }
+            None => Err(Error::String("serial port not found".to_string())),
         },
-        Err(error) =>  Err(Error::String(format!("Failed to acquire file lock! {}", error))),
+        Err(error) => Err(Error::String(format!(
+            "Failed to acquire file lock! {}",
+            error
+        ))),
     }
 }
 
@@ -113,9 +112,18 @@ fn get_port_info(port: SerialPortType) -> HashMap<String, String> {
             port_info.insert("type".to_string(), USB.to_string());
             port_info.insert("vid".to_string(), info.vid.to_string());
             port_info.insert("pid".to_string(), info.pid.to_string());
-            port_info.insert("serial_number".to_string(), info.serial_number.unwrap_or_else(|| UNKNOWN.to_string()));
-            port_info.insert("manufacturer".to_string(), info.manufacturer.unwrap_or_else(|| UNKNOWN.to_string()));
-            port_info.insert("product".to_string(), info.product.unwrap_or_else(|| UNKNOWN.to_string()));
+            port_info.insert(
+                "serial_number".to_string(),
+                info.serial_number.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
+            port_info.insert(
+                "manufacturer".to_string(),
+                info.manufacturer.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
+            port_info.insert(
+                "product".to_string(),
+                info.product.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
         }
         SerialPortType::BluetoothPort => {
             port_info.insert("type".to_string(), BLUETOOTH.to_string());
@@ -165,7 +173,10 @@ pub async fn cancel_read<R: Runtime>(
             Some(sender) => match sender.send(1) {
                 Ok(_) => {}
                 Err(error) => {
-                    return Err(Error::String(format!("Failed to cancel serial port data reading: {}", error)));
+                    return Err(Error::String(format!(
+                        "Failed to cancel serial port data reading: {}",
+                        error
+                    )));
                 }
             },
             None => {}
@@ -192,9 +203,7 @@ pub fn close<R: Runtime>(
                 Err(Error::String(format!("Serial port {} is not open!", &path)))
             }
         }
-        Err(error) => {
-            Err(Error::String(format!("Failed to acquire lock: {}", error)))
-        }
+        Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
@@ -213,7 +222,10 @@ pub fn close_all<R: Runtime>(
                         Ok(_) => {}
                         Err(error) => {
                             println!("Failed to cancel serial port data reading: {}", error);
-                            return Err(Error::String(format!("Failed to cancel serial port data reading: {}", error)));
+                            return Err(Error::String(format!(
+                                "Failed to cancel serial port data reading: {}",
+                                error
+                            )));
                         }
                     }
                 }
@@ -221,9 +233,7 @@ pub fn close_all<R: Runtime>(
             map.clear();
             Ok(())
         }
-        Err(error) => {
-            Err(Error::String(format!("Failed to acquire lock: {}", error)))
-        }
+        Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
@@ -243,7 +253,10 @@ pub fn force_close<R: Runtime>(
                         Ok(_) => {}
                         Err(error) => {
                             println!("Failed to cancel serial port data reading: {}", error);
-                            return Err(Error::String(format!("Failed to cancel serial port data reading: {}", error)));
+                            return Err(Error::String(format!(
+                                "Failed to cancel serial port data reading: {}",
+                                error
+                            )));
                         }
                     }
                 }
@@ -253,9 +266,7 @@ pub fn force_close<R: Runtime>(
                 Ok(())
             }
         }
-        Err(error) => {
-            Err(Error::String(format!("Failed to acquire lock: {}", error)))
-        }
+        Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
@@ -297,14 +308,11 @@ pub fn open<R: Runtime>(
                 }
                 Err(error) => Err(Error::String(format!(
                     "Failed to create {} serial port: {}",
-                    path,
-                    error.description
+                    path, error.description
                 ))),
             }
         }
-        Err(error) => {
-            Err(Error::String(format!("Failed to acquire lock: {}", error)))
-        }
+        Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
@@ -345,9 +353,12 @@ pub fn read<R: Runtime>(
                                         &disconnected_event,
                                         format!("Serial port {} disconnected!", &path),
                                     ) {
-                                        Ok(_) => {},
+                                        Ok(_) => {}
                                         Err(error) => {
-                                            println!("Failed to send disconnection event: {}", error)
+                                            println!(
+                                                "Failed to send disconnection event: {}",
+                                                error
+                                            )
                                         }
                                     }
                                     break;
@@ -380,12 +391,15 @@ pub fn read<R: Runtime>(
                     });
                 }
                 Err(error) => {
-                    return Err(Error::String(format!("Failed to read {} serial port: {}", &path, error)));
+                    return Err(Error::String(format!(
+                        "Failed to read {} serial port: {}",
+                        &path, error
+                    )));
                     match window.emit(
                         &disconnected_event,
                         format!("Serial port {} disconnected!", &path),
                     ) {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(error) => {
                             println!("Failed to send disconnection event: {}", error)
                         }
@@ -408,26 +422,25 @@ pub fn write<R: Runtime>(
 ) -> Result<usize, Error> {
     let event_path = path.replace(".", "");
     let disconnected_event = format!("plugin-serialport-disconnected-{}", &event_path);
-    get_serialport(state, path.clone(), |serialport_info| {
-        match serialport_info.serialport.write(value.as_bytes()) {
-            Ok(size) => {
-                Ok(size)
-            }
-            Err(error) => {
-                match _window.emit(
-                    &disconnected_event,
-                    format!("Serial port {} disconnected!", &path),
-                ) {
-                    Ok(_) => {},
-                    Err(error) => {
-                        println!("Failed to send disconnection event: {}", error)
-                    }
+    get_serialport(state, path.clone(), |serialport_info| match serialport_info
+        .serialport
+        .write(value.as_bytes())
+    {
+        Ok(size) => Ok(size),
+        Err(error) => {
+            match _window.emit(
+                &disconnected_event,
+                format!("Serial port {} disconnected!", &path),
+            ) {
+                Ok(_) => {}
+                Err(error) => {
+                    println!("Failed to send disconnection event: {}", error)
                 }
-                Err(Error::String(format!(
-                    "Failed to write data to serial port {}: {}",
-                    &path, error
-                )))
             }
+            Err(Error::String(format!(
+                "Failed to write data to serial port {}: {}",
+                &path, error
+            )))
         }
     })
 }
@@ -445,14 +458,10 @@ pub fn write_binary<R: Runtime>(
         .serialport
         .write(&value)
     {
-        Ok(size) => {
-            Ok(size)
-        }
-        Err(error) => {
-            Err(Error::String(format!(
-                "Failed to write data to serial port {}: {}",
-                &path, error
-            )))
-        }
+        Ok(size) => Ok(size),
+        Err(error) => Err(Error::String(format!(
+            "Failed to write data to serial port {}: {}",
+            &path, error
+        ))),
     })
 }

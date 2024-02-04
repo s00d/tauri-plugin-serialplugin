@@ -11,20 +11,22 @@
     html_favicon_url = "https://github.com/tauri-apps/tauri/raw/dev/app-icon.png"
 )]
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use tauri::{Manager, plugin::{Builder, TauriPlugin}, Runtime};
 use crate::commands::*;
 use crate::state::SerialportState;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use tauri::{
+    plugin::{Builder, TauriPlugin},
+    Manager, Runtime,
+};
 
 mod commands;
-mod state;
 mod error;
-
+mod state;
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialport")
-        .js_init_script(include_str!("guest-js/index.ts").to_string())
+        .js_init_script(include_str!("api-iife.js").to_string())
         .invoke_handler(tauri::generate_handler![
             available_ports,
             cancel_read,
@@ -44,4 +46,3 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         })
         .build()
 }
-
