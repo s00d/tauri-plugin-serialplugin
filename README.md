@@ -53,7 +53,7 @@ First, register the core plugin within your Tauri application's main setup:
 ```rust
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_serialport::init())
+        .plugin(tauri_plugin_serialplugin::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
