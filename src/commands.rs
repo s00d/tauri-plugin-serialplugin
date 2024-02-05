@@ -391,10 +391,7 @@ pub fn read<R: Runtime>(
                     });
                 }
                 Err(error) => {
-                    return Err(Error::String(format!(
-                        "Failed to read {} serial port: {}",
-                        &path, error
-                    )));
+
                     match window.emit(
                         &disconnected_event,
                         format!("Serial port {} disconnected!", &path),
@@ -404,6 +401,10 @@ pub fn read<R: Runtime>(
                             println!("Failed to send disconnection event: {}", error)
                         }
                     }
+                    return Err(Error::String(format!(
+                        "Failed to read {} serial port: {}",
+                        &path, error
+                    )));
                 }
             }
             Ok(())

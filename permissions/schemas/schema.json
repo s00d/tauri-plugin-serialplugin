@@ -371,6 +371,13 @@
           "enum": [
             "deny-write-binary"
           ]
+        },
+        {
+          "description": "default -> serialport connector",
+          "type": "string",
+          "enum": [
+            "default"
+          ]
         }
       ]
     }

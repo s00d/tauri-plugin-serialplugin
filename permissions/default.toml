@@ -1,0 +1,4 @@
+"$schema" = "schemas/schema.json"
+[default]
+description = "serialport connector"
+permissions = ["available_ports", "cancel_read", "close", "close_all", "force_close", "open", "read", "write", "write_binary"]

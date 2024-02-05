@@ -72,3 +72,7 @@ Enables the write_binary command without any pre-configured scope.
 
 Denies the write_binary command without any pre-configured scope.
 
+## default
+
+serialport connector
+
