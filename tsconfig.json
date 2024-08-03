@@ -9,5 +9,5 @@
     "noImplicitAny": true,
     "noEmit": true
   },
-  "exclude": ["dist-js", "node_modules", "test/types"]
+  "exclude": ["dist-js", "node_modules", "test/types", "examples"]
 }

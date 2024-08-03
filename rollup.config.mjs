@@ -41,8 +41,6 @@ export function createConfig(options = {}) {
         .replace(/-./g, (x) => x[1].toUpperCase());
     const iifeVarName = `__TAURI_PLUGIN_${pluginJsName.toUpperCase()}__`;
 
-    console.log(111, pkg.exports.import.split("/"))
-
     return [
         {
             input,

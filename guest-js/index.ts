@@ -95,7 +95,7 @@ class SerialPort {
    */
   static async available_ports(): Promise<{ [key: string]: PortInfo }> {
     try {
-      const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialport|available_ports');
+      const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports');
       for (const path in tester_ports) {
         result[path] = {
           manufacturer: "tester",
@@ -122,7 +122,7 @@ class SerialPort {
       delete tester_ports[path]
       return Promise.resolve();
     }
-    return await invoke<void>('plugin:serialport|force_close', {
+    return await invoke<void>('plugin:serialplugin|force_close', {
       path,
     });
   }
@@ -133,7 +133,7 @@ class SerialPort {
    */
   static async closeAll(): Promise<void> {
     tester_ports = {};
-    return await invoke<void>('plugin:serialport|close_all');
+    return await invoke<void>('plugin:serialplugin|close_all');
   }
 
   /**
@@ -162,7 +162,7 @@ class SerialPort {
       return Promise.resolve();
     }
     try {
-      return await invoke<void>('plugin:serialport|cancel_read', {
+      return await invoke<void>('plugin:serialplugin|cancel_read', {
         path: this.options.path,
       });
     } catch (error) {
@@ -209,7 +209,7 @@ class SerialPort {
       await this.cancelRead();
       let res = undefined;
       if (!this.is_test) {
-        res = await invoke<void>('plugin:serialport|close', {
+        res = await invoke<void>('plugin:serialplugin|close', {
           path: this.options.path,
         });
       }
@@ -303,7 +303,7 @@ class SerialPort {
       if (this.is_test) {
         tester_ports[this.options.path] = this
       } else {
-        res = await invoke<void>('plugin:serialport|open', {
+        res = await invoke<void>('plugin:serialplugin|open', {
           path: this.options.path,
           baudRate: this.options.baudRate,
           dataBits: this.options.dataBits,
@@ -337,7 +337,7 @@ class SerialPort {
         if(tester_listeners[this.options.path!]) tester_listeners[this.options.path!](resp)
         return Promise.resolve();
       }
-      return await invoke<void>('plugin:serialport|read', {
+      return await invoke<void>('plugin:serialplugin|read', {
         path: this.options.path,
         timeout: options?.timeout || this.options.timeout,
         size: options?.size || this.size,
@@ -406,7 +406,7 @@ class SerialPort {
         return Promise.resolve(2); // todo add resp
       }
 
-      return await invoke<number>('plugin:serialport|write', {
+      return await invoke<number>('plugin:serialplugin|write', {
         value,
         path: this.options.path,
       });
@@ -429,7 +429,7 @@ class SerialPort {
         if (this.is_test) {
           return Promise.resolve(2); // todo add resp
         }
-        return await invoke<number>('plugin:serialport|write_binary', {
+        return await invoke<number>('plugin:serialplugin|write_binary', {
           value: Array.from(value),
           path: this.options.path,
         });

@@ -1,4 +1,27 @@
 "$schema" = "schemas/schema.json"
 [default]
-description = "serialport connector"
-permissions = ["available_ports", "cancel_read", "close", "close_all", "force_close", "open", "read", "write", "write_binary"]
+description = """
+# Tauri `serialport` default permissions
+
+This configuration file defines the default permissions granted
+to the serialport.
+
+### Granted Permissions
+
+This default permission set enables all read-related commands and
+allows access to the `$APP` folder and sub directories created in it.
+The location of the `$APP` folder depends on the operating system,
+where the application is run.
+
+In general the `$APP` folder needs to be manually created
+by the application at runtime, before accessing files or folders
+in it is possible.
+
+### Denied Permissions
+
+This default permission set prevents access to critical components
+of the Tauri application by default.
+On Windows the webview data folder access is denied.
+
+"""
+permissions = ["allow-available-ports", "allow-cancel-read", "allow-close", "allow-close-all", "allow-force-close", "allow-open", "allow-read", "allow-write", "allow-write-binary"]

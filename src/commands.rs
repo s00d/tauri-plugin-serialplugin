@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::thread;
 use std::time::Duration;
-use tauri::{AppHandle, Manager, Runtime, State, Window};
+use tauri::{AppHandle, Emitter, Runtime, State, Window};
 
 const UNKNOWN: &str = "Unknown";
 const USB: &str = "USB";
@@ -327,7 +327,7 @@ pub fn read<R: Runtime>(
     size: Option<usize>,
 ) -> Result<(), Error> {
     let event_path = path.replace(".", "");
-    let disconnected_event = format!("plugin-serialport-disconnected-{}", &event_path);
+    let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
     get_serialport(state.clone(), path.clone(), |serialport_info| {
         if serialport_info.sender.is_some() {
             println!("Serial port {} is already reading data!", &path);
@@ -337,7 +337,7 @@ pub fn read<R: Runtime>(
             match serialport_info.serialport.try_clone() {
                 Ok(mut serial) => {
                     let event_path = path.replace(".", "");
-                    let read_event = format!("plugin-serialport-read-{}", &event_path);
+                    let read_event = format!("plugin-serialplugin-read-{}", &event_path);
                     let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
                     serialport_info.sender = Some(tx);
                     thread::spawn(move || loop {
@@ -422,7 +422,7 @@ pub fn write<R: Runtime>(
     value: String,
 ) -> Result<usize, Error> {
     let event_path = path.replace(".", "");
-    let disconnected_event = format!("plugin-serialport-disconnected-{}", &event_path);
+    let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
     get_serialport(state, path.clone(), |serialport_info| match serialport_info
         .serialport
         .write(value.as_bytes())
