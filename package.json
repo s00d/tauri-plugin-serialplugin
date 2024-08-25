@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.0.0-rc.1",
+  "version": "2.0.0-rc.2",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -26,7 +26,7 @@
     "@rollup/plugin-node-resolve": "15.2.3",
     "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "11.1.6",
-    "rollup": "4.20.0",
+    "rollup": "4.21.0",
     "tslib": "^2.6.3",
     "typescript": "5.5.4"
   },
