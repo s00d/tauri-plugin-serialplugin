@@ -34,7 +34,7 @@ On Windows the webview data folder access is denied.
 - `allow-write`
 - `allow-write-binary`
 
-### Permission Table 
+## Permission Table 
 
 <table>
 <tr>
