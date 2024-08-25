@@ -224,7 +224,7 @@ class SerialPort {
 
   async disconnected(fn: (...args: any[]) => void): Promise<void> {
     let sub_path = this.options.path?.toString().replace(/\.+/, '')
-    let checkEvent = `plugin-serialport-disconnected-${sub_path}`;
+    let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
     console.log('listen event: ' + checkEvent)
     let unListen: any = await appWindow.listen<ReadDataResult>(
         checkEvent,
@@ -250,7 +250,7 @@ class SerialPort {
     try {
       await this.cancelListen();
       let sub_path = this.options.path?.toString().replace(/\.+/, '')
-      let readEvent = `plugin-serialport-read-${sub_path}`;
+      let readEvent = `plugin-serialplugin-read-${sub_path}`;
       console.log('listen event: ' + readEvent)
 
       if (this.is_test) {

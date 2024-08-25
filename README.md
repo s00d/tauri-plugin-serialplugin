@@ -37,7 +37,7 @@ pnpm add https://github.com/s00d/tauri-plugin-serialplugin#main
 # or
 npm add https://github.com/s00d/tauri-plugin-serialplugin#main
 # or
-yarn add https://github.com/s00d/tauri-plugin-serialport#main
+yarn add https://github.com/s00d/tauri-plugin-serialplugin#main
 ```
 
 ## Usage
