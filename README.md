@@ -83,6 +83,7 @@ The `serialplugin:default` permission allows basic usage of the plugin. If you n
   "permissions": [
     "core:default",
     "serialplugin:allow-available-ports",
+    "serialplugin:allow-available-ports-direct",
     "serialplugin:allow-cancel-read",
     "serialplugin:allow-close",
     "serialplugin:allow-close-all",
@@ -97,26 +98,28 @@ The `serialplugin:default` permission allows basic usage of the plugin. If you n
 
 ### Permission Descriptions
 
-| Permission                            | Description                                      |
-|---------------------------------------|--------------------------------------------------|
-| `serialplugin:allow-available-ports`  | Allows listing of available serial ports         |
-| `serialplugin:deny-available-ports`   | Denies listing of available serial ports         |
-| `serialplugin:allow-cancel-read`      | Allows canceling of read operations              |
-| `serialplugin:deny-cancel-read`       | Denies canceling of read operations              |
-| `serialplugin:allow-close`            | Allows closing of serial ports                   |
-| `serialplugin:deny-close`             | Denies closing of serial ports                   |
-| `serialplugin:allow-close-all`        | Allows closing of all open serial ports          |
-| `serialplugin:deny-close-all`         | Denies closing of all open serial ports          |
-| `serialplugin:allow-force-close`      | Allows forcefully closing of serial ports        |
-| `serialplugin:deny-force-close`       | Denies forcefully closing of serial ports        |
-| `serialplugin:allow-open`             | Allows opening of serial ports                   |
-| `serialplugin:deny-open`              | Denies opening of serial ports                   |
-| `serialplugin:allow-read`             | Allows reading data from serial ports            |
-| `serialplugin:deny-read`              | Denies reading data from serial ports            |
-| `serialplugin:allow-write`            | Allows writing data to serial ports              |
-| `serialplugin:deny-write`             | Denies writing data to serial ports              |
-| `serialplugin:allow-write-binary`     | Allows writing binary data to serial ports       |
-| `serialplugin:deny-write-binary`      | Denies writing binary data to serial ports       |
+| Permission                                  | Description                                                                    |
+|---------------------------------------------|--------------------------------------------------------------------------------|
+| `serialplugin:allow-available-ports`        | Allows listing of available serial ports                                       |
+| `serialplugin:deny-available-ports`         | Denies listing of available serial ports                                       |
+| `serialplugin:allow-cancel-read`            | Allows canceling of read operations                                            |
+| `serialplugin:deny-cancel-read`             | Denies canceling of read operations                                            |
+| `serialplugin:allow-close`                  | Allows closing of serial ports                                                 |
+| `serialplugin:deny-close`                   | Denies closing of serial ports                                                 |
+| `serialplugin:allow-close-all`              | Allows closing of all open serial ports                                        |
+| `serialplugin:deny-close-all`               | Denies closing of all open serial ports                                        |
+| `serialplugin:allow-force-close`            | Allows forcefully closing of serial ports                                      |
+| `serialplugin:deny-force-close`             | Denies forcefully closing of serial ports                                      |
+| `serialplugin:allow-open`                   | Allows opening of serial ports                                                 |
+| `serialplugin:deny-open`                    | Denies opening of serial ports                                                 |
+| `serialplugin:allow-read`                   | Allows reading data from serial ports                                          |
+| `serialplugin:deny-read`                    | Denies reading data from serial ports                                          |
+| `serialplugin:allow-write`                  | Allows writing data to serial ports                                            |
+| `serialplugin:deny-write`                   | Denies writing data to serial ports                                            |
+| `serialplugin:allow-write-binary`           | Allows writing binary data to serial ports                                     |
+| `serialplugin:deny-write-binary`            | Denies writing binary data to serial ports                                     |
+| `serialplugin:allow-available-ports-direct` | Enables the `available_ports_direct` command without any pre-configured scope. |
+| `serialplugin:deny-available-ports-direct`  | Denies the `available_ports_direct` command without any pre-configured scope.  |
 
 ## Example Application
 
