@@ -36,6 +36,16 @@
         console.error(err);
       });
   }
+
+   function available_ports_direct() {
+      SerialPort.available_ports_direct()
+        .then((res) => {
+          console.log('available_ports_direct: ', res);
+        })
+        .catch((err) => {
+          console.error(err);
+        });
+    }
 </script>
 
 <main class="container">
@@ -48,6 +58,10 @@
   <div class="row">
     <button on:click={available_ports}>Scan Ports</button>
   </div>
+
+  <div class="row">
+      <button on:click={available_ports_direct}>Scan Ports Direct</button>
+    </div>
 
   <div class="row">
     <button on:click={openPort}>Connect</button>

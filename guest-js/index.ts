@@ -113,6 +113,29 @@ class SerialPort {
   }
 
   /**
+   * @description: Get serial port list direct
+   * @return {Promise<string[]>}
+   */
+  static async available_ports_direct(): Promise<{ [key: string]: PortInfo }> {
+    try {
+      const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports_direct');
+      for (const path in tester_ports) {
+        result[path] = {
+          manufacturer: "tester",
+          pid: "tester",
+          product: "tester",
+          serial_number: "tester",
+          type: "USB",
+          vid: "tester",
+        } as PortInfo
+      }
+      return Promise.resolve(result)
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * @description: force close
    * @param {string} path
    * @return {Promise<void>}

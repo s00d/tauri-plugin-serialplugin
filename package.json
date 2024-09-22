@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.0.0-rc.2",
+  "version": "2.0.0-rc.4",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -20,7 +20,7 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@tauri-apps/api": "2.0.0-rc.0"
+    "@tauri-apps/api": "2.0.0-rc.5"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "15.2.3",
