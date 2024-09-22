@@ -148,6 +148,10 @@ Lists all available serial ports.
 
 Forcefully closes the specified serial port.
 
+#### `SerialPort.available_ports_direct()`
+
+Retrieves a list of available serial ports using platform-specific commands. This method serves as a fallback in case `available_ports` fails to return results. It checks for connected serial ports on Windows, Linux, and macOS, returning their names in a `HashMap` format where the key is the port name and the value contains additional information about the port.
+
 #### `SerialPort.closeAll()`
 
 Closes all open serial ports.

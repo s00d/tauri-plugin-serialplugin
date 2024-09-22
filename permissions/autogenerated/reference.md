@@ -25,6 +25,7 @@ On Windows the webview data folder access is denied.
 
 
 - `allow-available-ports`
+- `allow-available-ports-direct`
 - `allow-cancel-read`
 - `allow-close`
 - `allow-close-all`
@@ -65,6 +66,32 @@ Enables the available_ports command without any pre-configured scope.
 <td>
 
 Denies the available_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-available-ports-direct`
+
+</td>
+<td>
+
+Enables the available_ports_direct command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-available-ports-direct`
+
+</td>
+<td>
+
+Denies the available_ports_direct command without any pre-configured scope.
 
 </td>
 </tr>

@@ -160,6 +160,78 @@ pub fn available_ports() -> HashMap<String, HashMap<String, String>> {
     result_list
 }
 
+
+#[tauri::command]
+pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
+    let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::process::Command;
+
+        let output = Command::new("wmic")
+            .arg("path")
+            .arg("Win32_SerialPort")
+            .arg("get")
+            .arg("DeviceID")
+            .output()
+            .expect("Failed to execute command");
+
+        let ports = String::from_utf8_lossy(&output.stdout);
+        for line in ports.lines().skip(1) {
+            let port_name = line.trim();
+            if !port_name.is_empty() {
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "Unknown".to_string());
+                result_list.insert(port_name.to_string(), port_info);
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::process::Command;
+
+        let output = Command::new("ls")
+            .arg("/dev")
+            .output()
+            .expect("Failed to execute command");
+
+        let ports = String::from_utf8_lossy(&output.stdout);
+        for line in ports.lines() {
+            if line.starts_with("tty") || line.starts_with("cu") {
+                let port_name = line.to_string();
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "Unknown".to_string());
+                result_list.insert(port_name.clone(), port_info);
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let output = Command::new("ls")
+            .arg("/dev")
+            .output()
+            .expect("Failed to execute command");
+
+        let ports = String::from_utf8_lossy(&output.stdout);
+        for line in ports.lines() {
+            if line.starts_with("tty") || line.starts_with("cu") {
+                let port_name = line.to_string();
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "Unknown".to_string());
+                result_list.insert(port_name.clone(), port_info);
+            }
+        }
+    }
+
+    println!("Serial port list: {:?}", &result_list);
+    result_list
+}
+
 /// `cacel_read` cancel serial port data reading
 #[tauri::command]
 pub async fn cancel_read<R: Runtime>(

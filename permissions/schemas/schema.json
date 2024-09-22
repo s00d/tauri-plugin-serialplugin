@@ -295,137 +295,109 @@
       "type": "string",
       "oneOf": [
         {
-          "description": "allow-available-ports -> Enables the available_ports command without any pre-configured scope.",
+          "description": "Enables the available_ports command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-available-ports"
-          ]
+          "const": "allow-available-ports"
         },
         {
-          "description": "deny-available-ports -> Denies the available_ports command without any pre-configured scope.",
+          "description": "Denies the available_ports command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-available-ports"
-          ]
+          "const": "deny-available-ports"
         },
         {
-          "description": "allow-cancel-read -> Enables the cancel_read command without any pre-configured scope.",
+          "description": "Enables the available_ports_direct command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-cancel-read"
-          ]
+          "const": "allow-available-ports-direct"
         },
         {
-          "description": "deny-cancel-read -> Denies the cancel_read command without any pre-configured scope.",
+          "description": "Denies the available_ports_direct command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-cancel-read"
-          ]
+          "const": "deny-available-ports-direct"
         },
         {
-          "description": "allow-close -> Enables the close command without any pre-configured scope.",
+          "description": "Enables the cancel_read command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-close"
-          ]
+          "const": "allow-cancel-read"
         },
         {
-          "description": "deny-close -> Denies the close command without any pre-configured scope.",
+          "description": "Denies the cancel_read command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-close"
-          ]
+          "const": "deny-cancel-read"
         },
         {
-          "description": "allow-close-all -> Enables the close_all command without any pre-configured scope.",
+          "description": "Enables the close command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-close-all"
-          ]
+          "const": "allow-close"
         },
         {
-          "description": "deny-close-all -> Denies the close_all command without any pre-configured scope.",
+          "description": "Denies the close command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-close-all"
-          ]
+          "const": "deny-close"
         },
         {
-          "description": "allow-force-close -> Enables the force_close command without any pre-configured scope.",
+          "description": "Enables the close_all command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-force-close"
-          ]
+          "const": "allow-close-all"
         },
         {
-          "description": "deny-force-close -> Denies the force_close command without any pre-configured scope.",
+          "description": "Denies the close_all command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-force-close"
-          ]
+          "const": "deny-close-all"
         },
         {
-          "description": "allow-open -> Enables the open command without any pre-configured scope.",
+          "description": "Enables the force_close command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-open"
-          ]
+          "const": "allow-force-close"
         },
         {
-          "description": "deny-open -> Denies the open command without any pre-configured scope.",
+          "description": "Denies the force_close command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-open"
-          ]
+          "const": "deny-force-close"
         },
         {
-          "description": "allow-read -> Enables the read command without any pre-configured scope.",
+          "description": "Enables the open command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-read"
-          ]
+          "const": "allow-open"
         },
         {
-          "description": "deny-read -> Denies the read command without any pre-configured scope.",
+          "description": "Denies the open command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-read"
-          ]
+          "const": "deny-open"
         },
         {
-          "description": "allow-write -> Enables the write command without any pre-configured scope.",
+          "description": "Enables the read command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-write"
-          ]
+          "const": "allow-read"
         },
         {
-          "description": "deny-write -> Denies the write command without any pre-configured scope.",
+          "description": "Denies the read command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-write"
-          ]
+          "const": "deny-read"
         },
         {
-          "description": "allow-write-binary -> Enables the write_binary command without any pre-configured scope.",
+          "description": "Enables the write command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "allow-write-binary"
-          ]
+          "const": "allow-write"
         },
         {
-          "description": "deny-write-binary -> Denies the write_binary command without any pre-configured scope.",
+          "description": "Denies the write command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "deny-write-binary"
-          ]
+          "const": "deny-write"
         },
         {
-          "description": "default -> # Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n",
+          "description": "Enables the write_binary command without any pre-configured scope.",
           "type": "string",
-          "enum": [
-            "default"
-          ]
+          "const": "allow-write-binary"
+        },
+        {
+          "description": "Denies the write_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-write-binary"
+        },
+        {
+          "description": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n",
+          "type": "string",
+          "const": "default"
         }
       ]
     }

@@ -28,6 +28,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialplugin")
         .js_init_script(include_str!("api-iife.js").to_string())
         .invoke_handler(tauri::generate_handler![
+            available_ports_direct,
             available_ports,
             cancel_read,
             close,
