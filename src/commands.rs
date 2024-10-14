@@ -160,7 +160,6 @@ pub fn available_ports() -> HashMap<String, HashMap<String, String>> {
     result_list
 }
 
-
 #[tauri::command]
 pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -169,21 +168,51 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        let output = Command::new("wmic")
+        // Получаем все USB-порты
+        let usb_output = Command::new("wmic")
             .arg("path")
-            .arg("Win32_SerialPort")
+            .arg("Win32_PnPEntity")
+            .arg("where")
+            .arg("PNPDeviceID like '%USB%' and Name like '%(COM%'")
             .arg("get")
-            .arg("DeviceID")
+            .arg("Name,DeviceID")
             .output()
             .expect("Failed to execute command");
 
-        let ports = String::from_utf8_lossy(&output.stdout);
-        for line in ports.lines().skip(1) {
-            let port_name = line.trim();
-            if !port_name.is_empty() {
-                let mut port_info = HashMap::new();
-                port_info.insert("type".to_string(), "Unknown".to_string());
-                result_list.insert(port_name.to_string(), port_info);
+        let usb_devices = String::from_utf8_lossy(&usb_output.stdout);
+        for line in usb_devices.lines().skip(1) {
+            let device_info = line.trim();
+            if !device_info.is_empty() {
+                let parts: Vec<&str> = device_info.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let port_name = parts[1].trim();
+                    let mut port_info = HashMap::new();
+                    port_info.insert("type".to_string(), "USB".to_string());
+                    result_list.insert(port_name.to_string(), port_info);
+                }
+            }
+        }
+
+        // Получаем все COM-порты
+        let com_output = Command::new("wmic")
+            .arg("path")
+            .arg("Win32_SerialPort")
+            .arg("get")
+            .arg("DeviceID,Name")
+            .output()
+            .expect("Failed to execute command");
+
+        let com_devices = String::from_utf8_lossy(&com_output.stdout);
+        for line in com_devices.lines().skip(1) {
+            let device_info = line.trim();
+            if !device_info.is_empty() {
+                let parts: Vec<&str> = device_info.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let port_name = parts[0].trim();
+                    let mut port_info = HashMap::new();
+                    port_info.insert("type".to_string(), "COM".to_string());
+                    result_list.insert(port_name.to_string(), port_info);
+                }
             }
         }
     }
@@ -192,18 +221,42 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        let output = Command::new("ls")
+        // Получаем USB устройства через lsusb
+        let output = Command::new("lsusb")
+            .output()
+            .expect("Failed to execute lsusb command");
+
+        let usb_devices = String::from_utf8_lossy(&output.stdout);
+        for line in usb_devices.lines() {
+            if line.contains("Serial") || line.contains("USB") {
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "USB".to_string());
+                result_list.insert(line.to_string(), port_info);
+            }
+        }
+
+        // Получаем последовательные порты через /dev
+        let dev_output = Command::new("ls")
             .arg("/dev")
             .output()
-            .expect("Failed to execute command");
+            .expect("Failed to execute ls command");
 
-        let ports = String::from_utf8_lossy(&output.stdout);
-        for line in ports.lines() {
-            if line.starts_with("tty") || line.starts_with("cu") {
-                let port_name = line.to_string();
+        let dev_ports = String::from_utf8_lossy(&dev_output.stdout);
+        for line in dev_ports.lines() {
+            if line.starts_with("ttyUSB") || line.starts_with("ttyS") {
                 let mut port_info = HashMap::new();
-                port_info.insert("type".to_string(), "Unknown".to_string());
-                result_list.insert(port_name.clone(), port_info);
+                port_info.insert("type".to_string(), if line.starts_with("ttyUSB") { "USB" } else { "COM" }.to_string());
+                result_list.insert(line.to_string(), port_info);
+            }
+            if line.starts_with("rfcomm") {
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "Bluetooth".to_string());
+                result_list.insert(line.to_string(), port_info);
+            }
+            if line.starts_with("ttyACM") {
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "Virtual".to_string());
+                result_list.insert(line.to_string(), port_info);
             }
         }
     }
@@ -212,23 +265,45 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        let output = Command::new("ls")
+        // Получаем USB устройства через system_profiler
+        let output = Command::new("system_profiler")
+            .arg("SPUSBDataType")
+            .output()
+            .expect("Failed to execute system_profiler");
+
+        let usb_devices = String::from_utf8_lossy(&output.stdout);
+        for line in usb_devices.lines() {
+            if line.contains("Serial") || line.contains("USB") {
+                let mut port_info = HashMap::new();
+                port_info.insert("type".to_string(), "USB".to_string());
+                result_list.insert(line.to_string(), port_info);
+            }
+        }
+
+        // Проверяем устройства в /dev
+        let dev_output = Command::new("ls")
             .arg("/dev")
             .output()
-            .expect("Failed to execute command");
+            .expect("Failed to execute ls command");
 
-        let ports = String::from_utf8_lossy(&output.stdout);
-        for line in ports.lines() {
-            if line.starts_with("tty") || line.starts_with("cu") {
-                let port_name = line.to_string();
+        let dev_ports = String::from_utf8_lossy(&dev_output.stdout);
+        for line in dev_ports.lines() {
+            // Фильтрация только актуальных последовательных портов
+            if line.starts_with("cu.") || line.starts_with("tty.") {
                 let mut port_info = HashMap::new();
-                port_info.insert("type".to_string(), "Unknown".to_string());
-                result_list.insert(port_name.clone(), port_info);
+                if line.contains("Bluetooth") {
+                    port_info.insert("type".to_string(), "Bluetooth".to_string());
+                } else if line.starts_with("cu.") {
+                    port_info.insert("type".to_string(), "USB".to_string());
+                } else {
+                    port_info.insert("type".to_string(), "COM".to_string());
+                }
+                result_list.insert(line.to_string(), port_info);
             }
         }
     }
 
-    println!("Serial port list: {:?}", &result_list);
+    println!("Port list: {:?}", &result_list);
     result_list
 }
 
