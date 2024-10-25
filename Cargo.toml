@@ -7,6 +7,7 @@ authors = ["Tauri Programme within The Commons Conservancy"]
 license = "Apache-2.0 OR MIT"
 rust-version = "1.70"
 links = "tauri-plugin-serialplugin"
+repository = "https://github.com/s00d/tauri-plugin-serialplugin"
 
 [package.metadata.docs.rs]
 rustc-args = [ "--cfg", "docsrs" ]
