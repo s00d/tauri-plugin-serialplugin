@@ -18,7 +18,7 @@ Add the following to your `Cargo.toml` file under `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-serialplugin = "2.0.1"
+tauri-plugin-serialplugin = "2.0.2"
 ```
 
 ### JavaScript Bindings
