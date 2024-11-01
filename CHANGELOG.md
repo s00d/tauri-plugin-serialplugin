@@ -26,7 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `clear_buffer`: Clear input/output buffers
     - `set_break`: Start break signal
     - `clear_break`: Stop break signal
-- Comprehensive test suite with mocks
 - New permissions for all added methods
 - Enhanced error handling for serial port operations
 
