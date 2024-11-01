@@ -1,11 +1,65 @@
 # Changelog
 
-## \[2.0.1]
+All notable changes to this project will be documented in this file.
 
-- update deps
-- update available_ports_direct logic
-- update test ui
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## \[2.0.0-rc.3]
+## [2.1.0] - 2024-11-01
 
-- add available_ports_direct
+### Added
+- New serial port control methods:
+    - `set_baud_rate`: Set the baud rate
+    - `set_data_bits`: Set the data bits configuration
+    - `set_flow_control`: Set the flow control mode
+    - `set_parity`: Set the parity checking mode
+    - `set_stop_bits`: Set the stop bits configuration
+    - `set_timeout`: Set the timeout duration
+    - `write_request_to_send`: Set RTS control signal
+    - `write_data_terminal_ready`: Set DTR control signal
+    - `read_clear_to_send`: Read CTS signal state
+    - `read_data_set_ready`: Read DSR signal state
+    - `read_ring_indicator`: Read RI signal state
+    - `read_carrier_detect`: Read CD signal state
+    - `bytes_to_read`: Get available bytes to read
+    - `bytes_to_write`: Get bytes waiting to be written
+    - `clear_buffer`: Clear input/output buffers
+    - `set_break`: Start break signal
+    - `clear_break`: Stop break signal
+- Comprehensive test suite with mocks
+- New permissions for all added methods
+- Enhanced error handling for serial port operations
+
+### Changed
+- Improved error handling system
+- Restructured project architecture
+- Enhanced documentation for all methods
+- Updated TypeScript definitions with JSDoc comments
+
+### Fixed
+- Error conversion between serialport and internal errors
+- Type conversion issues in serial port operations
+
+## [2.0.2] - 2023-12-20
+
+### Added
+- Support for direct port scanning on Windows, Linux, and macOS
+
+### Changed
+- Updated dependencies to latest versions
+- Improved error messages
+
+### Fixed
+- Port detection issues on various platforms
+
+## [2.0.1] - 2023-12-10
+
+### Changed
+- Updated dependencies
+- Improved available_ports_direct logic
+- Updated test UI
+
+## [2.0.0-rc.3] - 2023-12-01
+
+### Added
+- Initial implementation of available_ports_direct

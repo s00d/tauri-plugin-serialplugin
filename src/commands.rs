@@ -4,7 +4,9 @@
 
 use crate::error::Error;
 use crate::state::{ReadData, SerialportInfo, SerialportState};
-use serialport::{DataBits, FlowControl, Parity, SerialPortType, StopBits};
+use serde::{Deserialize, Serialize};
+use serialport::{DataBits as SerialDataBits, FlowControl as SerialFlowControl,
+                 Parity as SerialParity, StopBits as SerialStopBits, ClearBuffer as SerialClearBuffer};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
@@ -17,129 +19,112 @@ const USB: &str = "USB";
 const BLUETOOTH: &str = "Bluetooth";
 const PCI: &str = "PCI";
 
-/// `get_worksheet` gets the file sheet instance according to `path` and `sheet_name`.
-fn get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
-    state: State<'_, SerialportState>,
-    path: String,
-    f: F,
-) -> Result<T, Error> {
-    match state.serialports.lock() {
-        Ok(mut map) => match map.get_mut(&path) {
-            Some(serialport_info) => f(serialport_info),
-            None => Err(Error::String("serial port not found".to_string())),
-        },
-        Err(error) => Err(Error::String(format!(
-            "Failed to acquire file lock! {}",
-            error
-        ))),
-    }
+/// Number of bits per character
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DataBits {
+    /// 5 bits per character
+    Five,
+    /// 6 bits per character
+    Six,
+    /// 7 bits per character
+    Seven,
+    /// 8 bits per character
+    Eight,
 }
 
-/// `get_worksheet` gets the file sheet instance according to `path` and `sheet_name`.
-// fn try_get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
-//     state: Arc<std::sync::Mutex<HashMap<std::string::String, SerialportInfo>>>,
-//     path: String,
-//     f: F,
-// ) -> Result<T, Error> {
-//     match state.try_lock() {
-//         Ok(mut map) => match map.get_mut(&path) {
-//             Some(serialport_info) => return f(serialport_info),
-//             None => {
-//                 return Err(Error::String(format!("{} serial port not found", &path)));
-//             }
-//         },
-//         Err(error) => return Err(Error::String(format!("Failed to acquire file lock! {} ", error))),
-//     }
-// }
-
-fn get_data_bits(value: Option<usize>) -> DataBits {
-    match value {
-        Some(value) => match value {
-            5 => DataBits::Five,
-            6 => DataBits::Six,
-            7 => DataBits::Seven,
-            8 => DataBits::Eight,
-            _ => DataBits::Eight,
-        },
-        None => DataBits::Eight,
-    }
-}
-
-fn get_flow_control(value: Option<String>) -> FlowControl {
-    match value {
-        Some(value) => match value.as_str() {
-            "Software" => FlowControl::Software,
-            "Hardware" => FlowControl::Hardware,
-            _ => FlowControl::None,
-        },
-        None => FlowControl::None,
-    }
-}
-
-fn get_parity(value: Option<String>) -> Parity {
-    match value {
-        Some(value) => match value.as_str() {
-            "Odd" => Parity::Odd,
-            "Even" => Parity::Even,
-            _ => Parity::None,
-        },
-        None => Parity::None,
-    }
-}
-
-fn get_stop_bits(value: Option<usize>) -> StopBits {
-    match value {
-        Some(value) => match value {
-            1 => StopBits::One,
-            2 => StopBits::Two,
-            _ => StopBits::Two,
-        },
-        None => StopBits::Two,
-    }
-}
-
-fn get_port_info(port: SerialPortType) -> HashMap<String, String> {
-    let mut port_info: HashMap<String, String> = HashMap::new();
-    port_info.insert("type".to_string(), UNKNOWN.to_string());
-    port_info.insert("vid".to_string(), UNKNOWN.to_string());
-    port_info.insert("pid".to_string(), UNKNOWN.to_string());
-    port_info.insert("serial_number".to_string(), UNKNOWN.to_string());
-    port_info.insert("manufacturer".to_string(), UNKNOWN.to_string());
-    port_info.insert("product".to_string(), UNKNOWN.to_string());
-
-    match port {
-        SerialPortType::UsbPort(info) => {
-            port_info.insert("type".to_string(), USB.to_string());
-            port_info.insert("vid".to_string(), info.vid.to_string());
-            port_info.insert("pid".to_string(), info.pid.to_string());
-            port_info.insert(
-                "serial_number".to_string(),
-                info.serial_number.unwrap_or_else(|| UNKNOWN.to_string()),
-            );
-            port_info.insert(
-                "manufacturer".to_string(),
-                info.manufacturer.unwrap_or_else(|| UNKNOWN.to_string()),
-            );
-            port_info.insert(
-                "product".to_string(),
-                info.product.unwrap_or_else(|| UNKNOWN.to_string()),
-            );
-        }
-        SerialPortType::BluetoothPort => {
-            port_info.insert("type".to_string(), BLUETOOTH.to_string());
-        }
-        SerialPortType::PciPort => {
-            port_info.insert("type".to_string(), PCI.to_string());
-        }
-        SerialPortType::Unknown => {
-            port_info.insert("type".to_string(), UNKNOWN.to_string());
+impl From<DataBits> for SerialDataBits {
+    fn from(bits: DataBits) -> Self {
+        match bits {
+            DataBits::Five => SerialDataBits::Five,
+            DataBits::Six => SerialDataBits::Six,
+            DataBits::Seven => SerialDataBits::Seven,
+            DataBits::Eight => SerialDataBits::Eight,
         }
     }
-
-    port_info
 }
 
-/// `available_ports` get serial port list
+/// Flow control modes
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FlowControl {
+    /// No flow control
+    None,
+    /// Flow control using XON/XOFF bytes
+    Software,
+    /// Flow control using RTS/CTS signals
+    Hardware,
+}
+
+impl From<FlowControl> for SerialFlowControl {
+    fn from(flow: FlowControl) -> Self {
+        match flow {
+            FlowControl::None => SerialFlowControl::None,
+            FlowControl::Software => SerialFlowControl::Software,
+            FlowControl::Hardware => SerialFlowControl::Hardware,
+        }
+    }
+}
+
+/// Parity checking modes
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Parity {
+    /// No parity bit
+    None,
+    /// Parity bit sets odd number of 1 bits
+    Odd,
+    /// Parity bit sets even number of 1 bits
+    Even,
+}
+
+impl From<Parity> for SerialParity {
+    fn from(parity: Parity) -> Self {
+        match parity {
+            Parity::None => SerialParity::None,
+            Parity::Odd => SerialParity::Odd,
+            Parity::Even => SerialParity::Even,
+        }
+    }
+}
+
+/// Number of stop bits
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StopBits {
+    /// One stop bit
+    One,
+    /// Two stop bits
+    Two,
+}
+
+impl From<StopBits> for SerialStopBits {
+    fn from(bits: StopBits) -> Self {
+        match bits {
+            StopBits::One => SerialStopBits::One,
+            StopBits::Two => SerialStopBits::Two,
+        }
+    }
+}
+
+/// Buffer types for clearing
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClearBuffer {
+    /// Input buffer (received data)
+    Input,
+    /// Output buffer (transmitted data)
+    Output,
+    /// Both input and output buffers
+    All,
+}
+
+impl From<ClearBuffer> for SerialClearBuffer {
+    fn from(buffer: ClearBuffer) -> Self {
+        match buffer {
+            ClearBuffer::Input => SerialClearBuffer::Input,
+            ClearBuffer::Output => SerialClearBuffer::Output,
+            ClearBuffer::All => SerialClearBuffer::All,
+        }
+    }
+}
+
+/// Get serial port list
 #[tauri::command]
 pub fn available_ports() -> HashMap<String, HashMap<String, String>> {
     let mut list = match serialport::available_ports() {
@@ -155,11 +140,10 @@ pub fn available_ports() -> HashMap<String, HashMap<String, String>> {
         result_list.insert(p.port_name, get_port_info(p.port_type));
     }
 
-    println!("Serial port list: {:?}", &result_list);
-
     result_list
 }
 
+/// Get serial port list using platform-specific commands
 #[tauri::command]
 pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -168,7 +152,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        // Получаем все USB-порты
+        // Get USB ports
         let usb_output = Command::new("wmic")
             .arg("path")
             .arg("Win32_PnPEntity")
@@ -193,7 +177,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
             }
         }
 
-        // Получаем все COM-порты
+        // Get COM ports
         let com_output = Command::new("wmic")
             .arg("path")
             .arg("Win32_SerialPort")
@@ -221,7 +205,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        // Получаем USB устройства через lsusb
+        // Get USB devices
         let output = Command::new("lsusb")
             .output()
             .expect("Failed to execute lsusb command");
@@ -235,7 +219,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
             }
         }
 
-        // Получаем последовательные порты через /dev
+        // Get serial ports from /dev
         let dev_output = Command::new("ls")
             .arg("/dev")
             .output()
@@ -245,7 +229,15 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
         for line in dev_ports.lines() {
             if line.starts_with("ttyUSB") || line.starts_with("ttyS") {
                 let mut port_info = HashMap::new();
-                port_info.insert("type".to_string(), if line.starts_with("ttyUSB") { "USB" } else { "COM" }.to_string());
+                port_info.insert(
+                    "type".to_string(),
+                    if line.starts_with("ttyUSB") {
+                        "USB"
+                    } else {
+                        "COM"
+                    }
+                        .to_string(),
+                );
                 result_list.insert(line.to_string(), port_info);
             }
             if line.starts_with("rfcomm") {
@@ -265,7 +257,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
     {
         use std::process::Command;
 
-        // Получаем USB устройства через system_profiler
+        // Get USB devices
         let output = Command::new("system_profiler")
             .arg("SPUSBDataType")
             .output()
@@ -280,7 +272,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
             }
         }
 
-        // Проверяем устройства в /dev
+        // Check devices in /dev
         let dev_output = Command::new("ls")
             .arg("/dev")
             .output()
@@ -288,7 +280,6 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
 
         let dev_ports = String::from_utf8_lossy(&dev_output.stdout);
         for line in dev_ports.lines() {
-            // Фильтрация только актуальных последовательных портов
             if line.starts_with("cu.") || line.starts_with("tty.") {
                 let mut port_info = HashMap::new();
                 if line.contains("Bluetooth") {
@@ -303,11 +294,10 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
         }
     }
 
-    println!("Port list: {:?}", &result_list);
     result_list
 }
 
-/// `cacel_read` cancel serial port data reading
+/// Cancel reading data from the serial port
 #[tauri::command]
 pub async fn cancel_read<R: Runtime>(
     _app: AppHandle<R>,
@@ -316,25 +306,17 @@ pub async fn cancel_read<R: Runtime>(
     path: String,
 ) -> Result<(), Error> {
     get_serialport(state, path.clone(), |serialport_info| {
-        match &serialport_info.sender {
-            Some(sender) => match sender.send(1) {
-                Ok(_) => {}
-                Err(error) => {
-                    return Err(Error::String(format!(
-                        "Failed to cancel serial port data reading: {}",
-                        error
-                    )));
-                }
-            },
-            None => {}
+        if let Some(sender) = &serialport_info.sender {
+            sender.send(1).map_err(|e| {
+                Error::String(format!("Failed to cancel serial port data reading: {}", e))
+            })?;
         }
         serialport_info.sender = None;
-        println!("Cancel {} serial port reading", &path);
         Ok(())
     })
 }
 
-/// `close` closes the specified serial port
+/// Close the specified serial port
 #[tauri::command]
 pub fn close<R: Runtime>(
     _app: AppHandle<R>,
@@ -354,7 +336,7 @@ pub fn close<R: Runtime>(
     }
 }
 
-/// `close_all` close all serial ports
+/// Close all open serial ports
 #[tauri::command]
 pub fn close_all<R: Runtime>(
     _app: AppHandle<R>,
@@ -365,16 +347,9 @@ pub fn close_all<R: Runtime>(
         Ok(mut map) => {
             for serialport_info in map.values() {
                 if let Some(sender) = &serialport_info.sender {
-                    match sender.send(1) {
-                        Ok(_) => {}
-                        Err(error) => {
-                            println!("Failed to cancel serial port data reading: {}", error);
-                            return Err(Error::String(format!(
-                                "Failed to cancel serial port data reading: {}",
-                                error
-                            )));
-                        }
-                    }
+                    sender.send(1).map_err(|e| {
+                        Error::String(format!("Failed to cancel serial port data reading: {}", e))
+                    })?;
                 }
             }
             map.clear();
@@ -384,7 +359,7 @@ pub fn close_all<R: Runtime>(
     }
 }
 
-/// `force_close` forcibly close the serial port
+/// Force close a serial port
 #[tauri::command]
 pub fn force_close<R: Runtime>(
     _app: AppHandle<R>,
@@ -396,28 +371,19 @@ pub fn force_close<R: Runtime>(
         Ok(mut map) => {
             if let Some(serial) = map.get_mut(&path) {
                 if let Some(sender) = &serial.sender {
-                    match sender.send(1) {
-                        Ok(_) => {}
-                        Err(error) => {
-                            println!("Failed to cancel serial port data reading: {}", error);
-                            return Err(Error::String(format!(
-                                "Failed to cancel serial port data reading: {}",
-                                error
-                            )));
-                        }
-                    }
+                    sender.send(1).map_err(|e| {
+                        Error::String(format!("Failed to cancel serial port data reading: {}", e))
+                    })?;
                 }
                 map.remove(&path);
-                Ok(())
-            } else {
-                Ok(())
             }
+            Ok(())
         }
         Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
-/// `open` opens the specified serial port
+/// Open a serial port with specified settings
 #[tauri::command]
 pub fn open<R: Runtime>(
     _app: AppHandle<R>,
@@ -425,45 +391,41 @@ pub fn open<R: Runtime>(
     _window: Window<R>,
     path: String,
     baud_rate: u32,
-    data_bits: Option<usize>,
-    flow_control: Option<String>,
-    parity: Option<String>,
-    stop_bits: Option<usize>,
+    data_bits: Option<DataBits>,
+    flow_control: Option<FlowControl>,
+    parity: Option<Parity>,
+    stop_bits: Option<StopBits>,
     timeout: Option<u64>,
 ) -> Result<(), Error> {
-    println!("open: {:}", path);
     match state.serialports.lock() {
         Ok(mut serialports) => {
             if serialports.contains_key(&path) {
                 return Err(Error::String(format!("Serial port {} is open!", path)));
             }
-            match serialport::new(path.clone(), baud_rate)
-                .data_bits(get_data_bits(data_bits))
-                .flow_control(get_flow_control(flow_control))
-                .parity(get_parity(parity))
-                .stop_bits(get_stop_bits(stop_bits))
+
+            let port = serialport::new(path.clone(), baud_rate)
+                .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
+                .flow_control(flow_control.map(Into::into).unwrap_or(SerialFlowControl::None))
+                .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
+                .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
                 .timeout(Duration::from_millis(timeout.unwrap_or(200)))
                 .open()
-            {
-                Ok(serial) => {
-                    let data = SerialportInfo {
-                        serialport: serial,
-                        sender: None,
-                    };
-                    serialports.insert(path, data);
-                    Ok(())
-                }
-                Err(error) => Err(Error::String(format!(
-                    "Failed to create {} serial port: {}",
-                    path, error.description
-                ))),
-            }
+                .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
+
+            serialports.insert(
+                path,
+                SerialportInfo {
+                    serialport: port,
+                    sender: None,
+                },
+            );
+            Ok(())
         }
         Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
 }
 
-/// `read` read the specified serial port
+/// Read data from the serial port
 #[tauri::command]
 pub fn read<R: Runtime>(
     _app: AppHandle<R>,
@@ -475,91 +437,63 @@ pub fn read<R: Runtime>(
 ) -> Result<(), Error> {
     let event_path = path.replace(".", "");
     let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
+
     get_serialport(state.clone(), path.clone(), |serialport_info| {
         if serialport_info.sender.is_some() {
-            println!("Serial port {} is already reading data!", &path);
-            Ok(())
-        } else {
-            println!("Serial port {} starts reading data!", &path);
-            match serialport_info.serialport.try_clone() {
-                Ok(mut serial) => {
-                    let event_path = path.replace(".", "");
-                    let read_event = format!("plugin-serialplugin-read-{}", &event_path);
-                    let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-                    serialport_info.sender = Some(tx);
-                    thread::spawn(move || loop {
-                        match rx.try_recv() {
-                            Ok(_) => {
-                                println!("Serial port {} stopped reading data!", &path);
-                                break;
-                            }
-                            Err(error) => match error {
-                                TryRecvError::Disconnected => {
-                                    println!("Serial port {} disconnected!", &path);
-                                    match window.emit(
-                                        &disconnected_event,
-                                        format!("Serial port {} disconnected!", &path),
-                                    ) {
-                                        Ok(_) => {}
-                                        Err(error) => {
-                                            println!(
-                                                "Failed to send disconnection event: {}",
-                                                error
-                                            )
-                                        }
-                                    }
-                                    break;
-                                }
-                                TryRecvError::Empty => {}
-                            },
-                        }
-                        let mut serial_buf: Vec<u8> = vec![0; size.unwrap_or(1024)];
-                        match serial.read(serial_buf.as_mut_slice()) {
-                            Ok(size) => {
-                                println!("Serial port {} read data size: {}", &path, size);
-                                match window.emit(
-                                    &read_event,
-                                    ReadData {
-                                        data: &serial_buf[..size],
-                                        size,
-                                    },
-                                ) {
-                                    Ok(_) => {}
-                                    Err(error) => {
-                                        println!("Failed to send data: {}", error)
-                                    }
-                                }
-                            }
-                            Err(_err) => {
-                                // println!("读取数据失败! {:?}", err);
-                            }
-                        }
-                        thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
-                    });
-                }
-                Err(error) => {
+            return Ok(());
+        }
 
-                    match window.emit(
+        let mut serial = serialport_info
+            .serialport
+            .try_clone()
+            .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
+
+        let event_path = path.replace(".", "");
+        let read_event = format!("plugin-serialplugin-read-{}", &event_path);
+        let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
+        serialport_info.sender = Some(tx);
+
+        let window_clone = window.clone();
+        thread::spawn(move || loop {
+            match rx.try_recv() {
+                Ok(_) => break,
+                Err(TryRecvError::Disconnected) => {
+                    if let Err(e) = window_clone.emit(
                         &disconnected_event,
                         format!("Serial port {} disconnected!", &path),
                     ) {
-                        Ok(_) => {}
-                        Err(error) => {
-                            println!("Failed to send disconnection event: {}", error)
-                        }
+                        eprintln!("Failed to send disconnection event: {}", e);
                     }
-                    return Err(Error::String(format!(
-                        "Failed to read {} serial port: {}",
-                        &path, error
-                    )));
+                    break;
                 }
+                Err(TryRecvError::Empty) => {}
             }
-            Ok(())
-        }
+
+            let mut buffer = vec![0; size.unwrap_or(1024)];
+            match serial.read(&mut buffer) {
+                Ok(n) => {
+                    if let Err(e) = window.emit(
+                        &read_event,
+                        ReadData {
+                            data: &buffer[..n],
+                            size: n,
+                        },
+                    ) {
+                        eprintln!("Failed to send data: {}", e);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(e) => eprintln!("Failed to read data: {}", e),
+            }
+
+            thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
+        });
+
+        Ok(())
     })
 }
 
-/// `write` writes to the specified serial port
+/// Write data to the serial port
 #[tauri::command]
 pub fn write<R: Runtime>(
     _app: AppHandle<R>,
@@ -568,32 +502,15 @@ pub fn write<R: Runtime>(
     path: String,
     value: String,
 ) -> Result<usize, Error> {
-    let event_path = path.replace(".", "");
-    let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
-    get_serialport(state, path.clone(), |serialport_info| match serialport_info
-        .serialport
-        .write(value.as_bytes())
-    {
-        Ok(size) => Ok(size),
-        Err(error) => {
-            match _window.emit(
-                &disconnected_event,
-                format!("Serial port {} disconnected!", &path),
-            ) {
-                Ok(_) => {}
-                Err(error) => {
-                    println!("Failed to send disconnection event: {}", error)
-                }
-            }
-            Err(Error::String(format!(
-                "Failed to write data to serial port {}: {}",
-                &path, error
-            )))
-        }
+    get_serialport(state, path.clone(), |serialport_info| {
+        serialport_info
+            .serialport
+            .write(value.as_bytes())
+            .map_err(|e| Error::String(format!("Failed to write data: {}", e)))
     })
 }
 
-/// `write` write binary content to the specified serial port
+/// Write binary data to the serial port
 #[tauri::command]
 pub fn write_binary<R: Runtime>(
     _app: AppHandle<R>,
@@ -602,14 +519,320 @@ pub fn write_binary<R: Runtime>(
     path: String,
     value: Vec<u8>,
 ) -> Result<usize, Error> {
-    get_serialport(state, path.clone(), |serialport_info| match serialport_info
-        .serialport
-        .write(&value)
-    {
-        Ok(size) => Ok(size),
-        Err(error) => Err(Error::String(format!(
-            "Failed to write data to serial port {}: {}",
-            &path, error
-        ))),
+    get_serialport(state, path.clone(), |serialport_info| {
+        serialport_info
+            .serialport
+            .write(&value)
+            .map_err(|e| Error::String(format!("Failed to write binary data: {}", e)))
     })
+}
+
+/// Set the baud rate
+#[tauri::command]
+pub async fn set_baud_rate<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    baud_rate: u32,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_baud_rate(baud_rate)
+            .map_err(Error::from)
+    })
+}
+
+/// Set the data bits
+#[tauri::command]
+pub async fn set_data_bits<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    data_bits: DataBits,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_data_bits(data_bits.into())
+            .map_err(Error::from)
+    })
+}
+
+/// Set the flow control
+#[tauri::command]
+pub async fn set_flow_control<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    flow_control: FlowControl,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_flow_control(flow_control.into())
+            .map_err(Error::from)
+    })
+}
+
+/// Set the parity
+#[tauri::command]
+pub async fn set_parity<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    parity: Parity,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_parity(parity.into())
+            .map_err(Error::from)
+    })
+}
+
+/// Set the stop bits
+#[tauri::command]
+pub async fn set_stop_bits<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    stop_bits: StopBits,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_stop_bits(stop_bits.into())
+            .map_err(Error::from)
+    })
+}
+
+/// Set the timeout
+#[tauri::command]
+pub async fn set_timeout<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    timeout: Duration,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .set_timeout(timeout)
+            .map_err(Error::from)
+    })
+}
+
+/// Set the RTS (Request To Send) control signal
+#[tauri::command]
+pub async fn write_request_to_send<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    level: bool,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .write_request_to_send(level)
+            .map_err(Error::from)
+    })
+}
+
+/// Set the DTR (Data Terminal Ready) control signal
+#[tauri::command]
+pub async fn write_data_terminal_ready<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    level: bool,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .write_data_terminal_ready(level)
+            .map_err(Error::from)
+    })
+}
+
+/// Read the CTS (Clear To Send) control signal state
+#[tauri::command]
+pub async fn read_clear_to_send<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<bool, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .read_clear_to_send()
+            .map_err(Error::from)
+    })
+}
+
+/// Read the DSR (Data Set Ready) control signal state
+#[tauri::command]
+pub async fn read_data_set_ready<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<bool, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .read_data_set_ready()
+            .map_err(Error::from)
+    })
+}
+
+/// Read the RI (Ring Indicator) control signal state
+#[tauri::command]
+pub async fn read_ring_indicator<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<bool, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .read_ring_indicator()
+            .map_err(Error::from)
+    })
+}
+
+/// Read the CD (Carrier Detect) control signal state
+#[tauri::command]
+pub async fn read_carrier_detect<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<bool, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .read_carrier_detect()
+            .map_err(Error::from)
+    })
+}
+
+/// Get the number of bytes available to read
+#[tauri::command]
+pub async fn bytes_to_read<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<u32, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info.serialport.bytes_to_read().map_err(Error::from)
+    })
+}
+
+/// Get the number of bytes waiting to be written
+#[tauri::command]
+pub async fn bytes_to_write<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<u32, Error> {
+    get_serialport(state, path, |port_info| {
+        port_info.serialport.bytes_to_write().map_err(Error::from)
+    })
+}
+
+/// Clear input/output buffers
+#[tauri::command]
+pub async fn clear_buffer<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    buffer_to_clear: ClearBuffer,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info
+            .serialport
+            .clear(buffer_to_clear.into())
+            .map_err(Error::from)
+    })
+}
+
+/// Start break signal transmission
+#[tauri::command]
+pub async fn set_break<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info.serialport.set_break().map_err(Error::from)
+    })
+}
+
+/// Stop break signal transmission
+#[tauri::command]
+pub async fn clear_break<R: Runtime>(
+    _app: AppHandle<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<(), Error> {
+    get_serialport(state, path, |port_info| {
+        port_info.serialport.clear_break().map_err(Error::from)
+    })
+}
+
+fn get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
+    state: State<'_, SerialportState>,
+    path: String,
+    f: F,
+) -> Result<T, Error> {
+    match state.serialports.lock() {
+        Ok(mut map) => match map.get_mut(&path) {
+            Some(serialport_info) => f(serialport_info),
+            None => Err(Error::String("Serial port not found".to_string())),
+        },
+        Err(error) => Err(Error::String(format!(
+            "Failed to acquire file lock! {}",
+            error
+        ))),
+    }
+}
+
+fn get_port_info(port: serialport::SerialPortType) -> HashMap<String, String> {
+    let mut port_info: HashMap<String, String> = HashMap::new();
+    port_info.insert("type".to_string(), UNKNOWN.to_string());
+    port_info.insert("vid".to_string(), UNKNOWN.to_string());
+    port_info.insert("pid".to_string(), UNKNOWN.to_string());
+    port_info.insert("serial_number".to_string(), UNKNOWN.to_string());
+    port_info.insert("manufacturer".to_string(), UNKNOWN.to_string());
+    port_info.insert("product".to_string(), UNKNOWN.to_string());
+
+    match port {
+        serialport::SerialPortType::UsbPort(info) => {
+            port_info.insert("type".to_string(), USB.to_string());
+            port_info.insert("vid".to_string(), info.vid.to_string());
+            port_info.insert("pid".to_string(), info.pid.to_string());
+            port_info.insert(
+                "serial_number".to_string(),
+                info.serial_number.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
+            port_info.insert(
+                "manufacturer".to_string(),
+                info.manufacturer.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
+            port_info.insert(
+                "product".to_string(),
+                info.product.unwrap_or_else(|| UNKNOWN.to_string()),
+            );
+        }
+        serialport::SerialPortType::BluetoothPort => {
+            port_info.insert("type".to_string(), BLUETOOTH.to_string());
+        }
+        serialport::SerialPortType::PciPort => {
+            port_info.insert("type".to_string(), PCI.to_string());
+        }
+        serialport::SerialPortType::Unknown => {
+            port_info.insert("type".to_string(), UNKNOWN.to_string());
+        }
+    }
+
+    port_info
 }

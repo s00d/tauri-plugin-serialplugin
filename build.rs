@@ -2,7 +2,36 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-const COMMANDS: &[&str] = &["available_ports", "cancel_read", "close", "close_all", "force_close", "open", "read", "write", "write_binary", "available_ports_direct"];
+
+const COMMANDS: &[&str] = &[
+    "available_ports",
+    "available_ports_direct",
+    "cancel_read",
+    "close",
+    "close_all",
+    "force_close",
+    "open",
+    "read",
+    "write",
+    "write_binary",
+    "set_baud_rate",
+    "set_data_bits",
+    "set_flow_control",
+    "set_parity",
+    "set_stop_bits",
+    "set_timeout",
+    "write_request_to_send",
+    "write_data_terminal_ready",
+    "read_clear_to_send",
+    "read_data_set_ready",
+    "read_ring_indicator",
+    "read_carrier_detect",
+    "bytes_to_read",
+    "bytes_to_write",
+    "clear_buffer",
+    "set_break",
+    "clear_break",
+];
 
 fn main() {
 

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-clear-break"
+description = "Enables the clear_break command without any pre-configured scope."
+commands.allow = ["clear_break"]
+
+[[permission]]
+identifier = "deny-clear-break"
+description = "Denies the clear_break command without any pre-configured scope."
+commands.deny = ["clear_break"]

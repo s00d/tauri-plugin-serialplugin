@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-bytes-to-read"
+description = "Enables the bytes_to_read command without any pre-configured scope."
+commands.allow = ["bytes_to_read"]
+
+[[permission]]
+identifier = "deny-bytes-to-read"
+description = "Denies the bytes_to_read command without any pre-configured scope."
+commands.deny = ["bytes_to_read"]

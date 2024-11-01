@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-flow-control"
+description = "Enables the set_flow_control command without any pre-configured scope."
+commands.allow = ["set_flow_control"]
+
+[[permission]]
+identifier = "deny-set-flow-control"
+description = "Denies the set_flow_control command without any pre-configured scope."
+commands.deny = ["set_flow_control"]

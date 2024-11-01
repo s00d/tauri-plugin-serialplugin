@@ -1871,9 +1871,29 @@
           "const": "serialplugin:allow-available-ports-direct"
         },
         {
+          "description": "Enables the bytes_to_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-bytes-to-read"
+        },
+        {
+          "description": "Enables the bytes_to_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-bytes-to-write"
+        },
+        {
           "description": "Enables the cancel_read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-cancel-read"
+        },
+        {
+          "description": "Enables the clear_break command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-clear-break"
+        },
+        {
+          "description": "Enables the clear_buffer command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-clear-buffer"
         },
         {
           "description": "Enables the close command without any pre-configured scope.",
@@ -1901,6 +1921,61 @@
           "const": "serialplugin:allow-read"
         },
         {
+          "description": "Enables the read_carrier_detect command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-read-carrier-detect"
+        },
+        {
+          "description": "Enables the read_clear_to_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-read-clear-to-send"
+        },
+        {
+          "description": "Enables the read_data_set_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-read-data-set-ready"
+        },
+        {
+          "description": "Enables the read_ring_indicator command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-read-ring-indicator"
+        },
+        {
+          "description": "Enables the set_baud_rate command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-baud-rate"
+        },
+        {
+          "description": "Enables the set_break command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-break"
+        },
+        {
+          "description": "Enables the set_data_bits command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-data-bits"
+        },
+        {
+          "description": "Enables the set_flow_control command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-flow-control"
+        },
+        {
+          "description": "Enables the set_parity command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-parity"
+        },
+        {
+          "description": "Enables the set_stop_bits command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-stop-bits"
+        },
+        {
+          "description": "Enables the set_timeout command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-set-timeout"
+        },
+        {
           "description": "Enables the write command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-write"
@@ -1909,6 +1984,16 @@
           "description": "Enables the write_binary command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-write-binary"
+        },
+        {
+          "description": "Enables the write_data_terminal_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-write-data-terminal-ready"
+        },
+        {
+          "description": "Enables the write_request_to_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-write-request-to-send"
         },
         {
           "description": "Denies the available_ports command without any pre-configured scope.",
@@ -1921,9 +2006,29 @@
           "const": "serialplugin:deny-available-ports-direct"
         },
         {
+          "description": "Denies the bytes_to_read command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-bytes-to-read"
+        },
+        {
+          "description": "Denies the bytes_to_write command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-bytes-to-write"
+        },
+        {
           "description": "Denies the cancel_read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-cancel-read"
+        },
+        {
+          "description": "Denies the clear_break command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-clear-break"
+        },
+        {
+          "description": "Denies the clear_buffer command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-clear-buffer"
         },
         {
           "description": "Denies the close command without any pre-configured scope.",
@@ -1951,6 +2056,61 @@
           "const": "serialplugin:deny-read"
         },
         {
+          "description": "Denies the read_carrier_detect command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-read-carrier-detect"
+        },
+        {
+          "description": "Denies the read_clear_to_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-read-clear-to-send"
+        },
+        {
+          "description": "Denies the read_data_set_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-read-data-set-ready"
+        },
+        {
+          "description": "Denies the read_ring_indicator command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-read-ring-indicator"
+        },
+        {
+          "description": "Denies the set_baud_rate command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-baud-rate"
+        },
+        {
+          "description": "Denies the set_break command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-break"
+        },
+        {
+          "description": "Denies the set_data_bits command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-data-bits"
+        },
+        {
+          "description": "Denies the set_flow_control command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-flow-control"
+        },
+        {
+          "description": "Denies the set_parity command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-parity"
+        },
+        {
+          "description": "Denies the set_stop_bits command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-stop-bits"
+        },
+        {
+          "description": "Denies the set_timeout command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-set-timeout"
+        },
+        {
           "description": "Denies the write command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-write"
@@ -1959,6 +2119,16 @@
           "description": "Denies the write_binary command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-write-binary"
+        },
+        {
+          "description": "Denies the write_data_terminal_ready command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-write-data-terminal-ready"
+        },
+        {
+          "description": "Denies the write_request_to_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-write-request-to-send"
         },
         {
           "description": "This permission set configures which\nshell functionality is exposed by default.\n\n#### Granted Permissions\n\nIt allows to use the `open` functionality without any specific\nscope pre-configured. It will allow opening `http(s)://`,\n`tel:` and `mailto:` links.\n",

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-ring-indicator"
+description = "Enables the read_ring_indicator command without any pre-configured scope."
+commands.allow = ["read_ring_indicator"]
+
+[[permission]]
+identifier = "deny-read-ring-indicator"
+description = "Denies the read_ring_indicator command without any pre-configured scope."
+commands.deny = ["read_ring_indicator"]

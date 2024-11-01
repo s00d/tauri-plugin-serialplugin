@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-stop-bits"
+description = "Enables the set_stop_bits command without any pre-configured scope."
+commands.allow = ["set_stop_bits"]
+
+[[permission]]
+identifier = "deny-set-stop-bits"
+description = "Denies the set_stop_bits command without any pre-configured scope."
+commands.deny = ["set_stop_bits"]

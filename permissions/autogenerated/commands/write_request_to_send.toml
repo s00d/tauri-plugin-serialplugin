@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-write-request-to-send"
+description = "Enables the write_request_to_send command without any pre-configured scope."
+commands.allow = ["write_request_to_send"]
+
+[[permission]]
+identifier = "deny-write-request-to-send"
+description = "Denies the write_request_to_send command without any pre-configured scope."
+commands.deny = ["write_request_to_send"]

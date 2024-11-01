@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-data-set-ready"
+description = "Enables the read_data_set_ready command without any pre-configured scope."
+commands.allow = ["read_data_set_ready"]
+
+[[permission]]
+identifier = "deny-read-data-set-ready"
+description = "Denies the read_data_set_ready command without any pre-configured scope."
+commands.deny = ["read_data_set_ready"]

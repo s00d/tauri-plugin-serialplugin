@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-clear-to-send"
+description = "Enables the read_clear_to_send command without any pre-configured scope."
+commands.allow = ["read_clear_to_send"]
+
+[[permission]]
+identifier = "deny-read-clear-to-send"
+description = "Denies the read_clear_to_send command without any pre-configured scope."
+commands.deny = ["read_clear_to_send"]

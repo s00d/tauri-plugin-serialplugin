@@ -99,6 +99,58 @@ Denies the available_ports_direct command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-bytes-to-read`
+
+</td>
+<td>
+
+Enables the bytes_to_read command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-bytes-to-read`
+
+</td>
+<td>
+
+Denies the bytes_to_read command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-bytes-to-write`
+
+</td>
+<td>
+
+Enables the bytes_to_write command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-bytes-to-write`
+
+</td>
+<td>
+
+Denies the bytes_to_write command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-cancel-read`
 
 </td>
@@ -118,6 +170,58 @@ Enables the cancel_read command without any pre-configured scope.
 <td>
 
 Denies the cancel_read command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-clear-break`
+
+</td>
+<td>
+
+Enables the clear_break command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-clear-break`
+
+</td>
+<td>
+
+Denies the clear_break command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-clear-buffer`
+
+</td>
+<td>
+
+Enables the clear_buffer command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-clear-buffer`
+
+</td>
+<td>
+
+Denies the clear_buffer command without any pre-configured scope.
 
 </td>
 </tr>
@@ -255,6 +359,292 @@ Denies the read command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-read-carrier-detect`
+
+</td>
+<td>
+
+Enables the read_carrier_detect command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-carrier-detect`
+
+</td>
+<td>
+
+Denies the read_carrier_detect command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-clear-to-send`
+
+</td>
+<td>
+
+Enables the read_clear_to_send command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-clear-to-send`
+
+</td>
+<td>
+
+Denies the read_clear_to_send command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-data-set-ready`
+
+</td>
+<td>
+
+Enables the read_data_set_ready command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-data-set-ready`
+
+</td>
+<td>
+
+Denies the read_data_set_ready command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-ring-indicator`
+
+</td>
+<td>
+
+Enables the read_ring_indicator command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-ring-indicator`
+
+</td>
+<td>
+
+Denies the read_ring_indicator command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-baud-rate`
+
+</td>
+<td>
+
+Enables the set_baud_rate command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-baud-rate`
+
+</td>
+<td>
+
+Denies the set_baud_rate command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-break`
+
+</td>
+<td>
+
+Enables the set_break command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-break`
+
+</td>
+<td>
+
+Denies the set_break command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-data-bits`
+
+</td>
+<td>
+
+Enables the set_data_bits command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-data-bits`
+
+</td>
+<td>
+
+Denies the set_data_bits command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-flow-control`
+
+</td>
+<td>
+
+Enables the set_flow_control command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-flow-control`
+
+</td>
+<td>
+
+Denies the set_flow_control command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-parity`
+
+</td>
+<td>
+
+Enables the set_parity command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-parity`
+
+</td>
+<td>
+
+Denies the set_parity command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-stop-bits`
+
+</td>
+<td>
+
+Enables the set_stop_bits command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-stop-bits`
+
+</td>
+<td>
+
+Denies the set_stop_bits command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-timeout`
+
+</td>
+<td>
+
+Enables the set_timeout command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-timeout`
+
+</td>
+<td>
+
+Denies the set_timeout command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-write`
 
 </td>
@@ -300,6 +690,58 @@ Enables the write_binary command without any pre-configured scope.
 <td>
 
 Denies the write_binary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-write-data-terminal-ready`
+
+</td>
+<td>
+
+Enables the write_data_terminal_ready command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-write-data-terminal-ready`
+
+</td>
+<td>
+
+Denies the write_data_terminal_ready command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-write-request-to-send`
+
+</td>
+<td>
+
+Enables the write_request_to_send command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-write-request-to-send`
+
+</td>
+<td>
+
+Denies the write_request_to_send command without any pre-configured scope.
 
 </td>
 </tr>

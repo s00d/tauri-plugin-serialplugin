@@ -28,10 +28,10 @@ export interface SerialportOptions {
   path: string;
   baudRate: number;
   encoding?: string;
-  dataBits?: 5 | 6 | 7 | 8;
-  flowControl?: null | 'Software' | 'Hardware';
-  parity?: null | 'Odd' | 'Even';
-  stopBits?: 1 | 2;
+  dataBits?: DataBits;
+  flowControl?: FlowControl;
+  parity?: Parity;
+  stopBits?: StopBits;
   timeout?: number;
   size?: number;
   is_test?: boolean;
@@ -41,10 +41,10 @@ export interface SerialportOptions {
 export interface Options {
   path?: string;
   baudRate?: number;
-  dataBits: 5 | 6 | 7 | 8;
-  flowControl: null | 'Software' | 'Hardware';
-  parity: null | 'Odd' | 'Even';
-  stopBits: 1 | 2;
+  dataBits: DataBits;
+  flowControl: FlowControl;
+  parity: Parity;
+  stopBits: StopBits;
   timeout: number;
   [key: string]: any;
 }
@@ -52,6 +52,36 @@ export interface Options {
 export interface ReadOptions {
   timeout?: number;
   size?: number;
+}
+
+export enum DataBits {
+  Five = "Five",
+  Six = "Six",
+  Seven = "Seven",
+  Eight = "Eight"
+}
+
+export enum FlowControl {
+  None = "None",
+  Software = "Software",
+  Hardware = "Hardware"
+}
+
+export enum Parity {
+  None = "None",
+  Odd = "Odd",
+  Even = "Even"
+}
+
+export enum StopBits {
+  One = "One",
+  Two = "Two"
+}
+
+export enum ClearBuffer {
+  Input = "Input",
+  Output = "Output",
+  All = "All"
 }
 
 let tester_ports: {[key: string]: SerialPort} = {}
@@ -79,10 +109,10 @@ class SerialPort {
     this.options = {
       path: options.path,
       baudRate: options.baudRate,
-      dataBits: options.dataBits || 8,
-      flowControl: options.flowControl || null,
-      parity: options.parity || null,
-      stopBits: options.stopBits || 2,
+      dataBits: options.dataBits || DataBits.Eight,
+      flowControl: options.flowControl || FlowControl.None,
+      parity: options.parity || Parity.None,
+      stopBits: options.stopBits || StopBits.One,
       timeout: options.timeout || 200,
     };
     this.size = options.size || 1024;
@@ -90,8 +120,8 @@ class SerialPort {
   }
 
   /**
-   * @description: Get serial port list
-   * @return {Promise<string[]>}
+   * @description Lists all available serial ports
+   * @returns {Promise<{ [key: string]: PortInfo }>} A promise that resolves to a map of port names to port information
    */
   static async available_ports(): Promise<{ [key: string]: PortInfo }> {
     try {
@@ -113,8 +143,8 @@ class SerialPort {
   }
 
   /**
-   * @description: Get serial port list direct
-   * @return {Promise<string[]>}
+   * @description Lists all available serial ports using platform-specific commands
+   * @returns {Promise<{ [key: string]: PortInfo }>} A promise that resolves to a map of port names to port information
    */
   static async available_ports_direct(): Promise<{ [key: string]: PortInfo }> {
     try {
@@ -136,23 +166,21 @@ class SerialPort {
   }
 
   /**
-   * @description: force close
-   * @param {string} path
-   * @return {Promise<void>}
+   * @description Forcefully closes a specific serial port
+   * @param {string} path The path of the serial port to close
+   * @returns {Promise<void>} A promise that resolves when the port is closed
    */
   static async forceClose(path: string): Promise<void> {
     if(tester_ports[path]) {
       delete tester_ports[path]
       return Promise.resolve();
     }
-    return await invoke<void>('plugin:serialplugin|force_close', {
-      path,
-    });
+    return await invoke<void>('plugin:serialplugin|force_close', { path });
   }
 
   /**
-   * @description: close all serial ports
-   * @return {Promise<void>}
+   * @description Closes all open serial ports
+   * @returns {Promise<void>} A promise that resolves when all ports are closed
    */
   static async closeAll(): Promise<void> {
     tester_ports = {};
@@ -160,8 +188,8 @@ class SerialPort {
   }
 
   /**
-   * @description: Cancel serial port monitoring
-   * @return {Promise<void>}
+   * @description Cancels monitoring of the serial port
+   * @returns {Promise<void>} A promise that resolves when monitoring is cancelled
    */
   async cancelListen(): Promise<void> {
     try {
@@ -176,12 +204,11 @@ class SerialPort {
   }
 
   /**
-   * @description: Cancel reading data
-   * @return {Promise<void>}
+   * @description Cancels reading data from the serial port
+   * @returns {Promise<void>} A promise that resolves when reading is cancelled
    */
   async cancelRead(): Promise<void> {
     if (this.is_test) {
-      // todo check this
       return Promise.resolve();
     }
     try {
@@ -194,9 +221,11 @@ class SerialPort {
   }
 
   /**
-   * @description:
-   * @param {object} options
-   * @return {Promise<void>}
+   * @description Changes the serial port configuration
+   * @param {object} options Configuration options
+   * @param {string} [options.path] New port path
+   * @param {number} [options.baudRate] New baud rate
+   * @returns {Promise<void>} A promise that resolves when configuration is changed
    */
   async change(options: { path?: string; baudRate?: number }): Promise<void> {
     try {
@@ -221,8 +250,8 @@ class SerialPort {
   }
 
   /**
-   * @description: close the serial port
-   * @return {Promise<InvokeResult>}
+   * @description Closes the currently open serial port
+   * @returns {Promise<void>} A promise that resolves when the port is closed
    */
   async close(): Promise<void> {
     try {
@@ -245,6 +274,11 @@ class SerialPort {
     }
   }
 
+  /**
+   * @description Sets up a listener for port disconnection events
+   * @param {Function} fn Callback function to handle disconnection
+   * @returns {Promise<void>} A promise that resolves when the listener is set up
+   */
   async disconnected(fn: (...args: any[]) => void): Promise<void> {
     let sub_path = this.options.path?.toString().replace(/\.+/, '')
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
@@ -264,10 +298,10 @@ class SerialPort {
   }
 
   /**
-   * @description: Monitor serial port information
-   * @param {function} fn
-   * @param isDecode
-   * @return {Promise<void>}
+   * @description Monitors serial port data
+   * @param {Function} fn Callback function to handle received data
+   * @param {boolean} [isDecode=true] Whether to decode the received data
+   * @returns {Promise<void>} A promise that resolves when monitoring starts
    */
   async listen(fn: (...args: any[]) => void, isDecode = true): Promise<void> {
     try {
@@ -308,8 +342,8 @@ class SerialPort {
   }
 
   /**
-   * @description: open serial port
-   * @return {*}
+   * @description Opens the serial port with current settings
+   * @returns {Promise<void>} A promise that resolves when the port is opened
    */
   async open(): Promise<void> {
     try {
@@ -349,14 +383,14 @@ class SerialPort {
   }
 
   /**
-   * @description: Read serial port information
-   * @param {ReadOptions} options read option { timeout, size }
-   * @return {Promise<void>}
+   * @description Reads data from the serial port
+   * @param {ReadOptions} [options] Read options
+   * @returns {Promise<void>} A promise that resolves when data is read
    */
   async read(options?: ReadOptions): Promise<void> {
     try {
       if (this.is_test) {
-        const resp = ''; // todo add reps
+        const resp = '';
         if(tester_listeners[this.options.path!]) tester_listeners[this.options.path!](resp)
         return Promise.resolve();
       }
@@ -371,53 +405,265 @@ class SerialPort {
   }
 
   /**
-   * @description: Set serial port baud rate
-   * @param {number} value
-   * @return {Promise<void>}
+   * @description Sets the baud rate of the serial port
+   * @param {number} value The new baud rate
+   * @returns {Promise<void>} A promise that resolves when baud rate is set
    */
   async setBaudRate(value: number): Promise<void> {
     try {
-      let isOpened = false;
-      if (this.isOpen) {
-        isOpened = true;
-        await this.close();
-      }
-      this.options.baudRate = value;
-      if (isOpened) {
-        await this.open();
-      }
-      return Promise.resolve();
+      return await invoke<void>('plugin:serialplugin|set_baud_rate', {
+        path: this.options.path,
+        baudRate: value
+      });
     } catch (error) {
       return Promise.reject(error);
     }
   }
 
   /**
-   * @description: Set the serial port path
-   * @param {string} value
-   * @return {Promise<void>}
+   * @description Sets the data bits configuration
+   * @param {DataBits} value The new data bits setting
+   * @returns {Promise<void>} A promise that resolves when data bits are set
    */
-  async setPath(value: string): Promise<void> {
+  async setDataBits(value: DataBits): Promise<void> {
     try {
-      let isOpened = false;
-      if (this.isOpen) {
-        isOpened = true;
-        await this.close();
-      }
-      this.options.path = value;
-      if (isOpened) {
-        await this.open();
-      }
-      return Promise.resolve();
+      return await invoke<void>('plugin:serialplugin|set_data_bits', {
+        path: this.options.path,
+        dataBits: value
+      });
     } catch (error) {
       return Promise.reject(error);
     }
   }
 
   /**
-   * @description: Serial port write data
-   * @param {string} value
-   * @return {Promise<number>}
+   * @description Sets the flow control mode
+   * @param {FlowControl} value The new flow control setting
+   * @returns {Promise<void>} A promise that resolves when flow control is set
+   */
+  async setFlowControl(value: FlowControl): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|set_flow_control', {
+        path: this.options.path,
+        flowControl: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Sets the parity checking mode
+   * @param {Parity} value The new parity setting
+   * @returns {Promise<void>} A promise that resolves when parity is set
+   */
+  async setParity(value: Parity): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|set_parity', {
+        path: this.options.path,
+        parity: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Sets the number of stop bits
+   * @param {StopBits} value The new stop bits setting
+   * @returns {Promise<void>} A promise that resolves when stop bits are set
+   */
+  async setStopBits(value: StopBits): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|set_stop_bits', {
+        path: this.options.path,
+        stopBits: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Sets the timeout duration
+   * @param {number} value The new timeout in milliseconds
+   * @returns {Promise<void>} A promise that resolves when timeout is set
+   */
+  async setTimeout(value: number): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|set_timeout', {
+        path: this.options.path,
+        timeout: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Sets the RTS (Request To Send) control signal
+   * @param {boolean} value The signal level to set
+   * @returns {Promise<void>} A promise that resolves when RTS is set
+   */
+  async setRequestToSend(value: boolean): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|write_request_to_send', {
+        path: this.options.path,
+        level: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Sets the DTR (Data Terminal Ready) control signal
+   * @param {boolean} value The signal level to set
+   * @returns {Promise<void>} A promise that resolves when DTR is set
+   */
+  async setDataTerminalReady(value: boolean): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|write_data_terminal_ready', {
+        path: this.options.path,
+        level: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Reads the CTS (Clear To Send) control signal state
+   * @returns {Promise<boolean>} A promise that resolves to the CTS state
+   */
+  async readClearToSend(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('plugin:serialplugin|read_clear_to_send', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Reads the DSR (Data Set Ready) control signal state
+   * @returns {Promise<boolean>} A promise that resolves to the DSR state
+   */
+  async readDataSetReady(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('plugin:serialplugin|read_data_set_ready', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Reads the RI (Ring Indicator) control signal state
+   * @returns {Promise<boolean>} A promise that resolves to the RI state
+   */
+  async readRingIndicator(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('plugin:serialplugin|read_ring_indicator', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Reads the CD (Carrier Detect) control signal state
+   * @returns {Promise<boolean>} A promise that resolves to the CD state
+   */
+  async readCarrierDetect(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('plugin:serialplugin|read_carrier_detect', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Gets the number of bytes available to read
+   * @returns {Promise<number>} A promise that resolves to the number of bytes
+   */
+  async bytesToRead(): Promise<number> {
+    try {
+      return await invoke<number>('plugin:serialplugin|bytes_to_read', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Gets the number of bytes waiting to be written
+   * @returns {Promise<number>} A promise that resolves to the number of bytes
+   */
+  async bytesToWrite(): Promise<number> {
+    try {
+      return await invoke<number>('plugin:serialplugin|bytes_to_write', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Clears the specified buffer
+   * @param {ClearBuffer} buffer The buffer to clear
+   * @returns {Promise<void>} A promise that resolves when the buffer is cleared
+   */
+  async clearBuffer(buffer: ClearBuffer): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|clear_buffer', {
+        path: this.options.path,
+        bufferToClear: buffer
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Starts transmitting a break signal
+   * @returns {Promise<void>} A promise that resolves when break signal starts
+   */
+  async setBreak(): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|set_break', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Stops transmitting a break signal
+   * @returns {Promise<void>} A promise that resolves when break signal stops
+   */
+  async clearBreak(): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|clear_break', {
+        path: this.options.path
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Writes string data to the serial port
+   * @param {string} value The data to write
+   * @returns {Promise<number>} A promise that resolves to the number of bytes written
    */
   async write(value: string): Promise<number> {
     try {
@@ -426,7 +672,7 @@ class SerialPort {
       }
 
       if (this.is_test) {
-        return Promise.resolve(2); // todo add resp
+        return Promise.resolve(2);
       }
 
       return await invoke<number>('plugin:serialplugin|write', {
@@ -439,9 +685,9 @@ class SerialPort {
   }
 
   /**
-   * @description: Write binary data to the serial port
-   * @param {Uint8Array} value
-   * @return {Promise<number>}
+   * @description Writes binary data to the serial port
+   * @param {Uint8Array | number[]} value The binary data to write
+   * @returns {Promise<number>} A promise that resolves to the number of bytes written
    */
   async writeBinary(value: Uint8Array | number[]): Promise<number> {
     try {
@@ -450,7 +696,7 @@ class SerialPort {
       }
       if (value instanceof Uint8Array || value instanceof Array) {
         if (this.is_test) {
-          return Promise.resolve(2); // todo add resp
+          return Promise.resolve(2);
         }
         return await invoke<number>('plugin:serialplugin|write_binary', {
           value: Array.from(value),
@@ -466,6 +712,5 @@ class SerialPort {
     }
   }
 }
-
 
 export { SerialPort };
