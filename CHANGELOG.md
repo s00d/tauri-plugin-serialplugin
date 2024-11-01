@@ -31,7 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Improved error handling system
-- Restructured project architecture
 - Enhanced documentation for all methods
 - Updated TypeScript definitions with JSDoc comments
 
