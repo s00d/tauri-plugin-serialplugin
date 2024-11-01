@@ -5,12 +5,9 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 ## Table of Contents
 - [Installation](#installation)
 - [Basic Usage](#basic-usage)
-- [Configuration](#configuration)
 - [API Reference](#api-reference)
-- [Permissions](#permissions)
+- [Permissions](#permission-descriptions)
 - [Common Use Cases](#common-use-cases)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
 - [Contributing](#contributing)
 - [License](#license)
 
