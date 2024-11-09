@@ -5,6 +5,10 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "serialplugin:default"
+    "serialplugin:default",
+    "serialplugin:allow-bytes-to-read",
+    "serialplugin:allow-bytes-to-write",
+    "serialplugin:allow-clear-buffer",
+    "serialplugin:allow-read-clear-to-send"
   ]
 }

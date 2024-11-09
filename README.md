@@ -250,6 +250,13 @@ class SerialPort {
      */
     async write(data: string): Promise<number>;
 
+   /**
+    * @description Reads data from the serial port
+    * @param {ReadOptions} [options] Read options
+    * @returns {Promise<void>} A promise that resolves when data is read
+    */
+   async read(options?: ReadOptions): Promise<string>;
+
     /**
      * Writes binary data to the serial port
      * @param {Uint8Array | number[]} data Binary data to write

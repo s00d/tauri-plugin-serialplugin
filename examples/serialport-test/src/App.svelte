@@ -68,6 +68,7 @@
       isConnected = true;
       console.log('Connected to port:', name);
 
+
       // Start listening for data
       serialport.listen((data) => {
         receivedData += data;
@@ -79,7 +80,6 @@
         isConnected = false;
         console.log('Port disconnected:', name);
       });
-
     } catch (err) {
       console.error('Failed to connect:', err);
     }

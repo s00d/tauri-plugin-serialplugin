@@ -127,10 +127,7 @@ impl From<ClearBuffer> for SerialClearBuffer {
 /// Get serial port list
 #[tauri::command]
 pub fn available_ports() -> HashMap<String, HashMap<String, String>> {
-    let mut list = match serialport::available_ports() {
-        Ok(list) => list,
-        Err(_) => vec![],
-    };
+    let mut list = serialport::available_ports().unwrap_or_else(|_| vec![]);
     list.retain(|port| matches!(port.port_type, serialport::SerialPortType::UsbPort(_)));
     list.sort_by(|a, b| a.port_name.cmp(&b.port_name));
 
@@ -289,7 +286,7 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
                 } else {
                     port_info.insert("type".to_string(), "COM".to_string());
                 }
-                result_list.insert(line.to_string(), port_info);
+                result_list.insert(format!("/dev/{}", line), port_info);
             }
         }
     }
@@ -326,7 +323,21 @@ pub fn close<R: Runtime>(
 ) -> Result<(), Error> {
     match state.serialports.lock() {
         Ok(mut serialports) => {
-            if serialports.remove(&path).is_some() {
+            if let Some(port_info) = serialports.remove(&path) {
+                // Signal the thread to stop
+                if let Some(sender) = &port_info.sender {
+                    sender.send(1).map_err(|e| {
+                        Error::String(format!("Failed to cancel serial port data reading: {}", e))
+                    })?;
+                }
+
+                // Wait for the thread to finish
+                if let Some(handle) = port_info.thread_handle {
+                    handle.join().map_err(|e| {
+                        Error::String(format!("Failed to join thread: {:?}", e))
+                    })?;
+                }
+
                 Ok(())
             } else {
                 Err(Error::String(format!("Serial port {} is not open!", &path)))
@@ -345,15 +356,28 @@ pub fn close_all<R: Runtime>(
 ) -> Result<(), Error> {
     match state.serialports.lock() {
         Ok(mut map) => {
-            for serialport_info in map.values() {
-                if let Some(sender) = &serialport_info.sender {
-                    sender.send(1).map_err(|e| {
-                        Error::String(format!("Failed to cancel serial port data reading: {}", e))
-                    })?;
+            let mut errors = Vec::new();
+
+            for (path, port_info) in map.drain() {
+                if let Some(sender) = &port_info.sender {
+                    if let Err(e) = sender.send(1) {
+                        errors.push(format!("Failed to cancel port {}: {}", path, e));
+                        continue;
+                    }
+                }
+
+                if let Some(handle) = port_info.thread_handle {
+                    if let Err(e) = handle.join() {
+                        errors.push(format!("Failed to join thread for port {}: {:?}", path, e));
+                    }
                 }
             }
-            map.clear();
-            Ok(())
+
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(Error::String(format!("Errors during close: {}", errors.join(", "))))
+            }
         }
         Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
@@ -369,13 +393,18 @@ pub fn force_close<R: Runtime>(
 ) -> Result<(), Error> {
     match state.serialports.lock() {
         Ok(mut map) => {
-            if let Some(serial) = map.get_mut(&path) {
+            if let Some(serial) = map.remove(&path) {
                 if let Some(sender) = &serial.sender {
                     sender.send(1).map_err(|e| {
                         Error::String(format!("Failed to cancel serial port data reading: {}", e))
                     })?;
                 }
-                map.remove(&path);
+
+                if let Some(handle) = serial.thread_handle {
+                    handle.join().map_err(|e| {
+                        Error::String(format!("Failed to join thread: {:?}", e))
+                    })?;
+                }
             }
             Ok(())
         }
@@ -383,12 +412,11 @@ pub fn force_close<R: Runtime>(
     }
 }
 
-/// Open a serial port with specified settings
 #[tauri::command]
 pub fn open<R: Runtime>(
     _app: AppHandle<R>,
+    window: Window<R>,
     state: State<'_, SerialportState>,
-    _window: Window<R>,
     path: String,
     baud_rate: u32,
     data_bits: Option<DataBits>,
@@ -412,13 +440,70 @@ pub fn open<R: Runtime>(
                 .open()
                 .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
 
-            serialports.insert(
-                path,
-                SerialportInfo {
-                    serialport: port,
-                    sender: None,
-                },
-            );
+            let mut port_info = SerialportInfo {
+                serialport: port,
+                sender: None,
+                thread_handle: None,
+            };
+
+            // Start listening immediately after opening
+            let event_path = path.replace(".", "");
+            let read_event = format!("plugin-serialplugin-read-{}", &event_path);
+            let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
+
+            let mut serial = port_info
+                .serialport
+                .try_clone()
+                .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
+
+            let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
+            port_info.sender = Some(tx);
+
+            let window_clone = window.clone();
+            let path_clone = path.clone();
+            let thread_handle = thread::spawn(move || {
+                loop {
+                    match rx.try_recv() {
+                        Ok(_) => break,
+                        Err(TryRecvError::Disconnected) => {
+                            if let Err(e) = window_clone.emit(
+                                &disconnected_event,
+                                format!("Serial port {} disconnected!", &path_clone),
+                            ) {
+                                eprintln!("Failed to send disconnection event: {}", e);
+                            }
+                            break;
+                        }
+                        Err(TryRecvError::Empty) => {}
+                    }
+
+                    let mut buffer = vec![0; 1024];
+                    match serial.read(&mut buffer) {
+                        Ok(n) => {
+                            if let Err(e) = window.emit(
+                                &read_event,
+                                ReadData {
+                                    data: &buffer[..n],
+                                    size: n,
+                                },
+                            ) {
+                                eprintln!("Failed to send data: {}", e);
+                            }
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
+                        Err(e) => {
+                            eprintln!("Failed to read data: {}", e);
+                            break; // Exit on error
+                        }
+                    }
+
+                    thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
+                }
+            });
+
+            port_info.thread_handle = Some(thread_handle);
+
+            serialports.insert(path, port_info);
             Ok(())
         }
         Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
@@ -429,67 +514,25 @@ pub fn open<R: Runtime>(
 #[tauri::command]
 pub fn read<R: Runtime>(
     _app: AppHandle<R>,
-    window: Window<R>,
+    _window: Window<R>,
     state: State<'_, SerialportState>,
     path: String,
     timeout: Option<u64>,
     size: Option<usize>,
-) -> Result<(), Error> {
-    let event_path = path.replace(".", "");
-    let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
-
+) -> Result<String, Error> {
     get_serialport(state.clone(), path.clone(), |serialport_info| {
-        if serialport_info.sender.is_some() {
-            return Ok(());
+        let mut buffer = vec![0; size.unwrap_or(1024)];
+        serialport_info.serialport.set_timeout(Duration::from_millis(timeout.unwrap_or(200)))
+            .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
+
+        match serialport_info.serialport.read(&mut buffer) {
+            Ok(n) => {
+                let data = String::from_utf8_lossy(&buffer[..n]).to_string();
+                Ok(data)
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(String::new()),
+            Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
         }
-
-        let mut serial = serialport_info
-            .serialport
-            .try_clone()
-            .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
-
-        let event_path = path.replace(".", "");
-        let read_event = format!("plugin-serialplugin-read-{}", &event_path);
-        let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-        serialport_info.sender = Some(tx);
-
-        let window_clone = window.clone();
-        thread::spawn(move || loop {
-            match rx.try_recv() {
-                Ok(_) => break,
-                Err(TryRecvError::Disconnected) => {
-                    if let Err(e) = window_clone.emit(
-                        &disconnected_event,
-                        format!("Serial port {} disconnected!", &path),
-                    ) {
-                        eprintln!("Failed to send disconnection event: {}", e);
-                    }
-                    break;
-                }
-                Err(TryRecvError::Empty) => {}
-            }
-
-            let mut buffer = vec![0; size.unwrap_or(1024)];
-            match serial.read(&mut buffer) {
-                Ok(n) => {
-                    if let Err(e) = window.emit(
-                        &read_event,
-                        ReadData {
-                            data: &buffer[..n],
-                            size: n,
-                        },
-                    ) {
-                        eprintln!("Failed to send data: {}", e);
-                    }
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
-                Err(e) => eprintln!("Failed to read data: {}", e),
-            }
-
-            thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
-        });
-
-        Ok(())
     })
 }
 

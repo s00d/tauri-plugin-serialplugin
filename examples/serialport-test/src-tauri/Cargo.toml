@@ -13,13 +13,13 @@ name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [build-dependencies]
-tauri-build = { version = "2.0.1", features = [] }
+tauri-build = { version = "2.0.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.0.3", features = [] }
+tauri = { version = "2.1.0", features = [] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serialport = "4.2.1"
+serialport = "4.6.0"
 tauri-plugin-serialplugin = { path = "../../../" }
 tauri-plugin-shell = "2.0.2"
 

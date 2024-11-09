@@ -387,14 +387,17 @@ class SerialPort {
    * @param {ReadOptions} [options] Read options
    * @returns {Promise<void>} A promise that resolves when data is read
    */
-  async read(options?: ReadOptions): Promise<void> {
+  async read(options?: ReadOptions): Promise<string> {
     try {
       if (this.is_test) {
         const resp = '';
-        if(tester_listeners[this.options.path!]) tester_listeners[this.options.path!](resp)
-        return Promise.resolve();
+        if(tester_listeners[this.options.path!]) {
+          tester_listeners[this.options.path!](resp);
+        }
+        return Promise.resolve('');
       }
-      return await invoke<void>('plugin:serialplugin|read', {
+
+      return await invoke<string>('plugin:serialplugin|read', {
         path: this.options.path,
         timeout: options?.timeout || this.options.timeout,
         size: options?.size || this.size,

@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["core:default","serialplugin:default"]}}
+{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["core:default","serialplugin:default","serialplugin:allow-bytes-to-read","serialplugin:allow-bytes-to-write","serialplugin:allow-clear-buffer","serialplugin:allow-read-clear-to-send"]}}

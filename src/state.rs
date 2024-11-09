@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serialport::{self, SerialPort};
+use std::thread::JoinHandle;
 use std::{
     collections::HashMap,
     sync::{mpsc::Sender, Arc, Mutex},
@@ -13,6 +14,7 @@ pub struct SerialportState {
 pub struct SerialportInfo {
     pub serialport: Box<dyn SerialPort>,
     pub sender: Option<Sender<usize>>,
+    pub thread_handle: Option<JoinHandle<()>>,
 }
 
 #[derive(Serialize, Clone)]

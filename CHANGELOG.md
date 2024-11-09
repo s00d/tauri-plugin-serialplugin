@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2024-11-10
+
+### Added
+- Automatic port listening on connection
+- Background thread management for port monitoring
+
+### Changed
+- Refactored read operation to be synchronous instead of event-based
+- Improved port cleanup on close
+- Modified TypeScript interface to return string data directly from read operation
+- Changed port reading logic to use direct synchronous reads
+- Added automatic port monitoring on connection
+
 ## [2.1.0] - 2024-11-01
 
 ### Added
