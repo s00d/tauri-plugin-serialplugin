@@ -9,6 +9,9 @@
     "serialplugin:allow-bytes-to-read",
     "serialplugin:allow-bytes-to-write",
     "serialplugin:allow-clear-buffer",
-    "serialplugin:allow-read-clear-to-send"
+    "serialplugin:allow-read-clear-to-send",
+    "serialplugin:allow-read-data-set-ready",
+    "serialplugin:allow-read-ring-indicator",
+    "serialplugin:allow-read-carrier-detect"
   ]
 }

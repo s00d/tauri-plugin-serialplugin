@@ -68,9 +68,12 @@
       isConnected = true;
       console.log('Connected to port:', name);
 
+      await serialport.startListening();
+
 
       // Start listening for data
       serialport.listen((data) => {
+        console.log('listen', data)
         receivedData += data;
         updatePortStatus();
       });

@@ -1,8 +1,6 @@
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
-import { Window } from '@tauri-apps/api/window';
-
-const appWindow = new Window('serial-port');
+import { listen } from '@tauri-apps/api/event';
 
 export interface PortInfo {
   path: "Unknown"|string;
@@ -280,10 +278,10 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when the listener is set up
    */
   async disconnected(fn: (...args: any[]) => void): Promise<void> {
-    let sub_path = this.options.path?.toString().replace(/\.+/, '')
+    let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
     console.log('listen event: ' + checkEvent)
-    let unListen: any = await appWindow.listen<ReadDataResult>(
+    let unListen: any = await listen<ReadDataResult>(
         checkEvent,
         () => {
           try {
@@ -306,7 +304,7 @@ class SerialPort {
   async listen(fn: (...args: any[]) => void, isDecode = true): Promise<void> {
     try {
       await this.cancelListen();
-      let sub_path = this.options.path?.toString().replace(/\.+/, '')
+      let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
       console.log('listen event: ' + readEvent)
 
@@ -319,7 +317,7 @@ class SerialPort {
         return Promise.resolve();
       }
 
-      this.unListen = await appWindow.listen<ReadDataResult>(
+      this.unListen = await listen<ReadDataResult>(
           readEvent,
           ({ payload }) => {
             try {
@@ -377,6 +375,55 @@ class SerialPort {
         this.isOpen = false;
       }).catch(err => console.error(err))
       return Promise.resolve(res);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+
+  /**
+   * Starts listening for data on the serial port
+   * The port will continuously monitor for incoming data and emit events
+   * @returns {Promise<void>} A promise that resolves when listening starts
+   * @throws {Error} If starting listener fails or port is not open
+   * @example
+   * ```typescript
+   * const port = new SerialPort({ path: '/dev/ttyUSB0' });
+   * await port.startListening();
+   * // Listen for data events
+   * port.listen((data) => {
+   *   console.log('listen', data)
+   *   receivedData += data;
+   *   updatePortStatus();
+   * });
+   * ```
+   */
+  async startListening(): Promise<void> {
+    try {
+      await invoke<string>('plugin:serialplugin|start_listening', {
+        path: this.options.path,
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * Stops listening for data on the serial port
+   * Cleans up event listeners and monitoring threads
+   * @returns {Promise<void>} A promise that resolves when listening stops
+   * @throws {Error} If stopping listener fails or port is not open
+   * @example
+   * ```typescript
+   * const port = new SerialPort({ path: '/dev/ttyUSB0' });
+   * await port.stopListening();
+   * ```
+   */
+  async stopListening(): Promise<void> {
+    try {
+      await invoke<string>('plugin:serialplugin|stop_listening', {
+        path: this.options.path,
+      });
     } catch (error) {
       return Promise.reject(error);
     }

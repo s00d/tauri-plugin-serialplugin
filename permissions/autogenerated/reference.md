@@ -34,6 +34,8 @@ On Windows the webview data folder access is denied.
 - `allow-read`
 - `allow-write`
 - `allow-write-binary`
+- `allow-start-listening`
+- `allow-stop-listening`
 
 ## Permission Table
 
@@ -638,6 +640,58 @@ Enables the set_timeout command without any pre-configured scope.
 <td>
 
 Denies the set_timeout command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-start-listening`
+
+</td>
+<td>
+
+Enables the start_listening command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-start-listening`
+
+</td>
+<td>
+
+Denies the start_listening command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-stop-listening`
+
+</td>
+<td>
+
+Enables the stop_listening command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-stop-listening`
+
+</td>
+<td>
+
+Denies the stop_listening command without any pre-configured scope.
 
 </td>
 </tr>

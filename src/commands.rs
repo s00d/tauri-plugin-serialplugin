@@ -235,17 +235,17 @@ pub fn available_ports_direct() -> HashMap<String, HashMap<String, String>> {
                     }
                         .to_string(),
                 );
-                result_list.insert(line.to_string(), port_info);
+                result_list.insert(format!("/dev/{}", line), port_info);
             }
             if line.starts_with("rfcomm") {
                 let mut port_info = HashMap::new();
                 port_info.insert("type".to_string(), "Bluetooth".to_string());
-                result_list.insert(line.to_string(), port_info);
+                result_list.insert(format!("/dev/{}", line), port_info);
             }
             if line.starts_with("ttyACM") {
                 let mut port_info = HashMap::new();
                 port_info.insert("type".to_string(), "Virtual".to_string());
-                result_list.insert(line.to_string(), port_info);
+                result_list.insert(format!("/dev/{}", line), port_info);
             }
         }
     }
@@ -415,7 +415,7 @@ pub fn force_close<R: Runtime>(
 #[tauri::command]
 pub fn open<R: Runtime>(
     _app: AppHandle<R>,
-    window: Window<R>,
+    _window: Window<R>,
     state: State<'_, SerialportState>,
     path: String,
     baud_rate: u32,
@@ -440,74 +440,115 @@ pub fn open<R: Runtime>(
                 .open()
                 .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
 
-            let mut port_info = SerialportInfo {
+            let port_info = SerialportInfo {
                 serialport: port,
                 sender: None,
                 thread_handle: None,
             };
-
-            // Start listening immediately after opening
-            let event_path = path.replace(".", "");
-            let read_event = format!("plugin-serialplugin-read-{}", &event_path);
-            let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
-
-            let mut serial = port_info
-                .serialport
-                .try_clone()
-                .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
-
-            let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
-            port_info.sender = Some(tx);
-
-            let window_clone = window.clone();
-            let path_clone = path.clone();
-            let thread_handle = thread::spawn(move || {
-                loop {
-                    match rx.try_recv() {
-                        Ok(_) => break,
-                        Err(TryRecvError::Disconnected) => {
-                            if let Err(e) = window_clone.emit(
-                                &disconnected_event,
-                                format!("Serial port {} disconnected!", &path_clone),
-                            ) {
-                                eprintln!("Failed to send disconnection event: {}", e);
-                            }
-                            break;
-                        }
-                        Err(TryRecvError::Empty) => {}
-                    }
-
-                    let mut buffer = vec![0; 1024];
-                    match serial.read(&mut buffer) {
-                        Ok(n) => {
-                            if let Err(e) = window.emit(
-                                &read_event,
-                                ReadData {
-                                    data: &buffer[..n],
-                                    size: n,
-                                },
-                            ) {
-                                eprintln!("Failed to send data: {}", e);
-                            }
-                        }
-                        Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
-                        Err(e) => {
-                            eprintln!("Failed to read data: {}", e);
-                            break; // Exit on error
-                        }
-                    }
-
-                    thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
-                }
-            });
-
-            port_info.thread_handle = Some(thread_handle);
 
             serialports.insert(path, port_info);
             Ok(())
         }
         Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
     }
+}
+
+
+/// Read data from the serial port
+#[tauri::command]
+pub fn start_listening<R: Runtime>(
+    app: AppHandle<R>,
+    _window: Window<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+    timeout: Option<u64>,
+) -> Result<(), Error> {
+    println!("Starting listening on port: {}", path);
+
+    get_serialport(state.clone(), path.clone(), |port_info| {
+        // Start listening immediately after opening
+        let event_path = path.replace(".", "-").replace("/", "-");
+        let read_event = format!("plugin-serialplugin-read-{}", &event_path);
+        let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
+
+        println!("Setting up port monitoring for: {}", read_event);
+
+        let mut serial = port_info
+            .serialport
+            .try_clone()
+            .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
+
+        let (tx, rx): (Sender<usize>, Receiver<usize>) = mpsc::channel();
+        port_info.sender = Some(tx);
+
+        let app_clone = app.clone();
+        let path_clone = path.clone();
+        let thread_handle = thread::spawn(move || {
+            loop {
+                match rx.try_recv() {
+                    Ok(_) => break,
+                    Err(TryRecvError::Disconnected) => {
+                        if let Err(e) = app_clone.emit(
+                            &disconnected_event,
+                            format!("Serial port {} disconnected!", &path_clone),
+                        ) {
+                            eprintln!("Failed to send disconnection event: {}", e);
+                        }
+                        break;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                }
+
+                let mut buffer = vec![0; 1024];
+                match serial.read(&mut buffer) {
+                    Ok(n) => {
+                        if let Err(e) = app_clone.emit(
+                            &read_event,
+                            ReadData {
+                                data: &buffer[..n],
+                                size: n,
+                            },
+                        ) {
+                            eprintln!("Failed to send data: {}", e);
+                        }
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
+                    Err(e) => {
+                        eprintln!("Failed to read data: {}", e);
+                        break; // Exit on error
+                    }
+                }
+
+                thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
+            }
+        });
+
+        port_info.thread_handle = Some(thread_handle);
+
+        Ok({})
+    })
+}
+
+#[tauri::command]
+pub fn stop_listening<R: Runtime>(
+    _app: AppHandle<R>,
+    _window: Window<R>,
+    state: State<'_, SerialportState>,
+    path: String,
+) -> Result<(), Error> {
+    println!("Stopping listening on port: {}", path);
+
+    get_serialport(state.clone(), path.clone(), |port_info| {
+        if let Some(sender) = &port_info.sender {
+            sender.send(1).map_err(|e| {
+                Error::String(format!("Failed to cancel serial port data reading: {}", e))
+            })?;
+        }
+        port_info.sender = None;
+        port_info.thread_handle = None;
+
+        Ok({})
+    })
 }
 
 /// Read data from the serial port

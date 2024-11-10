@@ -29,7 +29,7 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 ```toml
 # src-tauri/Cargo.toml
 [dependencies]
-tauri-plugin-serialplugin = "2.2.0"
+tauri-plugin-serialplugin = "2.3.0"
 ```
 
 ```bash
@@ -135,7 +135,10 @@ fn main() {
 | `serialplugin:deny-set-break`               | Denies starting break signal transmission                                     |
 | `serialplugin:allow-clear-break`            | Allows stopping break signal transmission                                     |
 | `serialplugin:deny-clear-break`             | Denies stopping break signal transmission                                     |
-
+| `serialplugin:allow-start-listening`        | Allows starting automatic port monitoring and data listening                  |
+| `serialplugin:deny-start-listening`         | Denies starting automatic port monitoring and data listening                  |
+| `serialplugin:allow-stop-listening`         | Allows stopping automatic port monitoring and data listening                  |
+| `serialplugin:deny-stop-listening`          | Denies stopping automatic port monitoring and data listening                  |
 
 3. **Basic Example**
 ```typescript
@@ -156,10 +159,15 @@ await port.open();
 // Write data
 await port.write("Hello, Serial Port!");
 
+// Start port listening
+await serialport.startListening();
 // Read data with event listener
 await port.listen((data) => {
   console.log('Received:', data);
 });
+
+// Stop port listening
+await serialport.stopListening();
 
 // Close port
 await port.close();
@@ -216,6 +224,36 @@ class SerialPort {
      * await port.close();
      */
     async close(): Promise<void>;
+    
+     /**
+      * Starts listening for data on the serial port
+      * The port will continuously monitor for incoming data and emit events
+      * @returns {Promise<void>} A promise that resolves when listening starts
+      * @throws {Error} If starting listener fails or port is not open
+      * @example
+      * ```typescript
+      * const port = new SerialPort({ path: '/dev/ttyUSB0' });
+      * await port.startListening();
+      * // Listen for data events
+      * port.listen((data) => {
+      *   console.log('listen', data)
+      *   receivedData += data;
+      *   updatePortStatus();
+      * });
+      */
+      async startListening(): Promise<void>;
+      
+      /**
+         * Stops listening for data on the serial port
+         * Cleans up event listeners and monitoring threads
+         * @returns {Promise<void>} A promise that resolves when listening stops
+         * @throws {Error} If stopping listener fails or port is not open
+         * @example
+         * ```typescript
+         * const port = new SerialPort({ path: '/dev/ttyUSB0' });
+         * await port.stopListening();
+       * */
+      async stopListening(): Promise<void> {
 
     /**
      * Forces a serial port to close regardless of its state

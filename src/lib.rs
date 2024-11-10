@@ -27,6 +27,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             close_all,
             force_close,
             open,
+            start_listening,
+            stop_listening,
             read,
             write,
             write_binary,
