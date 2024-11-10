@@ -466,6 +466,25 @@ pub fn start_listening<R: Runtime>(
     println!("Starting listening on port: {}", path);
 
     get_serialport(state.clone(), path.clone(), |port_info| {
+        if port_info.sender.is_some() {
+            println!("Existing listener found, stopping it first");
+            if let Some(sender) = &port_info.sender {
+                sender.send(1).map_err(|e| {
+                    eprintln!("Failed to stop existing listener: {}", e);
+                    Error::String(format!("Failed to stop existing listener: {}", e))
+                })?;
+            }
+            port_info.sender = None;
+
+            // Wait for thread to finish
+            if let Some(handle) = port_info.thread_handle.take() {
+                println!("Waiting for existing thread to finish");
+                if let Err(e) = handle.join() {
+                    eprintln!("Error joining thread: {:?}", e);
+                }
+            }
+        }
+
         // Start listening immediately after opening
         let event_path = path.replace(".", "-").replace("/", "-");
         let read_event = format!("plugin-serialplugin-read-{}", &event_path);
