@@ -387,16 +387,13 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when listening starts
    * @throws {Error} If starting listener fails or port is not open
    * @example
-   * ```typescript
    * const port = new SerialPort({ path: '/dev/ttyUSB0' });
    * await port.startListening();
    * // Listen for data events
    * port.listen((data) => {
    *   console.log('listen', data)
    *   receivedData += data;
-   *   updatePortStatus();
    * });
-   * ```
    */
   async startListening(): Promise<void> {
     try {
@@ -414,10 +411,7 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when listening stops
    * @throws {Error} If stopping listener fails or port is not open
    * @example
-   * ```typescript
-   * const port = new SerialPort({ path: '/dev/ttyUSB0' });
    * await port.stopListening();
-   * ```
    */
   async stopListening(): Promise<void> {
     try {
