@@ -3,41 +3,44 @@
   import { onMount } from 'svelte';
   import {ClearBuffer, DataBits, FlowControl, Parity, StopBits} from "../../../guest-js";
 
-  let serialport: SerialPort | undefined = undefined;
-  let name: string = '';
-  let ports: { [key: string]: { type: string } } = {};
-  let directPorts: { [key: string]: { type: string } } = {};
-  let baudRate: number = 9600;
-  let message: string = '';
-  let receivedData: string = '';
-  let isConnected: boolean = false;
-  let bytesToRead: number = 0;
-  let bytesToWrite: number = 0;
+  let serialport: SerialPort | undefined = $state(undefined);
+  let name: string = $state('');
+  let ports: { [key: string]: { type: string } } = $state({});
+  let directPorts: { [key: string]: { type: string } } = $state({});
+  let baudRate: number = $state(9600);
+  let message: string = $state('');
+  let receivedData: string = $state('');
+  let isConnected: boolean = $state(false);
+  let bytesToRead: number = $state(0);
+  let bytesToWrite: number = $state(0);
 
   // Control signals
-  let rtsState: boolean = false;
-  let dtrState: boolean = false;
-  let ctsState: boolean = false;
-  let dsrState: boolean = false;
-  let riState: boolean = false;
-  let cdState: boolean = false;
+  let rtsState: boolean = $state(false);
+  let dtrState: boolean = $state(false);
+  let ctsState: boolean = $state(false);
+  let dsrState: boolean = $state(false);
+  let riState: boolean = $state(false);
+  let cdState: boolean = $state(false);
 
   // Port settings
-  let selectedDataBits: DataBits = DataBits.Eight;
-  let selectedFlowControl: FlowControl = FlowControl.None;
-  let selectedParity: Parity = Parity.None;
-  let selectedStopBits: StopBits = StopBits.One;
-  let timeout: number = 1000;
+  let selectedDataBits: DataBits = $state(DataBits.Eight);
+  let selectedFlowControl: FlowControl = $state(FlowControl.None);
+  let selectedParity: Parity = $state(Parity.None);
+  let selectedStopBits: StopBits = $state(StopBits.One);
+  let timeout: number = $state(1000);
 
   const dataBitsOptions: DataBits[] = [5, 6, 7, 8];
   const flowControlOptions: FlowControl[] = [FlowControl.None, FlowControl.Software, FlowControl.Hardware];
   const parityOptions: Parity[] = [Parity.None, Parity.Odd, Parity.Even];
   const stopBitsOptions: StopBits[] = [1, 2];
 
+  $inspect(ports).with(console.log);
+  $inspect(directPorts).with(console.log);
+
   async function scanPorts() {
     try {
       ports = await SerialPort.available_ports();
-      console.log('Available ports:', ports);
+      console.log('Available ports');
     } catch (err) {
       console.error('Failed to scan ports:', err);
     }
@@ -46,7 +49,7 @@
   async function scanPortsDirect() {
     try {
       directPorts = await SerialPort.available_ports_direct();
-      console.log('Direct ports:', directPorts);
+      console.log('Direct ports');
     } catch (err) {
       console.error('Failed to scan ports directly:', err);
     }
@@ -206,8 +209,8 @@
   <div class="section">
     <h2>Port Discovery</h2>
     <div class="row">
-      <button on:click={scanPorts}>Scan Ports</button>
-      <button on:click={scanPortsDirect}>Scan Ports Direct</button>
+      <button onclick={scanPorts}>Scan Ports</button>
+      <button onclick={scanPortsDirect}>Scan Ports Direct</button>
     </div>
 
     <!-- Available Ports List -->
@@ -219,7 +222,7 @@
             <li>
               <button
                 class="port-select"
-                on:click={() => name = portName}
+                onclick={() => name = portName}
                 class:selected={name === portName}
               >
                 <strong>{portName}:</strong> {info.type}
@@ -242,7 +245,7 @@
             <li>
               <button
                   class="port-select"
-                  on:click={() => name = portName}
+                  onclick={() => name = portName}
                   class:selected={name === portName}
               >
                 <strong>{portName}:</strong> {info.type}
@@ -260,10 +263,10 @@
   <div class="section">
     <h2>Connection</h2>
     <div class="row">
-      <button on:click={connect} disabled={!name || isConnected}>
+      <button onclick={connect} disabled={!name || isConnected}>
         Connect
       </button>
-      <button on:click={disconnect} disabled={!isConnected}>
+      <button onclick={disconnect} disabled={!isConnected}>
         Disconnect
       </button>
     </div>
@@ -321,7 +324,7 @@
     </div>
 
     <div class="row">
-      <button on:click={updatePortSettings} disabled={!isConnected}>
+      <button onclick={updatePortSettings} disabled={!isConnected}>
         Update Settings
       </button>
     </div>
@@ -337,13 +340,13 @@
         bind:value={message}
         disabled={!isConnected}
       />
-      <button on:click={sendMessage} disabled={!isConnected || !message}>
+      <button onclick={sendMessage} disabled={!isConnected || !message}>
         Send Text
       </button>
-      <button on:click={sendBinary} disabled={!isConnected}>
+      <button onclick={sendBinary} disabled={!isConnected}>
         Send Binary
       </button>
-      <button on:click={clearBuffers} disabled={!isConnected}>
+      <button onclick={clearBuffers} disabled={!isConnected}>
         Clear Buffers
       </button>
     </div>
@@ -365,7 +368,7 @@
     <div class="signals-grid">
       <div class="signal">
         <button
-          on:click={toggleRTS}
+          onclick={toggleRTS}
           disabled={!isConnected}
           class:active={rtsState}
         >
@@ -375,7 +378,7 @@
 
       <div class="signal">
         <button
-          on:click={toggleDTR}
+          onclick={toggleDTR}
           disabled={!isConnected}
           class:active={dtrState}
         >

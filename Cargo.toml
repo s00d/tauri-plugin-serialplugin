@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-serialplugin"
-version = "2.3.1"
+version = "2.3.2"
 description = "Access the current process of your Tauri application."
 edition = "2021"
 authors = ["Tauri Programme within The Commons Conservancy"]
@@ -18,9 +18,9 @@ tauri-plugin = { version = "2.0.3", features = [ "build" ] }
 
 [dependencies]
 serialport = "4.6.0"
-tauri = "2.1.0"
-serde = { version = "1.0.214", features = ["derive"] }
-thiserror = "1.0.68"
+tauri = "2.1.1"
+serde = { version = "1.0.215", features = ["derive"] }
+thiserror = "2.0.3"
 
 [profile.release]
 panic = "abort"
