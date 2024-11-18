@@ -43,6 +43,7 @@ export interface Options {
   flowControl: FlowControl;
   parity: Parity;
   stopBits: StopBits;
+  size?: number;
   timeout: number;
   [key: string]: any;
 }
@@ -111,6 +112,7 @@ class SerialPort {
       flowControl: options.flowControl || FlowControl.None,
       parity: options.parity || Parity.None,
       stopBits: options.stopBits || StopBits.One,
+      size: options.size || 1024,
       timeout: options.timeout || 200,
     };
     this.size = options.size || 1024;
@@ -399,6 +401,8 @@ class SerialPort {
     try {
       await invoke<string>('plugin:serialplugin|start_listening', {
         path: this.options.path,
+        size: this.options.size,
+        timeout: this.options.timeout,
       });
     } catch (error) {
       return Promise.reject(error);

@@ -462,6 +462,7 @@ pub fn start_listening<R: Runtime>(
     state: State<'_, SerialportState>,
     path: String,
     timeout: Option<u64>,
+    size: Option<usize>,
 ) -> Result<(), Error> {
     println!("Starting listening on port: {}", path);
 
@@ -518,7 +519,7 @@ pub fn start_listening<R: Runtime>(
                     Err(TryRecvError::Empty) => {}
                 }
 
-                let mut buffer = vec![0; 1024];
+                let mut buffer = vec![0; size.unwrap_or(1024)];
                 match serial.read(&mut buffer) {
                     Ok(n) => {
                         if let Err(e) = app_clone.emit(
