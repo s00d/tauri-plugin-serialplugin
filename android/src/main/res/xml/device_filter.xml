@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FTDI -->
+    <usb-device vendor-id="1027" product-id="24577" /> <!-- FT232RL -->
+    <usb-device vendor-id="1027" product-id="24592" /> <!-- FT232H -->
+    <usb-device vendor-id="1027" product-id="24596" /> <!-- FT230X -->
+    <usb-device vendor-id="1027" product-id="24597" /> <!-- FT231X -->
+    <usb-device vendor-id="1027" product-id="24593" /> <!-- FT2232H -->
+    <usb-device vendor-id="1027" product-id="24597" /> <!-- FT4232H -->
+    <usb-device vendor-id="1027" product-id="24598" /> <!-- FT232RQ -->
+    <usb-device vendor-id="1027" product-id="24599" /> <!-- FT234XD -->
+    <usb-device vendor-id="1027" product-id="24600" /> <!-- FT232HP -->
+    <usb-device vendor-id="1027" product-id="24601" /> <!-- FT201X -->
+    <usb-device vendor-id="1027" product-id="24602" /> <!-- FT220X -->
+    <usb-device vendor-id="1027" product-id="24603" /> <!-- FT233H -->
+
+    <!-- Prolific -->
+    <usb-device vendor-id="1659" product-id="8963" /> <!-- PL2303 -->
+    <usb-device vendor-id="1659" product-id="8960" /> <!-- PL2303TA -->
+    <usb-device vendor-id="1659" product-id="8961" /> <!-- PL2303TB -->
+    <usb-device vendor-id="1659" product-id="8962" /> <!-- PL2303TC -->
+    <usb-device vendor-id="1659" product-id="8964" /> <!-- PL2303TD -->
+    <usb-device vendor-id="1659" product-id="8965" /> <!-- PL2303TE -->
+    <usb-device vendor-id="1659" product-id="8966" /> <!-- PL2303SA -->
+    <usb-device vendor-id="1659" product-id="8967" /> <!-- PL2303SB -->
+
+    <!-- Silabs CP210x -->
+    <usb-device vendor-id="4292" product-id="60000" /> <!-- CP2102 -->
+    <usb-device vendor-id="4292" product-id="60001" /> <!-- CP2103 -->
+    <usb-device vendor-id="4292" product-id="60002" /> <!-- CP2104 -->
+    <usb-device vendor-id="4292" product-id="60016" /> <!-- CP2105 -->
+    <usb-device vendor-id="4292" product-id="60017" /> <!-- CP2108 -->
+    <usb-device vendor-id="4292" product-id="60032" /> <!-- CP2110 -->
+    <usb-device vendor-id="4292" product-id="60033" /> <!-- CP2111 -->
+    <usb-device vendor-id="4292" product-id="60048" /> <!-- CP2112 -->
+    <usb-device vendor-id="4292" product-id="60049" /> <!-- CP2114 -->
+
+    <!-- QinHeng Electronics -->
+    <usb-device vendor-id="1A86" product-id="7523" /> <!-- CH340 -->
+    <usb-device vendor-id="1A86" product-id="5523" /> <!-- CH341A -->
+    <usb-device vendor-id="1A86" product-id="55D4" /> <!-- CH9102 -->
+    <usb-device vendor-id="1A86" product-id="7522" /> <!-- CH340K -->
+    <usb-device vendor-id="1A86" product-id="7584" /> <!-- CH340B -->
+    <usb-device vendor-id="1A86" product-id="E1F1" /> <!-- CH910x -->
+    <usb-device vendor-id="1A86" product-id="E1F2" /> <!-- CH911x -->
+    <usb-device vendor-id="1A86" product-id="E1F3" /> <!-- CH912x -->
+
+    <!-- WCH CH34x -->
+    <usb-device vendor-id="4348" product-id="5537" /> <!-- CH34x -->
+    <usb-device vendor-id="4348" product-id="5538" /> <!-- CH348 -->
+    <usb-device vendor-id="4348" product-id="5539" /> <!-- CH349 -->
+
+    <!-- CDC/ACM Devices -->
+    <usb-device vendor-id="2341" /> <!-- Arduino -->
+    <usb-device vendor-id="2341" product-id="0001" /> <!-- Arduino UNO -->
+    <usb-device vendor-id="2341" product-id="0010" /> <!-- Arduino Mega 2560 -->
+    <usb-device vendor-id="2341" product-id="0037" /> <!-- Arduino Micro -->
+    <usb-device vendor-id="2341" product-id="003B" /> <!-- Arduino Leonardo -->
+    <usb-device vendor-id="2341" product-id="003D" /> <!-- Arduino Due -->
+    <usb-device vendor-id="2341" product-id="0042" /> <!-- Arduino Mega ADK -->
+    <usb-device vendor-id="2341" product-id="0043" /> <!-- Arduino Uno R3 -->
+    <usb-device vendor-id="2341" product-id="0044" /> <!-- Arduino Mega 2560 R3 -->
+    <usb-device vendor-id="2341" product-id="024E" /> <!-- Arduino Zero -->
+    <usb-device vendor-id="2341" product-id="804E" /> <!-- Arduino/Genuino MKR1000 -->
+    <usb-device vendor-id="2341" product-id="804F" /> <!-- Arduino M0 Pro -->
+    
+    <!-- Microchip -->
+    <usb-device vendor-id="04D8" /> <!-- Microchip -->
+    <usb-device vendor-id="04D8" product-id="00DF" /> <!-- PICkit3 -->
+    <usb-device vendor-id="04D8" product-id="0053" /> <!-- PICkit2 -->
+    <usb-device vendor-id="04D8" product-id="9012" /> <!-- ICD3 -->
+    
+    <!-- Atmel -->
+    <usb-device vendor-id="03EB" /> <!-- Atmel -->
+    <usb-device vendor-id="03EB" product-id="2104" /> <!-- AVRISP mkII -->
+    <usb-device vendor-id="03EB" product-id="2107" /> <!-- AVR Dragon -->
+    <usb-device vendor-id="03EB" product-id="2111" /> <!-- JTAG ICE3 -->
+    
+    <!-- STMicroelectronics -->
+    <usb-device vendor-id="0483" /> <!-- STMicro -->
+    <usb-device vendor-id="0483" product-id="3748" /> <!-- ST-LINK/V2 -->
+    <usb-device vendor-id="0483" product-id="374B" /> <!-- ST-LINK/V2-1 -->
+    
+    <!-- Nordic Semiconductor -->
+    <usb-device vendor-id="1915" /> <!-- Nordic -->
+    <usb-device vendor-id="1915" product-id="521F" /> <!-- nRF52 DK -->
+    <usb-device vendor-id="1915" product-id="520F" /> <!-- nRF51 DK -->
+    
+    <!-- Raspberry Pi -->
+    <usb-device vendor-id="2E8A" /> <!-- Raspberry Pi -->
+    <usb-device vendor-id="2E8A" product-id="0005" /> <!-- Raspberry Pi Pico -->
+    
+    <!-- Other Development Boards -->
+    <usb-device vendor-id="16D0" product-id="0753" /> <!-- Digispark -->
+    <usb-device vendor-id="0D28" product-id="0204" /> <!-- BBC micro:bit -->
+    <usb-device vendor-id="239A" /> <!-- Adafruit -->
+    <usb-device vendor-id="1B4F" /> <!-- SparkFun -->
+    <usb-device vendor-id="1209" /> <!-- Generic -->
+    <usb-device vendor-id="0403" /> <!-- Future Technology Devices -->
+    
+    <!-- USB to Serial Adapters -->
+    <usb-device vendor-id="067B" /> <!-- Prolific Technology -->
+    <usb-device vendor-id="0557" /> <!-- ATEN -->
+    <usb-device vendor-id="0B63" /> <!-- Moschip Semiconductor -->
+    <usb-device vendor-id="0FCF" /> <!-- Dynastream -->
+    
+    <!-- Industrial/Commercial Serial Devices -->
+    <usb-device vendor-id="0424" /> <!-- Standard Microsystems Corp -->
+    <usb-device vendor-id="0665" /> <!-- Cypress Semiconductor -->
+    <usb-device vendor-id="10C4" /> <!-- Silicon Labs -->
+    <usb-device vendor-id="067B" /> <!-- Prolific Technology -->
+</resources>

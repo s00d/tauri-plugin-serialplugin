@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">serialport-test</string>
+    <string name="main_activity_title">serialport-test</string>
+</resources>

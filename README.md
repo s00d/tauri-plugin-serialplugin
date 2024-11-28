@@ -140,6 +140,49 @@ fn main() {
 | `serialplugin:allow-stop-listening`         | Allows stopping automatic port monitoring and data listening                  |
 | `serialplugin:deny-stop-listening`          | Denies stopping automatic port monitoring and data listening                  |
 
+
+### Allow all
+```
+"permissions": [
+    "core:default",
+    "serialplugin:default",
+    "serialplugin:allow-bytes-to-read",
+    "serialplugin:allow-bytes-to-write",
+    "serialplugin:allow-clear-buffer",
+    "serialplugin:allow-read-clear-to-send",
+    "serialplugin:allow-read-data-set-ready",
+    "serialplugin:allow-read-ring-indicator",
+    "serialplugin:allow-read-carrier-detect",
+    "serialplugin:allow-set-baud-rate",
+    "serialplugin:allow-available-ports",
+    "serialplugin:allow-cancel-read",
+    "serialplugin:allow-close",
+    "serialplugin:allow-close-all",
+    "serialplugin:allow-force-close",
+    "serialplugin:allow-open",
+    "serialplugin:allow-read",
+    "serialplugin:allow-write",
+    "serialplugin:allow-write-binary",
+    "serialplugin:allow-available-ports-direct",
+    "serialplugin:allow-set-data-bits",
+    "serialplugin:allow-set-flow-control",
+    "serialplugin:allow-set-parity",
+    "serialplugin:allow-set-stop-bits",
+    "serialplugin:allow-set-timeout",
+    "serialplugin:allow-write-dtr",
+    "serialplugin:allow-read-cts",
+    "serialplugin:allow-read-dsr",
+    "serialplugin:allow-read-ri",
+    "serialplugin:allow-read-cd",
+    "serialplugin:allow-set-break",
+    "serialplugin:allow-clear-break",
+    "serialplugin:allow-start-listening",
+    "serialplugin:allow-stop-listening",
+    "serialplugin:allow-write-request-to-send",
+    "serialplugin:allow-write-data-terminal-ready"
+  ]
+```
+
 3. **Basic Example**
 ```typescript
 import { SerialPort } from "tauri-plugin-serialplugin";
@@ -512,6 +555,26 @@ const request = createModbusRequest(0x1000, 10);
 await port.writeBinary(request);
 ```
 
+## Android Setup
+
+To use this plugin on Android, you need to add the JitPack repository to your project's `build.gradle.kts` file located at `/src-tauri/gen/android/build.gradle.kts`. Below is an example of how to configure it:
+
+```kotlin
+buildscript {
+    repositories {
+        // ...
+        maven { url = uri("https://jitpack.io") }
+    }
+    // ...
+}
+
+allprojects {
+    repositories {
+        // ...
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
 
 ## Contributing
 

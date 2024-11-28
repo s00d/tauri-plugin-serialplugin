@@ -33,11 +33,35 @@ const COMMANDS: &[&str] = &[
     "clear_buffer",
     "set_break",
     "clear_break",
+    "write_rts",
+    "write_dtr",
+    "read_cts",
+    "read_dsr",
+    "read_ri",
+    "read_cd",
 ];
 
 fn main() {
-
-    tauri_plugin::Builder::new(COMMANDS)
+    let result = tauri_plugin::Builder::new(COMMANDS)
         .global_api_script_path("./src/api-iife.js")
-        .build();
+        .android_path("android")
+        .try_build();
+
+    // when building documentation for Android the plugin build result is always Err() and is irrelevant to the crate documentation build
+    if !(cfg!(docsrs) && std::env::var("TARGET").unwrap().contains("android")) {
+        result.unwrap();
+    }
+
+    tauri_plugin::mobile::update_android_manifest(
+        "SERIAL PLUGIN",
+        "activity",
+        r#"<intent-filter>
+            <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+        </intent-filter>
+        <meta-data
+            android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+            android:resource="@xml/device_filter" />"#
+            .to_string(),
+    )
+        .expect("failed to update AndroidManifest.xml");
 }

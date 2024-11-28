@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-dsr"
+description = "Enables the read_dsr command without any pre-configured scope."
+commands.allow = ["read_dsr"]
+
+[[permission]]
+identifier = "deny-read-dsr"
+description = "Denies the read_dsr command without any pre-configured scope."
+commands.deny = ["read_dsr"]

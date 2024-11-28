@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-serialplugin"
-version = "2.3.2"
+version = "2.4.1"
 description = "Access the current process of your Tauri application."
 edition = "2021"
 authors = ["Tauri Programme within The Commons Conservancy"]
@@ -12,6 +12,13 @@ repository = "https://github.com/s00d/tauri-plugin-serialplugin"
 [package.metadata.docs.rs]
 rustc-args = [ "--cfg", "docsrs" ]
 rustdoc-args = [ "--cfg", "docsrs" ]
+targets = ["x86_64-linux-android"]
+
+[package.metadata.platforms.support]
+windows = { level = "full", notes = "" }
+linux = { level = "full", notes = "" }
+macos = { level = "full", notes = "" }
+android = { level = "full", notes = "" }
 
 [build-dependencies]
 tauri-plugin = { version = "2.0.3", features = [ "build" ] }
@@ -21,6 +28,7 @@ serialport = "4.6.0"
 tauri = "2.1.1"
 serde = { version = "1.0.215", features = ["derive"] }
 thiserror = "2.0.3"
+serde_json = "1.0.133"
 
 [profile.release]
 panic = "abort"

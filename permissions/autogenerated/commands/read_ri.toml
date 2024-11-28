@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-read-ri"
+description = "Enables the read_ri command without any pre-configured scope."
+commands.allow = ["read_ri"]
+
+[[permission]]
+identifier = "deny-read-ri"
+description = "Denies the read_ri command without any pre-configured scope."
+commands.deny = ["read_ri"]

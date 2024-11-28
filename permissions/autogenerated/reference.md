@@ -387,6 +387,32 @@ Denies the read_carrier_detect command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-read-cd`
+
+</td>
+<td>
+
+Enables the read_cd command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-cd`
+
+</td>
+<td>
+
+Denies the read_cd command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-read-clear-to-send`
 
 </td>
@@ -413,6 +439,32 @@ Denies the read_clear_to_send command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-read-cts`
+
+</td>
+<td>
+
+Enables the read_cts command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-cts`
+
+</td>
+<td>
+
+Denies the read_cts command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-read-data-set-ready`
 
 </td>
@@ -432,6 +484,84 @@ Enables the read_data_set_ready command without any pre-configured scope.
 <td>
 
 Denies the read_data_set_ready command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-dsr`
+
+</td>
+<td>
+
+Enables the read_dsr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-dsr`
+
+</td>
+<td>
+
+Denies the read_dsr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-dtr`
+
+</td>
+<td>
+
+Enables the read_dtr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-dtr`
+
+</td>
+<td>
+
+Denies the read_dtr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-read-ri`
+
+</td>
+<td>
+
+Enables the read_ri command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-ri`
+
+</td>
+<td>
+
+Denies the read_ri command without any pre-configured scope.
 
 </td>
 </tr>
@@ -777,6 +907,32 @@ Denies the write_data_terminal_ready command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-write-dtr`
+
+</td>
+<td>
+
+Enables the write_dtr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-write-dtr`
+
+</td>
+<td>
+
+Denies the write_dtr command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-write-request-to-send`
 
 </td>
@@ -796,6 +952,32 @@ Enables the write_request_to_send command without any pre-configured scope.
 <td>
 
 Denies the write_request_to_send command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-write-rts`
+
+</td>
+<td>
+
+Enables the write_rts command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-write-rts`
+
+</td>
+<td>
+
+Denies the write_rts command without any pre-configured scope.
 
 </td>
 </tr>

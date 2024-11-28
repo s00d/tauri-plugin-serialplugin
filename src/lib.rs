@@ -4,17 +4,34 @@
 
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    Runtime, Manager
 };
-
+#[cfg(desktop)]
 use crate::commands::*;
-use crate::state::SerialportState;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+#[cfg(mobile)]
+use crate::mobile::*;
 
-pub mod commands;
+#[cfg(target_os = "android")]
+const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
+
+#[cfg(desktop)]
+use crate::state::SerialportState;
+#[cfg(desktop)]
+use std::collections::HashMap;
+#[cfg(desktop)]
+use std::sync::{Arc, Mutex};
+#[cfg(target_os = "android")]
+use crate::mobile_api::SerialPort;
+
+#[cfg(desktop)]
+mod commands;
+#[cfg(mobile)]
+mod mobile;
+
 mod error;
 pub mod state;
+#[cfg(mobile)]
+mod mobile_api;
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialplugin")
@@ -50,7 +67,12 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             set_break,
             clear_break,
         ])
-        .setup(|app, _| {
+        .setup(|app, _api| {
+            #[cfg(target_os = "android")]
+            let handle = _api.register_android_plugin(PLUGIN_IDENTIFIER, "SerialPlugin")?;
+            #[cfg(target_os = "android")]
+            app.manage(SerialPort(handle));
+            #[cfg(desktop)]
             app.manage(SerialportState {
                 serialports: Arc::new(Mutex::new(HashMap::new())),
             });
