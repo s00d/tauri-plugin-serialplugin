@@ -29,7 +29,7 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 ```toml
 # src-tauri/Cargo.toml
 [dependencies]
-tauri-plugin-serialplugin = "2.3.0"
+tauri-plugin-serialplugin = "2.4.1"
 ```
 
 ```bash
