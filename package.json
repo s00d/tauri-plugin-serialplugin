@@ -23,7 +23,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "release": "standard-version",
-    "publish": "npm publish && cargo publish"
+    "release:publish": "npm publish && cargo publish"
   },
   "files": [
     "dist-js",
