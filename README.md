@@ -25,11 +25,10 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 
 ### Installation Methods
 
-1. **Using crates.io and npm (Recommended)**
-```toml
-# src-tauri/Cargo.toml
-[dependencies]
-tauri-plugin-serialplugin = "2.4.1"
+**Using crates.io and npm (Recommended)**
+```bash
+# Install the Rust dependency
+cargo add tauri-plugin-serialplugin
 ```
 
 ```bash
@@ -40,14 +39,6 @@ yarn add tauri-plugin-serialplugin
 # or
 pnpm add tauri-plugin-serialplugin
 ```
-
-2. **Direct from GitHub**
-```bash
-npm add https://github.com/s00d/tauri-plugin-serialplugin#main
-```
-
-3. **As Git Submodule**
-   Clone the repository as a submodule and reference it locally.
 
 ## Basic Usage
 
