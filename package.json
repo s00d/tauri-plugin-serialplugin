@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.4.7",
+  "version": "2.4.9",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -25,7 +25,7 @@
     "release": "standard-version",
     "publish:cargo": "cargo publish",
     "publish:npm": "npm publish",
-    "publish": "npm run release && npm run publish:npm && npm run publish:cargo"
+    "publish": "npm run publish:npm && npm run publish:cargo"
   },
   "files": [
     "dist-js",
