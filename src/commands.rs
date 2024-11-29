@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tauri::{AppHandle, Runtime, State};
 
-
 #[tauri::command]
 pub fn available_ports<R: Runtime>(
     _app: AppHandle<R>,
@@ -73,14 +72,14 @@ pub fn open<R: Runtime>(
     timeout: Option<u64>,
 ) -> Result<(), Error> {
     serial.open(
-            path,
-            baud_rate,
-            data_bits,
-            flow_control,
-            parity,
-            stop_bits,
-            timeout,
-        )
+        path,
+        baud_rate,
+        data_bits,
+        flow_control,
+        parity,
+        stop_bits,
+        timeout,
+    )
 }
 
 #[tauri::command]

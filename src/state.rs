@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serialport::{self, SerialPort};
 use serialport::{
-    DataBits as SerialDataBits, FlowControl as SerialFlowControl,
-    Parity as SerialParity, StopBits as SerialStopBits, ClearBuffer as SerialClearBuffer,
+    ClearBuffer as SerialClearBuffer, DataBits as SerialDataBits, FlowControl as SerialFlowControl,
+    Parity as SerialParity, StopBits as SerialStopBits,
 };
 use std::thread::JoinHandle;
 use std::{
@@ -161,7 +161,6 @@ impl StopBits {
         }
     }
 }
-
 
 /// Buffer types for clearing
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]

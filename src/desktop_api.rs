@@ -1,9 +1,12 @@
 use crate::error::Error;
-use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, ReadData, SerialportInfo, StopBits, BLUETOOTH, PCI, UNKNOWN, USB};
+use crate::state::{
+    ClearBuffer, DataBits, FlowControl, Parity, ReadData, SerialportInfo, StopBits, BLUETOOTH, PCI,
+    UNKNOWN, USB,
+};
 use serde::{Deserialize, Serialize};
 use serialport::{
-    DataBits as SerialDataBits, FlowControl as SerialFlowControl,
-    Parity as SerialParity, StopBits as SerialStopBits,
+    DataBits as SerialDataBits, FlowControl as SerialFlowControl, Parity as SerialParity,
+    StopBits as SerialStopBits,
 };
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -499,11 +502,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the baud rate
-    pub fn set_baud_rate(
-        &self,
-        path: String,
-        baud_rate: u32,
-    ) -> Result<(), Error> {
+    pub fn set_baud_rate(&self, path: String, baud_rate: u32) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -513,11 +512,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the data bits
-    pub fn set_data_bits(
-        &self,
-        path: String,
-        data_bits: DataBits,
-    ) -> Result<(), Error> {
+    pub fn set_data_bits(&self, path: String, data_bits: DataBits) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -527,11 +522,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the flow control
-    pub fn set_flow_control(
-        &self,
-        path: String,
-        flow_control: FlowControl,
-    ) -> Result<(), Error> {
+    pub fn set_flow_control(&self, path: String, flow_control: FlowControl) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -551,11 +542,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the stop bits
-    pub fn set_stop_bits(
-        &self,
-        path: String,
-        stop_bits: StopBits,
-    ) -> Result<(), Error> {
+    pub fn set_stop_bits(&self, path: String, stop_bits: StopBits) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -565,11 +552,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the timeout
-    pub fn set_timeout(
-        &self,
-        path: String,
-        timeout: Duration,
-    ) -> Result<(), Error> {
+    pub fn set_timeout(&self, path: String, timeout: Duration) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -579,11 +562,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the RTS (Request To Send) control signal
-    pub fn write_request_to_send(
-        &self,
-        path: String,
-        level: bool,
-    ) -> Result<(), Error> {
+    pub fn write_request_to_send(&self, path: String, level: bool) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -593,11 +572,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Set the DTR (Data Terminal Ready) control signal
-    pub fn write_data_terminal_ready(
-        &self,
-        path: String,
-        level: bool,
-    ) -> Result<(), Error> {
+    pub fn write_data_terminal_ready(&self, path: String, level: bool) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport
@@ -661,11 +636,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Clear input/output buffers
-    pub fn clear_buffer(
-        &self,
-        path: String,
-        buffer_to_clear: ClearBuffer,
-    ) -> Result<(), Error> {
+    pub fn clear_buffer(&self, path: String, buffer_to_clear: ClearBuffer) -> Result<(), Error> {
         self.get_serialport(path, |port_info| {
             port_info
                 .serialport

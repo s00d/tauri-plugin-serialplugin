@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
+use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -255,11 +255,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Sets the flow control for the serial port
-    pub fn set_flow_control(
-        &self,
-        path: String,
-        flow_control: FlowControl,
-    ) -> Result<(), Error> {
+    pub fn set_flow_control(&self, path: String, flow_control: FlowControl) -> Result<(), Error> {
         let params = serde_json::json!({
             "path": path,
             "flowControl": flow_control,
@@ -415,11 +411,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Clears the specified buffer
-    pub fn clear_buffer(
-        &self,
-        path: String,
-        buffer_type: ClearBuffer,
-    ) -> Result<(), Error> {
+    pub fn clear_buffer(&self, path: String, buffer_type: ClearBuffer) -> Result<(), Error> {
         let params = serde_json::json!({
             "path": path,
             "bufferType": buffer_type,

@@ -68,7 +68,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let handle = _api.register_android_plugin(PLUGIN_IDENTIFIER, "SerialPlugin")?;
             #[cfg(target_os = "android")]
             let serialplugin = SerialPort(handle);
-                // app.manage(SerialPort(handle));
+            // app.manage(SerialPort(handle));
             #[cfg(desktop)]
             let serialplugin = SerialPort {
                 app: app.clone(),
