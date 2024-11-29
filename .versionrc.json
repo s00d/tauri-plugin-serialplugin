@@ -1,0 +1,18 @@
+{
+  "types": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug Fixes" },
+    { "type": "chore", "hidden": true },
+    { "type": "docs", "hidden": true },
+    { "type": "style", "hidden": true },
+    { "type": "refactor", "hidden": true },
+    { "type": "test", "hidden": true }
+  ],
+  "commitUrlFormat": "https://github.com/s00d/tauri-plugin-serialplugin/commit/{{hash}}",
+  "compareUrlFormat": "https://github.com/s00d/tauri-plugin-serialplugin/compare/{{previousTag}}...{{currentTag}}",
+  "issueUrlFormat": "https://github.com/s00d/tauri-plugin-serialplugin/issues/{{id}}",
+  "scripts": {
+    "postbump": "jq -r .version package.json > VERSION && sed -i '' \"s/^version = .*$/version = \\\"$(cat VERSION)\\\"/\" Cargo.toml && rm VERSION && sleep 10 && git add Cargo.toml Cargo.lock CHANGELOG.md examples/serialport-test/src-tauri/Cargo.lock && git commit -m \"chore: update version and changelog\" && git push",
+    "postchangelog": "git add CHANGELOG.md Cargo.toml"
+  }
+}
