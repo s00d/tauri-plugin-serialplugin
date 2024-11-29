@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.4.3",
+  "version": "2.4.4",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -21,7 +21,10 @@
     "dev": "vite dev",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "release": "standard-version",
+    "publish:cargo": "cargo publish",
+    "publish": "npm run release && npm run publish:cargo"
   },
   "files": [
     "dist-js",
@@ -36,6 +39,7 @@
     "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "11.1.6",
     "rollup": "4.27.2",
+    "standard-version": "^9.5.0",
     "tslib": "^2.8.1",
     "typescript": "5.6.3"
   },
