@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-
 const COMMANDS: &[&str] = &[
     "available_ports",
     "available_ports_direct",
@@ -63,5 +62,5 @@ fn main() {
             android:resource="@xml/device_filter" />"#
             .to_string(),
     )
-        .expect("failed to update AndroidManifest.xml");
+    .expect("failed to update AndroidManifest.xml");
 }

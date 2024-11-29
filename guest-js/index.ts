@@ -673,7 +673,7 @@ class SerialPort {
     try {
       return await invoke<void>('plugin:serialplugin|clear_buffer', {
         path: this.options.path,
-        bufferToClear: buffer
+        bufferType: buffer
       });
     } catch (error) {
       return Promise.reject(error);

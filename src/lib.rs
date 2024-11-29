@@ -2,36 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use crate::commands::*;
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Runtime, Manager
+    Manager, Runtime,
 };
-#[cfg(desktop)]
-use crate::commands::*;
-#[cfg(mobile)]
-use crate::mobile::*;
 
 #[cfg(target_os = "android")]
 const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
 
 #[cfg(desktop)]
-use crate::state::SerialportState;
+use crate::desktop_api::SerialPort;
+#[cfg(target_os = "android")]
+use crate::mobile_api::SerialPort;
 #[cfg(desktop)]
 use std::collections::HashMap;
 #[cfg(desktop)]
 use std::sync::{Arc, Mutex};
-#[cfg(target_os = "android")]
-use crate::mobile_api::SerialPort;
+
+mod commands;
 
 #[cfg(desktop)]
-mod commands;
-#[cfg(mobile)]
-mod mobile;
-
+mod desktop_api;
 mod error;
-pub mod state;
 #[cfg(mobile)]
 mod mobile_api;
+pub mod state;
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialplugin")
@@ -71,11 +67,15 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(target_os = "android")]
             let handle = _api.register_android_plugin(PLUGIN_IDENTIFIER, "SerialPlugin")?;
             #[cfg(target_os = "android")]
-            app.manage(SerialPort(handle));
+            let serialplugin = SerialPort(handle);
+                // app.manage(SerialPort(handle));
             #[cfg(desktop)]
-            app.manage(SerialportState {
+            let serialplugin = SerialPort {
+                app: app.clone(),
                 serialports: Arc::new(Mutex::new(HashMap::new())),
-            });
+            };
+
+            app.manage(serialplugin);
             Ok(())
         })
         .build()
