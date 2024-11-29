@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.4.10",
+  "version": "2.4.11",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -23,9 +23,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "release": "standard-version",
-    "publish:cargo": "cargo publish",
-    "publish:npm": "npm publish",
-    "publish": "npm run publish:npm && npm run publish:cargo"
+    "publish": "npm publish && cargo publish"
   },
   "files": [
     "dist-js",
