@@ -87,9 +87,7 @@ let tester_ports: {[key: string]: SerialPort} = {}
 let tester_listeners: {[key: string]: (...args: any[]) => void} = {}
 
 setInterval(() => {
-  console.log('check test listeners')
   for (let path in tester_listeners) {
-    console.log('send test to ' + path)
     tester_listeners[path]('random')
   }
 }, 1000)
