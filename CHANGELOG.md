@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.4.13](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.11...v2.4.13) (2024-12-24)
+
+
+### Bug Fixes
+
+* **package:** update version numbers in package files to 2.4.12 ([323a1f9](https://github.com/s00d/tauri-plugin-serialplugin/commit/323a1f98c4ce4ec035d3594210250622ba869823))
+
 ### [2.4.11](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.10...v2.4.11) (2024-11-29)
 
 ### [2.4.10](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.9...v2.4.10) (2024-11-29)
