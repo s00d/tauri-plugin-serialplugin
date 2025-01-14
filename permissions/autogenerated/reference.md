@@ -24,6 +24,7 @@ On Windows the webview data folder access is denied.
 
 
 
+- `allow-managed-ports`
 - `allow-available-ports`
 - `allow-available-ports-direct`
 - `allow-cancel-read`
@@ -302,6 +303,32 @@ Enables the force_close command without any pre-configured scope.
 <td>
 
 Denies the force_close command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-managed-ports`
+
+</td>
+<td>
+
+Enables the managed_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-managed-ports`
+
+</td>
+<td>
+
+Denies the managed_ports command without any pre-configured scope.
 
 </td>
 </tr>

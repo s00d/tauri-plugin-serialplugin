@@ -395,6 +395,16 @@
           "const": "deny-force-close"
         },
         {
+          "description": "Enables the managed_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-managed-ports"
+        },
+        {
+          "description": "Denies the managed_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-managed-ports"
+        },
+        {
           "description": "Enables the open command without any pre-configured scope.",
           "type": "string",
           "const": "allow-open"

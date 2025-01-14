@@ -24,4 +24,4 @@ of the Tauri application by default.
 On Windows the webview data folder access is denied.
 
 """
-permissions = ["allow-available-ports", "allow-available-ports-direct", "allow-cancel-read", "allow-close", "allow-close-all", "allow-force-close", "allow-open", "allow-read", "allow-write", "allow-write-binary", "allow-start-listening", "allow-stop-listening"]
+permissions = ["allow-managed-ports", "allow-available-ports", "allow-available-ports-direct", "allow-cancel-read", "allow-close", "allow-close-all", "allow-force-close", "allow-open", "allow-read", "allow-write", "allow-write-binary", "allow-start-listening", "allow-stop-listening"]
