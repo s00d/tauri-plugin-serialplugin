@@ -7,6 +7,7 @@
   let name: string = $state('');
   let ports: { [key: string]: { type: string } } = $state({});
   let directPorts: { [key: string]: { type: string } } = $state({});
+  let managedPorts: string[] = $state([]);
   let baudRate: number = $state(9600);
   let message: string = $state('');
   let receivedData: string = $state('');
@@ -52,6 +53,15 @@
       console.log('Direct ports');
     } catch (err) {
       console.error('Failed to scan ports directly:', err);
+    }
+  }
+
+  async function showManagedPorts() {
+    try {
+      managedPorts = await SerialPort.managed_ports();
+      console.log('Managed ports');
+    } catch (err) {
+      console.error('Failed to get Managed ports:', err);
     }
   }
 
@@ -200,6 +210,8 @@
   onMount(() => {
     scanPorts();
   });
+
+  let isManagedPort = $derived(managedPorts.includes(name));
 </script>
 
 <main class="container">
@@ -210,7 +222,6 @@
     <h2>Port Discovery</h2>
     <div class="row">
       <button onclick={scanPorts}>Scan Ports</button>
-      <button onclick={scanPortsDirect}>Scan Ports Direct</button>
     </div>
 
     <!-- Available Ports List -->
@@ -235,7 +246,9 @@
       {/if}
     </div>
 
-
+    <div class="row">
+      <button onclick={scanPortsDirect}>Scan Ports Direct</button>
+    </div>
 
     <div class="ports-list">
       <h3>Available Direct Ports</h3>
@@ -257,17 +270,53 @@
         <p>No Direct Ports found</p>
       {/if}
     </div>
+
+
+      <div class="row">
+        <button onclick={showManagedPorts}>Show Managed Ports</button>
+      </div>
+
+    <!-- Managed Ports List -->
+    <div class="ports-list">
+      <h3>Managed Ports</h3>
+      {#if managedPorts.length > 0}
+        <ul>
+          {#each managedPorts as portName}
+            <li>
+              <button
+                  class="port-select"
+                  onclick={() => name = portName}
+                  class:selected={name === portName}
+              >
+                <strong>{portName}</strong>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p>No Managed Ports found</p>
+      {/if}
+    </div>
   </div>
 
   <!-- Connection Controls -->
   <div class="section">
     <h2>Connection</h2>
+    {#if isConnected}
+        <h3>Connected to: {serialport.options.path}</h3>
+    {:else}
+        <p>No Port Connected</p>
+    {/if}
     <div class="row">
       <button onclick={connect} disabled={!name || isConnected}>
-        Connect
+        Connect to {name}
       </button>
       <button onclick={disconnect} disabled={!isConnected}>
-        Disconnect
+        {#if isConnected}
+            Disconnect from {serialport.options.path}
+        {:else}
+            Disconnect
+        {/if}
       </button>
     </div>
   </div>

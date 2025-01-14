@@ -1762,6 +1762,11 @@
           "const": "serialplugin:allow-force-close"
         },
         {
+          "description": "Enables the managed_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-managed-ports"
+        },
+        {
           "description": "Enables the open command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-open"
@@ -1940,6 +1945,11 @@
           "description": "Denies the force_close command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-force-close"
+        },
+        {
+          "description": "Denies the managed_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-managed-ports"
         },
         {
           "description": "Denies the open command without any pre-configured scope.",
