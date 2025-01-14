@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.6.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.13...v2.6.0) (2025-01-14)
+
+
+### Features
+
+* **app:** add managed ports functionality and UI integration ([a3465ce](https://github.com/s00d/tauri-plugin-serialplugin/commit/a3465ced1ca053d31768600ef40ab4b853c68728))
+* **build:** add managed_ports command to the serial plugin ([6a79bbb](https://github.com/s00d/tauri-plugin-serialplugin/commit/6a79bbb20d1eda64600b2609f21838cb8a1fbc14))
+* **permissions:** add managed_ports command permissions ([634b713](https://github.com/s00d/tauri-plugin-serialplugin/commit/634b713d551295bad502746a2c80157eb0ce4d63))
+* **permissions:** add managed_ports permissions and update documentation ([9714453](https://github.com/s00d/tauri-plugin-serialplugin/commit/97144537f153759d9ba9f2bb6efe370eaa6b726b))
+* **README:** add documentation for managed ports feature ([b241c13](https://github.com/s00d/tauri-plugin-serialplugin/commit/b241c1317c9a591c54d9020eb955b06cc990d8ac))
+* **schemas:** add commands for webview and window background color ([67b9670](https://github.com/s00d/tauri-plugin-serialplugin/commit/67b9670b9df0fe6036363aec6141438625a7ecc3))
+* **serial:** add managed_ports command to list open serial ports ([7eb727d](https://github.com/s00d/tauri-plugin-serialplugin/commit/7eb727dbfa19234f8c4a4749f518ac38463c61ac))
+* **serialplugin:** add managedPorts command to retrieve active ports ([378ee2a](https://github.com/s00d/tauri-plugin-serialplugin/commit/378ee2a9534f9dead7ca6f7b4ad59126996282af))
+* **serialplugin:** add method to list all managed serial ports ([d04b991](https://github.com/s00d/tauri-plugin-serialplugin/commit/d04b9913914c6a9af889c895a28a532a79d160de))
+
 ### [2.4.13](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.11...v2.4.13) (2024-12-24)
 
 
