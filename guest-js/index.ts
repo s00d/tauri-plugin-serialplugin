@@ -164,6 +164,19 @@ class SerialPort {
   }
 
   /**
+   * @description Lists all managed serial ports (ports that are currently open and managed by the application).
+   * @returns {Promise<string[]>} A promise that resolves to an array of port paths (names).
+   */
+  static async managed_ports(): Promise<string[]> {
+    try {
+      const result = await invoke<string[]>('plugin:serialplugin|managed_ports');
+      return Promise.resolve(result);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * @description Forcefully closes a specific serial port
    * @param {string} path The path of the serial port to close
    * @returns {Promise<void>} A promise that resolves when the port is closed
