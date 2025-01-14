@@ -5,6 +5,7 @@
 const COMMANDS: &[&str] = &[
     "available_ports",
     "available_ports_direct",
+    "managed_ports",
     "cancel_read",
     "close",
     "close_all",
