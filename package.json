@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin",
-  "version": "2.4.13",
+  "version": "2.4.14",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -23,7 +23,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "release": "standard-version",
-    "release:publish": "npm publish && cargo publish"
+    "release:publish": "npm publish && cargo publish",
+    "playground": "npm --prefix examples/serialport-test run tauri dev"
   },
   "files": [
     "dist-js",
@@ -31,13 +32,13 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@tauri-apps/api": "^2.1.1"
+    "@tauri-apps/api": "^2.2.0"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "15.3.0",
     "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "11.1.6",
-    "rollup": "4.29.1",
+    "rollup": "4.30.1",
     "standard-version": "^9.5.0",
     "tslib": "^2.8.1",
     "typescript": "5.6.3"
