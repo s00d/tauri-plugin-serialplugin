@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-serialplugin"
-version = "2.4.14"
+version = "2.5.1"
 description = "Access the current process of your Tauri application."
 edition = "2021"
 authors = ["Tauri Programme within The Commons Conservancy"]
