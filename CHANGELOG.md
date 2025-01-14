@@ -2,20 +2,6 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-### [2.4.14](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.13...v2.4.14) (2025-01-15)
-
-#### Features
-- **schemas**: added commands for managing webview and window background colors ([commit](https://github.com/s00d/tauri-plugin-serialplugin/commit/...))
-
-#### Refactor
-- **desktop_api**: removed filtering of non-USB serial ports ([commit](https://github.com/s00d/tauri-plugin-serialplugin/commit/...))
-
-#### Chore
-- **deps**: updated dependencies for Tauri and related crates ([commit](https://github.com/s00d/tauri-plugin-serialplugin/commit/...))
-- **package**: updated dependencies in `package.json` ([commit](https://github.com/s00d/tauri-plugin-serialplugin/commit/...))
-- **deps**: updated package versions in `Cargo.toml` ([commit](https://github.com/s00d/tauri-plugin-serialplugin/commit/...))
-
-
 ### [2.4.13](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.11...v2.4.13) (2024-12-24)
 
 
