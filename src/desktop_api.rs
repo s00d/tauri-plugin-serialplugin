@@ -34,7 +34,6 @@ impl<R: Runtime> SerialPort<R> {
     /// Get serial port list
     pub fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         let mut list = serialport::available_ports().unwrap_or_else(|_| vec![]);
-        list.retain(|port| matches!(port.port_type, serialport::SerialPortType::UsbPort(_)));
         list.sort_by(|a, b| a.port_name.cmp(&b.port_name));
 
         let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
