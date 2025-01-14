@@ -137,6 +137,7 @@ fn main() {
 "permissions": [
     "core:default",
     "serialplugin:default",
+    "serialplugin:allow-managed-ports",
     "serialplugin:allow-bytes-to-read",
     "serialplugin:allow-bytes-to-write",
     "serialplugin:allow-clear-buffer",
@@ -233,6 +234,12 @@ class SerialPort {
      * const ports = await SerialPort.available_ports_direct();
      */
     static async available_ports_direct(): Promise<{ [key: string]: PortInfo }>;
+
+    /**
+     * @description Lists all managed serial ports (ports that are currently open and managed by the application).
+     * @returns {Promise<string[]>} A promise that resolves to an array of port paths (names).
+     */
+    static async managed_ports(): Promise<string[]>;
 }
 ```
 
