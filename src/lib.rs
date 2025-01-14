@@ -35,6 +35,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .invoke_handler(tauri::generate_handler![
             available_ports,
             available_ports_direct,
+            managed_ports,
             cancel_read,
             close,
             close_all,

@@ -200,6 +200,20 @@ impl<R: Runtime> SerialPort<R> {
         Ok(result_list)
     }
 
+    /// Get a list of managed serial ports.
+    pub fn managed_ports(&self) -> Result<Vec<String>, Error> {
+        // Lock the Mutex to safely access the data inside `self.serialports`.
+        let ports = self.serialports.lock().map_err(|_| {
+            Error::String("Failed to lock serialports mutex".to_string()) // Исправлено здесь
+        })?;
+
+        // Collect the keys (port names) from the HashMap into a vector.
+        let port_list: Vec<String> = ports.keys().cloned().collect();
+
+        // Return the list of managed port names.
+        Ok(port_list)
+    }
+
     /// Cancel reading data from the serial port
     pub fn cancel_read(&self, path: String) -> Result<(), Error> {
         self.get_serialport(path.clone(), |serialport_info| {
@@ -215,9 +229,11 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Close the specified serial port
     pub fn close(&self, path: String) -> Result<(), Error> {
+        println!("close {}", path);
         match self.serialports.lock() {
             Ok(mut serialports) => {
                 if let Some(port_info) = serialports.remove(&path) {
+                    println!("stop {}", path);
                     // Signal the thread to stop
                     if let Some(sender) = &port_info.sender {
                         sender.send(1).map_err(|e| {
@@ -228,12 +244,15 @@ impl<R: Runtime> SerialPort<R> {
                         })?;
                     }
 
+                    println!("thread to finish {}", path);
                     // Wait for the thread to finish
                     if let Some(handle) = port_info.thread_handle {
                         handle.join().map_err(|e| {
                             Error::String(format!("Failed to join thread: {:?}", e))
                         })?;
                     }
+
+                    println!("end {}", path);
 
                     Ok(())
                 } else {

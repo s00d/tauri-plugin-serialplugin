@@ -70,6 +70,16 @@ impl<R: Runtime> SerialPort<R> {
         }
     }
 
+    /// Lists all managed serial ports (ports that are currently open and managed by the application).
+    pub fn managed_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
+        match self.0.run_mobile_plugin("managedPorts", ()) {
+            Ok(Value::Object(result)) => serde_json::from_value(Value::Object(result))
+                .map_err(|e| Error::String(format!("Failed to parse managed ports: {}", e))),
+            Ok(_) => Err(Error::String("Invalid response format".to_string())),
+            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+        }
+    }
+
     /// Opens a serial port with the specified settings
     pub fn open(
         &self,

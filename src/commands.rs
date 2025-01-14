@@ -25,6 +25,14 @@ pub fn available_ports_direct<R: Runtime>(
 }
 
 #[tauri::command]
+pub fn managed_ports<R: Runtime>(
+    _app: AppHandle<R>,
+    serial: State<'_, SerialPort<R>>,
+) -> Result<Vec<String>, Error> {
+    serial.managed_ports()
+}
+
+#[tauri::command]
 pub fn cancel_read<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
