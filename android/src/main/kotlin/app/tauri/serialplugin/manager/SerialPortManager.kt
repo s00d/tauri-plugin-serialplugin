@@ -62,6 +62,10 @@ class SerialPortManager(private val context: Context) {
         return result
     }
 
+    fun getManagedPorts(): List<String> {
+        return portMap.keys.toList()
+    }
+
     fun openPort(config: SerialPortConfig): Boolean {
         try {
             val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)

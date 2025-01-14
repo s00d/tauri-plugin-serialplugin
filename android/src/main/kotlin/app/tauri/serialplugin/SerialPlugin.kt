@@ -82,6 +82,19 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun managedPorts(invoke: Invoke) {
+        try {
+            val managedPorts = serialPortManager.getManagedPorts()
+            val result = JSObject()
+            result.put("ports", managedPorts)
+            invoke.resolve(result)
+        } catch (e: Exception) {
+            // В случае ошибки возвращаем сообщение об ошибке
+            invoke.reject("Failed to get managed ports: ${e.message}")
+        }
+    }
+
+    @Command
     fun open(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
