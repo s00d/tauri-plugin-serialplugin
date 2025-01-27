@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.7.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.6.1...v2.7.0) (2025-01-27)
+
+
+### Features
+
+* **mobile_api:** update managed_ports to return a list of port names ([77e6799](https://github.com/s00d/tauri-plugin-serialplugin/commit/77e67998b294ee2599c8a765798b67815f4bbd84))
+
 ### [2.6.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.6.0...v2.6.1) (2025-01-27)
 
 ## [2.6.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.4.13...v2.6.0) (2025-01-14)
