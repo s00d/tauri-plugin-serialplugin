@@ -265,36 +265,27 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Close all open serial ports
     pub fn close_all(&self) -> Result<(), Error> {
-        match self.serialports.lock() {
-            Ok(mut map) => {
-                let mut errors = Vec::new();
+        let mut ports = self.serialports.lock().map_err(|e| Error::String(e.to_string()))?;
+        let mut errors = vec![];
 
-                for (path, port_info) in map.drain() {
-                    if let Some(sender) = &port_info.sender {
-                        if let Err(e) = sender.send(1) {
-                            errors.push(format!("Failed to cancel port {}: {}", path, e));
-                            continue;
-                        }
-                    }
-
-                    if let Some(handle) = port_info.thread_handle {
-                        if let Err(e) = handle.join() {
-                            errors
-                                .push(format!("Failed to join thread for port {}: {:?}", path, e));
-                        }
-                    }
-                }
-
-                if errors.is_empty() {
-                    Ok(())
-                } else {
-                    Err(Error::String(format!(
-                        "Errors during close: {}",
-                        errors.join(", ")
-                    )))
+        for (path, port_info) in ports.drain() {
+            if let Some(sender) = port_info.sender {
+                if let Err(e) = sender.send(1) {
+                    errors.push(format!("Port {}: {}", path, e));
                 }
             }
-            Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
+
+            if let Some(handle) = port_info.thread_handle {
+                if let Err(e) = handle.join() {
+                    errors.push(format!("Port {} thread join: {:?}", path, e));
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::String(errors.join(", ")))
         }
     }
 
@@ -334,36 +325,44 @@ impl<R: Runtime> SerialPort<R> {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
     ) -> Result<(), Error> {
-        match self.serialports.lock() {
-            Ok(mut serialports) => {
-                if serialports.contains_key(&path) {
-                    return Err(Error::String(format!("Serial port {} is open!", path)));
-                }
+        let mut serialports = self.serialports.lock()
+            .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
-                let port = serialport::new(path.clone(), baud_rate)
-                    .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
-                    .flow_control(
-                        flow_control
-                            .map(Into::into)
-                            .unwrap_or(SerialFlowControl::None),
-                    )
-                    .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
-                    .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
-                    .timeout(Duration::from_millis(timeout.unwrap_or(200)))
-                    .open()
-                    .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
+        // Закрываем существующий порт перед открытием нового
+        if let Some(mut existing) = serialports.remove(&path) {
+            println!("Force closing existing port {}", path);
 
-                let port_info = SerialportInfo {
-                    serialport: port,
-                    sender: None,
-                    thread_handle: None,
-                };
-
-                serialports.insert(path, port_info);
-                Ok(())
+            // Останавливаем поток чтения
+            if let Some(sender) = existing.sender.take() {
+                sender.send(1).ok();
             }
-            Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
+
+            // Закрываем порт
+            if let Some(handle) = existing.thread_handle.take() {
+                handle.join().ok();
+            }
+
+            // Явное освобождение ресурсов
+            drop(existing.serialport);
         }
+
+        // Открываем новый порт
+        let port = serialport::new(path.clone(), baud_rate)
+            .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
+            .flow_control(flow_control.map(Into::into).unwrap_or(SerialFlowControl::None))
+            .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
+            .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
+            .timeout(Duration::from_millis(timeout.unwrap_or(200)))
+            .open()
+            .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
+
+        serialports.insert(path, SerialportInfo {
+            serialport: port,
+            sender: None,
+            thread_handle: None,
+        });
+
+        Ok(())
     }
 
     /// Read data from the serial port
@@ -677,21 +676,19 @@ impl<R: Runtime> SerialPort<R> {
         })
     }
 
-    fn get_serialport<T, F: FnOnce(&mut SerialportInfo) -> Result<T, Error>>(
-        &self,
-        path: String,
-        f: F,
-    ) -> Result<T, Error> {
-        match self.serialports.lock() {
-            Ok(mut map) => match map.get_mut(&path) {
-                Some(serialport_info) => f(serialport_info),
-                None => Err(Error::String("Serial port not found".to_string())),
-            },
-            Err(error) => Err(Error::String(format!(
-                "Failed to acquire file lock! {}",
-                error
-            ))),
-        }
+    fn get_serialport<T, F>(&self, path: String, f: F) -> Result<T, Error>
+    where
+        F: FnOnce(&mut SerialportInfo) -> Result<T, Error>,
+    {
+        let mut ports = self.serialports
+            .lock()
+            .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
+
+        let serial_info = ports
+            .get_mut(&path)
+            .ok_or_else(|| Error::String(format!("Port '{}' not found", path)))?;
+
+        f(serial_info)
     }
 
     fn get_port_info(&self, port: serialport::SerialPortType) -> HashMap<String, String> {
