@@ -188,6 +188,21 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun readBinary(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(PortConfigArgs::class.java)
+            val data = serialPortManager.readFromPort(args.path, args.timeout, args.size)
+
+            val result = JSObject().apply {
+                put("data", data.toList())
+            }
+            invoke.resolve(result)
+        } catch (e: Exception) {
+            invoke.reject("Failed to read binary data: ${e.message}")
+        }
+    }
+
+    @Command
     fun startListening(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
