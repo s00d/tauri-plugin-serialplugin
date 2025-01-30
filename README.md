@@ -333,6 +333,13 @@ class SerialPort {
     */
    async read(options?: ReadOptions): Promise<string>;
 
+   /**
+    * @description Reads binary data from the serial port
+    * @param {ReadOptions} [options] Read options
+    * @returns {Promise<Uint8Array>} A promise that resolves with binary data
+    */
+   async readBinary(options?: ReadOptions): Promise<Uint8Array> {
+
     /**
      * Writes binary data to the serial port
      * @param {Uint8Array | number[]} data Binary data to write
