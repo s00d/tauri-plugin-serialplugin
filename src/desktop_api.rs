@@ -498,6 +498,27 @@ impl<R: Runtime> SerialPort<R> {
         })
     }
 
+    pub fn read_binary(
+        &self,
+        path: String,
+        timeout: Option<u64>,
+        size: Option<usize>,
+    ) -> Result<Vec<u8>, Error> {
+        self.get_serialport(path.clone(), |serialport_info| {
+            let mut buffer = vec![0; size.unwrap_or(1024)];
+            serialport_info
+                .serialport
+                .set_timeout(Duration::from_millis(timeout.unwrap_or(200)))
+                .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
+
+            match serialport_info.serialport.read(&mut buffer) {
+                Ok(n) => Ok(buffer[..n].to_vec()),
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(Vec::new()),
+                Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
+            }
+        })
+    }
+
     /// Write data to the serial port
     pub fn write(&self, path: String, value: String) -> Result<usize, Error> {
         self.get_serialport(path.clone(), |serialport_info| {

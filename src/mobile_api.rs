@@ -207,6 +207,36 @@ impl<R: Runtime> SerialPort<R> {
         }
     }
 
+    /// Reads data from the serial port
+    pub fn read_binary(
+        &self,
+        path: String,
+        timeout: Option<u64>,
+        size: Option<usize>,
+    ) -> Result<Vec<u8>, Error> {
+        let params = serde_json::json!({
+        "path": path,
+        "timeout": timeout.unwrap_or(1000),
+        "size": size.unwrap_or(1024),
+    });
+
+        match self.0.run_mobile_plugin("read_binary", params) {
+            Ok(Value::Array(bytes)) => {
+                let mut result = Vec::with_capacity(bytes.len());
+                for byte in bytes {
+                    if let Some(n) = byte.as_u64() {
+                        result.push(n as u8);
+                    } else {
+                        return Err(Error::String("Invalid byte format".into()));
+                    }
+                }
+                Ok(result)
+            }
+            Ok(_) => Err(Error::String("Invalid response format".to_string())),
+            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+        }
+    }
+
     /// Starts listening for data on the serial port
     pub fn start_listening(
         &self,

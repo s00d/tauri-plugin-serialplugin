@@ -122,6 +122,17 @@ pub fn read<R: Runtime>(
 }
 
 #[tauri::command]
+pub fn read_binary<R: Runtime>(
+    _app: AppHandle<R>,
+    serial: State<'_, SerialPort<R>>,
+    path: String,
+    timeout: Option<u64>,
+    size: Option<usize>,
+) -> Result<Vec<u8>, Error> {
+    serial.read_binary(path, timeout, size)
+}
+
+#[tauri::command]
 pub fn start_listening<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,

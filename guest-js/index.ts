@@ -464,6 +464,34 @@ class SerialPort {
   }
 
   /**
+   * @description Reads binary data from the serial port
+   * @param {ReadOptions} [options] Read options
+   * @returns {Promise<Uint8Array>} A promise that resolves with binary data
+   */
+  async readBinary(options?: ReadOptions): Promise<Uint8Array> {
+    try {
+      if (this.is_test) {
+        // Тестовые данные
+        const resp = new Uint8Array();
+        if(tester_listeners[this.options.path!]) {
+          tester_listeners[this.options.path!](resp);
+        }
+        return Promise.resolve(new Uint8Array());
+      }
+
+      const result = await invoke<number[]>('plugin:serialplugin|read_binary', {
+        path: this.options.path,
+        timeout: options?.timeout || this.options.timeout,
+        size: options?.size || this.size,
+      });
+
+      return new Uint8Array(result);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * @description Sets the baud rate of the serial port
    * @param {number} value The new baud rate
    * @returns {Promise<void>} A promise that resolves when baud rate is set

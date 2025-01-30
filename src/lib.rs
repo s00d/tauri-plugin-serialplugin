@@ -44,6 +44,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             start_listening,
             stop_listening,
             read,
+            read_binary,
             write,
             write_binary,
             set_baud_rate,
