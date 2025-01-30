@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.8.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.7.0...v2.8.0) (2025-01-30)
+
+
+### Features
+
+* **serial:** add `read_binary` command to read binary data from serial port ([1a17f99](https://github.com/s00d/tauri-plugin-serialplugin/commit/1a17f99dff08c430ba29bda0c0df8a883746e65e))
+* **serial:** add `read_binary` command to read binary data from serial port ([83a873d](https://github.com/s00d/tauri-plugin-serialplugin/commit/83a873d6a02a3c146698bd651fa67dcb7dd75acd))
+* **serial:** add `read_binary` command to read binary data from serial port ([09e6a32](https://github.com/s00d/tauri-plugin-serialplugin/commit/09e6a329833281759fbe993602b7d23fda2c2f86))
+* **serial:** add readBinary method for reading binary data ([5a62544](https://github.com/s00d/tauri-plugin-serialplugin/commit/5a62544e554ac3098e9ca99f3211ba0a5097aa70))
+
 ## [2.7.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.6.1...v2.7.0) (2025-01-27)
 
 
