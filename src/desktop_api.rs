@@ -481,10 +481,12 @@ impl<R: Runtime> SerialPort<R> {
         size: Option<usize>,
     ) -> Result<String, Error> {
         self.get_serialport(path.clone(), |serialport_info| {
+            let timeout = timeout.unwrap_or(1000);
+
             let mut buffer = vec![0; size.unwrap_or(1024)];
             serialport_info
                 .serialport
-                .set_timeout(Duration::from_millis(timeout.unwrap_or(200)))
+                .set_timeout(Duration::from_millis(timeout))
                 .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
 
             match serialport_info.serialport.read(&mut buffer) {
@@ -492,7 +494,7 @@ impl<R: Runtime> SerialPort<R> {
                     let data = String::from_utf8_lossy(&buffer[..n]).to_string();
                     Ok(data)
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(String::new()),
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Err(Error::String(format!("no data received within {} ms", timeout))),
                 Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
             }
         })
@@ -505,17 +507,30 @@ impl<R: Runtime> SerialPort<R> {
         size: Option<usize>,
     ) -> Result<Vec<u8>, Error> {
         self.get_serialport(path.clone(), |serialport_info| {
-            let mut buffer = vec![0; size.unwrap_or(1024)];
-            serialport_info
-                .serialport
-                .set_timeout(Duration::from_millis(timeout.unwrap_or(200)))
-                .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
+            let target_size = size.unwrap_or(1024);
+            let timeout = timeout.unwrap_or(1000);
+            let mut buffer = Vec::with_capacity(target_size);
+            let start = std::time::Instant::now();
 
-            match serialport_info.serialport.read(&mut buffer) {
-                Ok(n) => Ok(buffer[..n].to_vec()),
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(Vec::new()),
-                Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
+            while buffer.len() < target_size && start.elapsed() < Duration::from_millis(timeout) {
+                let mut temp_buf = vec![0; target_size - buffer.len()];
+                match serialport_info.serialport.read(&mut temp_buf) {
+                    Ok(n) if n > 0 => {
+                        buffer.extend_from_slice(&temp_buf[..n]);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                        if buffer.is_empty() {
+                            return Err(Error::String(format!("no data received within {} ms", timeout)))
+                        } else {
+                            break;
+                        }
+                    }
+                    Err(e) => return Err(Error::String(format!("Failed to read data: {}", e))),
+                    _ => break,
+                }
             }
+
+            Ok(buffer)
         })
     }
 

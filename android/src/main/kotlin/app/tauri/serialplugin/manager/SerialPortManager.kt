@@ -119,14 +119,16 @@ class SerialPortManager(private val context: Context) {
             override fun onNewData(data: ByteArray) {
                 onDataReceived(data)
             }
-            
+
             override fun onRunError(e: Exception) {
                 closePort(path)
             }
         })
-        
+
         ioManagerMap[path] = ioManager
-        executor.submit(ioManager)
+
+        // Wrap the ioManager's run method in a Runnable
+        executor.submit(Runnable { ioManager.start() })
     }
 
     fun writeToPort(path: String, data: ByteArray) {
@@ -180,16 +182,60 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun readFromPort(path: String, timeout: Int, size: Int): ByteArray {
-        return try {
-            val port = portMap[path] ?: throw IOException("Port not found")
-            val buffer = ByteArray(size)
-            val bytesRead = port.read(buffer, timeout)
-            buffer.copyOf(bytesRead)
-        } catch (e: Exception) {
-            throw IOException("Failed to read data: ${e.message}")
-        }
-    }
+   fun readFromPort(path: String, timeout: Int, size: Int?): ByteArray {
+       return try {
+           val port = portMap[path] ?: throw IOException("Port not found")
+
+           val targetSize = size ?: 1024
+
+           // Получаем рекомендованный размер буфера
+           val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
+           val bufferSize = minOf(targetSize, maxPacketSize) // Берем минимум из запрашиваемого размера и maxPacketSize
+
+           val buffer = ByteArray(bufferSize)
+           val bytesRead = port.read(buffer, timeout.coerceAtLeast(200)) // Минимальный таймаут 200 мс
+
+           if (bytesRead > 0) {
+               buffer.copyOf(bytesRead)
+           } else {
+               throw IOException("Read timeout: no data received within $timeout ms")
+           }
+       } catch (e: Exception) {
+           throw IOException("Failed to read data: ${e.message}")
+       }
+   }
+
+   fun readFullyFromPort(path: String, timeout: Int, size: Int?): ByteArray {
+       val port = portMap[path] ?: throw IOException("Port not found")
+       val buffer = mutableListOf<Byte>()
+       val startTime = System.currentTimeMillis()
+
+        val targetSize = size ?: 1024
+
+       // Получаем оптимальный размер пакета
+       val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
+
+       while (buffer.size < targetSize && (System.currentTimeMillis() - startTime) < timeout) {
+           val remainingTime = timeout - (System.currentTimeMillis() - startTime).toInt()
+           if (remainingTime <= 0) break
+
+           val chunkSize = minOf(targetSize - buffer.size, maxPacketSize) // Читаем не больше maxPacketSize
+           val tempBuffer = ByteArray(chunkSize)
+           val bytesRead = port.read(tempBuffer, remainingTime.coerceAtLeast(200))
+
+           if (bytesRead > 0) {
+               buffer.addAll(tempBuffer.copyOf(bytesRead).toList())
+           } else {
+               throw IOException("Read timeout: no data received within $timeout ms")
+           }
+       }
+
+       return if (buffer.isEmpty()) {
+           throw IOException("Read timeout: no data received within $timeout ms")
+       } else {
+           buffer.toByteArray()
+       }
+   }
 
     fun setBaudRate(path: String, baudRate: Int): Boolean {
         return try {

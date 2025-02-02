@@ -19,6 +19,7 @@ class PortConfigArgs {
     lateinit var path: String
     var baudRate: Int = 9600
     var dataBits: String? = null
+    val size: Int? = null
     var flowControl: String? = null
     var parity: String? = null
     var stopBits: String? = null
@@ -191,7 +192,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun readBinary(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val data = serialPortManager.readFromPort(args.path, args.timeout, args.size)
+            val data = serialPortManager.readFullyFromPort(args.path, args.timeout, args.size)
 
             val result = JSObject().apply {
                 put("data", data.toList())

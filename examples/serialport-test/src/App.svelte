@@ -145,7 +145,7 @@
   }
 
   async function readBinary() {
-      const binaryData = await serialport.readBinary();
+      const binaryData = await serialport.readBinary({ size: 3, timeout: 2000 });
       console.log("read binary:", binaryData);
  }
 

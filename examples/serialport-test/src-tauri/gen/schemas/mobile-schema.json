@@ -1777,6 +1777,11 @@
           "const": "serialplugin:allow-read"
         },
         {
+          "description": "Enables the read_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-read-binary"
+        },
+        {
           "description": "Enables the read_carrier_detect command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-read-carrier-detect"
@@ -1960,6 +1965,11 @@
           "description": "Denies the read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-read"
+        },
+        {
+          "description": "Denies the read_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-read-binary"
         },
         {
           "description": "Denies the read_carrier_detect command without any pre-configured scope.",
