@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.8.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.1...v2.8.2) (2025-02-02)
+
+
+### Bug Fixes
+
+* **serialport:** improve timeout handling and error messages ([de2233c](https://github.com/s00d/tauri-plugin-serialplugin/commit/de2233c0d2503b37e75401656e16842a54ca5a08))
+
 ### [2.8.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.0...v2.8.1) (2025-02-02)
 
 
