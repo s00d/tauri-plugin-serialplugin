@@ -139,6 +139,16 @@
     }
   }
 
+  async function read() {
+      const data = await serialport.read();
+      console.log("read:", data);
+  }
+
+  async function readBinary() {
+      const binaryData = await serialport.readBinary();
+      console.log("read binary:", binaryData);
+ }
+
   async function updatePortStatus() {
     if (serialport) {
       try {
@@ -397,6 +407,13 @@
       </button>
       <button onclick={clearBuffers} disabled={!isConnected}>
         Clear Buffers
+      </button>
+
+      <button onclick={read} disabled={!isConnected}>
+        Read
+      </button>
+      <button onclick={readBinary} disabled={!isConnected}>
+        Read Binary
       </button>
     </div>
 

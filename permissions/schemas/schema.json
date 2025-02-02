@@ -425,6 +425,16 @@
           "const": "deny-read"
         },
         {
+          "description": "Enables the read_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-read-binary"
+        },
+        {
+          "description": "Denies the read_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-read-binary"
+        },
+        {
           "description": "Enables the read_carrier_detect command without any pre-configured scope.",
           "type": "string",
           "const": "allow-read-carrier-detect"

@@ -21,6 +21,7 @@
     "serialplugin:allow-force-close",
     "serialplugin:allow-open",
     "serialplugin:allow-read",
+    "serialplugin:allow-read-binary",
     "serialplugin:allow-write",
     "serialplugin:allow-write-binary",
     "serialplugin:allow-available-ports-direct",

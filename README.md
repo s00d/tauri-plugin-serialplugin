@@ -86,6 +86,8 @@ fn main() {
 | `serialplugin:deny-open`                    | Denies opening of serial ports                                                |
 | `serialplugin:allow-read`                   | Allows reading data from serial ports                                         |
 | `serialplugin:deny-read`                    | Denies reading data from serial ports                                         |
+| `serialplugin:allow-read-binary`            | Allows reading binary data from serial ports                                  |
+| `serialplugin:deny-read-binary`             | Denies reading binary data from serial ports                                  |
 | `serialplugin:allow-write`                  | Allows writing data to serial ports                                           |
 | `serialplugin:deny-write`                   | Denies writing data to serial ports                                           |
 | `serialplugin:allow-write-binary`           | Allows writing binary data to serial ports                                    |

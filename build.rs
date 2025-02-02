@@ -12,6 +12,7 @@ const COMMANDS: &[&str] = &[
     "force_close",
     "open",
     "read",
+    "read_binary",
     "start_listening",
     "stop_listening",
     "write",

@@ -388,6 +388,32 @@ Denies the read command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-read-binary`
+
+</td>
+<td>
+
+Enables the read_binary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-read-binary`
+
+</td>
+<td>
+
+Denies the read_binary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-read-carrier-detect`
 
 </td>
