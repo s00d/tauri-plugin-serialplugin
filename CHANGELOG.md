@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.8.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.0...v2.8.1) (2025-02-02)
+
+
+### Bug Fixes
+
+* **permissions:** add read-binary command permissions ([76262b1](https://github.com/s00d/tauri-plugin-serialplugin/commit/76262b10f3f75878a8d5f6226a60a27b06bdcdb8))
+
 ## [2.8.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.7.0...v2.8.0) (2025-01-30)
 
 
