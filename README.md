@@ -587,6 +587,21 @@ allprojects {
 
 We welcome pull requests! Please ensure you read our Contributing Guide before submitting a pull request.
 
+## Development Setup
+
+To set up the project for development, follow these steps:
+
+```sh
+git clone https://github.com/s00d/tauri-plugin-serialplugin.git
+cd tauri-plugin-serialplugin
+npm i
+cd examples/serialport-test
+npm i
+cd ../..
+npm run build
+npm run playground
+```
+
 ## Partners
 
 Support for this plugin is provided by our generous partners. For a complete list, please visit our [website](https://tauri.app#sponsors) and our [Open Collective](https://opencollective.com/tauri).
