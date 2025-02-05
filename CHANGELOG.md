@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.9.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.2...v2.9.0) (2025-02-05)
+
+
+### Features
+
+* **android:** enable hardware acceleration in AndroidManifest.xml ([2f16b06](https://github.com/s00d/tauri-plugin-serialplugin/commit/2f16b066e4e8c53d5c1ba7b225d2c0b6eeb69fe0))
+* **serialport:** register USB receiver in SerialPortManager ([5f32352](https://github.com/s00d/tauri-plugin-serialplugin/commit/5f323529b2481fcf0fe54f5264fcd0f0b61c95a9))
+
+
+### Bug Fixes
+
+* **device_filter:** remove outdated USB device entries ([3236183](https://github.com/s00d/tauri-plugin-serialplugin/commit/3236183c449758d30fabf339bba203721bbefc5b))
+
 ### [2.8.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.1...v2.8.2) (2025-02-02)
 
 
