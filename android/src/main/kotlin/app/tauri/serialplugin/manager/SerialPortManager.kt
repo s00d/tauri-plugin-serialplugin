@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.os.Build
 import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import com.hoho.android.usbserial.util.SerialInputOutputManager
@@ -14,6 +15,7 @@ import app.tauri.serialplugin.models.*
 import java.util.concurrent.Executors
 import java.io.IOException
 import android.util.Log
+import androidx.annotation.RequiresApi
 
 class SerialPortManager(private val context: Context) {
     private val usbManager: UsbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -27,8 +29,11 @@ class SerialPortManager(private val context: Context) {
         override fun onReceive(context: Context, intent: Intent) {
             if (ACTION_USB_PERMISSION == intent.action) {
                 synchronized(this) {
-                    val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
-                    //val device: UsbDevice? = intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                    val device: UsbDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                    } else {
+                        intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as UsbDevice?
+                    }
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
                         device?.let {
                             // Permission granted, proceed with connection
@@ -38,18 +43,41 @@ class SerialPortManager(private val context: Context) {
             }
         }
     }
+
+    fun registerReceiver() {
+        val filter = IntentFilter(ACTION_USB_PERMISSION)
+
+        // Для Android O (API 26) и выше используем 3 параметра
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            // Для более старых версий (до Android O) регистрируем без третьего параметра
+            context.registerReceiver(usbReceiver, filter)
+        }
+    }
+
+    fun unregisterReceiver() {
+        try {
+            context.unregisterReceiver(usbReceiver)
+        } catch (e: IllegalArgumentException) {
+            // Получите ошибку, если ресивер не зарегистрирован
+        }
+    }
     
     init {
-        val filter = IntentFilter(ACTION_USB_PERMISSION)
-        context.registerReceiver(usbReceiver, filter)
+
     }
 
     fun getAvailablePorts(): Map<String, Map<String, String>> {
         val result = mutableMapOf<String, Map<String, String>>()
         val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
-        
+
+        Log.d("SerialPortManager", "Available drivers: ${availableDrivers.size}")
+
         availableDrivers.forEach { driver ->
             val device = driver.device
+            Log.d("SerialPortManager", "Found device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}")
+
             result[device.deviceName] = mapOf(
                 "type" to "USB",
                 "vid" to device.vendorId.toString(),
@@ -58,7 +86,12 @@ class SerialPortManager(private val context: Context) {
                 "product" to (device.productName ?: "Unknown"),
                 "serial_number" to (device.serialNumber ?: "Unknown")
             )
+
+            Log.d("SerialPortManager", "Device Info: ${result[device.deviceName]}")
         }
+
+        Log.d("SerialPortManager", "Total available ports: ${result.size}")
+
         return result
     }
 

@@ -46,6 +46,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     override fun load(webView: WebView) {
         super.load(webView)
         serialPortManager = SerialPortManager(activity)
+        serialPortManager.registerReceiver()
 
         this.webView = webView
     }
