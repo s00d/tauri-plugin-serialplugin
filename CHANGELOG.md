@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.10.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.9.0...v2.10.0) (2025-03-02)
+
+
+### Features
+
+* **serialport-test:** refactor app structure and enhance port management ([22b0e7a](https://github.com/s00d/tauri-plugin-serialplugin/commit/22b0e7a93e0fefb91766c56ffe630024804f42a2))
+
+
+### Bug Fixes
+
+* **serialport:** update USB permission handling for Android 33+ ([e71cca9](https://github.com/s00d/tauri-plugin-serialplugin/commit/e71cca9508af4acea55deee432300263435a74d8))
+
 ## [2.9.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.8.2...v2.9.0) (2025-02-05)
 
 
