@@ -29,9 +29,10 @@ class SerialPortManager(private val context: Context) {
         override fun onReceive(context: Context, intent: Intent) {
             if (ACTION_USB_PERMISSION == intent.action) {
                 synchronized(this) {
-                    val device: UsbDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val device: UsbDevice? = if (Build.VERSION.SDK_INT >= 33) {
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
                     } else {
+                        @Suppress("DEPRECATION")
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as UsbDevice?
                     }
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
@@ -48,10 +49,9 @@ class SerialPortManager(private val context: Context) {
         val filter = IntentFilter(ACTION_USB_PERMISSION)
 
         // Для Android O (API 26) и выше используем 3 параметра
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= 33) {
             context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
-            // Для более старых версий (до Android O) регистрируем без третьего параметра
             context.registerReceiver(usbReceiver, filter)
         }
     }
