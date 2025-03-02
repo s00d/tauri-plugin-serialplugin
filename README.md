@@ -616,8 +616,6 @@ Pull requests are welcome! Please read our contributing guidelines before you st
 
 ## Development Setup
 
-Чтобы развернуть проект для разработки:
-
 ```bash
 git clone https://github.com/s00d/tauri-plugin-serialplugin.git
 cd tauri-plugin-serialplugin
