@@ -443,8 +443,18 @@ impl<R: Runtime> SerialPort<R> {
                         Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
                         Err(e) => {
                             eprintln!("Failed to read data: {}", e);
-                            break; // Exit on error
+
+                            // Emit disconnected event if the port is gone
+                            if let Err(err) = app_clone.emit(
+                                &disconnected_event,
+                                format!("Serial port {} disconnected due to error: {}", &path_clone, e),
+                            ) {
+                                eprintln!("Failed to send disconnection event: {}", err);
+                            }
+
+                            break;
                         }
+
                     }
 
                     thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
