@@ -3,13 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 
 export interface PortInfo {
-  path: "Unknown"|string;
-  manufacturer: "Unknown"|string;
-  pid: "Unknown"|string;
-  product: "Unknown"|string;
-  serial_number: "Unknown"|string;
-  type: "PCI"|string;
-  vid: "Unknown"|string;
+  path: "Unknown" | string;
+  manufacturer: "Unknown" | string;
+  pid: "Unknown" | string;
+  product: "Unknown" | string;
+  serial_number: "Unknown" | string;
+  type: "PCI" | string;
+  vid: "Unknown" | string;
 }
 
 export interface InvokeResult {
@@ -83,8 +83,8 @@ export enum ClearBuffer {
   All = "All"
 }
 
-let tester_ports: {[key: string]: SerialPort} = {}
-let tester_listeners: {[key: string]: (...args: any[]) => void} = {}
+let tester_ports: { [key: string]: SerialPort } = {}
+let tester_listeners: { [key: string]: (...args: any[]) => void } = {}
 
 setInterval(() => {
   for (let path in tester_listeners) {
@@ -182,7 +182,7 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when the port is closed
    */
   static async forceClose(path: string): Promise<void> {
-    if(tester_ports[path]) {
+    if (tester_ports[path]) {
       delete tester_ports[path]
       return Promise.resolve();
     }
@@ -295,16 +295,16 @@ class SerialPort {
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
     console.log('listen event: ' + checkEvent)
     let unListen: any = await listen<ReadDataResult>(
-        checkEvent,
-        () => {
-          try {
-            fn();
-            unListen();
-            unListen = undefined;
-          } catch (error) {
-            console.error(error);
-          }
-        },
+      checkEvent,
+      () => {
+        try {
+          fn();
+          unListen();
+          unListen = undefined;
+        } catch (error) {
+          console.error(error);
+        }
+      },
     );
   }
 
@@ -331,20 +331,20 @@ class SerialPort {
       }
 
       this.unListen = await listen<ReadDataResult>(
-          readEvent,
-          ({ payload }) => {
-            try {
-              if (isDecode) {
-                const decoder = new TextDecoder(this.encoding);
-                const data = decoder.decode(new Uint8Array(payload.data));
-                fn(data);
-              } else {
-                fn(new Uint8Array(payload.data));
-              }
-            } catch (error) {
-              console.error(error);
+        readEvent,
+        ({ payload }) => {
+          try {
+            if (isDecode) {
+              const decoder = new TextDecoder(this.encoding);
+              const data = decoder.decode(new Uint8Array(payload.data));
+              fn(data);
+            } else {
+              fn(new Uint8Array(payload.data));
             }
-          },
+          } catch (error) {
+            console.error(error);
+          }
+        },
       );
       return;
     } catch (error) {
@@ -447,7 +447,7 @@ class SerialPort {
     try {
       if (this.is_test) {
         const resp = '';
-        if(tester_listeners[this.options.path!]) {
+        if (tester_listeners[this.options.path!]) {
           tester_listeners[this.options.path!](resp);
         }
         return Promise.resolve('');
@@ -473,7 +473,7 @@ class SerialPort {
       if (this.is_test) {
         // Тестовые данные
         const resp = new Uint8Array();
-        if(tester_listeners[this.options.path!]) {
+        if (tester_listeners[this.options.path!]) {
           tester_listeners[this.options.path!](resp);
         }
         return Promise.resolve(new Uint8Array());
@@ -791,7 +791,7 @@ class SerialPort {
         });
       } else {
         return Promise.reject(
-            'value Argument type error! Expected type: string, Uint8Array, number[]',
+          'value Argument type error! Expected type: string, Uint8Array, number[]',
         );
       }
     } catch (error) {

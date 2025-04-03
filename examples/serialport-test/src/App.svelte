@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { SerialPort } from 'tauri-plugin-serialplugin';
-  import SerialPortComponent from './components/SerialPortComponent.svelte';
+  import { onMount } from "svelte";
+  import { SerialPort } from "tauri-plugin-serialplugin";
+  import SerialPortComponent from "./components/SerialPortComponent.svelte";
 
   // Списки найденных портов
   let availablePorts: { [key: string]: { type: string } } = {};
@@ -12,33 +12,33 @@
   let activePorts: string[] = [];
 
   // Поле для ручного ввода пути
-  let manualPath: string = '';
+  let manualPath: string = "";
 
   // Сканируем порты
   async function scanPorts() {
     try {
       availablePorts = await SerialPort.available_ports();
-      console.log('Available ports:', availablePorts);
+      console.log("Available ports:", availablePorts);
     } catch (err) {
-      console.error('Failed to scan ports:', err);
+      console.error("Failed to scan ports:", err);
     }
   }
 
   async function scanPortsDirect() {
     try {
       directPorts = await SerialPort.available_ports_direct();
-      console.log('Direct ports:', directPorts);
+      console.log("Direct ports:", directPorts);
     } catch (err) {
-      console.error('Failed to scan ports directly:', err);
+      console.error("Failed to scan ports directly:", err);
     }
   }
 
   async function showManagedPorts() {
     try {
       managedPorts = await SerialPort.managed_ports();
-      console.log('Managed ports:', managedPorts);
+      console.log("Managed ports:", managedPorts);
     } catch (err) {
-      console.error('Failed to get Managed ports:', err);
+      console.error("Failed to get Managed ports:", err);
     }
   }
 
@@ -60,12 +60,12 @@
     const path = manualPath.trim();
     if (path) {
       addPort(path);
-      manualPath = '';
+      manualPath = "";
     }
   }
 
   function handleDisconnect({ port }: { port: string }) {
-    console.log('handleDisconnect сработал, порт:', port);
+    console.log("handleDisconnect сработал, порт:", port);
     removePort(port);
   }
 
@@ -78,16 +78,16 @@
 </script>
 
 <main class="container">
-  <h1>Multi-Port Serial Demo</h1>
+  <h1 class="title">Multi-Port Serial Demo</h1>
 
   <!-- Ручной ввод пути -->
   <section class="manual-connect">
     <h2>Manual Port Input</h2>
     <div class="row">
       <input
-              type="text"
-              placeholder="Enter port path (e.g. /dev/ttyACM0)..."
-              bind:value={manualPath}
+        type="text"
+        placeholder="Enter port path (e.g. /dev/ttyACM0)..."
+        bind:value={manualPath}
       />
       <button on:click={addManualPort}>+</button>
     </div>
@@ -164,10 +164,7 @@
     {#if activePorts.length > 0}
       {#each activePorts as portName}
         <div class="port-wrapper">
-          <SerialPortComponent
-                  portName={portName}
-                  onDisconnect={handleDisconnect}
-          />
+          <SerialPortComponent {portName} onDisconnect={handleDisconnect} />
         </div>
       {/each}
     {:else}
@@ -178,6 +175,14 @@
 
 <style>
   /* Пример стилистики, вы можете дополнять/менять по вкусу */
+  .title {
+    color: #fff;
+    padding-bottom: 30px;
+  }
+
+  main {
+    color: #333;
+  }
 
   .container {
     max-width: 1200px;
@@ -186,7 +191,9 @@
     font-family: sans-serif;
   }
 
-  h1, h2, h3 {
+  h1,
+  h2,
+  h3 {
     margin-bottom: 10px;
     color: #333;
   }
