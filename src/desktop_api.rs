@@ -13,7 +13,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
 
 /// Access to the serial port APIs for mobile platforms.
@@ -265,7 +265,10 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Close all open serial ports
     pub fn close_all(&self) -> Result<(), Error> {
-        let mut ports = self.serialports.lock().map_err(|e| Error::String(e.to_string()))?;
+        let mut ports = self
+            .serialports
+            .lock()
+            .map_err(|e| Error::String(e.to_string()))?;
         let mut errors = vec![];
 
         for (path, port_info) in ports.drain() {
@@ -325,7 +328,9 @@ impl<R: Runtime> SerialPort<R> {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
     ) -> Result<(), Error> {
-        let mut serialports = self.serialports.lock()
+        let mut serialports = self
+            .serialports
+            .lock()
             .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
         // Закрываем существующий порт перед открытием нового
@@ -349,18 +354,25 @@ impl<R: Runtime> SerialPort<R> {
         // Открываем новый порт
         let port = serialport::new(path.clone(), baud_rate)
             .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
-            .flow_control(flow_control.map(Into::into).unwrap_or(SerialFlowControl::None))
+            .flow_control(
+                flow_control
+                    .map(Into::into)
+                    .unwrap_or(SerialFlowControl::None),
+            )
             .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
             .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
             .timeout(Duration::from_millis(timeout.unwrap_or(200)))
             .open()
             .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
 
-        serialports.insert(path, SerialportInfo {
-            serialport: port,
-            sender: None,
-            thread_handle: None,
-        });
+        serialports.insert(
+            path,
+            SerialportInfo {
+                serialport: port,
+                sender: None,
+                thread_handle: None,
+            },
+        );
 
         Ok(())
     }
@@ -412,6 +424,8 @@ impl<R: Runtime> SerialPort<R> {
             let app_clone = self.app.clone();
             let path_clone = path.clone();
             let thread_handle = thread::spawn(move || {
+                let mut combined_buffer: Vec<u8> = Vec::with_capacity(size.unwrap_or(1024));
+                let mut start_time = Instant::now();
                 loop {
                     match rx.try_recv() {
                         Ok(_) => break,
@@ -430,15 +444,7 @@ impl<R: Runtime> SerialPort<R> {
                     let mut buffer = vec![0; size.unwrap_or(1024)];
                     match serial.read(&mut buffer) {
                         Ok(n) => {
-                            if let Err(e) = app_clone.emit(
-                                &read_event,
-                                ReadData {
-                                    data: &buffer[..n],
-                                    size: n,
-                                },
-                            ) {
-                                eprintln!("Failed to send data: {}", e);
-                            }
+                            combined_buffer.extend_from_slice(&buffer[..n]);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
                         Err(e) => {
@@ -447,17 +453,35 @@ impl<R: Runtime> SerialPort<R> {
                             // Emit disconnected event if the port is gone
                             if let Err(err) = app_clone.emit(
                                 &disconnected_event,
-                                format!("Serial port {} disconnected due to error: {}", &path_clone, e),
+                                format!(
+                                    "Serial port {} disconnected due to error: {}",
+                                    &path_clone, e
+                                ),
                             ) {
                                 eprintln!("Failed to send disconnection event: {}", err);
                             }
 
                             break;
                         }
-
                     }
 
-                    thread::sleep(Duration::from_millis(timeout.unwrap_or(200)));
+                    let elapsed_time = start_time.elapsed();
+
+                    if elapsed_time > Duration::from_millis(timeout.unwrap_or(200)) {
+                        start_time = Instant::now();
+
+                        if let Err(e) = app_clone.emit(
+                            &read_event,
+                            ReadData {
+                                size: combined_buffer.len(),
+                                data: combined_buffer.as_mut_slice(),
+                            },
+                        ) {
+                            eprintln!("Failed to send data: {}", e);
+                        }
+
+                        combined_buffer.clear();
+                    }
                 }
             });
 
@@ -504,7 +528,10 @@ impl<R: Runtime> SerialPort<R> {
                     let data = String::from_utf8_lossy(&buffer[..n]).to_string();
                     Ok(data)
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Err(Error::String(format!("no data received within {} ms", timeout))),
+                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Err(Error::String(format!(
+                    "no data received within {} ms",
+                    timeout
+                ))),
                 Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
             }
         })
@@ -530,7 +557,10 @@ impl<R: Runtime> SerialPort<R> {
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
                         if buffer.is_empty() {
-                            return Err(Error::String(format!("no data received within {} ms", timeout)))
+                            return Err(Error::String(format!(
+                                "no data received within {} ms",
+                                timeout
+                            )));
                         } else {
                             break;
                         }
@@ -726,7 +756,8 @@ impl<R: Runtime> SerialPort<R> {
     where
         F: FnOnce(&mut SerialportInfo) -> Result<T, Error>,
     {
-        let mut ports = self.serialports
+        let mut ports = self
+            .serialports
             .lock()
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
 
