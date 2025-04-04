@@ -104,7 +104,7 @@
         </h3>
         {#if Object.keys(availablePorts).length > 0}
           <ul>
-            {#each Object.entries(availablePorts) as [portName, info]}
+            {#each Object.entries(availablePorts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [portName, info]}
               <li>
                 <span>{portName} — {info.type}</span>
                 <button on:click={() => addPort(portName)}>+</button>
@@ -124,7 +124,7 @@
         </h3>
         {#if Object.keys(directPorts).length > 0}
           <ul>
-            {#each Object.entries(directPorts) as [portName, info]}
+            {#each Object.entries(directPorts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [portName, info]}
               <li>
                 <span>{portName} — {info.type}</span>
                 <button on:click={() => addPort(portName)}>+</button>
@@ -176,7 +176,7 @@
 <style>
   /* Пример стилистики, вы можете дополнять/менять по вкусу */
   .title {
-    color: #fff;
+    color: #fff !important;
     padding-bottom: 30px;
   }
 
