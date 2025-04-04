@@ -24,6 +24,8 @@ On Windows the webview data folder access is denied.
 
 
 
+#### This default permission set includes the following:
+
 - `allow-managed-ports`
 - `allow-available-ports`
 - `allow-available-ports-direct`

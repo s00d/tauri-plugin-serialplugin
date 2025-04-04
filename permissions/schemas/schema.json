@@ -297,387 +297,464 @@
         {
           "description": "Enables the available_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-available-ports"
+          "const": "allow-available-ports",
+          "markdownDescription": "Enables the available_ports command without any pre-configured scope."
         },
         {
           "description": "Denies the available_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-available-ports"
+          "const": "deny-available-ports",
+          "markdownDescription": "Denies the available_ports command without any pre-configured scope."
         },
         {
           "description": "Enables the available_ports_direct command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-available-ports-direct"
+          "const": "allow-available-ports-direct",
+          "markdownDescription": "Enables the available_ports_direct command without any pre-configured scope."
         },
         {
           "description": "Denies the available_ports_direct command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-available-ports-direct"
+          "const": "deny-available-ports-direct",
+          "markdownDescription": "Denies the available_ports_direct command without any pre-configured scope."
         },
         {
           "description": "Enables the bytes_to_read command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-bytes-to-read"
+          "const": "allow-bytes-to-read",
+          "markdownDescription": "Enables the bytes_to_read command without any pre-configured scope."
         },
         {
           "description": "Denies the bytes_to_read command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-bytes-to-read"
+          "const": "deny-bytes-to-read",
+          "markdownDescription": "Denies the bytes_to_read command without any pre-configured scope."
         },
         {
           "description": "Enables the bytes_to_write command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-bytes-to-write"
+          "const": "allow-bytes-to-write",
+          "markdownDescription": "Enables the bytes_to_write command without any pre-configured scope."
         },
         {
           "description": "Denies the bytes_to_write command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-bytes-to-write"
+          "const": "deny-bytes-to-write",
+          "markdownDescription": "Denies the bytes_to_write command without any pre-configured scope."
         },
         {
           "description": "Enables the cancel_read command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-cancel-read"
+          "const": "allow-cancel-read",
+          "markdownDescription": "Enables the cancel_read command without any pre-configured scope."
         },
         {
           "description": "Denies the cancel_read command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-cancel-read"
+          "const": "deny-cancel-read",
+          "markdownDescription": "Denies the cancel_read command without any pre-configured scope."
         },
         {
           "description": "Enables the clear_break command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-clear-break"
+          "const": "allow-clear-break",
+          "markdownDescription": "Enables the clear_break command without any pre-configured scope."
         },
         {
           "description": "Denies the clear_break command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-clear-break"
+          "const": "deny-clear-break",
+          "markdownDescription": "Denies the clear_break command without any pre-configured scope."
         },
         {
           "description": "Enables the clear_buffer command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-clear-buffer"
+          "const": "allow-clear-buffer",
+          "markdownDescription": "Enables the clear_buffer command without any pre-configured scope."
         },
         {
           "description": "Denies the clear_buffer command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-clear-buffer"
+          "const": "deny-clear-buffer",
+          "markdownDescription": "Denies the clear_buffer command without any pre-configured scope."
         },
         {
           "description": "Enables the close command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-close"
+          "const": "allow-close",
+          "markdownDescription": "Enables the close command without any pre-configured scope."
         },
         {
           "description": "Denies the close command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-close"
+          "const": "deny-close",
+          "markdownDescription": "Denies the close command without any pre-configured scope."
         },
         {
           "description": "Enables the close_all command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-close-all"
+          "const": "allow-close-all",
+          "markdownDescription": "Enables the close_all command without any pre-configured scope."
         },
         {
           "description": "Denies the close_all command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-close-all"
+          "const": "deny-close-all",
+          "markdownDescription": "Denies the close_all command without any pre-configured scope."
         },
         {
           "description": "Enables the force_close command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-force-close"
+          "const": "allow-force-close",
+          "markdownDescription": "Enables the force_close command without any pre-configured scope."
         },
         {
           "description": "Denies the force_close command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-force-close"
+          "const": "deny-force-close",
+          "markdownDescription": "Denies the force_close command without any pre-configured scope."
         },
         {
           "description": "Enables the managed_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-managed-ports"
+          "const": "allow-managed-ports",
+          "markdownDescription": "Enables the managed_ports command without any pre-configured scope."
         },
         {
           "description": "Denies the managed_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-managed-ports"
+          "const": "deny-managed-ports",
+          "markdownDescription": "Denies the managed_ports command without any pre-configured scope."
         },
         {
           "description": "Enables the open command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-open"
+          "const": "allow-open",
+          "markdownDescription": "Enables the open command without any pre-configured scope."
         },
         {
           "description": "Denies the open command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-open"
+          "const": "deny-open",
+          "markdownDescription": "Denies the open command without any pre-configured scope."
         },
         {
           "description": "Enables the read command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read"
+          "const": "allow-read",
+          "markdownDescription": "Enables the read command without any pre-configured scope."
         },
         {
           "description": "Denies the read command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read"
+          "const": "deny-read",
+          "markdownDescription": "Denies the read command without any pre-configured scope."
         },
         {
           "description": "Enables the read_binary command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-binary"
+          "const": "allow-read-binary",
+          "markdownDescription": "Enables the read_binary command without any pre-configured scope."
         },
         {
           "description": "Denies the read_binary command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-binary"
+          "const": "deny-read-binary",
+          "markdownDescription": "Denies the read_binary command without any pre-configured scope."
         },
         {
           "description": "Enables the read_carrier_detect command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-carrier-detect"
+          "const": "allow-read-carrier-detect",
+          "markdownDescription": "Enables the read_carrier_detect command without any pre-configured scope."
         },
         {
           "description": "Denies the read_carrier_detect command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-carrier-detect"
+          "const": "deny-read-carrier-detect",
+          "markdownDescription": "Denies the read_carrier_detect command without any pre-configured scope."
         },
         {
           "description": "Enables the read_cd command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-cd"
+          "const": "allow-read-cd",
+          "markdownDescription": "Enables the read_cd command without any pre-configured scope."
         },
         {
           "description": "Denies the read_cd command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-cd"
+          "const": "deny-read-cd",
+          "markdownDescription": "Denies the read_cd command without any pre-configured scope."
         },
         {
           "description": "Enables the read_clear_to_send command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-clear-to-send"
+          "const": "allow-read-clear-to-send",
+          "markdownDescription": "Enables the read_clear_to_send command without any pre-configured scope."
         },
         {
           "description": "Denies the read_clear_to_send command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-clear-to-send"
+          "const": "deny-read-clear-to-send",
+          "markdownDescription": "Denies the read_clear_to_send command without any pre-configured scope."
         },
         {
           "description": "Enables the read_cts command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-cts"
+          "const": "allow-read-cts",
+          "markdownDescription": "Enables the read_cts command without any pre-configured scope."
         },
         {
           "description": "Denies the read_cts command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-cts"
+          "const": "deny-read-cts",
+          "markdownDescription": "Denies the read_cts command without any pre-configured scope."
         },
         {
           "description": "Enables the read_data_set_ready command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-data-set-ready"
+          "const": "allow-read-data-set-ready",
+          "markdownDescription": "Enables the read_data_set_ready command without any pre-configured scope."
         },
         {
           "description": "Denies the read_data_set_ready command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-data-set-ready"
+          "const": "deny-read-data-set-ready",
+          "markdownDescription": "Denies the read_data_set_ready command without any pre-configured scope."
         },
         {
           "description": "Enables the read_dsr command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-dsr"
+          "const": "allow-read-dsr",
+          "markdownDescription": "Enables the read_dsr command without any pre-configured scope."
         },
         {
           "description": "Denies the read_dsr command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-dsr"
+          "const": "deny-read-dsr",
+          "markdownDescription": "Denies the read_dsr command without any pre-configured scope."
         },
         {
           "description": "Enables the read_dtr command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-dtr"
+          "const": "allow-read-dtr",
+          "markdownDescription": "Enables the read_dtr command without any pre-configured scope."
         },
         {
           "description": "Denies the read_dtr command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-dtr"
+          "const": "deny-read-dtr",
+          "markdownDescription": "Denies the read_dtr command without any pre-configured scope."
         },
         {
           "description": "Enables the read_ri command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-ri"
+          "const": "allow-read-ri",
+          "markdownDescription": "Enables the read_ri command without any pre-configured scope."
         },
         {
           "description": "Denies the read_ri command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-ri"
+          "const": "deny-read-ri",
+          "markdownDescription": "Denies the read_ri command without any pre-configured scope."
         },
         {
           "description": "Enables the read_ring_indicator command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-read-ring-indicator"
+          "const": "allow-read-ring-indicator",
+          "markdownDescription": "Enables the read_ring_indicator command without any pre-configured scope."
         },
         {
           "description": "Denies the read_ring_indicator command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-read-ring-indicator"
+          "const": "deny-read-ring-indicator",
+          "markdownDescription": "Denies the read_ring_indicator command without any pre-configured scope."
         },
         {
           "description": "Enables the set_baud_rate command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-baud-rate"
+          "const": "allow-set-baud-rate",
+          "markdownDescription": "Enables the set_baud_rate command without any pre-configured scope."
         },
         {
           "description": "Denies the set_baud_rate command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-baud-rate"
+          "const": "deny-set-baud-rate",
+          "markdownDescription": "Denies the set_baud_rate command without any pre-configured scope."
         },
         {
           "description": "Enables the set_break command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-break"
+          "const": "allow-set-break",
+          "markdownDescription": "Enables the set_break command without any pre-configured scope."
         },
         {
           "description": "Denies the set_break command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-break"
+          "const": "deny-set-break",
+          "markdownDescription": "Denies the set_break command without any pre-configured scope."
         },
         {
           "description": "Enables the set_data_bits command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-data-bits"
+          "const": "allow-set-data-bits",
+          "markdownDescription": "Enables the set_data_bits command without any pre-configured scope."
         },
         {
           "description": "Denies the set_data_bits command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-data-bits"
+          "const": "deny-set-data-bits",
+          "markdownDescription": "Denies the set_data_bits command without any pre-configured scope."
         },
         {
           "description": "Enables the set_flow_control command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-flow-control"
+          "const": "allow-set-flow-control",
+          "markdownDescription": "Enables the set_flow_control command without any pre-configured scope."
         },
         {
           "description": "Denies the set_flow_control command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-flow-control"
+          "const": "deny-set-flow-control",
+          "markdownDescription": "Denies the set_flow_control command without any pre-configured scope."
         },
         {
           "description": "Enables the set_parity command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-parity"
+          "const": "allow-set-parity",
+          "markdownDescription": "Enables the set_parity command without any pre-configured scope."
         },
         {
           "description": "Denies the set_parity command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-parity"
+          "const": "deny-set-parity",
+          "markdownDescription": "Denies the set_parity command without any pre-configured scope."
         },
         {
           "description": "Enables the set_stop_bits command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-stop-bits"
+          "const": "allow-set-stop-bits",
+          "markdownDescription": "Enables the set_stop_bits command without any pre-configured scope."
         },
         {
           "description": "Denies the set_stop_bits command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-stop-bits"
+          "const": "deny-set-stop-bits",
+          "markdownDescription": "Denies the set_stop_bits command without any pre-configured scope."
         },
         {
           "description": "Enables the set_timeout command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-set-timeout"
+          "const": "allow-set-timeout",
+          "markdownDescription": "Enables the set_timeout command without any pre-configured scope."
         },
         {
           "description": "Denies the set_timeout command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-set-timeout"
+          "const": "deny-set-timeout",
+          "markdownDescription": "Denies the set_timeout command without any pre-configured scope."
         },
         {
           "description": "Enables the start_listening command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-start-listening"
+          "const": "allow-start-listening",
+          "markdownDescription": "Enables the start_listening command without any pre-configured scope."
         },
         {
           "description": "Denies the start_listening command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-start-listening"
+          "const": "deny-start-listening",
+          "markdownDescription": "Denies the start_listening command without any pre-configured scope."
         },
         {
           "description": "Enables the stop_listening command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-stop-listening"
+          "const": "allow-stop-listening",
+          "markdownDescription": "Enables the stop_listening command without any pre-configured scope."
         },
         {
           "description": "Denies the stop_listening command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-stop-listening"
+          "const": "deny-stop-listening",
+          "markdownDescription": "Denies the stop_listening command without any pre-configured scope."
         },
         {
           "description": "Enables the write command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write"
+          "const": "allow-write",
+          "markdownDescription": "Enables the write command without any pre-configured scope."
         },
         {
           "description": "Denies the write command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write"
+          "const": "deny-write",
+          "markdownDescription": "Denies the write command without any pre-configured scope."
         },
         {
           "description": "Enables the write_binary command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write-binary"
+          "const": "allow-write-binary",
+          "markdownDescription": "Enables the write_binary command without any pre-configured scope."
         },
         {
           "description": "Denies the write_binary command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write-binary"
+          "const": "deny-write-binary",
+          "markdownDescription": "Denies the write_binary command without any pre-configured scope."
         },
         {
           "description": "Enables the write_data_terminal_ready command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write-data-terminal-ready"
+          "const": "allow-write-data-terminal-ready",
+          "markdownDescription": "Enables the write_data_terminal_ready command without any pre-configured scope."
         },
         {
           "description": "Denies the write_data_terminal_ready command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write-data-terminal-ready"
+          "const": "deny-write-data-terminal-ready",
+          "markdownDescription": "Denies the write_data_terminal_ready command without any pre-configured scope."
         },
         {
           "description": "Enables the write_dtr command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write-dtr"
+          "const": "allow-write-dtr",
+          "markdownDescription": "Enables the write_dtr command without any pre-configured scope."
         },
         {
           "description": "Denies the write_dtr command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write-dtr"
+          "const": "deny-write-dtr",
+          "markdownDescription": "Denies the write_dtr command without any pre-configured scope."
         },
         {
           "description": "Enables the write_request_to_send command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write-request-to-send"
+          "const": "allow-write-request-to-send",
+          "markdownDescription": "Enables the write_request_to_send command without any pre-configured scope."
         },
         {
           "description": "Denies the write_request_to_send command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write-request-to-send"
+          "const": "deny-write-request-to-send",
+          "markdownDescription": "Denies the write_request_to_send command without any pre-configured scope."
         },
         {
           "description": "Enables the write_rts command without any pre-configured scope.",
           "type": "string",
-          "const": "allow-write-rts"
+          "const": "allow-write-rts",
+          "markdownDescription": "Enables the write_rts command without any pre-configured scope."
         },
         {
           "description": "Denies the write_rts command without any pre-configured scope.",
           "type": "string",
-          "const": "deny-write-rts"
+          "const": "deny-write-rts",
+          "markdownDescription": "Denies the write_rts command without any pre-configured scope."
         },
         {
-          "description": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n",
+          "description": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-write`\n- `allow-write-binary`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-cancel-read`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-managed-ports`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-read-carrier-detect`\n- `allow-read-cd`\n- `allow-read-clear-to-send`\n- `allow-read-cts`\n- `allow-read-data-set-ready`\n- `allow-read-dsr`\n- `allow-read-dtr`\n- `allow-read-ri`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-write`\n- `allow-write-binary`\n- `allow-write-data-terminal-ready`\n- `allow-write-dtr`\n- `allow-write-request-to-send`\n- `allow-write-rts`",
           "type": "string",
-          "const": "default"
+          "const": "default",
+          "markdownDescription": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-write`\n- `allow-write-binary`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-cancel-read`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-managed-ports`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-read-carrier-detect`\n- `allow-read-cd`\n- `allow-read-clear-to-send`\n- `allow-read-cts`\n- `allow-read-data-set-ready`\n- `allow-read-dsr`\n- `allow-read-dtr`\n- `allow-read-ri`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-write`\n- `allow-write-binary`\n- `allow-write-data-terminal-ready`\n- `allow-write-dtr`\n- `allow-write-request-to-send`\n- `allow-write-rts`"
         }
       ]
     }
