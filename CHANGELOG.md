@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.11.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.10.2...v2.11.0) (2025-04-04)
+
+
+### Features
+
+* **serial:** set a default timeout for serial port connection ([c252883](https://github.com/s00d/tauri-plugin-serialplugin/commit/c2528839755ed1c6296b1eb5240e3e1548e3afc3))
+
+
+### Bug Fixes
+
+* **deps:** update dependencies to latest versions ([0d857bb](https://github.com/s00d/tauri-plugin-serialplugin/commit/0d857bbc5440081d3cf21683af2de2942fccbe9b))
+* **deps:** update dependencies to latest versions ([c8dc8f1](https://github.com/s00d/tauri-plugin-serialplugin/commit/c8dc8f1e514c8b166c18895067e1fbc824831659))
+
 ### [2.10.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.10.1...v2.10.2) (2025-03-27)
 
 ### [2.10.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.10.0...v2.10.1) (2025-03-13)
