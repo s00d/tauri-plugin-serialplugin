@@ -32,7 +32,6 @@ export interface SerialportOptions {
   stopBits?: StopBits;
   timeout?: number;
   size?: number;
-  is_test?: boolean;
   [key: string]: any;
 }
 
@@ -83,17 +82,12 @@ export enum ClearBuffer {
   All = "All"
 }
 
-let tester_ports: { [key: string]: SerialPort } = {}
-let tester_listeners: { [key: string]: (...args: any[]) => void } = {}
-
 class SerialPort {
   isOpen: boolean;
   unListen?: UnlistenFn;
   encoding: string;
   options: Options;
   size: number;
-  is_test = false;
-  private intervalId?: NodeJS.Timeout;
 
   constructor(options: SerialportOptions) {
     this.isOpen = false;
@@ -109,24 +103,6 @@ class SerialPort {
       timeout: options.timeout || 200,
     };
     this.size = options.size || 1024;
-    this.is_test = options.is_test ?? false;
-  }
-
-  public startTestInterval() {
-    if (this.is_test && this.options.path) {
-      this.intervalId = setInterval(() => {
-        if (tester_listeners[this.options.path!]) {
-          tester_listeners[this.options.path!]('random');
-        }
-      }, 1000);
-    }
-  }
-
-  public stopTestInterval() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = undefined;
-    }
   }
 
   /**
@@ -136,16 +112,6 @@ class SerialPort {
   static async available_ports(): Promise<{ [key: string]: PortInfo }> {
     try {
       const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports');
-      for (const path in tester_ports) {
-        result[path] = {
-          manufacturer: "tester",
-          pid: "tester",
-          product: "tester",
-          serial_number: "tester",
-          type: "USB",
-          vid: "tester",
-        } as PortInfo
-      }
       return Promise.resolve(result)
     } catch (error) {
       return Promise.reject(error);
@@ -159,16 +125,6 @@ class SerialPort {
   static async available_ports_direct(): Promise<{ [key: string]: PortInfo }> {
     try {
       const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports_direct');
-      for (const path in tester_ports) {
-        result[path] = {
-          manufacturer: "tester",
-          pid: "tester",
-          product: "tester",
-          serial_number: "tester",
-          type: "USB",
-          vid: "tester",
-        } as PortInfo
-      }
       return Promise.resolve(result)
     } catch (error) {
       return Promise.reject(error);
@@ -194,10 +150,6 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when the port is closed
    */
   static async forceClose(path: string): Promise<void> {
-    if (tester_ports[path]) {
-      delete tester_ports[path]
-      return Promise.resolve();
-    }
     return await invoke<void>('plugin:serialplugin|force_close', { path });
   }
 
@@ -206,7 +158,6 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when all ports are closed
    */
   static async closeAll(): Promise<void> {
-    tester_ports = {};
     return await invoke<void>('plugin:serialplugin|close_all');
   }
 
@@ -232,11 +183,9 @@ class SerialPort {
    */
   private async cancelRead(): Promise<void> {
     try {
-      if (!this.is_test) {
-        await invoke<void>('plugin:serialplugin|cancel_read', {
-          path: this.options.path,
-        });
-      }
+      await invoke<void>('plugin:serialplugin|cancel_read', {
+        path: this.options.path,
+      });
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
@@ -282,11 +231,9 @@ class SerialPort {
       }
       await this.cancelRead();
       let res = undefined;
-      if (!this.is_test) {
-        res = await invoke<void>('plugin:serialplugin|close', {
-          path: this.options.path,
-        });
-      }
+      res = await invoke<void>('plugin:serialplugin|close', {
+        path: this.options.path,
+      });
 
       await this.cancelListen();
       this.isOpen = false;
@@ -336,15 +283,6 @@ class SerialPort {
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
       console.log('listen event: ' + readEvent)
 
-      if (this.is_test) {
-        console.log('add test event: ' + this.options.path, fn)
-        tester_listeners[this.options.path!] = fn;
-        this.unListen = () => {
-          delete tester_listeners[this.options.path!]
-        }
-        return Promise.resolve();
-      }
-
       this.unListen = await listen<ReadDataResult>(
           readEvent,
           ({ payload }) => {
@@ -382,20 +320,16 @@ class SerialPort {
       if (this.isOpen) {
         return;
       }
-      let res = undefined;
-      if (this.is_test) {
-        tester_ports[this.options.path] = this
-      } else {
-        res = await invoke<void>('plugin:serialplugin|open', {
-          path: this.options.path,
-          baudRate: this.options.baudRate,
-          dataBits: this.options.dataBits,
-          flowControl: this.options.flowControl,
-          parity: this.options.parity,
-          stopBits: this.options.stopBits,
-          timeout: this.options.timeout,
-        });
-      }
+
+      const res = await invoke<void>('plugin:serialplugin|open', {
+        path: this.options.path,
+        baudRate: this.options.baudRate,
+        dataBits: this.options.dataBits,
+        flowControl: this.options.flowControl,
+        parity: this.options.parity,
+        stopBits: this.options.stopBits,
+        timeout: this.options.timeout,
+      });
 
       this.isOpen = true;
 
@@ -407,7 +341,6 @@ class SerialPort {
       return Promise.reject(error);
     }
   }
-
 
   /**
    * Starts listening for data on the serial port
@@ -464,14 +397,6 @@ class SerialPort {
         return Promise.reject('Port is not open');
       }
 
-      if (this.is_test) {
-        const resp = '';
-        if (tester_listeners[this.options.path!]) {
-          tester_listeners[this.options.path!](resp);
-        }
-        return Promise.resolve('');
-      }
-
       return await invoke<string>('plugin:serialplugin|read', {
         path: this.options.path,
         timeout: options?.timeout || this.options.timeout,
@@ -489,15 +414,6 @@ class SerialPort {
    */
   async readBinary(options?: ReadOptions): Promise<Uint8Array> {
     try {
-      if (this.is_test) {
-        // Тестовые данные
-        const resp = new Uint8Array();
-        if (tester_listeners[this.options.path!]) {
-          tester_listeners[this.options.path!](resp);
-        }
-        return Promise.resolve(new Uint8Array());
-      }
-
       const result = await invoke<number[]>('plugin:serialplugin|read_binary', {
         path: this.options.path,
         timeout: options?.timeout || this.options.timeout,
@@ -777,10 +693,6 @@ class SerialPort {
         return Promise.reject(`serial port ${this.options.path} not opened!`);
       }
 
-      if (this.is_test) {
-        return Promise.resolve(2);
-      }
-
       return await invoke<number>('plugin:serialplugin|write', {
         value,
         path: this.options.path,
@@ -801,9 +713,6 @@ class SerialPort {
         return Promise.reject(`serial port ${this.options.path} not opened!`);
       }
       if (value instanceof Uint8Array || value instanceof Array) {
-        if (this.is_test) {
-          return Promise.resolve(2);
-        }
         return await invoke<number>('plugin:serialplugin|write_binary', {
           value: Array.from(value),
           path: this.options.path,

@@ -691,71 +691,173 @@ pnpm run playground
 
 ## Testing
 
-The plugin includes tests for both Rust and JavaScript parts:
+For testing applications without physical hardware, you can use a mock implementation of the serial port. The mock port emulates all functions of a real port and allows testing the application without physical devices.
 
-### Test Mode
-The plugin provides a built-in test mode that allows you to simulate serial port behavior without actual hardware. This is particularly useful for:
-- Unit testing your application
-- Development without physical devices
-- Automated testing in CI/CD pipelines
+### Using Mock Port
 
-To use test mode, create a SerialPort instance with the `is_test` option:
+```rust
+use tauri_plugin_serialplugin::tests::mock::MockSerialPort;
 
-```typescript
-const testPort = new SerialPort({
-  path: "test-port-1",
-  baudRate: 9600,
-  is_test: true
-});
+// Create a mock port
+let mock_port = MockSerialPort::new();
 
-await testPort.open();
+// Configure port settings
+mock_port.set_baud_rate(9600).unwrap();
+mock_port.set_data_bits(serialport::DataBits::Eight).unwrap();
+mock_port.set_flow_control(serialport::FlowControl::None).unwrap();
+mock_port.set_parity(serialport::Parity::None).unwrap();
+mock_port.set_stop_bits(serialport::StopBits::One).unwrap();
 
-// Start listening for test data
-await testPort.startListening();
+// Write data
+mock_port.write("Test data".as_bytes()).unwrap();
 
-// Set up a listener for test data
-await testPort.listen((data) => {
-  console.log("Received test data:", data);
-});
-
-// When done, stop listening
-await testPort.stopListening();
-await testPort.cancelListen();
-await testPort.close();
+// Read data
+let mut buffer = [0u8; 1024];
+let bytes_read = mock_port.read(&mut buffer).unwrap();
+let data = String::from_utf8_lossy(&buffer[..bytes_read]);
+assert_eq!(data, "Test data");
 ```
 
-Key features of test mode:
-- Simulated ports appear in `available_ports()` with "tester" as manufacturer
-- Manual control over data listening (requires explicit calls to `startListening()` and `stopListening()`)
-- No actual hardware required
-- Clean resource management (intervals are automatically cleared when port is closed)
-- Full API compatibility with real ports
+### Mock Port Features
 
-Note: Unlike real ports, test ports require explicit management of listeners:
-1. Call `startListening()` to begin data generation
-2. Use `listen()` to set up data handlers
-3. Call `stopListening()` when you want to stop data generation
-4. Use `cancelListen()` to remove data handlers
-5. Always call `close()` when done to clean up resources
+- Complete emulation of all real port functions
+- Built-in buffer for data storage
+- Control signal emulation (RTS, DTR, CTS, DSR)
+- Support for parallel operation testing
+- No additional software required
+- Works on all platforms
 
-### Rust Tests
-To run Rust tests, use the command:
-```bash
-cargo test
+### Application Testing Example
+
+```rust
+#[test]
+fn test_serial_communication() {
+    let app = create_test_app();
+    let serial_port = SerialPort::new(app.handle().clone());
+    app.manage(serial_port);
+
+    // Open mock port
+    app.state::<SerialPort<MockRuntime>>().open(
+        "COM1".to_string(),
+        9600,
+        Some(DataBits::Eight),
+        Some(FlowControl::None),
+        Some(Parity::None),
+        Some(StopBits::One),
+        Some(1000),
+    ).unwrap();
+
+    // Test write and read operations
+    app.state::<SerialPort<MockRuntime>>().write(
+        "COM1".to_string(),
+        "Test data".to_string(),
+    ).unwrap();
+
+    let data = app.state::<SerialPort<MockRuntime>>().read(
+        "COM1".to_string(),
+        Some(1000),
+        Some(1024),
+    ).unwrap();
+    assert_eq!(data, "Test data");
+
+    // Test port settings
+    app.state::<SerialPort<MockRuntime>>().set_baud_rate(
+        "COM1".to_string(),
+        115200,
+    ).unwrap();
+
+    // Close port
+    app.state::<SerialPort<MockRuntime>>().close("COM1".to_string()).unwrap();
+}
 ```
 
-### JavaScript Tests
-To run JavaScript tests, use the command:
-```bash
-pnpm jest
+### Implementing Your Own Mock Port
+
+You can implement your own mock port by implementing the `SerialPort` trait. Here's a basic example of how to create a custom mock port:
+
+```rust
+use std::io::{self, Read, Write};
+use serialport::{self, SerialPort};
+use std::time::Duration;
+
+struct CustomMockPort {
+    buffer: Vec<u8>,
+    baud_rate: u32,
+    data_bits: serialport::DataBits,
+    flow_control: serialport::FlowControl,
+    parity: serialport::Parity,
+    stop_bits: serialport::StopBits,
+    timeout: Duration,
+}
+
+impl CustomMockPort {
+    fn new() -> Self {
+        Self {
+            buffer: Vec::new(),
+            baud_rate: 9600,
+            data_bits: serialport::DataBits::Eight,
+            flow_control: serialport::FlowControl::None,
+            parity: serialport::Parity::None,
+            stop_bits: serialport::StopBits::One,
+            timeout: Duration::from_millis(1000),
+        }
+    }
+}
+
+// Implement Read trait for reading data
+impl Read for CustomMockPort {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let len = std::cmp::min(buf.len(), self.buffer.len());
+        if len > 0 {
+            buf[..len].copy_from_slice(&self.buffer[..len]);
+            self.buffer.drain(..len);
+        }
+        Ok(len)
+    }
+}
+
+// Implement Write trait for writing data
+impl Write for CustomMockPort {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buffer.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+// Implement SerialPort trait for port configuration
+impl SerialPort for CustomMockPort {
+    fn name(&self) -> Option<String> {
+        Some("CUSTOM_PORT".to_string())
+    }
+
+    fn baud_rate(&self) -> serialport::Result<u32> {
+        Ok(self.baud_rate)
+    }
+
+    fn data_bits(&self) -> serialport::Result<serialport::DataBits> {
+        Ok(self.data_bits)
+    }
+
+    // ... implement other required methods ...
+}
 ```
 
-JavaScript tests are located in the `guest-js/` directory and use Jest as the testing framework. They cover all major plugin API functions, including:
-- Port management
-- Data reading and writing
-- Port configuration
-- Signal management
-- Buffer operations
+For a complete implementation example, see the mock port implementation in the plugin's test directory:
+[`src/tests/mock.rs`](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/src/tests/mock.rs)
+
+The example includes:
+- Full implementation of all required traits
+- Buffer management for read/write operations
+- Control signal emulation
+- Port configuration handling
+- Error handling
+- Thread safety considerations
+
+You can use this implementation as a reference when creating your own mock port with custom behavior for specific testing scenarios.
 
 ---
 

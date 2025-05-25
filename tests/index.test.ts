@@ -139,8 +139,7 @@ describe('SerialPort', () => {
         flowControl: FlowControl.None,
         parity: Parity.None,
         stopBits: StopBits.One,
-        timeout: 1000,
-        is_test: false
+        timeout: 1000
       });
     });
 
