@@ -48,7 +48,6 @@ jobs:
     - name: Install dependencies
       run: |
         pnpm install
-        pnpm install -D jest-junit@16.0.0
 
     - name: Run tests
       run: pnpm test
