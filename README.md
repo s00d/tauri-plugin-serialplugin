@@ -693,6 +693,51 @@ pnpm run playground
 
 The plugin includes tests for both Rust and JavaScript parts:
 
+### Test Mode
+The plugin provides a built-in test mode that allows you to simulate serial port behavior without actual hardware. This is particularly useful for:
+- Unit testing your application
+- Development without physical devices
+- Automated testing in CI/CD pipelines
+
+To use test mode, create a SerialPort instance with the `is_test` option:
+
+```typescript
+const testPort = new SerialPort({
+  path: "test-port-1",
+  baudRate: 9600,
+  is_test: true
+});
+
+await testPort.open();
+
+// Start listening for test data
+await testPort.startListening();
+
+// Set up a listener for test data
+await testPort.listen((data) => {
+  console.log("Received test data:", data);
+});
+
+// When done, stop listening
+await testPort.stopListening();
+await testPort.cancelListen();
+await testPort.close();
+```
+
+Key features of test mode:
+- Simulated ports appear in `available_ports()` with "tester" as manufacturer
+- Manual control over data listening (requires explicit calls to `startListening()` and `stopListening()`)
+- No actual hardware required
+- Clean resource management (intervals are automatically cleared when port is closed)
+- Full API compatibility with real ports
+
+Note: Unlike real ports, test ports require explicit management of listeners:
+1. Call `startListening()` to begin data generation
+2. Use `listen()` to set up data handlers
+3. Call `stopListening()` when you want to stop data generation
+4. Use `cancelListen()` to remove data handlers
+5. Always call `close()` when done to clean up resources
+
 ### Rust Tests
 To run Rust tests, use the command:
 ```bash

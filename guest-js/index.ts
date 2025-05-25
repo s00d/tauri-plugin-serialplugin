@@ -86,14 +86,6 @@ export enum ClearBuffer {
 let tester_ports: { [key: string]: SerialPort } = {}
 let tester_listeners: { [key: string]: (...args: any[]) => void } = {}
 
-if (process.env.NODE_ENV !== 'test') {
-  setInterval(() => {
-    for (let path in tester_listeners) {
-      tester_listeners[path]('random')
-    }
-  }, 1000);
-}
-
 class SerialPort {
   isOpen: boolean;
   unListen?: UnlistenFn;
@@ -101,6 +93,7 @@ class SerialPort {
   options: Options;
   size: number;
   is_test = false;
+  private intervalId?: NodeJS.Timeout;
 
   constructor(options: SerialportOptions) {
     this.isOpen = false;
@@ -117,6 +110,23 @@ class SerialPort {
     };
     this.size = options.size || 1024;
     this.is_test = options.is_test ?? false;
+  }
+
+  public startTestInterval() {
+    if (this.is_test && this.options.path) {
+      this.intervalId = setInterval(() => {
+        if (tester_listeners[this.options.path!]) {
+          tester_listeners[this.options.path!]('random');
+        }
+      }, 1000);
+    }
+  }
+
+  public stopTestInterval() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = undefined;
+    }
   }
 
   /**
