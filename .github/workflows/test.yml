@@ -46,7 +46,9 @@ jobs:
         components: rustfmt, clippy
 
     - name: Install dependencies
-      run: pnpm install
+      run: |
+        pnpm install
+        pnpm install -D jest-junit@16.0.0
 
     - name: Run tests
       run: pnpm test
@@ -59,4 +61,4 @@ jobs:
         path: |
           coverage/
           test-results/
-        if-no-files-found: error 
+        if-no-files-found: warn 

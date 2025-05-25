@@ -43,6 +43,7 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^20.17.22",
     "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
     "rollup": "4.34.9",
     "standard-version": "^9.5.0",
     "ts-jest": "^29.1.2",
