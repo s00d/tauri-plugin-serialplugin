@@ -476,10 +476,16 @@ impl<R: Runtime> SerialPort<R> {
                     if elapsed_time > Duration::from_millis(timeout.unwrap_or(200)) {
                         start_time = Instant::now();
 
+                        let size = combined_buffer.len();
+
+                        if size == 0 {
+                            continue;
+                        }
+
                         if let Err(e) = app_clone.emit(
                             &read_event,
                             ReadData {
-                                size: combined_buffer.len(),
+                                size,
                                 data: combined_buffer.as_mut_slice(),
                             },
                         ) {
