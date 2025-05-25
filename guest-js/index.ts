@@ -86,11 +86,13 @@ export enum ClearBuffer {
 let tester_ports: { [key: string]: SerialPort } = {}
 let tester_listeners: { [key: string]: (...args: any[]) => void } = {}
 
-setInterval(() => {
-  for (let path in tester_listeners) {
-    tester_listeners[path]('random')
-  }
-}, 1000)
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    for (let path in tester_listeners) {
+      tester_listeners[path]('random')
+    }
+  }, 1000);
+}
 
 class SerialPort {
   isOpen: boolean;
@@ -114,7 +116,7 @@ class SerialPort {
       timeout: options.timeout || 200,
     };
     this.size = options.size || 1024;
-    this.is_test = options.is_test || false;
+    this.is_test = options.is_test ?? false;
   }
 
   /**
@@ -218,16 +220,15 @@ class SerialPort {
    * @description Cancels reading data from the serial port
    * @returns {Promise<void>} A promise that resolves when reading is cancelled
    */
-  async cancelRead(): Promise<void> {
-    if (this.is_test) {
-      return Promise.resolve();
-    }
+  private async cancelRead(): Promise<void> {
     try {
-      return await invoke<void>('plugin:serialplugin|cancel_read', {
-        path: this.options.path,
-      });
+      if (!this.is_test) {
+        await invoke<void>('plugin:serialplugin|cancel_read', {
+          path: this.options.path,
+        });
+      }
     } catch (error) {
-      return Promise.reject(error);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -295,16 +296,16 @@ class SerialPort {
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
     console.log('listen event: ' + checkEvent)
     let unListen: any = await listen<ReadDataResult>(
-      checkEvent,
-      () => {
-        try {
-          fn();
-          unListen();
-          unListen = undefined;
-        } catch (error) {
-          console.error(error);
-        }
-      },
+        checkEvent,
+        () => {
+          try {
+            fn();
+            unListen();
+            unListen = undefined;
+          } catch (error) {
+            console.error(error);
+          }
+        },
     );
   }
 
@@ -316,6 +317,10 @@ class SerialPort {
    */
   async listen(fn: (...args: any[]) => void, isDecode = true): Promise<void> {
     try {
+      if (!this.isOpen) {
+        return Promise.reject('Port is not open');
+      }
+
       await this.cancelListen();
       let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
@@ -331,20 +336,20 @@ class SerialPort {
       }
 
       this.unListen = await listen<ReadDataResult>(
-        readEvent,
-        ({ payload }) => {
-          try {
-            if (isDecode) {
-              const decoder = new TextDecoder(this.encoding);
-              const data = decoder.decode(new Uint8Array(payload.data));
-              fn(data);
-            } else {
-              fn(new Uint8Array(payload.data));
+          readEvent,
+          ({ payload }) => {
+            try {
+              if (isDecode) {
+                const decoder = new TextDecoder(this.encoding);
+                const data = decoder.decode(new Uint8Array(payload.data));
+                fn(data);
+              } else {
+                fn(new Uint8Array(payload.data));
+              }
+            } catch (error) {
+              console.error(error);
             }
-          } catch (error) {
-            console.error(error);
-          }
-        },
+          },
       );
       return;
     } catch (error) {
@@ -445,6 +450,10 @@ class SerialPort {
    */
   async read(options?: ReadOptions): Promise<string> {
     try {
+      if (!this.isOpen) {
+        return Promise.reject('Port is not open');
+      }
+
       if (this.is_test) {
         const resp = '';
         if (tester_listeners[this.options.path!]) {
@@ -791,7 +800,7 @@ class SerialPort {
         });
       } else {
         return Promise.reject(
-          'value Argument type error! Expected type: string, Uint8Array, number[]',
+            'value Argument type error! Expected type: string, Uint8Array, number[]',
         );
       }
     } catch (error) {

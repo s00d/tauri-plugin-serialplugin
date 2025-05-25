@@ -26,8 +26,9 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 6. [Android Setup](#android-setup)
 7. [Contributing](#contributing)
 8. [Development Setup](#development-setup)
-9. [Partners](#partners)
-10. [License](#license)
+9. [Testing](#testing)
+10. [Partners](#partners)
+11. [License](#license)
 
 ---
 
@@ -106,15 +107,12 @@ pnpm add tauri-plugin-serialplugin
    await port.write("Hello, Serial Port!");
 
    // Start port listening
-   await port.startListening();
-
-   // Read data with event listener
    await port.listen((data) => {
      console.log("Received:", data);
    });
 
-   // Stop port listening
-   await port.stopListening();
+   // Stop listening when done
+   await port.cancelListen();
 
    // Close port
    await port.close();
@@ -516,6 +514,72 @@ class SerialPort {
 }
 ```
 
+## Error Types
+
+The plugin uses a comprehensive error handling system that covers various scenarios that may occur during serial port operations. Here are the different types of errors that can be returned:
+
+### Error Types
+
+| Error Type | Description |
+|------------|-------------|
+| `Io` | IO-related errors from the operating system (e.g., file system errors, device access issues) |
+| `SerialPort` | Errors specific to serial port operations from the underlying serial port library |
+| `InvalidPort` | Errors related to invalid port configuration or settings |
+| `PortNotFound` | Errors when attempting to access a non-existent port |
+| `PortAlreadyOpen` | Errors when trying to open a port that is already in use |
+| `PortNotOpen` | Errors when attempting operations on a closed port |
+| `PermissionDenied` | Errors due to insufficient permissions to access the port |
+| `DeviceBusy` | Errors when the device is busy or locked by another process |
+| `Timeout` | Errors that occur when operations exceed their timeout limits |
+| `Custom` | Custom error messages for specific application scenarios |
+| `MutexPoisoned` | Errors that occur when a mutex lock is poisoned during concurrent operations |
+
+### Error Handling Example
+
+```typescript
+import { SerialPort, SerialErrorType, createSerialError } from "tauri-plugin-serialplugin";
+
+try {
+  const port = new SerialPort({
+    path: "COM1",
+    baudRate: 9600
+  });
+  
+  await port.open();
+} catch (error) {
+  const serialError = createSerialError(error as string);
+  
+  switch (serialError.type) {
+    case SerialErrorType.PortNotFound:
+      console.error("Порт не найден:", serialError.message);
+      break;
+    case SerialErrorType.PortAlreadyOpen:
+      console.error("Порт уже открыт:", serialError.message);
+      break;
+    case SerialErrorType.PermissionDenied:
+      console.error("Отказано в доступе:", serialError.message);
+      break;
+    case SerialErrorType.DeviceBusy:
+      console.error("Устройство занято:", serialError.message);
+      break;
+    case SerialErrorType.Timeout:
+      console.error("Превышено время ожидания:", serialError.message);
+      break;
+    case SerialErrorType.Io:
+      console.error("Ошибка ввода-вывода:", serialError.message);
+      break;
+    case SerialErrorType.SerialPort:
+      console.error("Ошибка последовательного порта:", serialError.message);
+      break;
+    case SerialErrorType.MutexPoisoned:
+      console.error("Ошибка блокировки:", serialError.message);
+      break;
+    default:
+      console.error("Неизвестная ошибка:", serialError.message);
+  }
+}
+```
+
 ---
 
 ## Common Use Cases
@@ -625,6 +689,29 @@ pnpm run build
 pnpm run playground
 ```
 
+## Testing
+
+The plugin includes tests for both Rust and JavaScript parts:
+
+### Rust Tests
+To run Rust tests, use the command:
+```bash
+cargo test
+```
+
+### JavaScript Tests
+To run JavaScript tests, use the command:
+```bash
+pnpm jest
+```
+
+JavaScript tests are located in the `guest-js/` directory and use Jest as the testing framework. They cover all major plugin API functions, including:
+- Port management
+- Data reading and writing
+- Port configuration
+- Signal management
+- Buffer operations
+
 ---
 
 ## Partners
@@ -635,4 +722,4 @@ If you find this plugin valuable and would like to support further development, 
 
 ## License
 
-This code is dual-licensed under MIT or Apache-2.0, where applicable, © 2019–2023 Tauri Programme within The Commons Conservancy.
+This code is dual-licensed under MIT or Apache-2.0, where applicable, © 2019–2025 Tauri Programme within The Commons Conservancy.

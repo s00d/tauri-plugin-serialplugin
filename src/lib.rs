@@ -21,6 +21,16 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 mod commands;
+#[cfg(test)]
+mod tests {
+    mod mock;
+    mod commands_test;
+    mod state_test;
+    mod error_test;
+    mod desktop_api_test;
+    mod mobile_api_test;
+    mod serial_test;
+}
 
 #[cfg(desktop)]
 mod desktop_api;

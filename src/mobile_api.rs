@@ -39,7 +39,7 @@ impl<R: Runtime> SerialPort<R> {
         let response: AvailablePortsResponse = self
             .0
             .run_mobile_plugin::<AvailablePortsResponse>("availablePorts", ())
-            .map_err(|e| Error::String(e.to_string()))?;
+            .map_err(|e| Error::new(e.to_string()))?;
 
         let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
 
@@ -64,9 +64,9 @@ impl<R: Runtime> SerialPort<R> {
     ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         match self.0.run_mobile_plugin("availablePortsDirect", ()) {
             Ok(Value::Object(result)) => serde_json::from_value(Value::Object(result))
-                .map_err(|e| Error::String(format!("Failed to parse ports: {}", e))),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+                .map_err(|e| Error::new(format!("Failed to parse ports: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -79,8 +79,8 @@ impl<R: Runtime> SerialPort<R> {
                 let port_list: Vec<String> = result.keys().cloned().collect();
                 Ok(port_list)
             }
-            Ok(_) => Err(Error::String("Invalid response format".to_string())), // Если не объект
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))), // Ошибка плагина
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -107,8 +107,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("open", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to open port".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to open port")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -120,7 +120,7 @@ impl<R: Runtime> SerialPort<R> {
             .run_mobile_plugin::<MobileResponse<bool>>("close", params)?;
         match response.data {
             Some(true) => Ok(()),
-            _ => Err(Error::String(
+            _ => Err(Error::new(
                 response
                     .error
                     .unwrap_or_else(|| "Failed to close port".to_string()),
@@ -135,7 +135,7 @@ impl<R: Runtime> SerialPort<R> {
             .run_mobile_plugin::<MobileResponse<bool>>("closeAll", ())?;
         match response.data {
             Some(true) => Ok(()),
-            _ => Err(Error::String(
+            _ => Err(Error::new(
                 response
                     .error
                     .unwrap_or_else(|| "Failed to close all ports".to_string()),
@@ -152,7 +152,7 @@ impl<R: Runtime> SerialPort<R> {
         match response.data {
             Some(true) => Ok(()),
             _ => {
-                Err(Error::String(response.error.unwrap_or_else(|| {
+                Err(Error::new(response.error.unwrap_or_else(|| {
                     "Failed to force close port".to_string()
                 })))
             }
@@ -168,8 +168,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("write", params) {
             Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as usize),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -182,8 +182,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("writeBinary", params) {
             Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as usize),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -202,8 +202,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("read", params) {
             Ok(Value::String(data)) => Ok(data),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -227,13 +227,13 @@ impl<R: Runtime> SerialPort<R> {
                     if let Some(n) = byte.as_u64() {
                         result.push(n as u8);
                     } else {
-                        return Err(Error::String("Invalid byte format".into()));
+                        return Err(Error::new("Invalid byte format"));
                     }
                 }
                 Ok(result)
             }
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -248,7 +248,7 @@ impl<R: Runtime> SerialPort<R> {
         let response: MobileResponse<bool> = self.0.run_mobile_plugin("startListening", params)?;
         match response.data {
             Some(true) => Ok(()),
-            _ => Err(Error::String(
+            _ => Err(Error::new(
                 response
                     .error
                     .unwrap_or_else(|| "Failed to start listening".to_string()),
@@ -262,7 +262,7 @@ impl<R: Runtime> SerialPort<R> {
         let response: MobileResponse<bool> = self.0.run_mobile_plugin("stopListening", params)?;
         match response.data {
             Some(true) => Ok(()),
-            _ => Err(Error::String(
+            _ => Err(Error::new(
                 response
                     .error
                     .unwrap_or_else(|| "Failed to stop listening".to_string()),
@@ -279,8 +279,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setBaudRate", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set baud rate".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set baud rate")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -293,8 +293,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setDataBits", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set data bits".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set data bits")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -307,8 +307,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setFlowControl", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set flow control".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set flow control")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -321,8 +321,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setParity", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set parity".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set parity")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -335,8 +335,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setStopBits", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set stop bits".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set stop bits")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -349,8 +349,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("setTimeout", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set timeout".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set timeout")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -363,8 +363,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("writeRequestToSend", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set RTS".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set RTS")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -377,8 +377,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("writeDataTerminalReady", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set DTR".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set DTR")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -389,8 +389,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("cancelRead", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to cancel read".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to cancel read")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -399,8 +399,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("readClearToSend", params) {
             Ok(Value::Bool(state)) => Ok(state),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -409,8 +409,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("readDataSetReady", params) {
             Ok(Value::Bool(state)) => Ok(state),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -419,8 +419,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("readRingIndicator", params) {
             Ok(Value::Bool(state)) => Ok(state),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -429,8 +429,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("readCarrierDetect", params) {
             Ok(Value::Bool(state)) => Ok(state),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -439,8 +439,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("bytesToRead", params) {
             Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as u32),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -449,8 +449,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("bytesToWrite", params) {
             Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as u32),
-            Ok(_) => Err(Error::String("Invalid response format".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Invalid response format")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -463,8 +463,8 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("clearBuffer", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to clear buffer".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to clear buffer")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -473,8 +473,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("setBreak", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to set break".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to set break")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 
@@ -483,8 +483,8 @@ impl<R: Runtime> SerialPort<R> {
         let params = serde_json::json!({ "path": path });
         match self.0.run_mobile_plugin("clearBreak", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::String("Failed to clear break".to_string())),
-            Err(e) => Err(Error::String(format!("Plugin error: {}", e))),
+            Ok(_) => Err(Error::new("Failed to clear break")),
+            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
 }

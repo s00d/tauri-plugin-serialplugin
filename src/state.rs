@@ -21,6 +21,16 @@ pub struct SerialportInfo {
     pub thread_handle: Option<JoinHandle<()>>,
 }
 
+impl SerialportInfo {
+    pub fn new(serialport: Box<dyn SerialPort>) -> Self {
+        Self {
+            serialport,
+            sender: None,
+            thread_handle: None,
+        }
+    }
+}
+
 #[derive(Serialize, Clone)]
 pub struct InvokeResult {
     pub code: i32,

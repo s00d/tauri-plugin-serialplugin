@@ -24,6 +24,12 @@ impl Clone for Error {
     }
 }
 
+impl Error {
+    pub fn new(msg: impl Into<String>) -> Self {
+        Error::String(msg.into())
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -36,7 +42,11 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
+        match self {
+            Error::Io(_) => None,
+            Error::SerialPort(_) => None,
+            Error::String(_) => None,
+        }
     }
 }
 
@@ -52,12 +62,24 @@ impl From<serialport::Error> for Error {
     }
 }
 
+impl From<&str> for Error {
+    fn from(err: &str) -> Self {
+        Error::String(err.to_string())
+    }
+}
+
+impl From<String> for Error {
+    fn from(err: String) -> Self {
+        Error::String(err)
+    }
+}
+
 impl From<Error> for io::Error {
     fn from(error: Error) -> io::Error {
         match error {
-            Error::Io(s) => io::Error::new(io::ErrorKind::Other, s),
+            Error::Io(e) => io::Error::new(io::ErrorKind::Other, e),
             Error::String(s) => io::Error::new(io::ErrorKind::Other, s),
-            Error::SerialPort(s) => io::Error::new(io::ErrorKind::Other, s),
+            Error::SerialPort(e) => io::Error::new(io::ErrorKind::Other, e),
         }
     }
 }
@@ -67,7 +89,7 @@ impl Serialize for Error {
     where
         S: Serializer,
     {
-        serializer.serialize_str(self.to_string().as_ref())
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -77,3 +99,7 @@ impl From<PluginInvokeError> for Error {
         Error::String(error.to_string())
     }
 }
+
+// Реализация Send и Sync для Error
+unsafe impl Send for Error {}
+unsafe impl Sync for Error {}

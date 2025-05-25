@@ -24,7 +24,9 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "release": "standard-version",
     "release:publish": "pnpm publish && cargo publish",
-    "playground": "pnpm --dir examples/serialport-test run tauri dev"
+    "playground": "pnpm --dir examples/serialport-test run tauri dev",
+    "test": "jest --config jest.config.js",
+    "test:watch": "jest --config jest.config.js --watch"
   },
   "files": [
     "dist-js",
@@ -38,8 +40,12 @@
     "@rollup/plugin-node-resolve": "15.3.1",
     "@rollup/plugin-terser": "0.4.4",
     "@rollup/plugin-typescript": "11.1.6",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.17.22",
+    "jest": "^29.7.0",
     "rollup": "4.34.9",
     "standard-version": "^9.5.0",
+    "ts-jest": "^29.1.2",
     "tslib": "^2.8.1",
     "typescript": "5.6.3"
   },

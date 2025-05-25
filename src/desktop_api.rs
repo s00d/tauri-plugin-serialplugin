@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
+use tauri::plugin::PluginHandle;
 
 /// Access to the serial port APIs for mobile platforms.
 pub struct SerialPort<R: Runtime> {
@@ -31,6 +32,22 @@ struct MobileResponse<T> {
 }
 
 impl<R: Runtime> SerialPort<R> {
+    #[allow(dead_code)]
+    pub fn new(app: AppHandle<R>) -> Self {
+        Self {
+            app,
+            serialports: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_plugin_handle(plugin_handle: PluginHandle<R>) -> Self {
+        Self {
+            app: plugin_handle.app().clone(),
+            serialports: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
     /// Get serial port list
     pub fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         let mut list = serialport::available_ports().unwrap_or_else(|_| vec![]);

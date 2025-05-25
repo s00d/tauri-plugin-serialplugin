@@ -7,7 +7,10 @@
     "strict": true,
     "noUnusedLocals": true,
     "noImplicitAny": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["jest", "node"],
+    "esModuleInterop": true
   },
+  "include": ["guest-js/**/*.ts"],
   "exclude": ["dist-js", "node_modules", "test/types", "examples", "target"]
 }
