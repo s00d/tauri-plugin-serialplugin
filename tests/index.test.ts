@@ -676,7 +676,6 @@ describe('SerialPort', () => {
       it('should handle recovery after errors', async () => {
         mockInvoke.mockImplementation(() => {
           callCount++;
-          console.log('Call count:', callCount, 'isOpen:', serialPort.isOpen); // Для отладки
           switch (callCount) {
             case 1:
               return Promise.resolve(undefined); // open
@@ -717,7 +716,6 @@ describe('SerialPort', () => {
       it('should handle multiple recovery cycles', async () => {
         mockInvoke.mockImplementation(() => {
           callCount++;
-          console.log('Call count:', callCount, 'isOpen:', serialPort.isOpen); // Для отладки
           if (callCount % 2 === 1) {
             return Promise.resolve(undefined); // open
           } else {
@@ -747,7 +745,6 @@ describe('SerialPort', () => {
       it('should handle complex error patterns', async () => {
         mockInvoke.mockImplementation(() => {
           callCount++;
-          console.log('Call count:', callCount, 'isOpen:', serialPort.isOpen); // Для отладки
           switch (callCount) {
             case 1:
               return Promise.resolve(undefined); // open
@@ -934,9 +931,7 @@ describe('SerialPort', () => {
         
         // Добавляем отладочный вывод для проверки вызовов
         mockListen.mockImplementation((event, cb) => {
-          console.log('Mock listen called with event:', event);
           if (event === disconnectedEvent) {
-            console.log('Setting event callback for disconnected event');
             eventCallback = cb;
           }
           return Promise.resolve(mockUnlisten);
@@ -961,7 +956,6 @@ describe('SerialPort', () => {
         
         // Имитируем событие отключения
         if (eventCallback) {
-          console.log('Calling event callback');
           eventCallback({});
         }
         
