@@ -624,32 +624,6 @@ The plugin uses a comprehensive error handling system that covers various scenar
 | `Custom` | Custom error messages for specific application scenarios |
 | `MutexPoisoned` | Errors that occur when a mutex lock is poisoned during concurrent operations |
 
-### Error Handling Example
-
-```typescript
-import { SerialPort } from "tauri-plugin-serialplugin";
-
-// Error handling example
-try {
-  const port = new SerialPort({
-    path: "COM1",
-    baudRate: 9600
-  });
-  await port.open();
-} catch (error) {
-  // Error will contain a string message describing the problem
-  console.error("Error while working with port:", error);
-  // Examples of possible error messages:
-  // - "IO error: Port not found"
-  // - "Serial port error: Port is already open"
-  // - "Permission denied"
-  // - "Device is busy"
-  // - "Operation timed out"
-  // - "IO error: ..."
-  // - "Serial port error: ..."
-}
-```
-
 ---
 
 ## Common Use Cases
