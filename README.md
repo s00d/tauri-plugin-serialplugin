@@ -123,6 +123,8 @@ pnpm add tauri-plugin-serialplugin
    import { SerialPort } from "tauri-plugin-serialplugin";
 
    async function handleSerialPort() {
+     let port: SerialPort | null = null;
+
      try {
        // List available ports
        const ports = await SerialPort.available_ports();
@@ -130,8 +132,8 @@ pnpm add tauri-plugin-serialplugin
          throw new Error("No serial ports found");
        }
 
-       // Try to open port
-       const port = new SerialPort({
+       // Open port
+       port = new SerialPort({
          path: "COM1",
          baudRate: 9600
        });
@@ -139,74 +141,111 @@ pnpm add tauri-plugin-serialplugin
        try {
          await port.open();
        } catch (error) {
-         // Handle specific open errors
-         if (error.toString().includes("Port not found")) {
-           console.error("Port COM1 does not exist");
-         } else if (error.toString().includes("Port is already open")) {
-           console.error("Port is already in use by another application");
-         } else if (error.toString().includes("Permission denied")) {
-           console.error("No permission to access the port");
-         } else {
-           throw error; // Re-throw other errors
-         }
-         return;
+         throw new Error(`Failed to open port: ${error}`);
        }
 
        try {
-         // Try to write data
+         // Write data
          await port.write("Test data");
        } catch (error) {
-         if (error.toString().includes("IO error")) {
-           console.error("Failed to write data: IO error");
-         } else if (error.toString().includes("Serial port error")) {
-           console.error("Failed to write data: Serial port error");
-         }
-         return;
+         throw new Error(`Failed to write data: ${error}`);
        }
 
        try {
-         // Try to read data
+         // Read data
          const data = await port.read({ timeout: 1000 });
          console.log("Received:", data);
        } catch (error) {
-         if (error.toString().includes("no data received within")) {
-           console.error("Read timeout: No data received");
-         } else if (error.toString().includes("IO error")) {
-           console.error("Read failed: IO error");
-         }
-         return;
+         throw new Error(`Failed to read data: ${error}`);
        }
 
        try {
-         // Try to start listening
+         // Start listening
          await port.startListening();
          await port.listen((data) => {
            console.log("Received:", data);
          });
        } catch (error) {
-         if (error.toString().includes("Failed to start listening")) {
-           console.error("Failed to start port monitoring");
-         }
-         return;
+         throw new Error(`Failed to start listening: ${error}`);
        }
 
-       // Clean up
        try {
-         await port.cancelListen();
-         await port.close();
+         // Configure port settings
+         await port.setBaudRate(115200);
+         await port.setDataBits(DataBits.Eight);
+         await port.setFlowControl(FlowControl.None);
+         await port.setParity(Parity.None);
+         await port.setStopBits(StopBits.One);
        } catch (error) {
-         console.error("Error during cleanup:", error);
+         throw new Error(`Failed to configure port: ${error}`);
        }
 
      } catch (error) {
-       // Handle unexpected errors
-       console.error("Unexpected error:", error);
+       // Handle all errors in one place
+       console.error("Serial port error:", error);
+     } finally {
+       // Clean up
+       if (port) {
+         try {
+           await port.cancelListen();
+           await port.close();
+         } catch (error) {
+           console.error("Error during cleanup:", error);
+         }
+       }
      }
    }
 
    // Usage
    handleSerialPort().catch(console.error);
    ```
+
+### Error Messages
+
+#### Port Discovery
+- "Failed to lock serialports mutex" - Error acquiring mutex lock when listing ports
+- "Invalid response format" - Invalid response format from plugin
+- "Plugin error: {error}" - Plugin execution error
+
+#### Port Management
+- "Failed to acquire lock: {error}" - Error acquiring mutex lock
+- "Port '{path}' not found" - Port does not exist
+- "Serial port {path} is not open!" - Port is not open
+- "Failed to open serial port: {error}" - Error opening port
+- "Failed to clone serial port: {error}" - Error cloning port
+- "Failed to set short timeout: {error}" - Error setting timeout
+- "Failed to stop existing listener: {error}" - Error stopping existing listener
+- "Failed to join thread: {error}" - Error waiting for thread completion
+- "Failed to cancel serial port data reading: {error}" - Error canceling data reading
+
+#### Data Operations
+- "Failed to write data: {error}" - Error writing data
+- "Failed to write binary data: {error}" - Error writing binary data
+- "Failed to read data: {error}" - Error reading data
+- "no data received within {timeout} ms" - Read timeout
+- "Failed to set timeout: {error}" - Error setting timeout
+
+#### Port Configuration
+- "Failed to set baud rate: {error}" - Error setting baud rate
+- "Failed to set data bits: {error}" - Error setting data bits
+- "Failed to set flow control: {error}" - Error setting flow control
+- "Failed to set parity: {error}" - Error setting parity
+- "Failed to set stop bits: {error}" - Error setting stop bits
+
+#### Control Signals
+- "Failed to set RTS: {error}" - Error setting RTS signal
+- "Failed to set DTR: {error}" - Error setting DTR signal
+- "Failed to read CTS: {error}" - Error reading CTS signal
+- "Failed to read DSR: {error}" - Error reading DSR signal
+- "Failed to read RI: {error}" - Error reading RI signal
+- "Failed to read CD: {error}" - Error reading CD signal
+- "Failed to set break: {error}" - Error setting break signal
+- "Failed to clear break: {error}" - Error clearing break signal
+
+#### Buffer Management
+- "Failed to clear buffer: {error}" - Error clearing buffer
+- "Failed to get bytes to read: {error}" - Error getting bytes available to read
+- "Failed to get bytes to write: {error}" - Error getting bytes waiting to write
 
 ---
 
@@ -603,28 +642,6 @@ class SerialPort {
   async clearBuffer(buffer: ClearBuffer): Promise<void>;
 }
 ```
-
-## Error Types
-
-The plugin uses a comprehensive error handling system that covers various scenarios that may occur during serial port operations. Here are the different types of errors that can be returned:
-
-### Error Types
-
-| Error Type | Description |
-|------------|-------------|
-| `Io` | IO-related errors from the operating system (e.g., file system errors, device access issues) |
-| `SerialPort` | Errors specific to serial port operations from the underlying serial port library |
-| `InvalidPort` | Errors related to invalid port configuration or settings |
-| `PortNotFound` | Errors when attempting to access a non-existent port |
-| `PortAlreadyOpen` | Errors when trying to open a port that is already in use |
-| `PortNotOpen` | Errors when attempting operations on a closed port |
-| `PermissionDenied` | Errors due to insufficient permissions to access the port |
-| `DeviceBusy` | Errors when the device is busy or locked by another process |
-| `Timeout` | Errors that occur when operations exceed their timeout limits |
-| `Custom` | Custom error messages for specific application scenarios |
-| `MutexPoisoned` | Errors that occur when a mutex lock is poisoned during concurrent operations |
-
----
 
 ## Common Use Cases
 
