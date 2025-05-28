@@ -118,6 +118,96 @@ pnpm add tauri-plugin-serialplugin
    await port.close();
    ```
 
+4. **Error Handling Example**
+   ```typescript
+   import { SerialPort } from "tauri-plugin-serialplugin";
+
+   async function handleSerialPort() {
+     try {
+       // List available ports
+       const ports = await SerialPort.available_ports();
+       if (Object.keys(ports).length === 0) {
+         throw new Error("No serial ports found");
+       }
+
+       // Try to open port
+       const port = new SerialPort({
+         path: "COM1",
+         baudRate: 9600
+       });
+
+       try {
+         await port.open();
+       } catch (error) {
+         // Handle specific open errors
+         if (error.toString().includes("Port not found")) {
+           console.error("Port COM1 does not exist");
+         } else if (error.toString().includes("Port is already open")) {
+           console.error("Port is already in use by another application");
+         } else if (error.toString().includes("Permission denied")) {
+           console.error("No permission to access the port");
+         } else {
+           throw error; // Re-throw other errors
+         }
+         return;
+       }
+
+       try {
+         // Try to write data
+         await port.write("Test data");
+       } catch (error) {
+         if (error.toString().includes("IO error")) {
+           console.error("Failed to write data: IO error");
+         } else if (error.toString().includes("Serial port error")) {
+           console.error("Failed to write data: Serial port error");
+         }
+         return;
+       }
+
+       try {
+         // Try to read data
+         const data = await port.read({ timeout: 1000 });
+         console.log("Received:", data);
+       } catch (error) {
+         if (error.toString().includes("no data received within")) {
+           console.error("Read timeout: No data received");
+         } else if (error.toString().includes("IO error")) {
+           console.error("Read failed: IO error");
+         }
+         return;
+       }
+
+       try {
+         // Try to start listening
+         await port.startListening();
+         await port.listen((data) => {
+           console.log("Received:", data);
+         });
+       } catch (error) {
+         if (error.toString().includes("Failed to start listening")) {
+           console.error("Failed to start port monitoring");
+         }
+         return;
+       }
+
+       // Clean up
+       try {
+         await port.cancelListen();
+         await port.close();
+       } catch (error) {
+         console.error("Error during cleanup:", error);
+       }
+
+     } catch (error) {
+       // Handle unexpected errors
+       console.error("Unexpected error:", error);
+     }
+   }
+
+   // Usage
+   handleSerialPort().catch(console.error);
+   ```
+
 ---
 
 ## Permissions
@@ -537,46 +627,26 @@ The plugin uses a comprehensive error handling system that covers various scenar
 ### Error Handling Example
 
 ```typescript
-import { SerialPort, SerialErrorType, createSerialError } from "tauri-plugin-serialplugin";
+import { SerialPort } from "tauri-plugin-serialplugin";
 
+// Error handling example
 try {
   const port = new SerialPort({
     path: "COM1",
     baudRate: 9600
   });
-  
   await port.open();
 } catch (error) {
-  const serialError = createSerialError(error as string);
-  
-  switch (serialError.type) {
-    case SerialErrorType.PortNotFound:
-      console.error("Порт не найден:", serialError.message);
-      break;
-    case SerialErrorType.PortAlreadyOpen:
-      console.error("Порт уже открыт:", serialError.message);
-      break;
-    case SerialErrorType.PermissionDenied:
-      console.error("Отказано в доступе:", serialError.message);
-      break;
-    case SerialErrorType.DeviceBusy:
-      console.error("Устройство занято:", serialError.message);
-      break;
-    case SerialErrorType.Timeout:
-      console.error("Превышено время ожидания:", serialError.message);
-      break;
-    case SerialErrorType.Io:
-      console.error("Ошибка ввода-вывода:", serialError.message);
-      break;
-    case SerialErrorType.SerialPort:
-      console.error("Ошибка последовательного порта:", serialError.message);
-      break;
-    case SerialErrorType.MutexPoisoned:
-      console.error("Ошибка блокировки:", serialError.message);
-      break;
-    default:
-      console.error("Неизвестная ошибка:", serialError.message);
-  }
+  // Error will contain a string message describing the problem
+  console.error("Error while working with port:", error);
+  // Examples of possible error messages:
+  // - "IO error: Port not found"
+  // - "Serial port error: Port is already open"
+  // - "Permission denied"
+  // - "Device is busy"
+  // - "Operation timed out"
+  // - "IO error: ..."
+  // - "Serial port error: ..."
 }
 ```
 
