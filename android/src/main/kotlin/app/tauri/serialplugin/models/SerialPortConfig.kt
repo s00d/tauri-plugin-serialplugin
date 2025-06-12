@@ -6,7 +6,19 @@ enum class DataBits(val value: Int) {
     FIVE(5),
     SIX(6),
     SEVEN(7),
-    EIGHT(8)
+    EIGHT(8);
+
+    companion object {
+        fun fromValue(value: Int): DataBits {
+            return when (value) {
+                5 -> FIVE
+                6 -> SIX
+                7 -> SEVEN
+                8 -> EIGHT
+                else -> throw IllegalArgumentException("Invalid data bits value: $value")
+            }
+        }
+    }
 }
 
 enum class FlowControl {

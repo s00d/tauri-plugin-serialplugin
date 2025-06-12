@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 class PortConfigArgs {
     lateinit var path: String
     var baudRate: Int = 9600
-    var dataBits: String? = null
+    var dataBits: Any? = null
     val size: Int? = null
     var flowControl: String? = null
     var parity: String? = null
@@ -100,10 +100,16 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun open(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
+            val dataBits = when (args.dataBits) {
+                is String -> DataBits.valueOf(args.dataBits as String)
+                is Number -> DataBits.fromValue((args.dataBits as Number).toInt())
+                null -> DataBits.EIGHT
+                else -> throw IllegalArgumentException("Invalid data bits type")
+            }
             val serialConfig = SerialPortConfig(
                 path = args.path,
                 baudRate = args.baudRate,
-                dataBits = args.dataBits?.let { DataBits.valueOf(it) } ?: DataBits.EIGHT,
+                dataBits = dataBits,
                 flowControl = args.flowControl?.let { FlowControl.valueOf(it) } ?: FlowControl.NONE,
                 parity = args.parity?.let { Parity.valueOf(it) } ?: Parity.NONE,
                 stopBits = args.stopBits?.let { StopBits.valueOf(it) } ?: StopBits.ONE,
@@ -256,7 +262,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun setDataBits(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val success = serialPortManager.setDataBits(args.path, DataBits.valueOf(args.dataBits ?: "EIGHT"))
+            val dataBits = when (args.dataBits) {
+                is String -> DataBits.valueOf(args.dataBits as String)
+                is Number -> DataBits.fromValue((args.dataBits as Number).toInt())
+                null -> DataBits.EIGHT
+                else -> throw IllegalArgumentException("Invalid data bits type")
+            }
+            val success = serialPortManager.setDataBits(args.path, dataBits)
             if (success) {
                 invoke.resolve()
             } else {
@@ -439,7 +451,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun clearBuffer(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val success = serialPortManager.clearBuffer(args.path, args.dataBits ?: "input")
+            val bufferType = when (args.dataBits) {
+                is String -> args.dataBits as String
+                is Number -> "input" // По умолчанию используем "input" для числовых значений
+                null -> "input"
+                else -> throw IllegalArgumentException("Invalid buffer type")
+            }
+            val success = serialPortManager.clearBuffer(args.path, bufferType)
             if (success) {
                 invoke.resolve()
             } else {
