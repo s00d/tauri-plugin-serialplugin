@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.12.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.11.1...v2.12.0) (2025-06-12)
+
+
+### Features
+
+* **serialport:** add test mode for simulating serial port behavior ([22356b5](https://github.com/s00d/tauri-plugin-serialplugin/commit/22356b5cd229acb34d688226455673ec2ae96afd))
+* **serialport:** add test mode for simulating serial port behavior ([287ab53](https://github.com/s00d/tauri-plugin-serialplugin/commit/287ab538db2022f27dae8c933f566d7ab052f77c))
+* **serialport:** improve error handling and add port configuration ([5844e2d](https://github.com/s00d/tauri-plugin-serialplugin/commit/5844e2d2b715560f22dde9f499c316b338bf0410))
+* **tests:** add comprehensive tests for serial port functionality ([614901e](https://github.com/s00d/tauri-plugin-serialplugin/commit/614901e6cdabcac22befba01debe47c8b599a94a))
+
 ### [2.11.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.11.0...v2.11.1) (2025-05-25)
 
 ## [2.11.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.10.2...v2.11.0) (2025-04-04)
