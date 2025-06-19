@@ -20,9 +20,9 @@ class PortConfigArgs {
     var baudRate: Int = 9600
     var dataBits: Any? = null
     val size: Int? = null
-    var flowControl: String? = null
-    var parity: String? = null
-    var stopBits: String? = null
+    var flowControl: Any? = null
+    var parity: Any? = null
+    var stopBits: Any? = null
     var timeout: Int = 1000
 }
 
@@ -54,32 +54,15 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun availablePorts(invoke: Invoke) {
         try {
-            Log.d("SerialPortManager", "Fetching available ports")
+            Log.d("SerialPlugin", "Fetching available ports")
             val ports = serialPortManager.getAvailablePorts()
-            Log.d("SerialPortManager", "Available ports fetched successfully")
-
+            Log.d("SerialPlugin", "Available ports fetched successfully")
             val result = JSObject()
-            val portsObject = JSObject()
-
-            for ((portName, portInfo) in ports) {
-                val portInfoObject = JSObject()
-                portInfoObject.put("type", portInfo["type"])
-                portInfoObject.put("vid", portInfo["vid"])
-                portInfoObject.put("pid", portInfo["pid"])
-                portInfoObject.put("manufacturer", portInfo["manufacturer"])
-                portInfoObject.put("product", portInfo["product"])
-                portInfoObject.put("serial_number", portInfo["serial_number"])
-
-                portsObject.put(portName, portInfoObject)
-            }
-
-            result.put("ports", portsObject)
-
-            Log.d("SerialPortManager", "Resolving invoke with result: $result")
+            result.put("ports", ports)
             invoke.resolve(result)
         } catch (e: Exception) {
-            Log.e("SerialPortManager", "Failed to list ports: ${e.message}", e)
-            invoke.reject("Failed to list ports: ${e.message}")
+            Log.e("SerialPlugin", "Failed to get available ports: ${e.message}", e)
+            invoke.reject("Failed to get available ports: ${e.message}")
         }
     }
 
@@ -100,25 +83,56 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun open(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
+            Log.d("SerialPlugin", "Opening port: ${args.path}")
+            
             val dataBits = when (args.dataBits) {
                 is String -> DataBits.valueOf(args.dataBits as String)
                 is Number -> DataBits.fromValue((args.dataBits as Number).toInt())
                 null -> DataBits.EIGHT
                 else -> throw IllegalArgumentException("Invalid data bits type")
             }
+            
+            val flowControl = when (args.flowControl) {
+                is String -> FlowControl.valueOf(args.flowControl as String)
+                is Number -> FlowControl.fromValue((args.flowControl as Number).toInt())
+                null -> FlowControl.NONE
+                else -> throw IllegalArgumentException("Invalid flow control type")
+            }
+            
+            val parity = when (args.parity) {
+                is String -> Parity.valueOf(args.parity as String)
+                is Number -> Parity.fromValue((args.parity as Number).toInt())
+                null -> Parity.NONE
+                else -> throw IllegalArgumentException("Invalid parity type")
+            }
+            
+            val stopBits = when (args.stopBits) {
+                is String -> StopBits.valueOf(args.stopBits as String)
+                is Number -> StopBits.fromValue((args.stopBits as Number).toInt())
+                null -> StopBits.ONE
+                else -> throw IllegalArgumentException("Invalid stop bits type")
+            }
+            
             val serialConfig = SerialPortConfig(
                 path = args.path,
                 baudRate = args.baudRate,
                 dataBits = dataBits,
-                flowControl = args.flowControl?.let { FlowControl.valueOf(it) } ?: FlowControl.NONE,
-                parity = args.parity?.let { Parity.valueOf(it) } ?: Parity.NONE,
-                stopBits = args.stopBits?.let { StopBits.valueOf(it) } ?: StopBits.ONE,
+                flowControl = flowControl,
+                parity = parity,
+                stopBits = stopBits,
                 timeout = args.timeout
             )
 
-            serialPortManager.openPort(serialConfig)
-            invoke.resolve()
+            val success = serialPortManager.openPort(serialConfig)
+            if (success) {
+                Log.d("SerialPlugin", "Port opened successfully: ${args.path}")
+                invoke.resolve()
+            } else {
+                Log.e("SerialPlugin", "Failed to open port: ${args.path}")
+                invoke.reject("Failed to open port")
+            }
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to open port: ${e.message}", e)
             invoke.reject("Failed to open port: ${e.message}")
         }
     }
@@ -283,7 +297,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun setFlowControl(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val success = serialPortManager.setFlowControl(args.path, FlowControl.valueOf(args.flowControl ?: "NONE"))
+            val flowControl = when (args.flowControl) {
+                is String -> FlowControl.valueOf(args.flowControl as String)
+                is Number -> FlowControl.fromValue((args.flowControl as Number).toInt())
+                null -> FlowControl.NONE
+                else -> throw IllegalArgumentException("Invalid flow control type")
+            }
+            val success = serialPortManager.setFlowControl(args.path, flowControl)
             if (success) {
                 invoke.resolve()
             } else {
@@ -298,7 +318,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun setParity(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val success = serialPortManager.setParity(args.path, Parity.valueOf(args.parity ?: "NONE"))
+            val parity = when (args.parity) {
+                is String -> Parity.valueOf(args.parity as String)
+                is Number -> Parity.fromValue((args.parity as Number).toInt())
+                null -> Parity.NONE
+                else -> throw IllegalArgumentException("Invalid parity type")
+            }
+            val success = serialPortManager.setParity(args.path, parity)
             if (success) {
                 invoke.resolve()
             } else {
@@ -313,7 +339,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun setStopBits(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
-            val success = serialPortManager.setStopBits(args.path, StopBits.valueOf(args.stopBits ?: "ONE"))
+            val stopBits = when (args.stopBits) {
+                is String -> StopBits.valueOf(args.stopBits as String)
+                is Number -> StopBits.fromValue((args.stopBits as Number).toInt())
+                null -> StopBits.ONE
+                else -> throw IllegalArgumentException("Invalid stop bits type")
+            }
+            val success = serialPortManager.setStopBits(args.path, stopBits)
             if (success) {
                 invoke.resolve()
             } else {
@@ -452,12 +484,12 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val bufferType = when (args.dataBits) {
-                is String -> args.dataBits as String
-                is Number -> "input" // По умолчанию используем "input" для числовых значений
-                null -> "input"
+                is String -> ClearBuffer.fromValue(args.dataBits as String)
+                is Number -> ClearBuffer.INPUT // По умолчанию используем INPUT для числовых значений
+                null -> ClearBuffer.INPUT
                 else -> throw IllegalArgumentException("Invalid buffer type")
             }
-            val success = serialPortManager.clearBuffer(args.path, bufferType)
+            val success = serialPortManager.clearBuffer(args.path, bufferType.name.lowercase())
             if (success) {
                 invoke.resolve()
             } else {

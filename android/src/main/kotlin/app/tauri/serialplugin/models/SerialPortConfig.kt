@@ -10,13 +10,7 @@ enum class DataBits(val value: Int) {
 
     companion object {
         fun fromValue(value: Int): DataBits {
-            return when (value) {
-                5 -> FIVE
-                6 -> SIX
-                7 -> SEVEN
-                8 -> EIGHT
-                else -> throw IllegalArgumentException("Invalid data bits value: $value")
-            }
+            return values().find { it.value == value } ?: EIGHT
         }
     }
 }
@@ -24,24 +18,57 @@ enum class DataBits(val value: Int) {
 enum class FlowControl {
     NONE,
     SOFTWARE,
-    HARDWARE
+    HARDWARE;
+
+    companion object {
+        fun fromValue(value: Int): FlowControl {
+            return when (value) {
+                1 -> SOFTWARE
+                2 -> HARDWARE
+                else -> NONE
+            }
+        }
+    }
 }
 
 enum class Parity(val value: Int) {
     NONE(UsbSerialPort.PARITY_NONE),
     ODD(UsbSerialPort.PARITY_ODD),
-    EVEN(UsbSerialPort.PARITY_EVEN)
+    EVEN(UsbSerialPort.PARITY_EVEN);
+
+    companion object {
+        fun fromValue(value: Int): Parity {
+            return values().find { it.value == value } ?: NONE
+        }
+    }
 }
 
 enum class StopBits(val value: Int) {
     ONE(UsbSerialPort.STOPBITS_1),
-    TWO(UsbSerialPort.STOPBITS_2)
+    TWO(UsbSerialPort.STOPBITS_2);
+
+    companion object {
+        fun fromValue(value: Int): StopBits {
+            return values().find { it.value == value } ?: ONE
+        }
+    }
 }
 
 enum class ClearBuffer {
     INPUT,
     OUTPUT,
-    ALL
+    ALL;
+
+    companion object {
+        fun fromValue(value: String): ClearBuffer {
+            return when (value.lowercase()) {
+                "input" -> INPUT
+                "output" -> OUTPUT
+                "all" -> ALL
+                else -> INPUT
+            }
+        }
+    }
 }
 
 data class SerialPortConfig(

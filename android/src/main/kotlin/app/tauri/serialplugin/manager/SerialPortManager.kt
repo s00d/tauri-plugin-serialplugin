@@ -101,11 +101,13 @@ class SerialPortManager(private val context: Context) {
 
     fun openPort(config: SerialPortConfig): Boolean {
         try {
+            Log.d("SerialPortManager", "Opening port: ${config.path}")
             val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
             val driver = availableDrivers.find { it.device.deviceName == config.path }
-                ?: throw IOException("Device not found")
+                ?: throw IOException("Device not found: ${config.path}")
             
             if (!usbManager.hasPermission(driver.device)) {
+                Log.d("SerialPortManager", "Requesting USB permission for device: ${driver.device.deviceName}")
                 val permissionIntent = PendingIntent.getBroadcast(
                     context,
                     0,
@@ -117,11 +119,12 @@ class SerialPortManager(private val context: Context) {
             }
             
             val connection = usbManager.openDevice(driver.device)
-                ?: throw IOException("Failed to open device")
+                ?: throw IOException("Failed to open device: ${config.path}")
             
             val port = driver.ports[0]
             
             port.open(connection)
+            Log.d("SerialPortManager", "Setting port parameters: baudRate=${config.baudRate}, dataBits=${config.dataBits.value}, stopBits=${config.stopBits.value}, parity=${config.parity.value}")
             port.setParameters(
                 config.baudRate,
                 config.dataBits.value,
@@ -131,18 +134,23 @@ class SerialPortManager(private val context: Context) {
             
             when (config.flowControl) {
                 FlowControl.HARDWARE -> {
+                    Log.d("SerialPortManager", "Enabling hardware flow control")
                     port.setDTR(true)
                     port.setRTS(true)
                 }
                 FlowControl.SOFTWARE -> {
-                    // Software flow control implementation
+                    Log.d("SerialPortManager", "Software flow control not implemented")
                 }
-                FlowControl.NONE -> {}
+                FlowControl.NONE -> {
+                    Log.d("SerialPortManager", "No flow control")
+                }
             }
             
             portMap[config.path] = port
+            Log.d("SerialPortManager", "Port opened successfully: ${config.path}")
             return true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to open port: ${e.message}", e)
             throw IOException("Failed to open port: ${e.message}")
         }
     }
@@ -270,7 +278,7 @@ class SerialPortManager(private val context: Context) {
        }
    }
 
-    fun setBaudRate(path: String, baudRate: Int): Boolean {
+    fun setBaudRate(path: String, _baudRate: Int): Boolean {
         return try {
             Log.d("setBaudRate", path)
             false
@@ -280,7 +288,7 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun setDataBits(path: String, dataBits: DataBits): Boolean {
+    fun setDataBits(path: String, _dataBits: DataBits): Boolean {
         return try {
             Log.d("setDataBits", path)
             false
@@ -308,7 +316,7 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun setParity(path: String, parity: Parity): Boolean {
+    fun setParity(path: String, _parity: Parity): Boolean {
         return try {
             Log.d("setParity", path)
             false
@@ -318,7 +326,7 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun setStopBits(path: String, stopBits: StopBits): Boolean {
+    fun setStopBits(path: String, _stopBits: StopBits): Boolean {
         return try {
             Log.d("setStopBits", path)
             false
@@ -328,7 +336,7 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun setTimeout(path: String, timeout: Int): Boolean {
+    fun setTimeout(path: String, _timeout: Int): Boolean {
         return try {
             Log.d("setTimeout", path)
             false
