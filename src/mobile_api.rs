@@ -107,7 +107,7 @@ impl<R: Runtime> SerialPort<R> {
 
         match self.0.run_mobile_plugin("open", params) {
             Ok(Value::Bool(true)) => Ok(()),
-            Ok(_) => Err(Error::new("Failed to open port")),
+            Ok(_) => Ok(()),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
     }
