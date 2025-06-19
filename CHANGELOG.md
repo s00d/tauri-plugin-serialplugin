@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.12.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.12.0...v2.12.1) (2025-06-19)
+
+
+### Bug Fixes
+
+* **deps:** update tauri-plugin-serialplugin to version 2.12.0 ([07e7526](https://github.com/s00d/tauri-plugin-serialplugin/commit/07e75261713db36fa9743c0230bd7dbe620a61b3))
+* **mobile_api:** correct port opening error handling logic ([33f43c7](https://github.com/s00d/tauri-plugin-serialplugin/commit/33f43c7604c38baa6652662a16b28319d49563f7))
+
 ## [2.12.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.11.1...v2.12.0) (2025-06-12)
 
 
