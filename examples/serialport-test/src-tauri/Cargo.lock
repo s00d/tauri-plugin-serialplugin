@@ -3696,7 +3696,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "2.11.1"
+version = "2.12.0"
 dependencies = [
  "serde",
  "serde_json",
