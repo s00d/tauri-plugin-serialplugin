@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.15.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.14.0...v2.15.0) (2025-07-01)
+
+
+### Features
+
+* **listener-manager:** implement listener management for serial events ([b32b01c](https://github.com/s00d/tauri-plugin-serialplugin/commit/b32b01c063ddba33e9440acd1be5c4eddafdd9e9))
+
 ## [2.14.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.13.0...v2.14.0) (2025-07-01)
 
 
