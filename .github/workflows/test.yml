@@ -50,14 +50,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-node-modules-
 
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
-
-    - name: Install cargo-nextest
-      run: cargo install cargo-nextest --locked
-
     - name: Cache Rust dependencies
       uses: actions/cache@v4
       with:
@@ -71,6 +63,14 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Install cargo-nextest
+      run: cargo install cargo-nextest --locked
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -83,7 +83,7 @@ jobs:
     - name: Run Rust tests
       env:
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
-      run: cargo nextest run --message-format=libtest-json-plus > target/test-results.jsonx
+      run: cargo nextest run --message-format=libtest-json-plus > test-results.jsonx
 
     - name: Run JavaScript tests
       run: pnpm test
@@ -96,5 +96,5 @@ jobs:
         path: |
           coverage/
           test-results/
-          target/test-results.jsonx
+          test-results.jsonx
         if-no-files-found: warn 
