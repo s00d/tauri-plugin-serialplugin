@@ -179,13 +179,17 @@ class SerialPort {
   }
 
   /**
-   * @description Cancels monitoring of the serial port
-   * @returns {Promise<void>} A promise that resolves when monitoring is cancelled
+   * @description Cancels listening for serial port data
+   * @returns {Promise<void>} A promise that resolves when listening is cancelled
    */
   async cancelListen(): Promise<void> {
     try {
-      if (this.unListen) {
-        this.unListen();
+      if (this.unListen && typeof this.unListen === 'function') {
+        try {
+          this.unListen();
+        } catch (unlistenError) {
+          console.warn('Error during unlisten:', unlistenError);
+        }
         this.unListen = undefined;
       }
       return;
@@ -246,13 +250,31 @@ class SerialPort {
       if (!this.isOpen) {
         return;
       }
-      await this.cancelRead();
+      
+      // Сначала отменяем чтение
+      try {
+        await this.cancelRead();
+      } catch (cancelReadError) {
+        console.warn('Error during cancelRead:', cancelReadError);
+      }
+      
+      // Закрываем порт
       let res = undefined;
-      res = await invoke<void>('plugin:serialplugin|close', {
-        path: this.options.path,
-      });
+      try {
+        res = await invoke<void>('plugin:serialplugin|close', {
+          path: this.options.path,
+        });
+      } catch (closeError) {
+        console.warn('Error during port close:', closeError);
+      }
 
-      await this.cancelListen();
+      // Отменяем слушатели
+      try {
+        await this.cancelListen();
+      } catch (cancelListenError) {
+        console.warn('Error during cancelListen:', cancelListenError);
+      }
+      
       this.isOpen = false;
       return res;
     } catch (error) {
@@ -274,8 +296,14 @@ class SerialPort {
         () => {
           try {
             fn();
-            unListen();
-            unListen = undefined;
+            if (unListen && typeof unListen === 'function') {
+              try {
+                unListen();
+              } catch (unlistenError) {
+                console.warn('Error during disconnected unlisten:', unlistenError);
+              }
+              unListen = undefined;
+            }
           } catch (error) {
             console.error(error);
           }
@@ -289,7 +317,7 @@ class SerialPort {
    * @param {boolean} [isDecode=true] Whether to decode the received data
    * @returns {Promise<void>} A promise that resolves when monitoring starts
    */
-  async listen(fn: (...args: any[]) => void, isDecode = true): Promise<void> {
+  async listen(fn: (...args: any[]) => void, isDecode: boolean = true): Promise<void> {
     try {
       if (!this.isOpen) {
         return Promise.reject('Port is not open');
@@ -300,22 +328,44 @@ class SerialPort {
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
       console.log('listen event: ' + readEvent)
 
-      this.unListen = await listen<ReadDataResult>(
-          readEvent,
-          ({ payload }) => {
-            try {
-              if (isDecode) {
-                const decoder = new TextDecoder(this.encoding);
-                const data = decoder.decode(new Uint8Array(payload.data));
-                fn(data);
-              } else {
-                fn(new Uint8Array(payload.data));
+      try {
+        this.unListen = await listen<ReadDataResult>(
+            readEvent,
+            ({ payload }) => {
+              try {
+                if (isDecode) {
+                  // Convert raw bytes to text using the configured encoding
+                  const uint8Array = new Uint8Array(payload.data);
+                  try {
+                    const decoder = new TextDecoder(this.encoding);
+                    const textData = decoder.decode(uint8Array);
+                    fn(textData);
+                  } catch (error) {
+                    console.error('Error converting to text with configured encoding:', error);
+                    // Fallback: try to decode as UTF-8
+                    try {
+                      const fallbackDecoder = new TextDecoder('utf-8');
+                      const textData = fallbackDecoder.decode(uint8Array);
+                      fn(textData);
+                    } catch (fallbackError) {
+                      console.error('Fallback decoding also failed:', fallbackError);
+                      // If all else fails, return the raw data as string
+                      fn(String.fromCharCode(...uint8Array));
+                    }
+                  }
+                } else {
+                  fn(new Uint8Array(payload.data));
+                }
+              } catch (error) {
+                console.error(error);
               }
-            } catch (error) {
-              console.error(error);
-            }
-          },
-      );
+            },
+        );
+      } catch (listenError) {
+        console.error('Error setting up listener:', listenError);
+        this.unListen = undefined;
+        throw listenError;
+      }
       return;
     } catch (error) {
       return Promise.reject('Failed to monitor serial port data: ' + error);

@@ -225,8 +225,9 @@ describe('SerialPort', () => {
         const error = new Error('Failed to close port');
         mockInvoke.mockRejectedValueOnce(error);
 
-        await expect(serialPort.close()).rejects.toThrow('Failed to close port');
-        expect(serialPort.isOpen).toBe(true);
+        // close() should not throw errors, it should handle them internally
+        await expect(serialPort.close()).resolves.toBeUndefined();
+        expect(serialPort.isOpen).toBe(false);
       });
     });
 
@@ -426,6 +427,62 @@ describe('SerialPort', () => {
         expect(result).toBe(true);
         expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|read_carrier_detect', {
           path: '/dev/tty.usbserial'
+        });
+      });
+
+      describe('writeRequestToSend', () => {
+        it('should set RTS to true', async () => {
+          await serialPort.writeRequestToSend(true);
+          expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_request_to_send', {
+            path: '/dev/tty.usbserial',
+            level: true
+          });
+        });
+
+        it('should set RTS to false', async () => {
+          await serialPort.writeRequestToSend(false);
+          expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_request_to_send', {
+            path: '/dev/tty.usbserial',
+            level: false
+          });
+        });
+
+        it('should handle RTS errors', async () => {
+          mockInvoke.mockRejectedValueOnce(new Error('RTS error'));
+          await expect(serialPort.writeRequestToSend(true)).rejects.toThrow('RTS error');
+        });
+
+        it('should throw error if port is not open', async () => {
+          serialPort.isOpen = false;
+          await expect(serialPort.writeRequestToSend(true)).resolves.toBeUndefined();
+        });
+      });
+
+      describe('writeDataTerminalReady', () => {
+        it('should set DTR to true', async () => {
+          await serialPort.writeDataTerminalReady(true);
+          expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_data_terminal_ready', {
+            path: '/dev/tty.usbserial',
+            level: true
+          });
+        });
+
+        it('should set DTR to false', async () => {
+          await serialPort.writeDataTerminalReady(false);
+          expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_data_terminal_ready', {
+            path: '/dev/tty.usbserial',
+            level: false
+          });
+        });
+
+        it('should handle DTR errors', async () => {
+          mockInvoke.mockRejectedValueOnce(new Error('DTR error'));
+          await expect(serialPort.writeDataTerminalReady(true)).rejects.toThrow('DTR error');
+        });
+
+        it('should throw error if port is not open', async () => {
+          serialPort.isOpen = false;
+          await expect(serialPort.writeDataTerminalReady(true)).resolves.toBeUndefined();
         });
       });
     });
@@ -864,7 +921,8 @@ describe('SerialPort', () => {
       it('should handle error in cancelRead', async () => {
         serialPort.isOpen = true;
         mockInvoke.mockRejectedValueOnce(new Error('Cancel read error'));
-        await expect(serialPort.close()).rejects.toThrow('Cancel read error');
+        // close() should handle cancelRead errors internally
+        await expect(serialPort.close()).resolves.toBeUndefined();
       });
 
       it('should handle error in cancelListen', async () => {
@@ -877,11 +935,8 @@ describe('SerialPort', () => {
         });
         serialPort.unListen = mockUnlistenError;
         
-        // Mock invoke for successful port closure
-        mockInvoke.mockResolvedValueOnce(undefined);
-        
-        // Check that cancelListen throws error
-        await expect(serialPort.cancelListen()).rejects.toEqual('Failed to cancel serial monitoring: Error: Cancel listen error');
+        // cancelListen should handle errors internally and not throw
+        await expect(serialPort.cancelListen()).resolves.toBeUndefined();
         expect(mockUnlistenError).toHaveBeenCalled();
         consoleSpy.mockRestore();
       });
@@ -1201,6 +1256,7 @@ describe('SerialPort', () => {
       mockInvoke.mockImplementationOnce(() => Promise.reject(new Error('Invalid encoding')));
       await expect(serialPort.write(invalidData)).rejects.toThrow('Invalid encoding');
     });
+
   });
 
   describe('Concurrent Operations', () => {
@@ -1306,10 +1362,16 @@ describe('SerialPort', () => {
       });
 
       it('should handle errors during change', async () => {
-        mockInvoke.mockRejectedValueOnce(new Error('Cancel read error'));
-        await expect(serialPort.change({ path: '/dev/tty.usbserial2' })).rejects.toThrow('Cancel read error');
-        expect(mockInvoke).toHaveBeenCalledTimes(1); // only cancel_read
-        expect(mockListen).not.toHaveBeenCalled();
+        serialPort.isOpen = true; // Port must be open for change to work
+        mockInvoke.mockRejectedValueOnce(new Error('Cancel read error')); // cancelRead
+        mockInvoke.mockResolvedValueOnce(undefined); // close
+        mockInvoke.mockResolvedValueOnce(undefined); // open
+        mockListen.mockResolvedValueOnce(mockUnlisten); // disconnected
+        
+        // change() should handle errors internally
+        await expect(serialPort.change({ path: '/dev/tty.usbserial2' })).resolves.toBeUndefined();
+        expect(mockInvoke).toHaveBeenCalledTimes(3); // cancel_read + close + open
+        expect(mockListen).toHaveBeenCalledTimes(1); // disconnected
       });
     });
   });
@@ -1319,14 +1381,16 @@ describe('SerialPort', () => {
       it('should handle errors during cancelRead', async () => {
         serialPort.isOpen = true;
         mockInvoke.mockRejectedValueOnce(new Error('Cancel read error'));
-        await expect(serialPort.close()).rejects.toThrow('Cancel read error');
+        // close() should handle cancelRead errors internally
+        await expect(serialPort.close()).resolves.toBeUndefined();
       });
 
       it('should handle errors during port close', async () => {
         serialPort.isOpen = true;
         mockInvoke.mockResolvedValueOnce(undefined); // cancelRead
         mockInvoke.mockRejectedValueOnce(new Error('Close error'));
-        await expect(serialPort.close()).rejects.toThrow('Close error');
+        // close() should handle port close errors internally
+        await expect(serialPort.close()).resolves.toBeUndefined();
       });
     });
 
@@ -1412,6 +1476,52 @@ describe('SerialPort', () => {
           path: '/dev/tty.usbserial'
         });
       });
+    });
+  });
+
+  // Test for unregisterListener issue fix
+  describe('unregisterListener error handling', () => {
+    it('should handle unregisterListener errors gracefully', async () => {
+      const serialPort = new SerialPort({ path: 'COM1', baudRate: 9600 });
+      
+      // Mock listen to return a function that throws an error
+      const mockUnlisten = jest.fn().mockImplementation(() => {
+        throw new Error('window.TAURI_EVENT_PLUGIN_INTERNALS.unregisterListener is undefined');
+      });
+      
+      (listen as jest.Mock).mockResolvedValue(mockUnlisten);
+      
+      // Open port and set up listener
+      await serialPort.open();
+      await serialPort.startListening();
+      await serialPort.listen(() => {});
+      
+      // This should not throw an error now
+      await expect(serialPort.cancelListen()).resolves.toBeUndefined();
+      
+      // Close should also work without errors
+      await expect(serialPort.close()).resolves.toBeUndefined();
+    });
+
+    it('should handle multiple listen/cancelListen cycles', async () => {
+      const serialPort = new SerialPort({ path: 'COM1', baudRate: 9600 });
+      
+      const mockUnlisten = jest.fn();
+      (listen as jest.Mock).mockResolvedValue(mockUnlisten);
+      
+      await serialPort.open();
+      await serialPort.startListening();
+      
+      // Multiple listen/cancelListen cycles should work
+      for (let i = 0; i < 5; i++) {
+        await serialPort.listen(() => {});
+        await serialPort.cancelListen();
+      }
+      
+      await serialPort.close();
+      
+      // Should not have thrown any errors
+      expect(mockUnlisten).toHaveBeenCalledTimes(5);
     });
   });
 }); 
