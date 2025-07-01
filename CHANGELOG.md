@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.16.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.15.0...v2.16.0) (2025-07-01)
+
+
+### Features
+
+* **serial:** update listen method to return unlisten function ([f7090e0](https://github.com/s00d/tauri-plugin-serialplugin/commit/f7090e04f4d74792cbac47de2c3457e685d80ef0))
+* **serial:** update listen method to return unlisten function ([0ac67ac](https://github.com/s00d/tauri-plugin-serialplugin/commit/0ac67acf1ad41fc33d7f17e61bc420295cfe296b))
+
 ## [2.15.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.14.0...v2.15.0) (2025-07-01)
 
 
