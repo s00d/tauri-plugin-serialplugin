@@ -79,4 +79,5 @@ jobs:
         path: |
           coverage/
           test-results/
+          target/test-results/
         if-no-files-found: warn 
