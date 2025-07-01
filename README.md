@@ -14,21 +14,23 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 
 1. [Installation](#installation)
 2. [Basic Usage](#basic-usage)
-3. [Permissions](#permissions)
-4. [API Reference](#api-reference)  
-   4.1. [Port Discovery](#port-discovery)  
-   4.2. [Connection Management](#connection-management)  
-   4.3. [Data Transfer](#data-transfer)  
-   4.4. [Port Configuration](#port-configuration)  
-   4.5. [Control Signals](#control-signals)  
-   4.6. [Buffer Management](#buffer-management)
-5. [Common Use Cases](#common-use-cases)
-6. [Android Setup](#android-setup)
-7. [Contributing](#contributing)
-8. [Development Setup](#development-setup)
-9. [Testing](#testing)
-10. [Partners](#partners)
-11. [License](#license)
+3. [TypeScript Support](#typescript-support)
+4. [Rust Usage](#rust-usage)
+5. [Permissions](#permissions)
+6. [API Reference](#api-reference)  
+   6.1. [Port Discovery](#port-discovery)  
+   6.2. [Connection Management](#connection-management)  
+   6.3. [Data Transfer](#data-transfer)  
+   6.4. [Port Configuration](#port-configuration)  
+   6.5. [Control Signals](#control-signals)  
+   6.6. [Buffer Management](#buffer-management)
+7. [Common Use Cases](#common-use-cases)
+8. [Android Setup](#android-setup)
+9. [Contributing](#contributing)
+10. [Development Setup](#development-setup)
+11. [Testing](#testing)
+12. [Partners](#partners)
+13. [License](#license)
 
 ---
 
@@ -176,6 +178,7 @@ pnpm add tauri-plugin-serialplugin
          await port.setFlowControl(FlowControl.None);
          await port.setParity(Parity.None);
          await port.setStopBits(StopBits.One);
+         await port.setTimeout(1000);
        } catch (error) {
          throw new Error(`Failed to configure port: ${error}`);
        }
@@ -197,8 +200,556 @@ pnpm add tauri-plugin-serialplugin
    }
 
    // Usage
+   handleSerialPort();
+   ```
+
+---
+
+## TypeScript Support
+
+This plugin provides full TypeScript support with comprehensive type definitions. All methods, interfaces, and enums are properly typed for better development experience.
+
+### Available Types
+
+```typescript
+import { 
+  SerialPort, 
+  DataBits, 
+  FlowControl, 
+  Parity, 
+  StopBits, 
+  ClearBuffer,
+  PortInfo,
+  SerialportOptions,
+  ReadOptions 
+} from "tauri-plugin-serialplugin";
+```
+
+### Type Definitions
+
+- **`SerialPort`** - Main class for serial port operations
+- **`DataBits`** - Enum: `Five`, `Six`, `Seven`, `Eight`
+- **`FlowControl`** - Enum: `None`, `Software`, `Hardware`
+- **`Parity`** - Enum: `None`, `Odd`, `Even`
+- **`StopBits`** - Enum: `One`, `Two`
+- **`ClearBuffer`** - Enum: `Input`, `Output`, `All`
+- **`PortInfo`** - Interface for port information
+- **`SerialportOptions`** - Interface for port configuration
+- **`ReadOptions`** - Interface for read operation options
+
+### Configuration Example with Types
+
+```typescript
+import { SerialPort, DataBits, FlowControl, Parity, StopBits } from "tauri-plugin-serialplugin";
+
+const port = new SerialPort({
+  path: "/dev/ttyUSB0",
+  baudRate: 9600,
+  dataBits: DataBits.Eight,        // Type-safe enum
+  flowControl: FlowControl.None,   // Type-safe enum
+  parity: Parity.None,             // Type-safe enum
+  stopBits: StopBits.One,          // Type-safe enum
+  timeout: 1000,
+  size: 1024
+});
+
+// All configuration methods are fully typed
+await port.setBaudRate(115200);
+await port.setDataBits(DataBits.Eight);
+await port.setFlowControl(FlowControl.None);
+await port.setParity(Parity.None);
+await port.setStopBits(StopBits.One);
+await port.setTimeout(500);
+```
+
+### Control Signals with Types
+
+```typescript
+// Set control signals
+await port.setRequestToSend(true);
+await port.setDataTerminalReady(true);
+
+// Alternative methods (writeRequestToSend and writeDataTerminalReady)
+await port.writeRequestToSend(true);
+await port.writeDataTerminalReady(true);
+
+// Read control signals
+const cts = await port.readClearToSend();
+const dsr = await port.readDataSetReady();
+const ri = await port.readRingIndicator();
+const cd = await port.readCarrierDetect();
+```
+
+### Buffer Management with Types
+
+```typescript
+import { ClearBuffer } from "tauri-plugin-serialplugin";
+
+// Check buffer status
+const bytesToRead = await port.bytesToRead();
+const bytesToWrite = await port.bytesToWrite();
+
+    // Clear buffers with type-safe enum
+    await port.clearBuffer(ClearBuffer.Input);
+    await port.clearBuffer(ClearBuffer.Output);
+    await port.clearBuffer(ClearBuffer.All);
+
+    // Break signal control
+    await port.setBreak();
+    await port.clearBreak();
+```
    handleSerialPort().catch(console.error);
    ```
+
+---
+
+## Rust Usage
+
+This plugin can also be used directly from Rust code in your Tauri backend. For complete API documentation, see [docs.rs](https://docs.rs/tauri-plugin-serialplugin/).
+
+Here's how to use it:
+
+### Using Commands Directly
+
+You can import and use the command functions directly from the plugin:
+
+```rust
+use tauri_plugin_serialplugin::commands::{
+    available_ports, open, write, read, close, set_baud_rate,
+    set_data_bits, set_flow_control, set_parity, set_stop_bits, set_timeout,
+    write_request_to_send, write_data_terminal_ready,
+    read_clear_to_send, read_data_set_ready,
+    bytes_to_read, bytes_to_write, clear_buffer,
+    set_break, clear_break
+};
+use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
+use tauri::{AppHandle, State, Runtime};
+use std::collections::HashMap;
+
+#[tauri::command]
+async fn rust_serial_example(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    // Get available ports
+    let ports = available_ports(app.clone(), serial.clone())
+        .map_err(|e| format!("Failed to get ports: {}", e))?;
+    println!("Available ports: {:?}", ports);
+
+    // Open a serial port
+    let path = "COM1".to_string();
+    let baud_rate = 9600;
+    
+    open(
+        app.clone(),
+        serial.clone(),
+        path.clone(),
+        baud_rate,
+        Some(DataBits::Eight),
+        Some(FlowControl::None),
+        Some(Parity::None),
+        Some(StopBits::One),
+        Some(1000u64) // timeout in milliseconds
+    ).map_err(|e| format!("Failed to open port: {}", e))?;
+
+    // Write data
+    let data = "Hello from Rust!".to_string();
+    let bytes_written = write(app.clone(), serial.clone(), path.clone(), data)
+        .map_err(|e| format!("Failed to write: {}", e))?;
+    println!("Wrote {} bytes", bytes_written);
+
+    // Read data
+    let received_data = read(
+        app.clone(),
+        serial.clone(),
+        path.clone(),
+        Some(1000u64), // timeout
+        Some(1024usize) // max bytes to read
+    ).map_err(|e| format!("Failed to read: {}", e))?;
+    println!("Received: {}", received_data);
+
+    // Configure port settings
+    set_baud_rate(app.clone(), serial.clone(), path.clone(), 115200)
+        .map_err(|e| format!("Failed to set baud rate: {}", e))?;
+    
+    set_data_bits(app.clone(), serial.clone(), path.clone(), DataBits::Eight)
+        .map_err(|e| format!("Failed to set data bits: {}", e))?;
+    
+    set_flow_control(app.clone(), serial.clone(), path.clone(), FlowControl::None)
+        .map_err(|e| format!("Failed to set flow control: {}", e))?;
+    
+    set_parity(app.clone(), serial.clone(), path.clone(), Parity::None)
+        .map_err(|e| format!("Failed to set parity: {}", e))?;
+    
+    set_stop_bits(app.clone(), serial.clone(), path.clone(), StopBits::One)
+        .map_err(|e| format!("Failed to set stop bits: {}", e))?;
+
+    // Set timeout
+    set_timeout(app.clone(), serial.clone(), path.clone(), 1000u64)
+        .map_err(|e| format!("Failed to set timeout: {}", e))?;
+
+    // Control signals
+    write_request_to_send(app.clone(), serial.clone(), path.clone(), true)
+        .map_err(|e| format!("Failed to set RTS: {}", e))?;
+    
+    write_data_terminal_ready(app.clone(), serial.clone(), path.clone(), true)
+        .map_err(|e| format!("Failed to set DTR: {}", e))?;
+
+    // Read control signals
+    let cts = read_clear_to_send(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to read CTS: {}", e))?;
+    println!("CTS: {}", cts);
+
+    let dsr = read_data_set_ready(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to read DSR: {}", e))?;
+    println!("DSR: {}", dsr);
+
+    // Buffer management
+    let bytes_to_read = bytes_to_read(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to get bytes to read: {}", e))?;
+    println!("Bytes available to read: {}", bytes_to_read);
+
+    let bytes_to_write = bytes_to_write(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to get bytes to write: {}", e))?;
+    println!("Bytes waiting to write: {}", bytes_to_write);
+
+    // Clear buffers
+    clear_buffer(app.clone(), serial.clone(), path.clone(), ClearBuffer::All)
+        .map_err(|e| format!("Failed to clear buffer: {}", e))?;
+
+    // Break signal
+    set_break(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to set break: {}", e))?;
+    
+    clear_break(app.clone(), serial.clone(), path.clone())
+        .map_err(|e| format!("Failed to clear break: {}", e))?;
+
+    // Close the port
+    close(app, serial, path)
+        .map_err(|e| format!("Failed to close port: {}", e))?;
+
+    Ok(())
+}
+```
+
+### Advanced Rust Example with Error Handling
+
+```rust
+use tauri_plugin_serialplugin::commands::{
+    available_ports, open, write, read, close, force_close, managed_ports, start_listening
+};
+use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
+use tauri::{AppHandle, State};
+use std::collections::HashMap;
+
+#[tauri::command]
+async fn advanced_serial_example(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    // Get available ports with error handling
+    let ports = match available_ports(app.clone(), serial.clone()) {
+        Ok(ports) => ports,
+        Err(e) => {
+            eprintln!("Failed to get available ports: {}", e);
+            return Err("No serial ports available".to_string());
+        }
+    };
+
+    if ports.is_empty() {
+        return Err("No serial ports found".to_string());
+    }
+
+    // Use the first available port
+    let port_path = ports.keys().next().unwrap().clone();
+    println!("Using port: {}", port_path);
+
+    // Open port with full configuration
+    let open_result = open(
+        app.clone(),
+        serial.clone(),
+        port_path.clone(),
+        9600u32, // baud rate
+        Some(DataBits::Eight),
+        Some(FlowControl::None),
+        Some(Parity::None),
+        Some(StopBits::One),
+        Some(5000u64) // 5 second timeout
+    );
+
+    match open_result {
+        Ok(_) => println!("Port opened successfully"),
+        Err(e) => {
+            eprintln!("Failed to open port: {}", e);
+            return Err(format!("Failed to open port {}: {}", port_path, e));
+        }
+    }
+
+    // Start listening for data
+    match start_listening(
+        app.clone(),
+        serial.clone(),
+        port_path.clone(),
+        Some(1000u64), // timeout
+        Some(1024usize) // max bytes
+    ) {
+        Ok(_) => println!("Started listening"),
+        Err(e) => {
+            eprintln!("Failed to start listening: {}", e);
+            // Continue anyway, we can still read manually
+        }
+    }
+
+    // Send a command and read response
+    let command = "AT\r\n".to_string();
+    match write(app.clone(), serial.clone(), port_path.clone(), command) {
+        Ok(bytes) => println!("Sent {} bytes", bytes),
+        Err(e) => {
+            eprintln!("Failed to write command: {}", e);
+            return Err(format!("Write failed: {}", e));
+        }
+    }
+
+    // Read response with timeout
+    match read(
+        app.clone(),
+        serial.clone(),
+        port_path.clone(),
+        Some(2000u64), // 2 second timeout
+        Some(512usize) // max 512 bytes
+    ) {
+        Ok(response) => println!("Response: {}", response),
+        Err(e) => {
+            eprintln!("Failed to read response: {}", e);
+            return Err(format!("Read failed: {}", e));
+        }
+    }
+
+    // Get managed ports
+    let managed_ports = match managed_ports(app.clone(), serial.clone()) {
+        Ok(ports) => ports,
+        Err(e) => {
+            eprintln!("Failed to get managed ports: {}", e);
+            Vec::new()
+        }
+    };
+    println!("Managed ports: {:?}", managed_ports);
+
+    // Clean up
+    let cleanup_result = close(app.clone(), serial.clone(), port_path.clone());
+    match cleanup_result {
+        Ok(_) => println!("Port closed successfully"),
+        Err(e) => {
+            eprintln!("Failed to close port: {}", e);
+            // Try force close
+            if let Err(e2) = force_close(app, serial, port_path) {
+                eprintln!("Failed to force close port: {}", e2);
+            }
+        }
+    }
+
+    Ok(())
+}
+```
+
+### Binary Data Handling in Rust
+
+```rust
+use tauri_plugin_serialplugin::commands::{open, write_binary, read_binary, close};
+use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+async fn binary_data_example(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    let port_path = "COM1".to_string();
+    
+    // Open port
+    open(
+        app.clone(),
+        serial.clone(),
+        port_path.clone(),
+        115200u32,
+        Some(DataBits::Eight),
+        Some(FlowControl::None),
+        Some(Parity::None),
+        Some(StopBits::One),
+        Some(1000u64)
+    ).map_err(|e| format!("Failed to open port: {}", e))?;
+
+    // Write binary data
+    let binary_data = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F]; // "Hello" in ASCII
+    let bytes_written = write_binary(app.clone(), serial.clone(), port_path.clone(), binary_data)
+        .map_err(|e| format!("Failed to write binary data: {}", e))?;
+    println!("Wrote {} bytes of binary data", bytes_written);
+
+    // Read binary data
+    let received_data = read_binary(
+        app.clone(),
+        serial.clone(),
+        port_path.clone(),
+        Some(1000u64), // timeout
+        Some(256usize) // max bytes
+    ).map_err(|e| format!("Failed to read binary data: {}", e))?;
+    
+    println!("Received {} bytes: {:?}", received_data.len(), received_data);
+
+    // Close port
+    close(app, serial, port_path)
+        .map_err(|e| format!("Failed to close port: {}", e))?;
+
+    Ok(())
+}
+```
+
+### Using Commands vs Direct API
+
+You have two ways to use the plugin in Rust:
+
+#### Option 1: Using Commands (Recommended)
+
+Import and use the command functions directly. These functions are documented in the [docs.rs documentation](https://docs.rs/tauri-plugin-serialplugin/):
+
+```rust
+use tauri_plugin_serialplugin::commands::{available_ports, open, write, read, close};
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+async fn my_serial_function(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    // Use command functions
+    let ports = available_ports(app.clone(), serial.clone())?;
+    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None)?;
+    // ... rest of your code
+}
+```
+
+#### Option 2: Using Direct API
+
+Use the SerialPort methods directly:
+
+```rust
+use tauri::State;
+use tauri_plugin_serialplugin::desktop_api::SerialPort;
+
+#[tauri::command]
+async fn my_serial_function(
+    serial: State<'_, SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    // Use serial methods directly
+    let ports = serial.available_ports()?;
+    // ... rest of your code
+}
+```
+
+### Available Rust Types
+
+The plugin provides the following Rust types for configuration:
+
+```rust
+use tauri_plugin_serialplugin::state::{
+    DataBits,      // Five, Six, Seven, Eight
+    FlowControl,   // None, Software, Hardware
+    Parity,        // None, Odd, Even
+    StopBits,      // One, Two
+    ClearBuffer    // Input, Output, All
+};
+```
+
+### Complete Command Functions Reference
+
+Here are all the available command functions you can import and use. For detailed documentation with examples, see the [docs.rs documentation](https://docs.rs/tauri-plugin-serialplugin/):
+
+```rust
+use tauri_plugin_serialplugin::commands::{
+    // Port discovery
+    available_ports,           // Get list of available ports
+    available_ports_direct,    // Get ports using platform-specific commands
+    managed_ports,             // Get list of currently managed ports
+    
+    // Connection management
+    open,                      // Open a serial port
+    close,                     // Close a serial port
+    close_all,                 // Close all open ports
+    force_close,               // Force close a port
+    
+    // Data transfer
+    write,                     // Write string data
+    write_binary,              // Write binary data
+    read,                      // Read string data
+    read_binary,               // Read binary data
+    
+    // Listening
+    start_listening,           // Start listening for data
+    stop_listening,            // Stop listening
+    cancel_read,               // Cancel read operations
+    
+    // Port configuration
+    set_baud_rate,             // Set baud rate
+    set_data_bits,             // Set data bits
+    set_flow_control,          // Set flow control
+    set_parity,                // Set parity
+    set_stop_bits,             // Set stop bits
+    set_timeout,               // Set timeout
+    
+    // Control signals
+    write_request_to_send,     // Set RTS signal
+    write_data_terminal_ready, // Set DTR signal
+    read_clear_to_send,        // Read CTS signal
+    read_data_set_ready,       // Read DSR signal
+    read_ring_indicator,       // Read RI signal
+    read_carrier_detect,       // Read CD signal
+    
+    // Buffer management
+    bytes_to_read,             // Get bytes available to read
+    bytes_to_write,            // Get bytes waiting to write
+    clear_buffer,              // Clear buffers
+    
+    // Break signal
+    set_break,                 // Start break signal
+    clear_break,               // Stop break signal
+};
+```
+
+### Command Function Signatures
+
+All command functions follow this pattern:
+
+```rust
+pub fn function_name<R: Runtime>(
+    app: AppHandle<R>,
+    serial: State<'_, SerialPort<R>>,
+    // ... additional parameters specific to the function
+) -> Result<ReturnType, Error>
+```
+
+For example:
+```rust
+// Open port
+pub fn open<R: Runtime>(
+    app: AppHandle<R>,
+    serial: State<'_, SerialPort<R>>,
+    path: String,
+    baud_rate: u32,
+    data_bits: Option<DataBits>,
+    flow_control: Option<FlowControl>,
+    parity: Option<Parity>,
+    stop_bits: Option<StopBits>,
+    timeout: Option<u64>,
+) -> Result<(), Error>
+
+// Write data
+pub fn write<R: Runtime>(
+    app: AppHandle<R>,
+    serial: State<'_, SerialPort<R>>,
+    path: String,
+    value: String,
+) -> Result<usize, Error>
+```
 
 ### Error Messages
 
@@ -553,6 +1104,15 @@ class SerialPort {
    * await port.setStopBits(StopBits.One);
    */
   async setStopBits(stopBits: StopBits): Promise<void>;
+
+  /**
+   * Sets the timeout for read operations
+   * @param {number} timeout Timeout value in milliseconds
+   * @returns {Promise<void>}
+   * @example
+   * await port.setTimeout(1000);
+   */
+  async setTimeout(timeout: number): Promise<void>;
 }
 ```
 
@@ -577,6 +1137,24 @@ class SerialPort {
    * await port.writeDataTerminalReady(true);
    */
   async writeDataTerminalReady(level: boolean): Promise<void>;
+
+  /**
+   * Alternative method to set RTS signal
+   * @param {boolean} value Signal level (true = high, false = low)
+   * @returns {Promise<void>}
+   * @example
+   * await port.setRequestToSend(true);
+   */
+  async setRequestToSend(value: boolean): Promise<void>;
+
+  /**
+   * Alternative method to set DTR signal
+   * @param {boolean} value Signal level (true = high, false = low)
+   * @returns {Promise<void>}
+   * @example
+   * await port.setDataTerminalReady(true);
+   */
+  async setDataTerminalReady(value: boolean): Promise<void>;
 
   /**
    * Reads the CTS (Clear to Send) signal state
@@ -640,6 +1218,22 @@ class SerialPort {
    * await port.clearBuffer(ClearBuffer.Input);
    */
   async clearBuffer(buffer: ClearBuffer): Promise<void>;
+
+  /**
+   * Sets the break signal
+   * @returns {Promise<void>}
+   * @example
+   * await port.setBreak();
+   */
+  async setBreak(): Promise<void>;
+
+  /**
+   * Clears the break signal
+   * @returns {Promise<void>}
+   * @example
+   * await port.clearBreak();
+   */
+  async clearBreak(): Promise<void>;
 }
 ```
 

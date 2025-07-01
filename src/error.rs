@@ -100,6 +100,6 @@ impl From<PluginInvokeError> for Error {
     }
 }
 
-// Реализация Send и Sync для Error
+// Implementing Send and Sync for Error
 unsafe impl Send for Error {}
 unsafe impl Sync for Error {}

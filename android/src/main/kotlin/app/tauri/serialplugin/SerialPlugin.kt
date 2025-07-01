@@ -74,7 +74,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
             result.put("ports", managedPorts)
             invoke.resolve(result)
         } catch (e: Exception) {
-            // В случае ошибки возвращаем сообщение об ошибке
+            // In case of an error, return a message about the day
             invoke.reject("Failed to get managed ports: ${e.message}")
         }
     }
@@ -485,7 +485,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val bufferType = when (args.dataBits) {
                 is String -> ClearBuffer.fromValue(args.dataBits as String)
-                is Number -> ClearBuffer.INPUT // По умолчанию используем INPUT для числовых значений
+                is Number -> ClearBuffer.INPUT // By default we use INPUT for numeric values
                 null -> ClearBuffer.INPUT
                 else -> throw IllegalArgumentException("Invalid buffer type")
             }

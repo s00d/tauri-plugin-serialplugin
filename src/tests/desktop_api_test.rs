@@ -33,7 +33,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
         
-        // Тест должен ожидать ошибку при открытии несуществующего порта
+        // Test should expect error when opening non-existent port
         let result = serial_port.open(
             "NONEXISTENT".to_string(),
             9600,
@@ -51,14 +51,14 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при установке настроек несуществующего порта
+        // Test should expect error when setting settings for non-existent port
         let result = serial_port.set_baud_rate(
             "NONEXISTENT".to_string(),
             115200,
         );
         assert!(result.is_err());
 
-        // Проверяем, что порт не добавлен в список управляемых портов
+        // Check that port is not added to managed ports list
         let ports = serial_port.managed_ports().unwrap();
         assert!(!ports.contains(&"NONEXISTENT".to_string()));
     }
@@ -68,7 +68,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест работы с несуществующим портом
+        // Test working with non-existent port
         let result = serial_port.write(
             "NONEXISTENT".to_string(),
             "Test".to_string(),
@@ -78,7 +78,7 @@ mod tests {
         assert!(err_msg.contains("is not open") || err_msg.contains("No such file or directory") || err_msg.contains("not found"),
             "Expected error to contain 'is not open', 'No such file or directory' or 'not found', got: {}", err_msg);
 
-        // Тест чтения из несуществующего порта
+        // Test reading from non-existent port
         let result = serial_port.read(
             "NONEXISTENT".to_string(),
             Some(1000),
@@ -89,7 +89,7 @@ mod tests {
         assert!(err_msg.contains("is not open") || err_msg.contains("No such file or directory") || err_msg.contains("not found"),
             "Expected error to contain 'is not open', 'No such file or directory' or 'not found', got: {}", err_msg);
 
-        // Тест закрытия несуществующего порта
+        // Test closing non-existent port
         let result = serial_port.close("NONEXISTENT".to_string());
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
@@ -102,7 +102,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при установке сигналов управления несуществующего порта
+        // Test should expect error when setting control signals for non-existent port
         let result = serial_port.write_request_to_send(
             "NONEXISTENT".to_string(),
             true,
@@ -155,7 +155,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при открытии несуществующего порта
+        // Test should expect error when opening non-existent port
         let result = serial_port.open(
             "NONEXISTENT".to_string(),
             9600,
@@ -173,7 +173,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при закрытии несуществующего порта
+        // Test should expect error when closing non-existent port
         let result = serial_port.close("NONEXISTENT".to_string());
         assert!(result.is_err());
     }
@@ -183,14 +183,14 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при записи в несуществующий порт
+        // Test should expect error when writing to non-existent port
         let result = serial_port.write(
             "NONEXISTENT".to_string(),
             "Test data".to_string(),
         );
         assert!(result.is_err());
 
-        // Тест должен ожидать ошибку при чтении из несуществующего порта
+        // Test should expect error when reading from non-existent port
         let result = serial_port.read(
             "NONEXISTENT".to_string(),
             Some(1000),
@@ -204,7 +204,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при установке настроек несуществующего порта
+        // Test should expect error when setting settings for non-existent port
         let result = serial_port.set_baud_rate(
             "NONEXISTENT".to_string(),
             115200,
@@ -223,7 +223,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при установке сигналов управления несуществующего порта
+        // Test should expect error when setting control signals for non-existent port
         let result = serial_port.write_request_to_send(
             "NONEXISTENT".to_string(),
             true,
@@ -242,7 +242,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при операциях с буфером несуществующего порта
+        // Test should expect error when performing buffer operations on non-existent port
         let result = serial_port.clear_buffer(
             "NONEXISTENT".to_string(),
             crate::state::ClearBuffer::All,
@@ -255,11 +255,11 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>();
 
-        // Тест должен ожидать ошибку при установке break на несуществующем порту
+        // Test should expect error when setting break on non-existent port
         let result = serial_port.set_break("NONEXISTENT".to_string());
         assert!(result.is_err());
 
-        // Тест должен ожидать ошибку при сбросе break на несуществующем порту
+        // Test should expect error when clearing break on non-existent port
         let result = serial_port.clear_break("NONEXISTENT".to_string());
         assert!(result.is_err());
     }

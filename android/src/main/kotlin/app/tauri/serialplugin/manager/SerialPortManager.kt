@@ -48,7 +48,7 @@ class SerialPortManager(private val context: Context) {
     fun registerReceiver() {
         val filter = IntentFilter(ACTION_USB_PERMISSION)
 
-        // Для Android O (API 26) и выше используем 3 параметра
+        // For Android O (API 26) and above we use 3 parameters
         if (Build.VERSION.SDK_INT >= 33) {
             context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
@@ -60,7 +60,7 @@ class SerialPortManager(private val context: Context) {
         try {
             context.unregisterReceiver(usbReceiver)
         } catch (e: IllegalArgumentException) {
-            // Получите ошибку, если ресивер не зарегистрирован
+            // Get an error if the receiver is not registered
         }
     }
     
@@ -229,12 +229,12 @@ class SerialPortManager(private val context: Context) {
 
            val targetSize = size ?: 1024
 
-           // Получаем рекомендованный размер буфера
+           // We get the recommended buffer size
            val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
-           val bufferSize = minOf(targetSize, maxPacketSize) // Берем минимум из запрашиваемого размера и maxPacketSize
+           val bufferSize = minOf(targetSize, maxPacketSize) // We take the minimum of the requested size and maxPacketSize
 
            val buffer = ByteArray(bufferSize)
-           val bytesRead = port.read(buffer, timeout.coerceAtLeast(200)) // Минимальный таймаут 200 мс
+           val bytesRead = port.read(buffer, timeout.coerceAtLeast(200)) // Minimum timeout 200ms
 
            if (bytesRead > 0) {
                buffer.copyOf(bytesRead)
@@ -253,14 +253,15 @@ class SerialPortManager(private val context: Context) {
 
         val targetSize = size ?: 1024
 
-       // Получаем оптимальный размер пакета
+       // We obtain the optimal packet size
        val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
 
        while (buffer.size < targetSize && (System.currentTimeMillis() - startTime) < timeout) {
            val remainingTime = timeout - (System.currentTimeMillis() - startTime).toInt()
            if (remainingTime <= 0) break
 
-           val chunkSize = minOf(targetSize - buffer.size, maxPacketSize) // Читаем не больше maxPacketSize
+           val chunkSize = minOf(targetSize - buffer.size, maxPacketSize) // We read no more than maxPacketSize
+
            val tempBuffer = ByteArray(chunkSize)
            val bytesRead = port.read(tempBuffer, remainingTime.coerceAtLeast(200))
 

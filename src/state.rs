@@ -1,3 +1,21 @@
+//! State types and enums for serial port configuration
+//! 
+//! This module contains all the types and enums used for configuring serial ports,
+//! including data bits, flow control, parity, stop bits, and buffer types.
+//! 
+//! # Example
+//! 
+//! ```rust
+//! use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
+//! 
+//! // Configure serial port settings
+//! let data_bits = DataBits::Eight;
+//! let flow_control = FlowControl::None;
+//! let parity = Parity::None;
+//! let stop_bits = StopBits::One;
+//! let buffer_type = ClearBuffer::All;
+//! ```
+
 use serde::{Deserialize, Serialize};
 use serialport::{self, SerialPort};
 use serialport::{
@@ -10,18 +28,83 @@ use std::{
     sync::{mpsc::Sender, Arc, Mutex},
 };
 
+/// Main state structure for managing serial ports
+/// 
+/// This structure holds the global state of all serial ports managed by the plugin.
+/// It uses thread-safe containers to allow concurrent access from multiple threads.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::SerialportState;
+/// 
+/// let state = SerialportState::default();
+/// ```
 #[derive(Default)]
 pub struct SerialportState {
-    // plugin state, configuration fields
+    /// Thread-safe map of port names to port information
+    /// 
+    /// This field stores all currently managed serial ports. The outer `Arc<Mutex<>>`
+    /// ensures thread safety, while the inner `HashMap` maps port names (like "COM1")
+    /// to their corresponding `SerialportInfo` structures.
     pub serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,
 }
+/// Information structure for a single serial port
+/// 
+/// This structure holds all the information needed to manage a single serial port,
+/// including the port itself, communication channels, and background threads.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::SerialportInfo;
+/// use serialport::SerialPort;
+/// 
+/// // This is typically created internally by the plugin
+/// // let info = SerialportInfo::new(port);
+/// ```
 pub struct SerialportInfo {
+    /// The actual serial port implementation
+    /// 
+    /// This is a boxed trait object that implements the `SerialPort` trait,
+    /// providing the actual serial communication functionality.
     pub serialport: Box<dyn SerialPort>,
+    
+    /// Optional sender for communication with background threads
+    /// 
+    /// This sender is used to communicate with background threads that handle
+    /// asynchronous reading operations. It's `None` when no background reading
+    /// is active.
     pub sender: Option<Sender<usize>>,
+    
+    /// Optional handle to background thread
+    /// 
+    /// This handle allows the plugin to manage background threads that perform
+    /// continuous reading operations. It's `None` when no background thread
+    /// is running.
     pub thread_handle: Option<JoinHandle<()>>,
 }
 
 impl SerialportInfo {
+    /// Creates a new `SerialportInfo` instance
+    /// 
+    /// This constructor creates a new serial port information structure
+    /// with the provided serial port implementation. The sender and thread
+    /// handle are initialized to `None` and should be set later if needed.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `serialport` - A boxed serial port implementation
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use tauri_plugin_serialplugin::state::SerialportInfo;
+    /// use serialport::SerialPort;
+    /// 
+    /// // This is typically used internally by the plugin
+    /// // let info = SerialportInfo::new(port);
+    /// ```
     pub fn new(serialport: Box<dyn SerialPort>) -> Self {
         Self {
             serialport,
@@ -31,33 +114,102 @@ impl SerialportInfo {
     }
 }
 
+/// Result structure for Tauri invoke operations
+/// 
+/// This structure is used to return results from Tauri command invocations
+/// with a standardized format including a status code and message.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::InvokeResult;
+/// 
+/// let result = InvokeResult {
+///     code: 0,
+///     message: "Operation completed successfully".to_string(),
+/// };
+/// ```
 #[derive(Serialize, Clone)]
 pub struct InvokeResult {
+    /// Status code indicating success (0) or error (non-zero)
     pub code: i32,
+    /// Human-readable message describing the result
     pub message: String,
 }
 
+/// Structure for holding read data from serial ports
+/// 
+/// This structure holds data that has been read from a serial port,
+/// including a reference to the data and its size.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::ReadData;
+/// 
+/// let data = b"Hello World";
+/// let read_data = ReadData {
+///     data: data,
+///     size: data.len(),
+/// };
+/// ```
 #[derive(Serialize, Clone)]
 pub struct ReadData<'a> {
+    /// Reference to the read data bytes
     pub data: &'a [u8],
+    /// Size of the read data in bytes
     pub size: usize,
 }
 
+/// Port type constants for identifying serial port types
+/// 
+/// These constants are used to identify the type of serial port
+/// when listing available ports.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::{USB, BLUETOOTH, PCI, UNKNOWN};
+/// 
+/// let port_type = USB;
+/// match port_type {
+///     USB => println!("USB serial port"),
+///     BLUETOOTH => println!("Bluetooth serial port"),
+///     PCI => println!("PCI serial port"),
+///     _ => println!("Unknown port type"),
+/// }
+/// ```
+
+/// Unknown port type
 pub const UNKNOWN: &str = "Unknown";
+/// USB serial port
 pub const USB: &str = "USB";
+/// Bluetooth serial port
 pub const BLUETOOTH: &str = "Bluetooth";
+/// PCI serial port
 pub const PCI: &str = "PCI";
 
-/// Number of bits per character
+/// Number of bits per character for serial communication
+/// 
+/// This enum defines the number of data bits used in each character transmitted
+/// over the serial port. Most modern applications use 8 data bits.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::DataBits;
+/// 
+/// let data_bits = DataBits::Eight; // Most common setting
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DataBits {
-    /// 5 bits per character
+    /// 5 bits per character (rarely used)
     Five,
-    /// 6 bits per character
+    /// 6 bits per character (rarely used)
     Six,
-    /// 7 bits per character
+    /// 7 bits per character (used with parity)
     Seven,
-    /// 8 bits per character
+    /// 8 bits per character (most common)
     Eight,
 }
 
@@ -73,6 +225,22 @@ impl From<DataBits> for SerialDataBits {
 }
 
 impl DataBits {
+    /// Converts the data bits enum to its numeric value
+    /// 
+    /// Returns the number of bits as a `u8` value.
+    /// 
+    /// # Returns
+    /// 
+    /// The number of data bits: 5, 6, 7, or 8.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use tauri_plugin_serialplugin::state::DataBits;
+    /// 
+    /// let data_bits = DataBits::Eight;
+    /// assert_eq!(data_bits.as_u8(), 8);
+    /// ```
     pub fn as_u8(&self) -> u8 {
         match self {
             DataBits::Five => 5,
@@ -83,14 +251,25 @@ impl DataBits {
     }
 }
 
-/// Flow control modes
+/// Flow control modes for serial communication
+/// 
+/// Flow control prevents data loss by allowing the receiver to signal when it's
+/// ready to receive more data.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::FlowControl;
+/// 
+/// let flow_control = FlowControl::None; // No flow control
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlowControl {
-    /// No flow control
+    /// No flow control (most common for simple applications)
     None,
-    /// Flow control using XON/XOFF bytes
+    /// Software flow control using XON/XOFF bytes
     Software,
-    /// Flow control using RTS/CTS signals
+    /// Hardware flow control using RTS/CTS signals
     Hardware,
 }
 
@@ -105,6 +284,22 @@ impl From<FlowControl> for SerialFlowControl {
 }
 
 impl FlowControl {
+    /// Converts the flow control enum to its numeric value
+    /// 
+    /// Returns the flow control mode as a `u8` value.
+    /// 
+    /// # Returns
+    /// 
+    /// The flow control mode: 0 (None), 1 (Software), or 2 (Hardware).
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use tauri_plugin_serialplugin::state::FlowControl;
+    /// 
+    /// let flow_control = FlowControl::None;
+    /// assert_eq!(flow_control.as_u8(), 0);
+    /// ```
     pub fn as_u8(&self) -> u8 {
         match self {
             FlowControl::None => 0,
@@ -114,14 +309,25 @@ impl FlowControl {
     }
 }
 
-/// Parity checking modes
+/// Parity checking modes for serial communication
+/// 
+/// Parity is an error detection method that adds an extra bit to each character
+/// to ensure the total number of 1 bits is either odd or even.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::Parity;
+/// 
+/// let parity = Parity::None; // No parity checking (most common)
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Parity {
-    /// No parity bit
+    /// No parity bit (most common for modern applications)
     None,
-    /// Parity bit sets odd number of 1 bits
+    /// Parity bit ensures odd number of 1 bits
     Odd,
-    /// Parity bit sets even number of 1 bits
+    /// Parity bit ensures even number of 1 bits
     Even,
 }
 
@@ -136,6 +342,22 @@ impl From<Parity> for SerialParity {
 }
 
 impl Parity {
+    /// Converts the parity enum to its numeric value
+    /// 
+    /// Returns the parity mode as a `u8` value.
+    /// 
+    /// # Returns
+    /// 
+    /// The parity mode: 0 (None), 1 (Odd), or 2 (Even).
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use tauri_plugin_serialplugin::state::Parity;
+    /// 
+    /// let parity = Parity::None;
+    /// assert_eq!(parity.as_u8(), 0);
+    /// ```
     pub fn as_u8(&self) -> u8 {
         match self {
             Parity::None => 0,
@@ -145,12 +367,23 @@ impl Parity {
     }
 }
 
-/// Number of stop bits
+/// Number of stop bits for serial communication
+/// 
+/// Stop bits are used to signal the end of a character transmission.
+/// Most modern applications use one stop bit.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::StopBits;
+/// 
+/// let stop_bits = StopBits::One; // Most common setting
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StopBits {
-    /// One stop bit
+    /// One stop bit (most common)
     One,
-    /// Two stop bits
+    /// Two stop bits (used in some legacy systems)
     Two,
 }
 
@@ -164,6 +397,22 @@ impl From<StopBits> for SerialStopBits {
 }
 
 impl StopBits {
+    /// Converts the stop bits enum to its numeric value
+    /// 
+    /// Returns the number of stop bits as a `u8` value.
+    /// 
+    /// # Returns
+    /// 
+    /// The number of stop bits: 1 or 2.
+    /// 
+    /// # Example
+    /// 
+    /// ```rust
+    /// use tauri_plugin_serialplugin::state::StopBits;
+    /// 
+    /// let stop_bits = StopBits::One;
+    /// assert_eq!(stop_bits.as_u8(), 1);
+    /// ```
     pub fn as_u8(&self) -> u8 {
         match self {
             StopBits::One => 1,
@@ -172,12 +421,23 @@ impl StopBits {
     }
 }
 
-/// Buffer types for clearing
+/// Buffer types for clearing serial port buffers
+/// 
+/// Serial ports maintain input and output buffers to store data.
+/// This enum allows you to specify which buffers to clear.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::ClearBuffer;
+/// 
+/// let buffer_type = ClearBuffer::All; // Clear both input and output buffers
+/// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ClearBuffer {
-    /// Input buffer (received data)
+    /// Input buffer (received data waiting to be read)
     Input,
-    /// Output buffer (transmitted data)
+    /// Output buffer (transmitted data waiting to be sent)
     Output,
     /// Both input and output buffers
     All,

@@ -2,7 +2,7 @@ import { SerialPort, DataBits, FlowControl, Parity, StopBits, ClearBuffer, PortI
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 
-// Мокаем Tauri API
+// Mock Tauri API
 jest.mock('@tauri-apps/api/core', () => ({
   invoke: jest.fn(),
 }));
@@ -11,16 +11,16 @@ jest.mock('@tauri-apps/api/event', () => ({
   listen: jest.fn(),
 }));
 
-// Типы для моков
+// Types for mocks
 type MockInvoke = jest.Mock<Promise<any>, [string, any?]>;
 type MockListen = jest.Mock<Promise<() => void>, [string, (event: any) => void]>;
 
-// Очищаем все интервалы после каждого теста
+// Clear all intervals after each test
 afterEach(() => {
   jest.clearAllTimers();
 });
 
-// Очищаем все интервалы после всех тестов
+// Clear all intervals after all tests
 afterAll(() => {
   jest.clearAllTimers();
 });
@@ -32,14 +32,14 @@ describe('SerialPort', () => {
   let serialPort: SerialPort;
 
   beforeEach(() => {
-    // Очищаем все моки перед каждым тестом
+    // Clear all mocks before each test
     mockInvoke = invoke as MockInvoke;
     mockListen = listen as MockListen;
     mockUnlisten = jest.fn();
     mockListen.mockResolvedValue(mockUnlisten);
     jest.clearAllMocks();
 
-    // Создаем новый экземпляр SerialPort для каждого теста
+    // Create new SerialPort instance for each test
     serialPort = new SerialPort({
       path: '/dev/tty.usbserial',
       baudRate: 9600,
@@ -52,7 +52,7 @@ describe('SerialPort', () => {
   });
 
   afterEach(async () => {
-    // Очищаем все тестовые порты и слушатели
+    // Clear all test ports and listeners
     await SerialPort.closeAll();
   });
 
@@ -531,17 +531,17 @@ describe('SerialPort', () => {
     let serialPort: SerialPort;
 
     beforeEach(() => {
-      // Создаем новые моки для каждого теста
+      // Create new mocks for each test
       mockInvoke = jest.fn();
       mockListen = jest.fn();
       mockUnlisten = jest.fn();
       
-      // Заменяем глобальные моки
+      // Replace global mocks
       (invoke as any) = mockInvoke;
       (listen as any) = mockListen;
       mockListen.mockResolvedValue(mockUnlisten);
 
-      // Создаем новый экземпляр SerialPort для каждого теста
+      // Create new SerialPort instance for each test
       serialPort = new SerialPort({
         path: '/dev/tty.usbserial',
         baudRate: 9600,
@@ -552,12 +552,12 @@ describe('SerialPort', () => {
         timeout: 1000
       });
 
-      // По умолчанию все команды успешны
+      // By default all commands are successful
       mockInvoke.mockResolvedValue(undefined);
     });
 
     afterEach(async () => {
-      // Очищаем все моки и состояние
+      // Clear all mocks and state
       jest.clearAllMocks();
       await SerialPort.closeAll();
     });
@@ -606,31 +606,31 @@ describe('SerialPort', () => {
       it('should handle sequence of different errors', async () => {
         serialPort.isOpen = true;
         
-        // Настраиваем мок для последовательности ошибок
+        // Configure mock for error sequence
         mockInvoke
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')))
           .mockImplementationOnce(() => Promise.reject(new Error('Device busy')))
           .mockImplementationOnce(() => Promise.reject(new Error('Permission denied')));
 
-        // Проверяем каждую ошибку в последовательности
+        // Check each error in sequence
         await expect(serialPort.write('test')).rejects.toThrow('Port not found');
         await expect(serialPort.write('test')).rejects.toThrow('Device busy');
         await expect(serialPort.write('test')).rejects.toThrow('Permission denied');
 
-        // Проверяем, что все моки были вызваны
+        // Check that all mocks were called
         expect(mockInvoke).toHaveBeenCalledTimes(3);
       });
 
       it('should handle repeated errors', async () => {
         serialPort.isOpen = true;
         
-        // Настраиваем мок для повторяющейся ошибки
+        // Configure mock for repeated error
         mockInvoke
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')))
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')))
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')));
 
-        // Проверяем несколько вызовов с одной и той же ошибкой
+        // Check multiple calls with the same error
         for (let i = 0; i < 3; i++) {
           await expect(serialPort.write('test')).rejects.toThrow('Port not found');
         }
@@ -641,14 +641,14 @@ describe('SerialPort', () => {
       it('should handle alternating errors', async () => {
         serialPort.isOpen = true;
         
-        // Настраиваем мок для чередующихся ошибок
+        // Configure mock for alternating errors
         mockInvoke
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')))
           .mockImplementationOnce(() => Promise.resolve(5))
           .mockImplementationOnce(() => Promise.reject(new Error('Port not found')))
           .mockImplementationOnce(() => Promise.resolve(5));
 
-        // Проверяем чередование ошибок и успешных операций
+        // Check alternating errors and successful operations
         await expect(serialPort.write('test')).rejects.toThrow('Port not found');
         await expect(serialPort.write('test')).resolves.toBe(5);
         await expect(serialPort.write('test')).rejects.toThrow('Port not found');
@@ -664,7 +664,7 @@ describe('SerialPort', () => {
       beforeEach(() => {
         callCount = 0;
         jest.clearAllMocks();
-        serialPort.isOpen = false; // Начинаем с закрытого порта
+        serialPort.isOpen = false; // Start with closed port
       });
 
       afterEach(async () => {
@@ -688,9 +688,9 @@ describe('SerialPort', () => {
           }
         });
 
-        // Проверяем последовательность с восстановлением
+        // Check sequence with recovery
         await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-        expect(callCount).toBe(0); // invoke не вызывается, так как порт закрыт
+        expect(callCount).toBe(0); // invoke is not called because port is closed
         expect(serialPort.isOpen).toBe(false);
         
         await expect(serialPort.open()).resolves.toBeUndefined();
@@ -701,9 +701,9 @@ describe('SerialPort', () => {
         expect(callCount).toBe(2);
         expect(serialPort.isOpen).toBe(true);
         
-        serialPort.isOpen = false; // Имитируем закрытие порта
+        serialPort.isOpen = false; // Simulate port closure
         await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-        expect(callCount).toBe(2); // invoke не вызывается, так как порт закрыт
+        expect(callCount).toBe(2); // invoke is not called because port is closed
         expect(serialPort.isOpen).toBe(false);
         
         await expect(serialPort.open()).resolves.toBeUndefined();
@@ -723,11 +723,11 @@ describe('SerialPort', () => {
           }
         });
 
-        // Проверяем несколько циклов восстановления
+        // Check multiple recovery cycles
         for (let i = 0; i < 3; i++) {
-          serialPort.isOpen = false; // Имитируем закрытие порта
+          serialPort.isOpen = false; // Simulate port closure
           await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-          expect(callCount).toBe(i * 2); // invoke не вызывается, так как порт закрыт
+          expect(callCount).toBe(i * 2); // invoke is not called because port is closed
           expect(serialPort.isOpen).toBe(false);
           
           await expect(serialPort.open()).resolves.toBeUndefined();
@@ -755,20 +755,20 @@ describe('SerialPort', () => {
             case 5:
               return Promise.reject(new Error('Device busy')); // write
             case 6:
-              return Promise.resolve(undefined); // open после ошибки Device busy
+              return Promise.resolve(undefined); // open after Device busy error
             default:
               return Promise.resolve(undefined);
           }
         });
 
-        // Проверяем сложный паттерн ошибок
+        // Check complex error pattern
         serialPort.isOpen = false;
         await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-        expect(callCount).toBe(0); // invoke не вызывается, так как порт закрыт
+        expect(callCount).toBe(0); // invoke is not called because port is closed
         expect(serialPort.isOpen).toBe(false);
         
         await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-        expect(callCount).toBe(0); // invoke не вызывается, так как порт закрыт
+        expect(callCount).toBe(0); // invoke is not called because port is closed
         expect(serialPort.isOpen).toBe(false);
         
         await expect(serialPort.open()).resolves.toBeUndefined();
@@ -787,18 +787,18 @@ describe('SerialPort', () => {
         expect(callCount).toBe(4);
         expect(serialPort.isOpen).toBe(true);
         
-        // Проверяем ошибку Device busy при записи
+        // Check Device busy error during write
         await expect(serialPort.write('test')).rejects.toThrow('Device busy');
         expect(callCount).toBe(5);
         expect(serialPort.isOpen).toBe(true);
         
-        // Закрываем порт после ошибки
+        // Close port after error
         serialPort.isOpen = false;
         await expect(serialPort.write('test')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
-        expect(callCount).toBe(5); // invoke не вызывается, так как порт закрыт
+        expect(callCount).toBe(5); // invoke is not called because port is closed
         expect(serialPort.isOpen).toBe(false);
         
-        // Открываем порт снова
+        // Open port again
         await expect(serialPort.open()).resolves.toBeUndefined();
         expect(callCount).toBe(6);
         expect(serialPort.isOpen).toBe(true);
@@ -848,7 +848,7 @@ describe('SerialPort', () => {
 
       it('should handle invalid encoding in write', async () => {
         serialPort.isOpen = true;
-        // Мокаем invoke, чтобы он выбрасывал ошибку при неверной кодировке
+        // Mock invoke to throw error on invalid encoding
         mockInvoke.mockRejectedValueOnce(new Error('Invalid encoding'));
         
         await expect(serialPort.write('test')).rejects.toThrow('Invalid encoding');
@@ -871,16 +871,16 @@ describe('SerialPort', () => {
         serialPort.isOpen = true;
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
         
-        // Создаем мок, который выбрасывает ошибку при вызове
+        // Create mock that throws error on call
         const mockUnlistenError = jest.fn().mockImplementation(() => {
           throw new Error('Cancel listen error');
         });
         serialPort.unListen = mockUnlistenError;
         
-        // Мокаем invoke для успешного закрытия порта
+        // Mock invoke for successful port closure
         mockInvoke.mockResolvedValueOnce(undefined);
         
-        // Проверяем, что cancelListen выбрасывает ошибку
+        // Check that cancelListen throws error
         await expect(serialPort.cancelListen()).rejects.toEqual('Failed to cancel serial monitoring: Error: Cancel listen error');
         expect(mockUnlistenError).toHaveBeenCalled();
         consoleSpy.mockRestore();
@@ -918,18 +918,18 @@ describe('SerialPort', () => {
         serialPort.isOpen = true;
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
         
-        // Создаем callback, который выбрасывает ошибку
+        // Create callback that throws error
         const errorCallback = jest.fn().mockImplementation(() => {
           throw new Error('Connection lost');
         });
         
-        // Мокаем listen для события disconnected
+        // Mock listen for disconnected event
         const portPath = '/dev/tty.usbserial';
         const subPath = portPath.replaceAll(".", "-").replaceAll("/", "-");
         const disconnectedEvent = `plugin-serialplugin-disconnected-${subPath}`;
         let eventCallback: ((event: any) => void) | undefined;
         
-        // Добавляем отладочный вывод для проверки вызовов
+        // Add debug output to check calls
         mockListen.mockImplementation((event, cb) => {
           if (event === disconnectedEvent) {
             eventCallback = cb;
@@ -937,36 +937,36 @@ describe('SerialPort', () => {
           return Promise.resolve(mockUnlisten);
         });
 
-        // Мокаем invoke для успешного открытия порта
+        // Mock invoke for successful port opening
         mockInvoke.mockResolvedValueOnce(undefined);
         
-        // Открываем порт и устанавливаем обработчик отключения
+        // Open port and set disconnect handler
         await serialPort.open();
         
-        // Проверяем, что метод disconnected был вызван
+        // Check that disconnected method was called
         const disconnectedSpy = jest.spyOn(serialPort, 'disconnected');
         await serialPort.disconnected(errorCallback);
         expect(disconnectedSpy).toHaveBeenCalledWith(errorCallback);
         
-        // Проверяем, что listen был вызван с правильным событием
+        // Check that listen was called with correct event
         expect(mockListen).toHaveBeenCalledWith(disconnectedEvent, expect.any(Function));
         
-        // Проверяем, что обработчик события был установлен
+        // Check that event handler was set
         expect(eventCallback).toBeDefined();
         
-        // Имитируем событие отключения
+        // Simulate disconnect event
         if (eventCallback) {
           eventCallback({});
         }
         
-        // Даем время на обработку события и проверяем результаты
+        // Give time for event processing and check results
         await new Promise(process.nextTick);
         
-        // Проверяем, что callback был вызван и ошибка была залогирована
+        // Check that callback was called and error was logged
         expect(errorCallback).toHaveBeenCalled();
         expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
         
-        // Очищаем все моки
+        // Clear all mocks
         consoleSpy.mockRestore();
         disconnectedSpy.mockRestore();
       });
@@ -1120,17 +1120,17 @@ describe('SerialPort', () => {
     let serialPort: SerialPort;
 
     beforeEach(() => {
-      // Создаем новые моки для каждого теста
+      // Create new mocks for each test
       mockInvoke = jest.fn();
       mockListen = jest.fn();
       mockUnlisten = jest.fn();
       
-      // Заменяем глобальные моки
+      // Replace global mocks
       (invoke as any) = mockInvoke;
       (listen as any) = mockListen;
       mockListen.mockResolvedValue(mockUnlisten);
 
-      // Создаем новый экземпляр SerialPort для каждого теста
+      // Create new SerialPort instance for each test
       serialPort = new SerialPort({
         path: '/dev/tty.usbserial',
         baudRate: 9600,
@@ -1154,12 +1154,12 @@ describe('SerialPort', () => {
       serialPort.encoding = 'utf-8';
       const utf8Data = 'Привет, мир!';
       
-      // Мокаем успешную запись
+      // Mock successful write
       mockInvoke.mockImplementationOnce(() => Promise.resolve(utf8Data.length));
       const writeResult = await serialPort.write(utf8Data);
       expect(writeResult).toBe(utf8Data.length);
 
-      // Мокаем успешное чтение
+      // Mock successful read
       mockInvoke.mockImplementationOnce(() => Promise.resolve(utf8Data));
       const readResult = await serialPort.read();
       expect(readResult).toBe(utf8Data);
@@ -1168,12 +1168,12 @@ describe('SerialPort', () => {
       serialPort.encoding = 'ascii';
       const asciiData = 'Hello, World!';
       
-      // Мокаем успешную запись
+      // Mock successful write
       mockInvoke.mockImplementationOnce(() => Promise.resolve(asciiData.length));
       const asciiWriteResult = await serialPort.write(asciiData);
       expect(asciiWriteResult).toBe(asciiData.length);
 
-      // Мокаем успешное чтение
+      // Mock successful read
       mockInvoke.mockImplementationOnce(() => Promise.resolve(asciiData));
       const asciiReadResult = await serialPort.read();
       expect(asciiReadResult).toBe(asciiData);
@@ -1181,12 +1181,12 @@ describe('SerialPort', () => {
       // Test Binary
       const binaryData = new Uint8Array([0x01, 0x02, 0x03, 0x04, 0x05]);
       
-      // Мокаем успешную запись
+      // Mock successful write
       mockInvoke.mockImplementationOnce(() => Promise.resolve(binaryData.length));
       const binaryWriteResult = await serialPort.writeBinary(binaryData);
       expect(binaryWriteResult).toBe(binaryData.length);
 
-      // Мокаем успешное чтение
+      // Mock successful read
       mockInvoke.mockImplementationOnce(() => Promise.resolve(Array.from(binaryData)));
       const binaryReadResult = await serialPort.readBinary();
       expect(binaryReadResult).toEqual(binaryData);
@@ -1308,7 +1308,7 @@ describe('SerialPort', () => {
       it('should handle errors during change', async () => {
         mockInvoke.mockRejectedValueOnce(new Error('Cancel read error'));
         await expect(serialPort.change({ path: '/dev/tty.usbserial2' })).rejects.toThrow('Cancel read error');
-        expect(mockInvoke).toHaveBeenCalledTimes(1); // только cancel_read
+        expect(mockInvoke).toHaveBeenCalledTimes(1); // only cancel_read
         expect(mockListen).not.toHaveBeenCalled();
       });
     });
@@ -1383,7 +1383,7 @@ describe('SerialPort', () => {
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
         mockInvoke.mockResolvedValueOnce(undefined); // open
         mockListen.mockImplementationOnce((event, cb) => {
-          cb({}); // Вызываем callback с пустым объектом события
+          cb({}); // Call callback with empty event object
           return Promise.resolve(mockUnlisten);
         });
 

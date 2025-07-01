@@ -50,7 +50,7 @@ mod tests {
     fn test_open_close() {
         let app = create_test_app();
         
-        // Тест должен ожидать ошибку при открытии несуществующего порта
+        // Test should expect error when opening non-existent port
         let result = open(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -64,7 +64,7 @@ mod tests {
         );
         assert!(result.is_err());
 
-        // Тест закрытия несуществующего порта
+        // Test closing non-existent port
         let result = close(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -77,7 +77,7 @@ mod tests {
     fn test_write_read() {
         let app = create_test_app();
         
-        // Тест должен ожидать ошибку при записи в несуществующий порт
+        // Test should expect error when writing to non-existent port
         let result = write(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -86,7 +86,7 @@ mod tests {
         );
         assert!(result.is_err());
 
-        // Тест должен ожидать ошибку при чтении из несуществующего порта
+        // Test should expect error when reading from non-existent port
         let result = read(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -101,7 +101,7 @@ mod tests {
     fn test_port_settings() {
         let app = create_test_app();
         
-        // Тест должен ожидать ошибку при установке настроек несуществующего порта
+        // Test should expect error when setting settings for non-existent port
         let result = set_baud_rate(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -123,7 +123,7 @@ mod tests {
     fn test_control_signals() {
         let app = create_test_app();
         
-        // Тест должен ожидать ошибку при установке сигналов управления несуществующего порта
+        // Test should expect error when setting control signals for non-existent port
         let result = write_request_to_send(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
@@ -145,7 +145,7 @@ mod tests {
     fn test_buffer_operations() {
         let app = create_test_app();
         
-        // Тест должен ожидать ошибку при операциях с буфером несуществующего порта
+        // Test should expect error when operating on buffer of non-existent port
         let result = clear_buffer(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),

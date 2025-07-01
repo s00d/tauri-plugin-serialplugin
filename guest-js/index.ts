@@ -2,6 +2,8 @@ import { UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
 
+// All type definitions for the serial plugin
+
 export interface PortInfo {
   path: "Unknown" | string;
   manufacturer: "Unknown" | string;
@@ -10,11 +12,6 @@ export interface PortInfo {
   serial_number: "Unknown" | string;
   type: "PCI" | string;
   vid: "Unknown" | string;
-}
-
-export interface InvokeResult {
-  code: number;
-  message: string;
 }
 
 export interface ReadDataResult {
@@ -81,6 +78,26 @@ export enum ClearBuffer {
   Output = "Output",
   All = "All"
 }
+
+// Additional type utilities
+export type SerialPortConfig = {
+  path: string;
+  baudRate: number;
+  dataBits?: DataBits;
+  flowControl?: FlowControl;
+  parity?: Parity;
+  stopBits?: StopBits;
+  timeout?: number;
+  size?: number;
+  encoding?: string;
+};
+
+// Utility types for common operations
+export type BaudRate =
+    | 110 | 300 | 600 | 1200 | 2400 | 4800 | 9600
+    | 14400 | 19200 | 38400 | 57600 | 115200
+    | 230400 | 460800 | 921600;
+
 
 class SerialPort {
   isOpen: boolean;
@@ -431,7 +448,7 @@ class SerialPort {
    * @param {number} value The new baud rate
    * @returns {Promise<void>} A promise that resolves when baud rate is set
    */
-  async setBaudRate(value: number): Promise<void> {
+  async setBaudRate(value: number | BaudRate): Promise<void> {
     try {
       return await invoke<void>('plugin:serialplugin|set_baud_rate', {
         path: this.options.path,
@@ -548,6 +565,38 @@ class SerialPort {
       return await invoke<void>('plugin:serialplugin|write_data_terminal_ready', {
         path: this.options.path,
         level: value
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Writes the RTS (Request To Send) control signal
+   * @param {boolean} level The signal level to set
+   * @returns {Promise<void>} A promise that resolves when RTS is set
+   */
+  async writeRequestToSend(level: boolean): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|write_request_to_send', {
+        path: this.options.path,
+        level: level
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Writes the DTR (Data Terminal Ready) control signal
+   * @param {boolean} level The signal level to set
+   * @returns {Promise<void>} A promise that resolves when DTR is set
+   */
+  async writeDataTerminalReady(level: boolean): Promise<void> {
+    try {
+      return await invoke<void>('plugin:serialplugin|write_data_terminal_ready', {
+        path: this.options.path,
+        level: level
       });
     } catch (error) {
       return Promise.reject(error);
@@ -728,4 +777,7 @@ class SerialPort {
   }
 }
 
-export { SerialPort };
+// Export the main class and re-export all types
+export {
+  SerialPort,
+};

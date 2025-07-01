@@ -5,11 +5,11 @@ mod tests {
 
     #[test]
     fn test_error_creation() {
-        // Тест создания ошибки из строки
+        // Test creating error from string
         let error = Error::new("Test error message");
         assert_eq!(error.to_string(), "Test error message");
 
-        // Тест создания ошибки из IO ошибки
+        // Test creating error from IO error
         let io_error = io::Error::new(io::ErrorKind::NotFound, "IO error message");
         let error = Error::from(io_error);
         assert!(error.to_string().contains("IO error message"));
@@ -17,12 +17,12 @@ mod tests {
 
     #[test]
     fn test_error_conversion() {
-        // Тест конвертации в IO ошибку
+        // Test conversion to IO error
         let error = Error::new("Test error");
         let io_error: io::Error = error.into();
         assert!(io_error.to_string().contains("Test error"));
 
-        // Тест конвертации из IO ошибки
+        // Test conversion from IO error
         let io_error = io::Error::new(io::ErrorKind::PermissionDenied, "Permission denied");
         let error: Error = io_error.into();
         assert!(error.to_string().contains("Permission denied"));
@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn test_error_send_sync() {
-        // Проверяем, что Error реализует Send и Sync
+        // Check that Error implements Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Error>();
     }
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_error_chain() {
-        // Тест цепочки ошибок
+        // Test error chain
         let io_error = io::Error::new(io::ErrorKind::NotFound, "Original error");
         let error = Error::from(io_error);
         let error = Error::new(format!("Wrapped error: {}", error));
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_error_kind() {
-        // Тест различных типов ошибок
+        // Test different error types
         let not_found = Error::from(io::Error::new(io::ErrorKind::NotFound, "Port not found"));
         assert!(not_found.to_string().contains("Port not found"));
 
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn test_error_custom() {
-        // Тест пользовательских ошибок
+        // Test custom errors
         let custom_error = Error::new("Custom error with details: port=COM1, baud=9600");
         assert!(custom_error.to_string().contains("Custom error with details"));
         assert!(custom_error.to_string().contains("port=COM1"));

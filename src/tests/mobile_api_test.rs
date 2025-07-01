@@ -22,7 +22,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Проверяем, что порт инициализирован
+        // Check that port is initialized
         let ports = app.state::<SerialPort<MockRuntime>>().managed_ports().unwrap();
         assert!(ports.is_empty());
     }
@@ -54,7 +54,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Открываем порт
+        // Open port
         app.state::<SerialPort<MockRuntime>>().open(
             "COM1".to_string(),
             9600,
@@ -65,7 +65,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Записываем данные
+        // Write data
         let write_result = app.state::<SerialPort<MockRuntime>>().write(
             "COM1".to_string(),
             "Test data".to_string(),
@@ -73,7 +73,7 @@ mod tests {
         assert!(write_result.is_ok());
         assert_eq!(write_result.unwrap(), 9);
 
-        // Читаем данные
+        // Read data
         let read_result = app.state::<SerialPort<MockRuntime>>().read(
             "COM1".to_string(),
             Some(1000),
@@ -89,7 +89,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Открываем порт
+        // Open port
         app.state::<SerialPort<MockRuntime>>().open(
             "COM1".to_string(),
             9600,
@@ -100,35 +100,35 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Устанавливаем скорость
+        // Set baud rate
         let result = app.state::<SerialPort<MockRuntime>>().set_baud_rate(
             "COM1".to_string(),
             115200,
         );
         assert!(result.is_ok());
 
-        // Устанавливаем биты данных
+        // Set data bits
         let result = app.state::<SerialPort<MockRuntime>>().set_data_bits(
             "COM1".to_string(),
             DataBits::Seven,
         );
         assert!(result.is_ok());
 
-        // Устанавливаем управление потоком
+        // Set flow control
         let result = app.state::<SerialPort<MockRuntime>>().set_flow_control(
             "COM1".to_string(),
             FlowControl::Hardware,
         );
         assert!(result.is_ok());
 
-        // Устанавливаем четность
+        // Set parity
         let result = app.state::<SerialPort<MockRuntime>>().set_parity(
             "COM1".to_string(),
             Parity::Even,
         );
         assert!(result.is_ok());
 
-        // Устанавливаем стоп-биты
+        // Set stop bits
         let result = app.state::<SerialPort<MockRuntime>>().set_stop_bits(
             "COM1".to_string(),
             StopBits::Two,
@@ -142,7 +142,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Открываем порт
+        // Open port
         app.state::<SerialPort<MockRuntime>>().open(
             "COM1".to_string(),
             9600,
@@ -153,11 +153,11 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Закрываем порт
+        // Close port
         let result = app.state::<SerialPort<MockRuntime>>().close("COM1".to_string());
         assert!(result.is_ok());
 
-        // Проверяем, что порт закрыт
+        // Check that port is closed
         let ports = app.state::<SerialPort<MockRuntime>>().managed_ports().unwrap();
         assert!(!ports.contains(&"COM1".to_string()));
     }
@@ -168,7 +168,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Открываем порт
+        // Open port
         app.state::<SerialPort<MockRuntime>>().open(
             "COM1".to_string(),
             9600,
@@ -179,7 +179,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест RTS
+        // Test RTS
         let result = app.state::<SerialPort<MockRuntime>>().write_request_to_send(
             "COM1".to_string(),
             true,
@@ -192,7 +192,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap());
 
-        // Тест DTR
+        // Test DTR
         let result = app.state::<SerialPort<MockRuntime>>().write_data_terminal_ready(
             "COM1".to_string(),
             true,
@@ -212,7 +212,7 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        // Открываем порт
+        // Open port
         app.state::<SerialPort<MockRuntime>>().open(
             "COM1".to_string(),
             9600,
@@ -223,14 +223,14 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест очистки буфера
+        // Test buffer clearing
         let result = app.state::<SerialPort<MockRuntime>>().clear_buffer(
             "COM1".to_string(),
             crate::state::ClearBuffer::All,
         );
         assert!(result.is_ok());
 
-        // Тест записи и проверки буфера
+        // Test writing and checking buffer
         app.state::<SerialPort<MockRuntime>>().write(
             "COM1".to_string(),
             "Test".to_string(),

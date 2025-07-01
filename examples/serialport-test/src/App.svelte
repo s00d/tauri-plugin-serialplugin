@@ -1,20 +1,21 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { SerialPort } from "tauri-plugin-serialplugin";
+  import { invoke } from "@tauri-apps/api/core";
   import SerialPortComponent from "./components/SerialPortComponent.svelte";
 
-  // Списки найденных портов
+  // Lists of found ports
   let availablePorts: { [key: string]: { type: string } } = {};
   let directPorts: { [key: string]: { type: string } } = {};
   let managedPorts: string[] = [];
 
-  // Список активных подключений
+  // List of active connections
   let activePorts: string[] = [];
 
-  // Поле для ручного ввода пути
+  // Field for manual path input
   let manualPath: string = "";
 
-  // Сканируем порты
+  // Scan ports
   async function scanPorts() {
     try {
       availablePorts = await SerialPort.available_ports();
@@ -38,11 +39,23 @@
       managedPorts = await SerialPort.managed_ports();
       console.log("Managed ports:", managedPorts);
     } catch (err) {
-      console.error("Failed to get Managed ports:", err);
+      console.error("Failed to get managed ports:", err);
     }
   }
 
-  // Добавить порт (по нажатию "Connect")
+  // Call Rust command to get ports
+  async function callRustGetPorts() {
+    try {
+      console.log("Calling Rust command to get ports...");
+      const result = await invoke<string>("get_ports_programmatically");
+      console.log("Rust command result:");
+      console.log(result);
+    } catch (err) {
+      console.error("Error calling Rust command:", err);
+    }
+  }
+
+  // Add port (on "Connect" click)
   function addPort(portName: string) {
     if (!portName) return;
     if (!activePorts.includes(portName)) {
@@ -50,12 +63,12 @@
     }
   }
 
-  // Удалить порт из списка активных (по событию disconnect)
+  // Remove port from active list (on disconnect event)
   function removePort(portName: string) {
     activePorts = activePorts.filter((name) => name !== portName);
   }
 
-  // Клик «Connect» для ручного пути
+  // Click "Connect" for manual path
   function addManualPort() {
     const path = manualPath.trim();
     if (path) {
@@ -65,11 +78,11 @@
   }
 
   function handleDisconnect({ port }: { port: string }) {
-    console.log("handleDisconnect сработал, порт:", port);
+    console.log("handleDisconnect triggered, port:", port);
     removePort(port);
   }
 
-  // При маунте сканируем сразу всё
+  // Scan everything on mount
   onMount(() => {
     scanPorts();
     scanPortsDirect();
@@ -78,212 +91,468 @@
 </script>
 
 <main class="container">
-  <h1 class="title">Multi-Port Serial Demo</h1>
+  <header class="header">
+    <h1 class="title">Serial Port Manager</h1>
+    <p class="subtitle">Multi-port serial communication demo</p>
+  </header>
+  
+  <!-- Rust Commands Section -->
+  <section class="rust-command-section">
+    <div class="section-header">
+      <h2>🔧 Rust Commands</h2>
+      <p>Test backend functionality</p>
+    </div>
+    <button on:click={callRustGetPorts} class="rust-button">
+      <span class="icon">⚡</span>
+      Get Ports via Rust Command
+    </button>
+    <p class="rust-hint">Result will be displayed in browser console</p>
+  </section>
 
-  <!-- Ручной ввод пути -->
+  <!-- Manual Port Input -->
   <section class="manual-connect">
-    <h2>Manual Port Input</h2>
-    <div class="row">
+    <div class="section-header">
+      <h2>🔗 Manual Connection</h2>
+      <p>Connect to a specific port</p>
+    </div>
+    <div class="input-group">
       <input
         type="text"
-        placeholder="Enter port path (e.g. /dev/ttyACM0)..."
+        placeholder="Enter port path (e.g. /dev/ttyACM0, COM1)..."
         bind:value={manualPath}
+        class="port-input"
       />
-      <button on:click={addManualPort}>+</button>
+      <button on:click={addManualPort} class="connect-btn">
+        <span class="icon">➕</span>
+        Connect
+      </button>
     </div>
   </section>
 
-  <!-- Секции со списками портов -->
+  <!-- Port Lists Section -->
   <section class="scan-section">
+    <div class="section-header">
+      <h2>📡 Port Discovery</h2>
+      <p>Available serial ports on your system</p>
+    </div>
     <div class="port-lists">
       <!-- Available Ports -->
       <div class="port-group">
-        <h3>
-          Available Ports
-          <button on:click={scanPorts}>Scan Ports</button>
-        </h3>
+        <div class="group-header">
+          <h3>🔍 Available Ports</h3>
+          <button on:click={scanPorts} class="scan-btn">
+            <span class="icon">🔄</span>
+            Refresh
+          </button>
+        </div>
         {#if Object.keys(availablePorts).length > 0}
-          <ul>
+          <ul class="port-list">
             {#each Object.entries(availablePorts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [portName, info]}
-              <li>
-                <span>{portName} — {info.type}</span>
-                <button on:click={() => addPort(portName)}>+</button>
+              <li class="port-item">
+                <div class="port-info">
+                  <span class="port-name">{portName}</span>
+                  <span class="port-type">{info.type}</span>
+                </div>
+                <button on:click={() => addPort(portName)} class="add-btn">
+                  <span class="icon">➕</span>
+                </button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p>No ports found</p>
+          <p class="no-ports">No ports found</p>
         {/if}
       </div>
 
       <!-- Direct Ports -->
       <div class="port-group">
-        <h3>
-          Direct Ports
-          <button on:click={scanPortsDirect}>Scan Ports Direct</button>
-        </h3>
+        <div class="group-header">
+          <h3>🎯 Direct Ports</h3>
+          <button on:click={scanPortsDirect} class="scan-btn">
+            <span class="icon">🔄</span>
+            Refresh
+          </button>
+        </div>
         {#if Object.keys(directPorts).length > 0}
-          <ul>
+          <ul class="port-list">
             {#each Object.entries(directPorts).sort( (a, b) => a[0].localeCompare(b[0]), ) as [portName, info]}
-              <li>
-                <span>{portName} — {info.type}</span>
-                <button on:click={() => addPort(portName)}>+</button>
+              <li class="port-item">
+                <div class="port-info">
+                  <span class="port-name">{portName}</span>
+                  <span class="port-type">{info.type}</span>
+                </div>
+                <button on:click={() => addPort(portName)} class="add-btn">
+                  <span class="icon">➕</span>
+                </button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p>No direct ports found</p>
+          <p class="no-ports">No direct ports found</p>
         {/if}
       </div>
 
       <!-- Managed Ports -->
       <div class="port-group">
-        <h3>
-          Managed Ports
-          <button on:click={showManagedPorts}>Show Managed Ports</button>
-        </h3>
+        <div class="group-header">
+          <h3>⚙️ Managed Ports</h3>
+          <button on:click={showManagedPorts} class="scan-btn">
+            <span class="icon">🔄</span>
+            Refresh
+          </button>
+        </div>
         {#if managedPorts.length > 0}
-          <ul>
+          <ul class="port-list">
             {#each managedPorts as portName}
-              <li>
-                <span>{portName}</span>
-                <button on:click={() => addPort(portName)}>+</button>
+              <li class="port-item">
+                <div class="port-info">
+                  <span class="port-name">{portName}</span>
+                  <span class="port-type">Managed</span>
+                </div>
+                <button on:click={() => addPort(portName)} class="add-btn">
+                  <span class="icon">➕</span>
+                </button>
               </li>
             {/each}
           </ul>
         {:else}
-          <p>No managed ports found</p>
+          <p class="no-ports">No managed ports found</p>
         {/if}
       </div>
     </div>
   </section>
 
-  <!-- Список активных подключений -->
+  <!-- Active Connections -->
   <section class="active-ports">
-    <h2>Active Connections</h2>
+    <div class="section-header">
+      <h2>🔌 Active Connections</h2>
+      <p>Currently connected serial ports</p>
+    </div>
     {#if activePorts.length > 0}
-      {#each activePorts as portName}
-        <div class="port-wrapper">
-          <SerialPortComponent {portName} onDisconnect={handleDisconnect} />
-        </div>
-      {/each}
+      <div class="connections-grid">
+        {#each activePorts as portName}
+          <div class="port-wrapper">
+            <SerialPortComponent {portName} onDisconnect={handleDisconnect} />
+          </div>
+        {/each}
+      </div>
     {:else}
-      <p>No active connections</p>
+      <div class="empty-state">
+        <div class="empty-icon">🔌</div>
+        <p>No active connections</p>
+        <p class="empty-hint">Add a port from the lists above to get started</p>
+      </div>
     {/if}
   </section>
 </main>
 
 <style>
-  /* Пример стилистики, вы можете дополнять/менять по вкусу */
-  .title {
-    color: #fff !important;
-    padding-bottom: 30px;
-  }
-
-  main {
-    color: #333;
+  :global(body) {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #f5f7fa;
+    min-height: 100vh;
   }
 
   .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
-    font-family: sans-serif;
-  }
-
-  h1,
-  h2,
-  h3 {
-    margin-bottom: 10px;
     color: #333;
   }
 
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+    color: #2c3e50;
+  }
+
+  .title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+  }
+
+  .subtitle {
+    font-size: 1.1rem;
+    color: #7f8c8d;
+    margin: 0;
+    font-weight: 300;
+  }
+
   section {
-    margin-bottom: 20px;
-    background: #f9f9f9;
-    border-radius: 6px;
-    padding: 15px;
-  }
-
-  /* Ручной ввод */
-  .manual-connect {
     margin-bottom: 30px;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
   }
 
-  .row {
-    display: flex;
-    gap: 10px;
+  .section-header {
+    margin-bottom: 20px;
   }
 
-  input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
+  .section-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #2c3e50;
   }
 
-  button {
-    border: none;
-    background: #2196f3;
+  .section-header p {
+    margin: 0;
+    color: #7f8c8d;
+    font-size: 0.95rem;
+  }
+
+  /* Rust Commands */
+  .rust-command-section {
+    background: #667eea;
     color: white;
-    padding: 8px 14px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-  }
-  button:hover {
-    background: #1976d2;
-  }
-  button:disabled {
-    background: #ccc;
-    cursor: not-allowed;
+    border: none;
   }
 
-  .port-lists {
+  .rust-command-section .section-header h2,
+  .rust-command-section .section-header p {
+    color: white;
+  }
+
+  .rust-button {
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
     display: flex;
-    gap: 20px;
-    justify-content: space-between;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  .rust-button:hover {
+    background: #ff5252;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+  }
+
+  .rust-hint {
+    margin-top: 12px;
+    opacity: 0.8;
+    font-size: 0.9rem;
+  }
+
+  /* Manual Connection */
+  .input-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .port-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e1e8ed;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+  }
+
+  .port-input:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+
+  .connect-btn {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+  }
+
+  .connect-btn:hover {
+    background: #229954;
+    transform: translateY(-1px);
+  }
+
+  /* Port Lists */
+  .port-lists {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
   }
 
   .port-group {
-    flex: 1 1 300px;
-    background: #fff;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 20px;
   }
 
-  .port-group h3 {
+  .group-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 0;
+    margin-bottom: 16px;
   }
 
-  ul {
+  .group-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #2c3e50;
+  }
+
+  .scan-btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+  }
+
+  .scan-btn:hover {
+    background: #2980b9;
+  }
+
+  .port-list {
     list-style: none;
     padding: 0;
     margin: 0;
   }
 
-  li {
+  .port-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 12px;
     margin: 8px 0;
-    gap: 10px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
   }
 
-  .active-ports {
-    background: #fff;
+  .port-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .port-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .port-name {
+    font-weight: 600;
+    color: #2c3e50;
+  }
+
+  .port-type {
+    font-size: 0.85rem;
+    color: #7f8c8d;
+  }
+
+  .add-btn {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .add-btn:hover {
+    background: #229954;
+    transform: scale(1.05);
+  }
+
+  .no-ports {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    padding: 20px;
+  }
+
+  /* Active Connections */
+  .connections-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
   }
 
   .port-wrapper {
-    margin-bottom: 20px;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    padding: 10px;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 20px;
+    background: #f8f9fa;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #7f8c8d;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .empty-hint {
+    font-size: 0.9rem;
+    margin-top: 8px;
+    opacity: 0.7;
+  }
+
+  .icon {
+    font-size: 1.1em;
+    color: white;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .container {
+      padding: 15px;
+    }
+
+    .title {
+      font-size: 2rem;
+    }
+
+    .port-lists {
+      grid-template-columns: 1fr;
+    }
+
+    .input-group {
+      flex-direction: column;
+    }
+
+    .connections-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

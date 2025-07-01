@@ -8,18 +8,18 @@
         StopBits
     } from "../../../../guest-js";
 
-    // Принимаем порт и колбэк на отключение
+    // Accept port and disconnect callback
     let { portName, onDisconnect } = $props();
 
     // ========================
-    // = Объявляем $state(...)
+    // = Declare $state(...)
     // ========================
     let serialport: SerialPort | undefined = $state(undefined);
 
-    // Флаг подключения
+    // Connection flag
     let isConnected = $state(false);
 
-    // === Параметры ===
+    // === Parameters ===
     let baudRate = $state(9600);
     let selectedDataBits = $state(DataBits.Eight);
     let selectedFlowControl = $state(FlowControl.None);
@@ -27,13 +27,14 @@
     let selectedStopBits = $state(StopBits.One);
     let timeout = $state(1000);
 
-    // === Данные и статус ===
+    // === Data and status ===
     let message = $state('');
     let receivedData = $state('');
+    let receivedDataBase64 = $state('');
     let bytesToRead = $state(0);
     let bytesToWrite = $state(0);
 
-    // === Сигналы ===
+    // === Signals ===
     let rtsState = $state(false);
     let dtrState = $state(false);
     let ctsState = $state(false);
@@ -42,7 +43,7 @@
     let cdState  = $state(false);
 
     // ========================
-    // = Списки для <select>  =
+    // = Lists for <select>   =
     // ========================
     let dataBitsOptions     = $state([DataBits.Five, DataBits.Six, DataBits.Seven, DataBits.Eight]);
     let flowControlOptions  = $state([FlowControl.None, FlowControl.Software, FlowControl.Hardware]);
@@ -50,7 +51,7 @@
     let stopBitsOptions     = $state([StopBits.One, StopBits.Two]);
 
     // ------------------------
-    // === ФУНКЦИИ ===
+    // === FUNCTIONS ===
     // ------------------------
 
     async function connect() {
@@ -78,7 +79,7 @@
                 updatePortStatus();
             });
 
-            // Событие при физическом отключении порта:
+            // Event when port is physically disconnected:
             serialport.disconnected(() => {
                 isConnected = false;
                 console.log(`[${portName}] Disconnected (physically)`);
@@ -97,7 +98,7 @@
                 isConnected = false;
                 console.log('Disconnected from port:', portName);
 
-                // Если родитель передал колбэк onDisconnect — вызовем
+                // If parent passed onDisconnect callback — call it
                 if (typeof onDisconnect === 'function') {
                     onDisconnect({ port: portName });
                 }
@@ -213,7 +214,7 @@
 </script>
 
 <!-- ======================================= -->
-<!--            РАЗМЕТКА                    -->
+<!--            LAYOUT                      -->
 <!-- ======================================= -->
 <div class="port-container">
     <h2>Port: {portName}</h2>
@@ -224,13 +225,13 @@
         <p class="disconnected">Status: NOT CONNECTED</p>
     {/if}
 
-    <!-- Кнопки подключения -->
+    <!-- Connection buttons -->
     <div class="row connect-row">
         <button onclick={connect} disabled={isConnected}>Connect</button>
         <button onclick={disconnect} disabled={!isConnected}>Disconnect</button>
     </div>
 
-    <!-- Секция настроек -->
+    <!-- Settings section -->
     <div class="section settings-panel">
         <h3>Port Settings</h3>
         <div class="settings-grid">
@@ -286,7 +287,7 @@
         </button>
     </div>
 
-    <!-- Секция отправки/чтения данных -->
+    <!-- Data transfer section -->
     <div class="section data-transfer">
         <h3>Data Transfer</h3>
         <div class="row">
@@ -321,7 +322,7 @@
         </div>
     </div>
 
-    <!-- Секция сигналов управления -->
+    <!-- Control signals section -->
     <div class="section control-signals">
         <h3>Control Signals</h3>
         <div class="row signals-row">
@@ -352,7 +353,7 @@
 </div>
 
 <!-- ======================================= -->
-<!--            СТИЛИ                       -->
+<!--            STYLES                      -->
 <!-- ======================================= -->
 <style>
     .port-container {
@@ -378,7 +379,7 @@
         font-weight: bold;
     }
 
-    /* Общие блоки / секции */
+    /* Common blocks / sections */
     .section {
         background: #fff;
         border: 1px solid #eee;
@@ -393,7 +394,7 @@
         margin-bottom: 0.5rem;
     }
 
-    /* Ряд из кнопок или полей */
+    /* Row of buttons or fields */
     .row {
         display: flex;
         gap: 10px;
@@ -404,7 +405,7 @@
         margin-bottom: 20px;
     }
 
-    /* Сетка настроек */
+    /* Settings grid */
     .settings-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -432,7 +433,7 @@
         margin-top: 5px;
     }
 
-    /* Кнопки */
+    /* Buttons */
     button {
         border: none;
         background: #2196f3;
@@ -450,7 +451,7 @@
         cursor: not-allowed;
     }
 
-    /* Информация о статусе */
+    /* Status information */
     .status-info {
         display: flex;
         gap: 1rem;
@@ -470,7 +471,7 @@
         margin: 0;
     }
 
-    /* Сигналы управления */
+    /* Control signals */
     .signals-row {
         display: flex;
         gap: 10px;

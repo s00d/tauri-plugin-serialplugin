@@ -221,7 +221,7 @@ impl<R: Runtime> SerialPort<R> {
     pub fn managed_ports(&self) -> Result<Vec<String>, Error> {
         // Lock the Mutex to safely access the data inside `self.serialports`.
         let ports = self.serialports.lock().map_err(|_| {
-            Error::String("Failed to lock serialports mutex".to_string()) // Исправлено здесь
+            Error::String("Failed to lock serialports mutex".to_string())
         })?;
 
         // Collect the keys (port names) from the HashMap into a vector.
@@ -350,25 +350,25 @@ impl<R: Runtime> SerialPort<R> {
             .lock()
             .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
-        // Закрываем существующий порт перед открытием нового
+        // Close existing port before opening a new one
         if let Some(mut existing) = serialports.remove(&path) {
             println!("Force closing existing port {}", path);
 
-            // Останавливаем поток чтения
+            // Stop the reading thread
             if let Some(sender) = existing.sender.take() {
                 sender.send(1).ok();
             }
 
-            // Закрываем порт
+            // Close the port
             if let Some(handle) = existing.thread_handle.take() {
                 handle.join().ok();
             }
 
-            // Явное освобождение ресурсов
+            // Explicitly release resources
             drop(existing.serialport);
         }
 
-        // Открываем новый порт
+        // Open new port
         let port = serialport::new(path.clone(), baud_rate)
             .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
             .flow_control(

@@ -21,11 +21,11 @@ macos = { level = "full", notes = "" }
 android = { level = "full", notes = "" }
 
 [build-dependencies]
-tauri-plugin = { version = "2.2.0", features = [ "build" ] }
+tauri-plugin = { version = "2.3.0", features = [ "build" ] }
 
 [dependencies]
 serialport = "4.7.2"
-tauri = { version = "2.5.1", features = ["test"] }
+tauri = { version = "2.6.2", features = ["test"] }
 serde = { version = "1.0.219", features = ["derive"] }
 thiserror = "2.0.12"
 serde_json = "1.0.140"

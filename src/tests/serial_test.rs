@@ -13,7 +13,7 @@ mod tests {
     use tauri::Manager;
     use tauri::App;
 
-    // Мок для тестирования
+    // Mock for testing
     struct MockSerialPort {
         is_open: bool,
         baud_rate: u32,
@@ -40,7 +40,7 @@ mod tests {
         }
     }
 
-    // Реализуем Read и Write для MockSerialPort
+    // Implement Read and Write for MockSerialPort
     impl Read for MockSerialPort {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
             if !self.is_open {
@@ -70,7 +70,7 @@ mod tests {
         }
     }
 
-    // Реализуем Send для MockSerialPort
+    // Implement Send for MockSerialPort
     unsafe impl Send for MockSerialPort {}
 
     impl SerialPortTrait for MockSerialPort {
@@ -181,7 +181,7 @@ mod tests {
         }
     }
 
-    // Реализация From для конвертации типов
+    // Implementation of From for type conversion
     impl From<serialport::DataBits> for DataBits {
         fn from(bits: serialport::DataBits) -> Self {
             match bits {
@@ -268,7 +268,7 @@ mod tests {
             Ok(())
         }
 
-        // Реализуем остальные методы, делегируя их SerialPort
+        // Implement remaining methods, delegating them to SerialPort
         fn write(&self, path: String, value: String) -> Result<usize, Error> {
             let mut ports = self.serialports.lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
@@ -310,7 +310,7 @@ mod tests {
         }
 
         fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-            Ok(HashMap::new()) // В тестовом окружении возвращаем пустой список
+            Ok(HashMap::new()) // In test environment return empty list
         }
 
         fn set_baud_rate(&self, path: String, baud_rate: u32) -> Result<(), Error> {
@@ -478,7 +478,7 @@ mod tests {
         app
     }
 
-    // Обновляем тесты для использования TestSerialPort
+    // Update tests to use TestSerialPort
     #[test]
     fn test_open_port() {
         let serial = create_test_serial_port();
@@ -498,7 +498,7 @@ mod tests {
     fn test_write_and_read() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -509,12 +509,12 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Записываем данные
+        // Write data
         let write_result = serial.write("COM1".to_string(), "Hello".to_string());
         assert!(write_result.is_ok());
         assert_eq!(write_result.unwrap(), 5);
 
-        // Читаем данные
+        // Read data
         let read_result = serial.read("COM1".to_string(), Some(1000), Some(1024));
         assert!(read_result.is_ok());
         assert_eq!(read_result.unwrap(), "Hello");
@@ -524,7 +524,7 @@ mod tests {
     fn test_port_settings() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -535,23 +535,23 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тестируем изменение скорости
+        // Test baud rate change
         let result = serial.set_baud_rate("COM1".to_string(), 115200);
         assert!(result.is_ok());
 
-        // Тестируем изменение битов данных
+        // Test data bits change
         let result = serial.set_data_bits("COM1".to_string(), DataBits::Seven);
         assert!(result.is_ok());
 
-        // Тестируем изменение контроля потока
+        // Test flow control change
         let result = serial.set_flow_control("COM1".to_string(), FlowControl::Hardware);
         assert!(result.is_ok());
 
-        // Тестируем изменение четности
+        // Test parity change
         let result = serial.set_parity("COM1".to_string(), Parity::Even);
         assert!(result.is_ok());
 
-        // Тестируем изменение стоповых битов
+        // Test stop bits change
         let result = serial.set_stop_bits("COM1".to_string(), StopBits::Two);
         assert!(result.is_ok());
     }
@@ -560,7 +560,7 @@ mod tests {
     fn test_control_signals() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -571,20 +571,20 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тестируем RTS
+        // Test RTS
         let result = serial.write_request_to_send("COM1".to_string(), true);
         assert!(result.is_ok());
 
-        // Тестируем DTR
+        // Test DTR
         let result = serial.write_data_terminal_ready("COM1".to_string(), true);
         assert!(result.is_ok());
 
-        // Тестируем чтение CTS
+        // Test reading CTS
         let result = serial.read_clear_to_send("COM1".to_string());
         assert!(result.is_ok());
         assert!(result.unwrap());
 
-        // Тестируем чтение DSR
+        // Test reading DSR
         let result = serial.read_data_set_ready("COM1".to_string());
         assert!(result.is_ok());
         assert!(result.unwrap());
@@ -594,7 +594,7 @@ mod tests {
     fn test_close_port() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -605,11 +605,11 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Закрываем порт
+        // Close port
         let result = serial.close("COM1".to_string());
         assert!(result.is_ok());
 
-        // Пробуем закрыть уже закрытый порт
+        // Try to close already closed port
         let result = serial.close("COM1".to_string());
         assert!(result.is_err());
     }
@@ -620,7 +620,7 @@ mod tests {
         let result = serial.available_ports();
         assert!(result.is_ok());
         let ports = result.unwrap();
-        assert!(ports.is_empty()); // В тестовом окружении портов нет
+        assert!(ports.is_empty()); // No ports in test environment
     }
 
     #[test]
@@ -661,7 +661,7 @@ mod tests {
     fn test_read_timeout() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -669,10 +669,10 @@ mod tests {
             Some(FlowControl::None),
             Some(Parity::None),
             Some(StopBits::One),
-            Some(100), // Устанавливаем маленький таймаут
+            Some(100), // Set small timeout
         ).unwrap();
 
-        // Пытаемся прочитать данные, когда их нет
+        // Try to read data when none available
         let result = serial.read("COM1".to_string(), Some(100), Some(1024));
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -684,7 +684,7 @@ mod tests {
     fn test_multiple_ports() {
         let serial = create_test_serial_port();
 
-        // Открываем несколько портов
+        // Open multiple ports
         let ports = vec!["COM1", "COM2", "COM3"];
         for port in &ports {
             let result = serial.open(
@@ -699,20 +699,20 @@ mod tests {
             assert!(result.is_ok());
         }
 
-        // Проверяем работу с каждым портом
+        // Check work with each port
         for port in &ports {
-            // Записываем данные
+            // Write data
             let write_result = serial.write(port.to_string(), format!("Test {}", port));
             assert!(write_result.is_ok());
             assert_eq!(write_result.unwrap(), format!("Test {}", port).len());
 
-            // Читаем данные
+            // Read data
             let read_result = serial.read(port.to_string(), Some(1000), Some(1024));
             assert!(read_result.is_ok());
             assert_eq!(read_result.unwrap(), format!("Test {}", port));
         }
 
-        // Закрываем все порты
+        // Close all ports
         for port in &ports {
             let result = serial.close(port.to_string());
             assert!(result.is_ok());
@@ -724,7 +724,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Тестируем различные комбинации настроек
+        // Test various setting combinations
         let test_cases = vec![
             (9600, DataBits::Eight, FlowControl::None, Parity::None, StopBits::One),
             (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
@@ -733,7 +733,7 @@ mod tests {
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in test_cases {
-            // Открываем порт с новыми настройками
+            // Open port with new settings
             let result = serial.open(
                 port.clone(),
                 baud_rate,
@@ -745,7 +745,7 @@ mod tests {
             );
             assert!(result.is_ok());
 
-            // Проверяем запись и чтение
+            // Check write and read
             let test_data = format!("Test {} {} {} {} {}", baud_rate, data_bits as u8, flow_control as u8, parity as u8, stop_bits as u8);
             let write_result = serial.write(port.clone(), test_data.clone());
             assert!(write_result.is_ok());
@@ -754,7 +754,7 @@ mod tests {
             assert!(read_result.is_ok());
             assert_eq!(read_result.unwrap(), test_data);
 
-            // Закрываем порт перед следующей итерацией
+            // Close port before next iteration
             serial.close(port.clone()).unwrap();
         }
     }
@@ -764,7 +764,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Открываем порт
+        // Open port
         serial.open(
             port.clone(),
             9600,
@@ -775,7 +775,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Создаем несколько потоков для одновременной работы с портом
+        // Create multiple threads for concurrent port operations
         let handles: Vec<_> = (0..5).map(|i| {
             let serial = serial.clone();
             let port = port.clone();
@@ -790,12 +790,12 @@ mod tests {
             })
         }).collect();
 
-        // Ждем завершения всех потоков
+        // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
 
-        // Закрываем порт
+        // Close port
         serial.close(port).unwrap();
     }
 
@@ -814,36 +814,36 @@ mod tests {
     fn test_port_settings_validation() {
         let serial = create_test_serial_port();
 
-        // Тест недопустимой скорости
+        // Test invalid baud rate
         let result = serial.open(
             "COM1".to_string(),
-            0, // Недопустимая скорость
+            0, // Invalid baud rate
             Some(DataBits::Eight),
             Some(FlowControl::None),
             Some(Parity::None),
             Some(StopBits::One),
             Some(1000),
         );
-        assert!(result.is_ok()); // В тестовом окружении все настройки допустимы
+        assert!(result.is_ok()); // In test environment all settings are valid
 
-        // Тест недопустимых комбинаций настроек
+        // Test invalid setting combinations
         let result = serial.open(
             "COM1".to_string(),
             9600,
-            Some(DataBits::Five), // 5 бит данных
-            Some(FlowControl::Hardware), // Аппаратный контроль потока
-            Some(Parity::None), // Без четности
-            Some(StopBits::Two), // 2 стоповых битов
+            Some(DataBits::Five), // 5 data bits
+            Some(FlowControl::Hardware), // Hardware flow control
+            Some(Parity::None), // No parity
+            Some(StopBits::Two), // 2 stop bits
             Some(1000),
         );
-        assert!(result.is_ok()); // В тестовом окружении все комбинации допустимы
+        assert!(result.is_ok()); // In test environment all combinations are valid
     }
 
     #[test]
     fn test_buffer_operations() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -854,13 +854,13 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест записи больших данных
+        // Test writing large data
         let large_data = "X".repeat(10000);
         let write_result = serial.write("COM1".to_string(), large_data.clone());
         assert!(write_result.is_ok());
         assert_eq!(write_result.unwrap(), large_data.len());
 
-        // Тест чтения по частям
+        // Test reading in chunks
         let mut total_read = String::new();
         let chunk_size = 1024;
         while total_read.len() < large_data.len() {
@@ -871,7 +871,7 @@ mod tests {
         }
         assert_eq!(total_read, large_data);
 
-        // Тест чтения с разными размерами буфера
+        // Test reading with different buffer sizes
         serial.write("COM1".to_string(), "Test".to_string()).unwrap();
         let read_result = serial.read("COM1".to_string(), Some(1000), Some(2));
         assert!(read_result.is_ok());
@@ -886,7 +886,7 @@ mod tests {
     fn test_error_handling() {
         let serial = create_test_serial_port();
 
-        // Тест ошибки при открытии уже открытого порта
+        // Test error when opening already open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -906,26 +906,26 @@ mod tests {
             Some(StopBits::One),
             Some(1000),
         );
-        assert!(result.is_ok()); // В тестовом окружении повторное открытие допустимо
+        assert!(result.is_ok()); // In test environment reopening is allowed
 
-        // Тест ошибки при работе с недопустимыми параметрами
-        // Используем валидные UTF-8 данные, но с необычными символами
+        // Test error when working with invalid parameters
+        // Use valid UTF-8 data but with unusual characters
         let test_data = "Тестовые данные с русскими символами и эмодзи 🚀";
         let result = serial.write("COM1".to_string(), test_data.to_string());
         assert!(result.is_ok());
 
-        // Тест ошибки при закрытии несуществующего порта
+        // Test error when closing non-existent port
         let result = serial.close("NONEXISTENT".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
 
-        // Тест ошибки при работе с закрытым портом
+        // Test error when working with closed port
         serial.close("COM1".to_string()).unwrap();
         let result = serial.write("COM1".to_string(), "Test".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
 
-        // Тест ошибки при чтении из закрытого порта
+        // Test error when reading from closed port
         let result = serial.read("COM1".to_string(), Some(1000), Some(1024));
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
@@ -936,13 +936,13 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Тест последовательности состояний порта
-        // 1. Порт не существует
+        // Test port state sequence
+        // 1. Port does not exist
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
 
-        // 2. Открываем порт
+        // 2. Open port
         let result = serial.open(
             port.clone(),
             9600,
@@ -954,20 +954,20 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        // 3. Порт открыт, можно писать
+        // 3. Port is open, can write
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_ok());
 
-        // 4. Закрываем порт
+        // 4. Close port
         let result = serial.close(port.clone());
         assert!(result.is_ok());
 
-        // 5. Порт закрыт, нельзя писать
+        // 5. Port is closed, cannot write
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
 
-        // 6. Повторно открываем порт
+        // 6. Reopen port
         let result = serial.open(
             port.clone(),
             9600,
@@ -979,7 +979,7 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        // 7. Проверяем, что порт работает
+        // 7. Check that port works
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_ok());
     }
@@ -989,7 +989,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Тест сохранения настроек порта
+        // Test port settings persistence
         let settings = vec![
             (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
             (57600, DataBits::Six, FlowControl::Software, Parity::Odd, StopBits::One),
@@ -997,7 +997,7 @@ mod tests {
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in settings {
-            // Открываем порт с новыми настройками
+            // Open port with new settings
             serial.open(
                 port.clone(),
                 baud_rate,
@@ -1008,7 +1008,7 @@ mod tests {
                 Some(1000),
             ).unwrap();
 
-            // Проверяем, что настройки применились
+            // Check that settings were applied
             let write_result = serial.write(port.clone(), "Test".to_string());
             assert!(write_result.is_ok());
 
@@ -1016,7 +1016,7 @@ mod tests {
             assert!(read_result.is_ok());
             assert_eq!(read_result.unwrap(), "Test");
 
-            // Закрываем порт
+            // Close port before next iteration
             serial.close(port.clone()).unwrap();
         }
     }
@@ -1026,7 +1026,7 @@ mod tests {
         let serial = create_test_serial_port();
         let ports = vec!["COM1", "COM2", "COM3"];
 
-        // Открываем несколько портов
+        // Open multiple ports
         for port in &ports {
             serial.open(
                 port.to_string(),
@@ -1039,7 +1039,7 @@ mod tests {
             ).unwrap();
         }
 
-        // Создаем потоки для одновременной работы с разными портами
+        // Create threads for concurrent work with different ports
         let handles: Vec<_> = ports.iter().map(|port| {
             let serial = serial.clone();
             let port = port.to_string();
@@ -1056,12 +1056,12 @@ mod tests {
             })
         }).collect();
 
-        // Ждем завершения всех потоков
+        // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
 
-        // Закрываем все порты
+        // Close all ports
         for port in ports {
             serial.close(port.to_string()).unwrap();
         }
@@ -1072,7 +1072,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Открываем порт
+        // Open port
         serial.open(
             port.clone(),
             9600,
@@ -1083,18 +1083,18 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Записываем данные
+        // Write data
         serial.write(port.clone(), "Test".to_string()).unwrap();
 
-        // Закрываем порт
+        // Close port
         serial.close(port.clone()).unwrap();
 
-        // Проверяем, что порт действительно закрыт
+        // Check that port is really closed
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
 
-        // Пробуем открыть порт снова
+        // Try to open port again
         let result = serial.open(
             port.clone(),
             9600,
@@ -1106,7 +1106,7 @@ mod tests {
         );
         assert!(result.is_ok());
 
-        // Проверяем, что порт работает после повторного открытия
+        // Check that port works after reopening
         let result = serial.write(port.clone(), "Test".to_string());
         assert!(result.is_ok());
     }
@@ -1116,7 +1116,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Тест граничных значений скорости передачи
+        // Test boundary values of baud rate
         let baud_rates = vec![
             110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200,
             128000, 256000, 460800, 921600, 1500000, 2000000, 3000000
@@ -1136,7 +1136,7 @@ mod tests {
             serial.close(port.clone()).unwrap();
         }
 
-        // Тест всех возможных комбинаций битов данных
+        // Test all possible data bits combinations
         for data_bits in &[DataBits::Five, DataBits::Six, DataBits::Seven, DataBits::Eight] {
             let result = serial.open(
                 port.clone(),
@@ -1157,11 +1157,11 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Тест различных таймаутов
-        let timeouts = vec![100, 500, 1000]; // Используем более длительные таймауты для надежности
+        // Test various timeouts
+        let timeouts = vec![100, 500, 1000]; // Use longer timeouts for reliability
 
         for timeout in timeouts {
-            // Открываем порт с новым таймаутом
+            // Open port with new timeout
             serial.open(
                 port.clone(),
                 9600,
@@ -1172,23 +1172,23 @@ mod tests {
                 Some(timeout),
             ).unwrap();
 
-            // Устанавливаем таймаут для порта
+            // Set timeout for port
             let mut ports = serial.serialports.lock().unwrap();
             if let Some(port_info) = ports.get_mut(&port) {
                 port_info.serialport.set_timeout(Duration::from_millis(timeout)).unwrap();
             }
             drop(ports);
 
-            // Проверяем чтение с пустым буфером (должно вызвать таймаут)
+            // Check reading with empty buffer (should cause timeout)
             let result = serial.read(port.clone(), Some(timeout), Some(1024));
             assert!(result.is_err(), "Expected timeout error for timeout {}", timeout);
 
-            // Проверяем, что ошибка именно таймаут
+            // Check that error is timeout
             let err = result.unwrap_err();
             assert!(err.to_string().contains("No data available") || err.to_string().contains("TimedOut"),
                     "Expected timeout error, got: {}", err);
 
-            // Проверяем, что порт все еще работает после таймаута
+            // Check that port still works after timeout
             let test_data = format!("Test after {}ms timeout", timeout);
             let write_result = serial.write(port.clone(), test_data.clone());
             assert!(write_result.is_ok());
@@ -1216,16 +1216,16 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Записываем данные, превышающие размер буфера
+        // Write data exceeding the buffer size
         let large_data = "X".repeat(100000);
         let write_result = serial.write(port.clone(), large_data.clone());
         assert!(write_result.is_ok());
 
-        // Читаем данные по частям
+        // Read data in chunks
         let mut total_read = String::new();
         let chunk_size = 1024;
         let mut iterations = 0;
-        let max_iterations = 200; // Предотвращаем бесконечный цикл
+        let max_iterations = 200; // Prevent infinite loop
 
         while total_read.len() < large_data.len() && iterations < max_iterations {
             let read_result = serial.read(port.clone(), Some(1000), Some(chunk_size));
@@ -1244,7 +1244,7 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        // Быстрое открытие и закрытие порта
+        // Fast port open and close
         for _ in 0..100 {
             let open_result = serial.open(
                 port.clone(),
@@ -1277,7 +1277,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест изменения настроек на лету
+        // Test changing settings on the fly
         let settings_changes = vec![
             (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
             (57600, DataBits::Six, FlowControl::Software, Parity::Odd, StopBits::One),
@@ -1286,14 +1286,14 @@ mod tests {
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in settings_changes {
-            // Меняем настройки
+            // Change settings
             serial.set_baud_rate(port.clone(), baud_rate).unwrap();
             serial.set_data_bits(port.clone(), data_bits).unwrap();
             serial.set_flow_control(port.clone(), flow_control).unwrap();
             serial.set_parity(port.clone(), parity).unwrap();
             serial.set_stop_bits(port.clone(), stop_bits).unwrap();
 
-            // Проверяем, что порт все еще работает
+            // Check that port still works
             let test_data = format!("Test at {} baud", baud_rate);
             let write_result = serial.write(port.clone(), test_data.clone());
             assert!(write_result.is_ok());
@@ -1319,7 +1319,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест последовательности управляющих сигналов
+        // Test control signal sequence
         let signal_sequence = vec![
             (true, true),   // RTS=1, DTR=1
             (true, false),  // RTS=1, DTR=0
@@ -1328,15 +1328,15 @@ mod tests {
         ];
 
         for (rts, dtr) in signal_sequence {
-            // Устанавливаем сигналы
+            // Set signals
             serial.write_request_to_send(port.clone(), rts).unwrap();
             serial.write_data_terminal_ready(port.clone(), dtr).unwrap();
 
-            // Проверяем состояние сигналов
+            // Check signal state
             let cts = serial.read_clear_to_send(port.clone()).unwrap();
             let dsr = serial.read_data_set_ready(port.clone()).unwrap();
 
-            // В тестовом окружении все сигналы всегда true
+            // In test environment all signals are always true
             assert!(cts);
             assert!(dsr);
         }
@@ -1358,20 +1358,20 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Создаем потоки для последовательного изменения настроек
+        // Create threads for sequential setting changes
         let handles: Vec<_> = (0..5).map(|i| {
             let serial = serial.clone();
             let port = port.clone();
             let mutex = Arc::clone(&mutex);
             std::thread::spawn(move || {
                 for _ in 0..10 {
-                    // Блокируем мьютекс для синхронизации доступа к порту
+                    // Locking a mutex to synchronize access to a port
                     let _lock = mutex.lock().unwrap();
 
-                    // Меняем скорость
+                    // Change baud rate
                     serial.set_baud_rate(port.clone(), 9600 + (i * 1000)).unwrap();
 
-                    // Меняем биты данных
+                    // Change data bits
                     let data_bits = match i % 4 {
                         0 => DataBits::Five,
                         1 => DataBits::Six,
@@ -1380,12 +1380,12 @@ mod tests {
                     };
                     serial.set_data_bits(port.clone(), data_bits).unwrap();
 
-                    // Проверяем, что порт все еще работает
+                    // Check that port still works
                     let test_data = format!("Test from thread {}", i);
                     let write_result = serial.write(port.clone(), test_data.clone());
                     assert!(write_result.is_ok());
 
-                    // Читаем данные сразу после записи
+                    // Read data immediately after writing
                     let read_result = serial.read(port.clone(), Some(1000), Some(1024));
                     assert!(read_result.is_ok());
                     let read_data = read_result.unwrap();
@@ -1393,13 +1393,14 @@ mod tests {
                                "Data mismatch in thread {}: expected '{}', got '{}'",
                                i, test_data, read_data);
 
-                    // Небольшая задержка для стабильности
+                    // A small delay for stability
+                    // Small delay for stability
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
             })
         }).collect();
 
-        // Ждем завершения всех потоков
+        // Wait for all threads to complete
         for handle in handles {
             handle.join().unwrap();
         }
@@ -1409,7 +1410,7 @@ mod tests {
     fn test_break_control() {
         let serial = create_test_serial_port();
 
-        // Открываем порт
+        // Open port
         serial.open(
             "COM1".to_string(),
             9600,
@@ -1420,7 +1421,7 @@ mod tests {
             Some(1000),
         ).unwrap();
 
-        // Тест установки и сброса break
+        // Test installation and reset break
         let result = serial.set_break("COM1".to_string());
         assert!(result.is_ok());
 
