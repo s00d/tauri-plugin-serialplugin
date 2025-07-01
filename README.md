@@ -289,17 +289,15 @@ import { ClearBuffer } from "tauri-plugin-serialplugin";
 const bytesToRead = await port.bytesToRead();
 const bytesToWrite = await port.bytesToWrite();
 
-    // Clear buffers with type-safe enum
-    await port.clearBuffer(ClearBuffer.Input);
-    await port.clearBuffer(ClearBuffer.Output);
-    await port.clearBuffer(ClearBuffer.All);
+// Clear buffers with type-safe enum
+await port.clearBuffer(ClearBuffer.Input);
+await port.clearBuffer(ClearBuffer.Output);
+await port.clearBuffer(ClearBuffer.All);
 
-    // Break signal control
-    await port.setBreak();
-    await port.clearBreak();
+// Break signal control
+await port.setBreak();
+await port.clearBreak();
 ```
-   handleSerialPort().catch(console.error);
-   ```
 
 ---
 
