@@ -1,6 +1,7 @@
-import { UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from '@tauri-apps/api/event';
+import { AutoReconnectManager } from './auto-reconnect-manager';
+import { ListenerManager } from './listener-manager';
 
 // All type definitions for the serial plugin
 
@@ -98,13 +99,13 @@ export type BaudRate =
     | 14400 | 19200 | 38400 | 57600 | 115200
     | 230400 | 460800 | 921600;
 
-
 class SerialPort {
   isOpen: boolean;
-  unListen?: UnlistenFn;
   encoding: string;
   options: Options;
   size: number;
+  private listeners: ListenerManager = new ListenerManager();
+  private autoReconnectManager: AutoReconnectManager = new AutoReconnectManager();
 
   constructor(options: SerialportOptions) {
     this.isOpen = false;
@@ -179,23 +180,60 @@ class SerialPort {
   }
 
   /**
-   * @description Cancels listening for serial port data
+   * @description Cancels listening for serial port data (does not affect disconnect listeners)
    * @returns {Promise<void>} A promise that resolves when listening is cancelled
    */
   async cancelListen(): Promise<void> {
     try {
-      if (this.unListen && typeof this.unListen === 'function') {
+      // Cancel only data listeners - disconnect listeners remain active
+      const dataListeners = this.listeners.filterByType('data');
+      for (const [id, listener] of dataListeners) {
         try {
-          this.unListen();
-        } catch (unlistenError) {
-          console.warn('Error during unlisten:', unlistenError);
+          if (typeof listener.unlisten === 'function') {
+            listener.unlisten();
+          }
+        } catch (error) {
+          console.warn(`Error unlistening data listener ${id}:`, error);
+        } finally {
+          this.listeners.delete(id);
         }
-        this.unListen = undefined;
       }
       return;
     } catch (error) {
       return Promise.reject('Failed to cancel serial monitoring: ' + error);
     }
+  }
+
+  /**
+   * @description Cancels all listeners (both data and disconnect listeners)
+   * @returns {Promise<void>} A promise that resolves when all listeners are cancelled
+   */
+  async cancelAllListeners(): Promise<void> {
+    try {
+      const allListeners = this.listeners.all();
+      for (const [id, listener] of allListeners) {
+        try {
+          if (typeof listener.unlisten === 'function') {
+            listener.unlisten();
+          }
+        } catch (error) {
+          console.warn(`Error unlistening listener ${id}:`, error);
+        } finally {
+          this.listeners.delete(id);
+        }
+      }
+      return;
+    } catch (error) {
+      return Promise.reject('Failed to cancel all listeners: ' + error);
+    }
+  }
+
+  /**
+   * @description Gets information about active listeners (for debugging)
+   * @returns {Object} Information about active listeners
+   */
+  getListenersInfo(): { total: number; data: number; disconnect: number; ids: string[] } {
+    return this.listeners.getInfo();
   }
 
   /**
@@ -250,15 +288,21 @@ class SerialPort {
       if (!this.isOpen) {
         return;
       }
-      
-      // Сначала отменяем чтение
+
+      // Stop auto-reconnect temporarily to prevent conflicts
+      const wasAutoReconnectEnabled = this.autoReconnectManager.isEnabled();
+      if (wasAutoReconnectEnabled) {
+        await this.autoReconnectManager.stop();
+      }
+
+      // First we cancel the reading
       try {
         await this.cancelRead();
       } catch (cancelReadError) {
         console.warn('Error during cancelRead:', cancelReadError);
       }
-      
-      // Закрываем порт
+
+      // Closing the port
       let res = undefined;
       try {
         res = await invoke<void>('plugin:serialplugin|close', {
@@ -268,14 +312,15 @@ class SerialPort {
         console.warn('Error during port close:', closeError);
       }
 
-      // Отменяем слушатели
+      // Cancel all listeners
       try {
-        await this.cancelListen();
+        await this.cancelAllListeners();
       } catch (cancelListenError) {
-        console.warn('Error during cancelListen:', cancelListenError);
+        console.warn('Error during cancelAllListeners:', cancelListenError);
       }
-      
+
       this.isOpen = false;
+
       return res;
     } catch (error) {
       return Promise.reject(error);
@@ -291,24 +336,117 @@ class SerialPort {
     let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
     console.log('listen event: ' + checkEvent)
-    let unListen: any = await listen<ReadDataResult>(
+
+    const unListenResult = await listen<ReadDataResult>(
         checkEvent,
         () => {
           try {
             fn();
-            if (unListen && typeof unListen === 'function') {
-              try {
-                unListen();
-              } catch (unlistenError) {
-                console.warn('Error during disconnected unlisten:', unlistenError);
-              }
-              unListen = undefined;
-            }
           } catch (error) {
             console.error(error);
           }
         },
     );
+
+    if (typeof unListenResult === 'function') {
+      this.listeners.add('disconnect', unListenResult);
+    } else {
+      console.warn('disconnected() did not return a valid unlisten function');
+    }
+  }
+
+  /**
+   * @description Enables auto-reconnect functionality
+   * @param {Object} options Auto-reconnect configuration options
+   * @param {number} [options.interval=5000] Reconnection interval in milliseconds
+   * @param {number | null} [options.maxAttempts=10] Maximum number of reconnection attempts (null for infinite)
+   * @param {Function} [options.onReconnect] Callback function called on each reconnection attempt
+   * @returns {Promise<void>} A promise that resolves when auto-reconnect is enabled
+   */
+  async enableAutoReconnect(options: {
+    interval?: number;
+    maxAttempts?: number | null;
+    onReconnect?: (success: boolean, attempt: number) => void;
+  } = {}): Promise<void> {
+    try {
+      await this.autoReconnectManager.enable({
+        ...options,
+        reconnectFunction: async (): Promise<boolean> => {
+          if (this.isOpen) {
+            return true;
+          }
+          try {
+            await this.open();
+            return true;
+          } catch (error) {
+            return false;
+          }
+        }
+      });
+
+      // Set up disconnect listener that triggers auto-reconnect
+      await this.disconnected(async () => {
+        this.isOpen = false;
+        if (this.autoReconnectManager.isEnabled()) {
+          await this.autoReconnectManager.start();
+        }
+      });
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Disables auto-reconnect functionality
+   * @returns {Promise<void>} A promise that resolves when auto-reconnect is disabled
+   */
+  async disableAutoReconnect(): Promise<void> {
+    try {
+      await this.autoReconnectManager.disable();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  /**
+   * @description Gets auto-reconnect status and configuration
+   * @returns {Object} Auto-reconnect information
+   */
+  getAutoReconnectInfo(): {
+    enabled: boolean;
+    interval: number;
+    maxAttempts: number | null;
+    currentAttempts: number;
+    hasCallback: boolean;
+  } {
+    return {
+      enabled: this.autoReconnectManager.isEnabled(),
+      interval: this.autoReconnectManager.getInterval(),
+      maxAttempts: this.autoReconnectManager.getMaxAttempts(),
+      currentAttempts: this.autoReconnectManager.getCurrentAttempts(),
+      hasCallback: this.autoReconnectManager.hasCallback(),
+    };
+  }
+
+  /**
+   * @description Manually triggers a reconnection attempt
+   * @returns {Promise<boolean>} A promise that resolves to true if reconnection was successful
+   */
+  async manualReconnect(): Promise<boolean> {
+    try {
+      if (this.isOpen) {
+        console.log('Port is already open, no need to reconnect');
+        return true;
+      }
+
+      console.log('Manual reconnection attempt...');
+      await this.open();
+      console.log('Manual reconnection successful');
+      return true;
+    } catch (error) {
+      console.error('Manual reconnection failed:', error);
+      return false;
+    }
   }
 
   /**
@@ -329,12 +467,11 @@ class SerialPort {
       console.log('listen event: ' + readEvent)
 
       try {
-        this.unListen = await listen<ReadDataResult>(
+        const unListenResult = await listen<ReadDataResult>(
             readEvent,
             ({ payload }) => {
               try {
                 if (isDecode) {
-                  // Convert raw bytes to text using the configured encoding
                   const uint8Array = new Uint8Array(payload.data);
                   try {
                     const decoder = new TextDecoder(this.encoding);
@@ -342,14 +479,12 @@ class SerialPort {
                     fn(textData);
                   } catch (error) {
                     console.error('Error converting to text with configured encoding:', error);
-                    // Fallback: try to decode as UTF-8
                     try {
                       const fallbackDecoder = new TextDecoder('utf-8');
                       const textData = fallbackDecoder.decode(uint8Array);
                       fn(textData);
                     } catch (fallbackError) {
                       console.error('Fallback decoding also failed:', fallbackError);
-                      // If all else fails, return the raw data as string
                       fn(String.fromCharCode(...uint8Array));
                     }
                   }
@@ -361,9 +496,14 @@ class SerialPort {
               }
             },
         );
+
+        if (typeof unListenResult === 'function') {
+          this.listeners.add('data', unListenResult);
+        } else {
+          console.warn('listen() did not return a valid unlisten function');
+        }
       } catch (listenError) {
         console.error('Error setting up listener:', listenError);
-        this.unListen = undefined;
         throw listenError;
       }
       return;
@@ -830,4 +970,5 @@ class SerialPort {
 // Export the main class and re-export all types
 export {
   SerialPort,
+  AutoReconnectManager,
 };

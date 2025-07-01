@@ -1235,6 +1235,69 @@ class SerialPort {
 }
 ```
 
+### Auto-Reconnect Management
+
+```typescript
+class SerialPort {
+  /**
+   * Enables auto-reconnect functionality
+   * @param {Object} options Auto-reconnect configuration options
+   * @param {number} [options.interval=5000] Reconnection interval in milliseconds
+   * @param {number | null} [options.maxAttempts=10] Maximum number of reconnection attempts (null for infinite)
+   * @param {Function} [options.onReconnect] Callback function called on each reconnection attempt
+   * @returns {Promise<void>}
+   * @example
+   * await port.enableAutoReconnect({
+   *   interval: 3000,
+   *   maxAttempts: 5,
+   *   onReconnect: (success, attempt) => {
+   *     console.log(`Reconnect attempt ${attempt}: ${success ? 'success' : 'failed'}`);
+   *   }
+   * });
+   */
+  async enableAutoReconnect(options?: {
+    interval?: number;
+    maxAttempts?: number | null;
+    onReconnect?: (success: boolean, attempt: number) => void;
+  }): Promise<void>;
+
+  /**
+   * Disables auto-reconnect functionality
+   * @returns {Promise<void>}
+   * @example
+   * await port.disableAutoReconnect();
+   */
+  async disableAutoReconnect(): Promise<void>;
+
+  /**
+   * Gets auto-reconnect status and configuration
+   * @returns {Object} Auto-reconnect information
+   * @example
+   * const info = port.getAutoReconnectInfo();
+   * console.log('Auto-reconnect enabled:', info.enabled);
+   * console.log('Current attempts:', info.currentAttempts);
+   */
+  getAutoReconnectInfo(): {
+    enabled: boolean;
+    interval: number;
+    maxAttempts: number | null;
+    currentAttempts: number;
+    hasCallback: boolean;
+  };
+
+  /**
+   * Manually triggers a reconnection attempt
+   * @returns {Promise<boolean>} A promise that resolves to true if reconnection was successful
+   * @example
+   * const success = await port.manualReconnect();
+   * if (success) {
+   *   console.log('Manual reconnection successful');
+   * }
+   */
+  async manualReconnect(): Promise<boolean>;
+}
+```
+
 ## Common Use Cases
 
 ### Reading Sensor Data
@@ -1298,6 +1361,50 @@ function createModbusRequest(address: number, length: number): Uint8Array {
 // Send Modbus request
 const request = createModbusRequest(0x1000, 10);
 await port.writeBinary(request);
+```
+
+### Auto-Reconnect for Reliable Communication
+
+```typescript
+const port = new SerialPort({
+  path: "COM1",
+  baudRate: 9600
+});
+
+await port.open();
+
+// Enable auto-reconnect with custom settings
+await port.enableAutoReconnect({
+  interval: 3000,        // Try to reconnect every 3 seconds
+  maxAttempts: 5,        // Maximum 5 attempts
+  onReconnect: (success, attempt) => {
+    if (success) {
+      console.log(`Reconnected successfully on attempt ${attempt}`);
+    } else {
+      console.log(`Reconnection attempt ${attempt} failed`);
+    }
+  }
+});
+
+// Set up data listener
+await port.listen((data) => {
+  console.log("Received data:", data);
+});
+
+// The port will automatically reconnect if disconnected
+// You can also manually trigger reconnection
+const success = await port.manualReconnect();
+if (success) {
+  console.log("Manual reconnection successful");
+}
+
+// Check auto-reconnect status
+const info = port.getAutoReconnectInfo();
+console.log("Auto-reconnect enabled:", info.enabled);
+console.log("Current attempts:", info.currentAttempts);
+
+// Disable auto-reconnect when no longer needed
+await port.disableAutoReconnect();
 ```
 
 ---
