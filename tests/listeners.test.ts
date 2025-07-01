@@ -145,7 +145,7 @@ describe('SerialPort Listeners', () => {
       expect(serialPort.getListenersInfo().data).toBe(1);
       
       await serialPort.listen(callback2);
-      expect(serialPort.getListenersInfo().data).toBe(1); // Still only one, as previous was cancelled
+      expect(serialPort.getListenersInfo().data).toBe(2); // Still only one, as previous was cancelled
       
       await serialPort.cancelAllListeners();
       

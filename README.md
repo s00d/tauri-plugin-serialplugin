@@ -109,7 +109,7 @@ pnpm add tauri-plugin-serialplugin
    await port.write("Hello, Serial Port!");
 
    // Start port listening
-   await port.listen((data) => {
+   const unsubscribe = await port.listen((data) => {
      console.log("Received:", data);
    });
 
@@ -1044,13 +1044,24 @@ class SerialPort {
    * Sets up a listener for incoming data
    * @param {(data: string | Uint8Array) => void} callback Function to handle received data
    * @param {boolean} [decode=true] Whether to decode data as string (true) or return raw bytes (false)
-   * @returns {Promise<void>}
+   * @returns {Promise<UnlistenFn>} A promise that resolves to an unlisten function
    * @example
-   * await port.listen((data) => {
+   * const unsubscribe = await port.listen((data) => {
    *   console.log("Received:", data);
    * });
+   * 
+   * // Later, to stop listening:
+   * unsubscribe();
    */
-  async listen(callback: (data: string | Uint8Array) => void, decode?: boolean): Promise<void>;
+  async listen(callback: (data: string | Uint8Array) => void, decode?: boolean): Promise<UnlistenFn>;
+
+  /**
+   * Cancels listening for serial port data (does not affect disconnect listeners)
+   * @returns {Promise<void>} A promise that resolves when listening is cancelled
+   * @example
+   * await port.cancelListen();
+   */
+  async cancelListen(): Promise<void>;
 }
 ```
 
@@ -1387,7 +1398,7 @@ await port.enableAutoReconnect({
 });
 
 // Set up data listener
-await port.listen((data) => {
+const unsubscribe = await port.listen((data) => {
   console.log("Received data:", data);
 });
 

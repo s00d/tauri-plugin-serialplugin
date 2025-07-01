@@ -729,7 +729,7 @@ pub fn read_binary<R: Runtime>(
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
 /// await port.startListening();
-/// await port.listen((data) => {
+/// const unsubscribe = await port.listen((data) => {
 ///   console.log("Received:", data);
 /// });
 /// ```

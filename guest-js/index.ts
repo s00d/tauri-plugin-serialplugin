@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from '@tauri-apps/api/event';
-import { AutoReconnectManager } from './auto-reconnect-manager';
-import { ListenerManager } from './listener-manager';
+import {invoke} from "@tauri-apps/api/core";
+import {listen, UnlistenFn} from '@tauri-apps/api/event';
+import {AutoReconnectManager} from './auto-reconnect-manager';
+import {ListenerManager} from './listener-manager';
 
 // All type definitions for the serial plugin
 
@@ -453,15 +453,14 @@ class SerialPort {
    * @description Monitors serial port data
    * @param {Function} fn Callback function to handle received data
    * @param {boolean} [isDecode=true] Whether to decode the received data
-   * @returns {Promise<void>} A promise that resolves when monitoring starts
+   * @returns {Promise<UnlistenFn>} A promise that resolves to an unlisten function
    */
-  async listen(fn: (...args: any[]) => void, isDecode: boolean = true): Promise<void> {
+  async listen(fn: (...args: any[]) => void, isDecode: boolean = true): Promise<UnlistenFn> {
     try {
       if (!this.isOpen) {
         return Promise.reject('Port is not open');
       }
 
-      await this.cancelListen();
       let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
       console.log('listen event: ' + readEvent)
@@ -498,15 +497,15 @@ class SerialPort {
         );
 
         if (typeof unListenResult === 'function') {
-          this.listeners.add('data', unListenResult);
+          return this.listeners.add('data', unListenResult);
         } else {
           console.warn('listen() did not return a valid unlisten function');
+          return Promise.reject('Failed to get unlisten function');
         }
       } catch (listenError) {
         console.error('Error setting up listener:', listenError);
         throw listenError;
       }
-      return;
     } catch (error) {
       return Promise.reject('Failed to monitor serial port data: ' + error);
     }
@@ -969,6 +968,5 @@ class SerialPort {
 
 // Export the main class and re-export all types
 export {
-  SerialPort,
-  AutoReconnectManager,
+  SerialPort
 };
