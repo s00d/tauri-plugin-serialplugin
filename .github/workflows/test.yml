@@ -45,6 +45,9 @@ jobs:
       with:
         components: rustfmt, clippy
 
+    - name: Install cargo-nextest
+      run: cargo install cargo-nextest --locked
+
     - name: Cache Rust dependencies
       uses: actions/cache@v4
       with:
@@ -66,7 +69,9 @@ jobs:
         pnpm install
 
     - name: Run Rust tests
-      run: cargo test
+      env:
+        NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
+      run: cargo nextest run --message-format=libtest-json-plus > target/test-results.jsonx
 
     - name: Run JavaScript tests
       run: pnpm test
@@ -79,5 +84,5 @@ jobs:
         path: |
           coverage/
           test-results/
-          target/test-results/
+          target/test-results.jsonx
         if-no-files-found: warn 
