@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.14.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.13.0...v2.14.0) (2025-07-01)
+
+
+### Features
+
+* **serial:** enhance error handling in serial port functions ([1403b77](https://github.com/s00d/tauri-plugin-serialplugin/commit/1403b777361eec135b1287434b9cee0452977948))
+
 ## [2.13.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.12.1...v2.13.0) (2025-07-01)
 
 
