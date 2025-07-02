@@ -69,7 +69,7 @@ jobs:
         components: rustfmt, clippy
 
     - name: Install cargo-nextest
-      run: cargo install cargo-nextest --locked
+      run: cargo install cargo-nextest --locked --force
 
     - name: Install system dependencies
       run: |
