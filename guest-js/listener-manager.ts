@@ -8,16 +8,28 @@ export class ListenerManager {
     const id = `${type}_${++this.listenerIdCounter}`;
     this.listeners.set(id, { unlisten, type });
     return () => {
-      this.delete(id);
-      unlisten();
+      try {
+        this.delete(id);
+        if (typeof unlisten === 'function') {
+          unlisten();
+        }
+      } catch (error) {
+        console.warn(`Error in unlisten function for ${id}:`, error);
+      }
     };
   }
 
   set(id: string, listener: { unlisten: UnlistenFn; type: 'data' | 'disconnect' }): UnlistenFn {
     this.listeners.set(id, listener);
     return () => {
-      this.delete(id);
-      listener.unlisten();
+      try {
+        this.delete(id);
+        if (typeof listener.unlisten === 'function') {
+          listener.unlisten();
+        }
+      } catch (error) {
+        console.warn(`Error in unlisten function for ${id}:`, error);
+      }
     };
   }
 

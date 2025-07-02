@@ -194,9 +194,9 @@ class SerialPort {
           }
         } catch (error) {
           console.warn(`Error unlistening data listener ${id}:`, error);
-        } finally {
-          this.listeners.delete(id);
         }
+        // Remove from map regardless of success/failure
+        this.listeners.delete(id);
       }
       return;
     } catch (error) {
@@ -218,9 +218,9 @@ class SerialPort {
           }
         } catch (error) {
           console.warn(`Error unlistening listener ${id}:`, error);
-        } finally {
-          this.listeners.delete(id);
         }
+        // Remove from map regardless of success/failure
+        this.listeners.delete(id);
       }
       return;
     } catch (error) {
@@ -317,6 +317,12 @@ class SerialPort {
         await this.cancelAllListeners();
       } catch (cancelListenError) {
         console.warn('Error during cancelAllListeners:', cancelListenError);
+        // Try to clear listeners manually as fallback
+        try {
+          this.listeners.clear();
+        } catch (clearError) {
+          console.warn('Error during manual listener clear:', clearError);
+        }
       }
 
       this.isOpen = false;
