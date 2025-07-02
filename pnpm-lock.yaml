@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.6.0
+        specifier: '>=2.0.0-beta.6'
         version: 2.6.0
     devDependencies:
       '@rollup/plugin-node-resolve':
