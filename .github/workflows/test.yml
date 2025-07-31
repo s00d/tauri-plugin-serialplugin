@@ -82,11 +82,22 @@ jobs:
       run: |
         brew install pkg-config
 
+    - name: Install Chocolatey (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
     - name: Install system dependencies (Windows)
       if: matrix.os == 'windows-latest'
       run: |
-        # Windows doesn't need additional system dependencies for Rust
-        echo "No additional system dependencies needed for Windows"
+        # Install Visual Studio Build Tools for Windows
+        choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" -y
+        # Install Windows SDK
+        choco install windows-sdk-10-version-2004-all -y
+        # Refresh environment variables
+        refreshenv
 
     - name: Install dependencies
       run: |
