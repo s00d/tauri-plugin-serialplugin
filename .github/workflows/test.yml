@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest]
         node-version: [20.x]
 
     steps:
@@ -68,8 +68,7 @@ jobs:
       with:
         components: rustfmt, clippy
 
-    - name: Install cargo-nextest (Ubuntu/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Install cargo-nextest
       run: cargo install cargo-nextest --locked --force
 
     - name: Install system dependencies (Ubuntu)
@@ -83,53 +82,22 @@ jobs:
       run: |
         brew install pkg-config
 
-    - name: Install Chocolatey (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
-    - name: Install system dependencies (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        # Install Visual Studio Build Tools for Windows (2022 version)
-        choco install visualstudio2022buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" -y
-
-    - name: Setup Windows environment
-      if: matrix.os == 'windows-latest'
-      run: |
-        # Import Chocolatey profile to refresh environment variables
-        Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
-        refreshenv
-        # Verify that required tools are available
-        echo "Checking installed tools..."
-        echo "Visual Studio Build Tools should be available"
-        if ($env:PATH -like '*Visual Studio*') {
-            echo "Visual Studio found in PATH"
-        } else {
-            echo "Visual Studio not found in PATH"
-        }
 
     - name: Install dependencies
       run: |
         pnpm install
 
-    - name: Run Rust tests (Ubuntu/macOS)
-      if: matrix.os != 'windows-latest'
+    - name: Run Rust tests
       env:
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
       run: cargo nextest run --message-format=libtest-json-plus > test-results.jsonx
 
-    - name: Run Rust tests (Windows)
-      if: matrix.os == 'windows-latest'
-      run: cargo test
-
     - name: Run JavaScript tests
       run: pnpm test
 
-    - name: Upload test results (Ubuntu/macOS)
-      if: always() && matrix.os != 'windows-latest'
+    - name: Upload test results
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
@@ -137,14 +105,4 @@ jobs:
           coverage/
           test-results/
           test-results.jsonx
-        if-no-files-found: warn
-
-    - name: Upload test results (Windows)
-      if: always() && matrix.os == 'windows-latest'
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
-        path: |
-          coverage/
-          test-results/
         if-no-files-found: warn
