@@ -793,7 +793,7 @@ mod tests {
         }
 
         // Test concurrent read operations (should work with available data)
-        let read_handles: Vec<_> = (0..2).map(|i| {
+        let read_handles: Vec<_> = (0..2).map(|_| {
             let serial = serial.clone();
             let port = port.clone();
             std::thread::spawn(move || {
