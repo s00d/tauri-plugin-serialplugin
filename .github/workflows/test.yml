@@ -68,7 +68,8 @@ jobs:
       with:
         components: rustfmt, clippy
 
-    - name: Install cargo-nextest
+    - name: Install cargo-nextest (Ubuntu/macOS)
+      if: matrix.os != 'windows-latest'
       run: cargo install cargo-nextest --locked --force
 
     - name: Install system dependencies (Ubuntu)
@@ -103,16 +104,21 @@ jobs:
       run: |
         pnpm install
 
-    - name: Run Rust tests
+    - name: Run Rust tests (Ubuntu/macOS)
+      if: matrix.os != 'windows-latest'
       env:
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
       run: cargo nextest run --message-format=libtest-json-plus > test-results.jsonx
 
+    - name: Run Rust tests (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cargo test
+
     - name: Run JavaScript tests
       run: pnpm test
 
-    - name: Upload test results
-      if: always()
+    - name: Upload test results (Ubuntu/macOS)
+      if: always() && matrix.os != 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
@@ -120,4 +126,14 @@ jobs:
           coverage/
           test-results/
           test-results.jsonx
+        if-no-files-found: warn
+
+    - name: Upload test results (Windows)
+      if: always() && matrix.os == 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.node-version }}
+        path: |
+          coverage/
+          test-results/
         if-no-files-found: warn
