@@ -46,9 +46,19 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     override fun load(webView: WebView) {
         super.load(webView)
         serialPortManager = SerialPortManager(activity)
-        serialPortManager.registerReceiver()
-
         this.webView = webView
+        
+        Log.d("SerialPlugin", "SerialPlugin loaded successfully")
+    }
+
+    override fun onDetach() {
+        try {
+            Log.d("SerialPlugin", "SerialPlugin detaching, cleaning up resources")
+            serialPortManager.cleanup()
+        } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to cleanup: ${e.message}", e)
+        }
+        super.onDetach()
     }
 
     @Command
@@ -56,7 +66,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             Log.d("SerialPlugin", "Fetching available ports")
             val ports = serialPortManager.getAvailablePorts()
-            Log.d("SerialPlugin", "Available ports fetched successfully")
+            Log.d("SerialPlugin", "Available ports fetched successfully: ${ports.size} ports")
             val result = JSObject()
             result.put("ports", ports)
             invoke.resolve(result)
@@ -70,11 +80,12 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun managedPorts(invoke: Invoke) {
         try {
             val managedPorts = serialPortManager.getManagedPorts()
+            Log.d("SerialPlugin", "Managed ports: ${managedPorts.size} ports")
             val result = JSObject()
             result.put("ports", managedPorts)
             invoke.resolve(result)
         } catch (e: Exception) {
-            // In case of an error, return a message about the day
+            Log.e("SerialPlugin", "Failed to get managed ports: ${e.message}", e)
             invoke.reject("Failed to get managed ports: ${e.message}")
         }
     }
@@ -141,11 +152,14 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun write(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(WriteArgs::class.java)
+            Log.d("SerialPlugin", "Writing to port: ${args.path}, data: ${args.value}")
             val bytesWritten = serialPortManager.writeToPort(args.path, args.value.toByteArray())
             val result = JSObject()
             result.put("bytesWritten", bytesWritten)
+            Log.d("SerialPlugin", "Write successful: $bytesWritten bytes written")
             invoke.resolve(result)
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to write data: ${e.message}", e)
             invoke.reject("Failed to write data: ${e.message}")
         }
     }
@@ -154,20 +168,25 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun close(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
+            Log.d("SerialPlugin", "Closing port: ${args.path}")
             serialPortManager.closePort(args.path)
+            Log.d("SerialPlugin", "Port closed successfully: ${args.path}")
             invoke.resolve()
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to close port: ${e.message}", e)
             invoke.reject("Failed to close port: ${e.message}")
         }
     }
 
-
     @Command
     fun closeAll(invoke: Invoke) {
         try {
+            Log.d("SerialPlugin", "Closing all ports")
             serialPortManager.closeAllPorts()
+            Log.d("SerialPlugin", "All ports closed successfully")
             invoke.resolve()
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to close all ports: ${e.message}", e)
             invoke.reject("Failed to close all ports: ${e.message}")
         }
     }
@@ -176,9 +195,12 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun forceClose(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
+            Log.d("SerialPlugin", "Force closing port: ${args.path}")
             serialPortManager.closePort(args.path)
+            Log.d("SerialPlugin", "Port force closed successfully: ${args.path}")
             invoke.resolve()
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to force close port: ${e.message}", e)
             invoke.reject("Failed to force close port: ${e.message}")
         }
     }
@@ -187,11 +209,14 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun writeBinary(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(WriteArgs::class.java)
+            Log.d("SerialPlugin", "Writing binary to port: ${args.path}")
             val bytesWritten = serialPortManager.writeToPort(args.path, args.value.toByteArray())
             val result = JSObject()
             result.put("bytesWritten", bytesWritten)
+            Log.d("SerialPlugin", "Binary write successful: $bytesWritten bytes written")
             invoke.resolve(result)
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to write binary data: ${e.message}", e)
             invoke.reject("Failed to write binary data: ${e.message}")
         }
     }
@@ -200,11 +225,14 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun read(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
+            Log.d("SerialPlugin", "Reading from port: ${args.path}")
             val data = serialPortManager.readFromPort(args.path, args.timeout, 1024)
             val result = JSObject()
             result.put("data", String(data))
+            Log.d("SerialPlugin", "Read successful: ${data.size} bytes read")
             invoke.resolve(result)
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to read data: ${e.message}", e)
             invoke.reject("Failed to read data: ${e.message}")
         }
     }
@@ -213,13 +241,15 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun readBinary(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
+            Log.d("SerialPlugin", "Reading binary from port: ${args.path}")
             val data = serialPortManager.readFullyFromPort(args.path, args.timeout, args.size)
-
             val result = JSObject().apply {
                 put("data", data.toList())
             }
+            Log.d("SerialPlugin", "Binary read successful: ${data.size} bytes read")
             invoke.resolve(result)
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to read binary data: ${e.message}", e)
             invoke.reject("Failed to read binary data: ${e.message}")
         }
     }
@@ -228,19 +258,28 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun startListening(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
+            Log.d("SerialPlugin", "Starting listening on port: ${args.path}")
+            
             val listener = { data: ByteArray ->
-                val eventData = JSObject()
-                eventData.put("path", args.path)
-                eventData.put("data", String(data))
-                eventData.put("size", data.size)
+                try {
+                    val eventData = JSObject()
+                    eventData.put("path", args.path)
+                    eventData.put("data", String(data))
+                    eventData.put("size", data.size)
 
-                trigger("serialData", eventData)
+                    Log.d("SerialPlugin", "Data received on ${args.path}: ${data.size} bytes")
+                    trigger("serialData", eventData)
+                } catch (e: Exception) {
+                    Log.e("SerialPlugin", "Error in listener callback: ${e.message}", e)
+                }
             }
 
             listeners[args.path] = listener
             serialPortManager.startListening(args.path, listener)
+            Log.d("SerialPlugin", "Listening started successfully on port: ${args.path}")
             invoke.resolve()
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to start listening: ${e.message}", e)
             invoke.reject("Failed to start listening: ${e.message}")
         }
     }
@@ -249,10 +288,13 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     fun stopListening(invoke: Invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
+            Log.d("SerialPlugin", "Stopping listening on port: ${args.path}")
             listeners.remove(args.path)
             serialPortManager.stopListening(args.path)
+            Log.d("SerialPlugin", "Listening stopped successfully on port: ${args.path}")
             invoke.resolve()
         } catch (e: Exception) {
+            Log.e("SerialPlugin", "Failed to stop listening: ${e.message}", e)
             invoke.reject("Failed to stop listening: ${e.message}")
         }
     }
@@ -529,13 +571,4 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
             invoke.reject("Failed to clear break: ${e.message}")
         }
     }
-
-    //override fun onDetach() {
-    //    try {
-    //        serialPortManager.closeAllPorts()
-    //    } catch (e: Exception) {
-    //        Log.e("SerialPortManager", "Failed to close all ports: ${e.message}", e)
-    //    }
-    //    super.onDetach()
-    //}
 }
