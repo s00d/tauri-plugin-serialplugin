@@ -1,4 +1,4 @@
-[![npm version](https://img.shields.io/npm/v/tauri-plugin-serialplugin/latest?style=for-the-badge)](https://www.npmjs.com/package/tauri-plugin-serialplugin)
+[![npm version](https://img.shields.io/npm/v/tauri-plugin-serialplugin-api/latest?style=for-the-badge)](https://www.npmjs.com/package/tauri-plugin-serialplugin-api)
 [![Crates.io](https://img.shields.io/crates/v/tauri-plugin-serialplugin?style=for-the-badge)](https://crates.io/crates/tauri-plugin-serialplugin)
 [![Documentation](https://img.shields.io/badge/docs-docs.rs-blue?style=for-the-badge)](https://docs.rs/tauri-plugin-serialplugin/latest/tauri_plugin_serialplugin/all.html)
 [![GitHub issues](https://img.shields.io/github/issues/s00d/tauri-plugin-serialplugin?style=for-the-badge)](https://github.com/s00d/tauri-plugin-serialplugin/issues)
