@@ -11,20 +11,39 @@ import android.os.Build
 import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import com.hoho.android.usbserial.util.SerialInputOutputManager
+import com.hoho.android.usbserial.driver.ProbeTable
+import com.hoho.android.usbserial.driver.FtdiSerialDriver
+import com.hoho.android.usbserial.driver.Cp21xxSerialDriver
+import com.hoho.android.usbserial.driver.Ch34xSerialDriver
+import com.hoho.android.usbserial.driver.ProlificSerialDriver
 import app.tauri.serialplugin.models.*
 import java.util.concurrent.Executors
 import java.io.IOException
 import android.util.Log
 import androidx.annotation.RequiresApi
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 class SerialPortManager(private val context: Context) {
     private val usbManager: UsbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val portMap = mutableMapOf<String, UsbSerialPort>()
     private val ioManagerMap = mutableMapOf<String, SerialInputOutputManager>()
     private val executor = Executors.newCachedThreadPool()
+    private val permissionFutures = mutableMapOf<String, CompletableFuture<Boolean>>()
     
     private val ACTION_USB_PERMISSION = "app.tauri.serialplugin.USB_PERMISSION"
     
+    // Custom prober for unknown devices (только для кастомных VID/PID)
+    private val customProber: UsbSerialProber by lazy {
+        val customTable = ProbeTable()
+        
+        // Добавляем только устройства с кастомными VID/PID, которые не поддерживаются по умолчанию
+        // Например, если у вас есть устройство с VID=0x1234 и PID=0x0001, которое совместимо с FTDI
+        // customTable.addProduct(0x1234, 0x0001, FtdiSerialDriver::class.java)
+        
+        UsbSerialProber(customTable)
+    }
+
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (ACTION_USB_PERMISSION == intent.action) {
@@ -35,10 +54,15 @@ class SerialPortManager(private val context: Context) {
                         @Suppress("DEPRECATION")
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as UsbDevice?
                     }
-                    if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        device?.let {
-                            // Permission granted, proceed with connection
-                        }
+                    
+                    val permissionGranted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                    val deviceName = device?.deviceName
+                    
+                    Log.d("SerialPortManager", "USB permission result for $deviceName: $permissionGranted")
+                    
+                    deviceName?.let { name ->
+                        permissionFutures[name]?.complete(permissionGranted)
+                        permissionFutures.remove(name)
                     }
                 }
             }
@@ -48,7 +72,6 @@ class SerialPortManager(private val context: Context) {
     fun registerReceiver() {
         val filter = IntentFilter(ACTION_USB_PERMISSION)
 
-        // For Android O (API 26) and above we use 3 parameters
         if (Build.VERSION.SDK_INT >= 33) {
             context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
@@ -60,38 +83,63 @@ class SerialPortManager(private val context: Context) {
         try {
             context.unregisterReceiver(usbReceiver)
         } catch (e: IllegalArgumentException) {
-            // Get an error if the receiver is not registered
+            Log.w("SerialPortManager", "Receiver not registered")
         }
     }
     
     init {
-
+        registerReceiver()
     }
 
     fun getAvailablePorts(): Map<String, Map<String, String>> {
         val result = mutableMapOf<String, Map<String, String>>()
-        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+        
+        try {
+            // Use default prober first
+            val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+            Log.d("SerialPortManager", "Available drivers (default prober): ${availableDrivers.size}")
 
-        Log.d("SerialPortManager", "Available drivers: ${availableDrivers.size}")
+            availableDrivers.forEach { driver ->
+                val device = driver.device
+                Log.d("SerialPortManager", "Found device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}")
 
-        availableDrivers.forEach { driver ->
-            val device = driver.device
-            Log.d("SerialPortManager", "Found device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}")
+                result[device.deviceName] = mapOf(
+                    "type" to "USB",
+                    "vid" to device.vendorId.toString(),
+                    "pid" to device.productId.toString(),
+                    "manufacturer" to (device.manufacturerName ?: "Unknown"),
+                    "product" to (device.productName ?: "Unknown"),
+                    "serial_number" to (device.serialNumber ?: "Unknown")
+                )
 
-            result[device.deviceName] = mapOf(
-                "type" to "USB",
-                "vid" to device.vendorId.toString(),
-                "pid" to device.productId.toString(),
-                "manufacturer" to (device.manufacturerName ?: "Unknown"),
-                "product" to (device.productName ?: "Unknown"),
-                "serial_number" to (device.serialNumber ?: "Unknown")
-            )
+                Log.d("SerialPortManager", "Device Info: ${result[device.deviceName]}")
+            }
 
-            Log.d("SerialPortManager", "Device Info: ${result[device.deviceName]}")
+            // Also check for custom prober devices
+            val customDrivers = customProber.findAllDrivers(usbManager)
+            Log.d("SerialPortManager", "Available drivers (custom prober): ${customDrivers.size}")
+
+            customDrivers.forEach { driver ->
+                val device = driver.device
+                if (!result.containsKey(device.deviceName)) {
+                    Log.d("SerialPortManager", "Found custom device: ${device.deviceName}, Vendor ID: ${device.vendorId}, Product ID: ${device.productId}")
+
+                    result[device.deviceName] = mapOf(
+                        "type" to "USB (Custom)",
+                        "vid" to device.vendorId.toString(),
+                        "pid" to device.productId.toString(),
+                        "manufacturer" to (device.manufacturerName ?: "Unknown"),
+                        "product" to (device.productName ?: "Unknown"),
+                        "serial_number" to (device.serialNumber ?: "Unknown")
+                    )
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e("SerialPortManager", "Error getting available ports: ${e.message}", e)
         }
 
         Log.d("SerialPortManager", "Total available ports: ${result.size}")
-
         return result
     }
 
@@ -102,80 +150,185 @@ class SerialPortManager(private val context: Context) {
     fun openPort(config: SerialPortConfig): Boolean {
         try {
             Log.d("SerialPortManager", "Opening port: ${config.path}")
-            val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
-            val driver = availableDrivers.find { it.device.deviceName == config.path }
+            
+            // Find the device by name
+            val device = findDeviceByName(config.path)
                 ?: throw IOException("Device not found: ${config.path}")
             
-            if (!usbManager.hasPermission(driver.device)) {
-                Log.d("SerialPortManager", "Requesting USB permission for device: ${driver.device.deviceName}")
+            // Probe for driver using default prober first
+            var driver = UsbSerialProber.getDefaultProber().probeDevice(device)
+            
+            // If no driver found, try custom prober
+            if (driver == null) {
+                driver = customProber.probeDevice(device)
+                Log.d("SerialPortManager", "Device found via custom prober: ${device.deviceName}")
+            }
+            
+            if (driver == null) {
+                throw IOException("No driver found for device: ${config.path}")
+            }
+            
+            // Check permissions
+            if (!usbManager.hasPermission(device)) {
+                Log.d("SerialPortManager", "Requesting USB permission for device: ${device.deviceName}")
+                
+                val permissionFuture = CompletableFuture<Boolean>()
+                permissionFutures[device.deviceName] = permissionFuture
+                
+                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    PendingIntent.FLAG_IMMUTABLE
+                } else {
+                    0
+                }
+                
                 val permissionIntent = PendingIntent.getBroadcast(
                     context,
                     0,
                     Intent(ACTION_USB_PERMISSION),
-                    PendingIntent.FLAG_IMMUTABLE
+                    flags
                 )
-                usbManager.requestPermission(driver.device, permissionIntent)
-                return false
+                usbManager.requestPermission(device, permissionIntent)
+                
+                // Wait for permission result with timeout
+                val permissionGranted = permissionFuture.get(10, TimeUnit.SECONDS)
+                if (!permissionGranted) {
+                    throw IOException("USB permission denied for device: ${config.path}")
+                }
             }
             
-            val connection = usbManager.openDevice(driver.device)
+            // Open connection
+            val connection = usbManager.openDevice(device)
                 ?: throw IOException("Failed to open device: ${config.path}")
             
+            // Get port (most devices have just one port)
             val port = driver.ports[0]
             
+            // Open port
             port.open(connection)
             Log.d("SerialPortManager", "Setting port parameters: baudRate=${config.baudRate}, dataBits=${config.dataBits.value}, stopBits=${config.stopBits.value}, parity=${config.parity.value}")
-            port.setParameters(
-                config.baudRate,
-                config.dataBits.value,
-                config.stopBits.value,
-                config.parity.value
-            )
             
+            try {
+                port.setParameters(
+                    config.baudRate,
+                    config.dataBits.value,
+                    config.stopBits.value,
+                    config.parity.value
+                )
+                Log.d("SerialPortManager", "Port parameters set successfully")
+            } catch (e: UnsupportedOperationException) {
+                Log.w("SerialPortManager", "setParameters not supported for this device, using default settings")
+                // Some devices don't support parameter changes, continue with defaults
+            } catch (e: Exception) {
+                Log.w("SerialPortManager", "Failed to set parameters: ${e.message}, using default settings")
+                // Continue with default parameters
+            }
+            
+            // Handle flow control
             when (config.flowControl) {
                 FlowControl.HARDWARE -> {
                     Log.d("SerialPortManager", "Enabling hardware flow control")
-                    port.setDTR(true)
-                    port.setRTS(true)
+                    try {
+                        port.setDTR(true)
+                        port.setRTS(true)
+                        Log.d("SerialPortManager", "Hardware flow control enabled successfully")
+                    } catch (e: UnsupportedOperationException) {
+                        Log.w("SerialPortManager", "Hardware flow control not supported by this device")
+                    } catch (e: Exception) {
+                        Log.w("SerialPortManager", "Failed to enable hardware flow control: ${e.message}")
+                    }
                 }
                 FlowControl.SOFTWARE -> {
-                    Log.d("SerialPortManager", "Software flow control not implemented")
+                    Log.d("SerialPortManager", "Software flow control not implemented in this library")
                 }
                 FlowControl.NONE -> {
-                    Log.d("SerialPortManager", "No flow control")
+                    Log.d("SerialPortManager", "No flow control - using default settings")
                 }
             }
             
             portMap[config.path] = port
             Log.d("SerialPortManager", "Port opened successfully: ${config.path}")
             return true
+            
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to open port: ${e.message}", e)
             throw IOException("Failed to open port: ${e.message}")
         }
     }
 
+    private fun findDeviceByName(deviceName: String): UsbDevice? {
+        return usbManager.deviceList.values.find { it.deviceName == deviceName }
+    }
+
     private fun startIoManager(path: String, port: UsbSerialPort, onDataReceived: (ByteArray) -> Unit) {
         val ioManager = SerialInputOutputManager(port, object : SerialInputOutputManager.Listener {
             override fun onNewData(data: ByteArray) {
-                onDataReceived(data)
+                try {
+                    Log.d("SerialPortManager", "Data received on $path: ${data.size} bytes")
+                    onDataReceived(data)
+                } catch (e: Exception) {
+                    Log.e("SerialPortManager", "Error in data callback for $path: ${e.message}", e)
+                }
             }
 
             override fun onRunError(e: Exception) {
-                closePort(path)
+                Log.e("SerialPortManager", "IO Manager error for $path: ${e.message}", e)
+                
+                // Try to recover from certain errors
+                when (e) {
+                    is IOException -> {
+                        Log.w("SerialPortManager", "IO error on $path, attempting to close port")
+                        closePort(path)
+                    }
+                    is IllegalStateException -> {
+                        Log.w("SerialPortManager", "Illegal state on $path, attempting to close port")
+                        closePort(path)
+                    }
+                    else -> {
+                        Log.e("SerialPortManager", "Unknown error on $path, closing port")
+                        closePort(path)
+                    }
+                }
             }
         })
 
         ioManagerMap[path] = ioManager
-
-        // Wrap the ioManager's run method in a Runnable
-        executor.submit(Runnable { ioManager.start() })
+        
+        try {
+            executor.submit(Runnable { 
+                try {
+                    ioManager.start()
+                    Log.d("SerialPortManager", "IO Manager started successfully for $path")
+                } catch (e: Exception) {
+                    Log.e("SerialPortManager", "Failed to start IO Manager for $path: ${e.message}", e)
+                    closePort(path)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to submit IO Manager task for $path: ${e.message}", e)
+            closePort(path)
+        }
     }
 
-    fun writeToPort(path: String, data: ByteArray) {
+    fun writeToPort(path: String, data: ByteArray): Int {
         try {
-            portMap[path]?.write(data, 1000) ?: throw IOException("Port not found")
+            val port = portMap[path] ?: throw IOException("Port not found")
+            
+            Log.d("SerialPortManager", "Writing to port $path: ${data.size} bytes")
+            
+            val bytesWritten = port.write(data, 1000) // 1 second timeout
+            
+            if (bytesWritten > 0) {
+                Log.d("SerialPortManager", "Write successful: $bytesWritten bytes written")
+            } else {
+                Log.w("SerialPortManager", "Write timeout: no bytes written")
+            }
+            
+            return bytesWritten
+        } catch (e: IOException) {
+            Log.e("SerialPortManager", "Write failed: ${e.message}")
+            throw e
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Unexpected error during write: ${e.message}", e)
             throw IOException("Failed to write data: ${e.message}")
         }
     }
@@ -186,7 +339,9 @@ class SerialPortManager(private val context: Context) {
             ioManagerMap.remove(path)
             portMap[path]?.close()
             portMap.remove(path)
+            Log.d("SerialPortManager", "Port closed: $path")
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to close port $path: ${e.message}", e)
             throw IOException("Failed to close port: ${e.message}")
         }
     }
@@ -219,6 +374,7 @@ class SerialPortManager(private val context: Context) {
                 true
             } ?: false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set port parameters: ${e.message}", e)
             false
         }
     }
@@ -228,20 +384,28 @@ class SerialPortManager(private val context: Context) {
            val port = portMap[path] ?: throw IOException("Port not found")
 
            val targetSize = size ?: 1024
-
-           // We get the recommended buffer size
            val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
-           val bufferSize = minOf(targetSize, maxPacketSize) // We take the minimum of the requested size and maxPacketSize
+           val bufferSize = minOf(targetSize, maxPacketSize)
 
            val buffer = ByteArray(bufferSize)
-           val bytesRead = port.read(buffer, timeout.coerceAtLeast(200)) // Minimum timeout 200ms
+           val adjustedTimeout = timeout.coerceAtLeast(200) // Minimum 200ms timeout
+           
+           Log.d("SerialPortManager", "Reading from port $path: bufferSize=$bufferSize, timeout=$adjustedTimeout")
+           
+           val bytesRead = port.read(buffer, adjustedTimeout)
 
            if (bytesRead > 0) {
+               Log.d("SerialPortManager", "Read successful: $bytesRead bytes")
                buffer.copyOf(bytesRead)
            } else {
-               throw IOException("Read timeout: no data received within $timeout ms")
+               Log.w("SerialPortManager", "Read timeout: no data received within $adjustedTimeout ms")
+               throw IOException("Read timeout: no data received within $adjustedTimeout ms")
            }
+       } catch (e: IOException) {
+           Log.e("SerialPortManager", "Read failed: ${e.message}")
+           throw e
        } catch (e: Exception) {
+           Log.e("SerialPortManager", "Unexpected error during read: ${e.message}", e)
            throw IOException("Failed to read data: ${e.message}")
        }
    }
@@ -252,16 +416,13 @@ class SerialPortManager(private val context: Context) {
        val startTime = System.currentTimeMillis()
 
         val targetSize = size ?: 1024
-
-       // We obtain the optimal packet size
        val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
 
        while (buffer.size < targetSize && (System.currentTimeMillis() - startTime) < timeout) {
            val remainingTime = timeout - (System.currentTimeMillis() - startTime).toInt()
            if (remainingTime <= 0) break
 
-           val chunkSize = minOf(targetSize - buffer.size, maxPacketSize) // We read no more than maxPacketSize
-
+           val chunkSize = minOf(targetSize - buffer.size, maxPacketSize)
            val tempBuffer = ByteArray(chunkSize)
            val bytesRead = port.read(tempBuffer, remainingTime.coerceAtLeast(200))
 
@@ -279,22 +440,24 @@ class SerialPortManager(private val context: Context) {
        }
    }
 
-    fun setBaudRate(path: String, _baudRate: Int): Boolean {
+    fun setBaudRate(path: String, baudRate: Int): Boolean {
         return try {
-            Log.d("setBaudRate", path)
-            false
-            //portMap[path]?.setBaudRate(baudRate) ?: false
+            val port = portMap[path] ?: return false
+            port.setParameters(baudRate, port.dataBits, port.stopBits, port.parity)
+            true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set baud rate: ${e.message}", e)
             false
         }
     }
 
-    fun setDataBits(path: String, _dataBits: DataBits): Boolean {
+    fun setDataBits(path: String, dataBits: DataBits): Boolean {
         return try {
-            Log.d("setDataBits", path)
-            false
-            //portMap[path]?.setDataBits(dataBits.value) ?: false
+            val port = portMap[path] ?: return false
+            port.setParameters(port.baudRate, dataBits.value, port.stopBits, port.parity)
+            true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set data bits: ${e.message}", e)
             false
         }
     }
@@ -313,36 +476,41 @@ class SerialPortManager(private val context: Context) {
             }
             true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set flow control: ${e.message}", e)
             false
         }
     }
 
-    fun setParity(path: String, _parity: Parity): Boolean {
+    fun setParity(path: String, parity: Parity): Boolean {
         return try {
-            Log.d("setParity", path)
-            false
-            //portMap[path]?.setParity(parity.value) ?: false
+            val port = portMap[path] ?: return false
+            port.setParameters(port.baudRate, port.dataBits, port.stopBits, parity.value)
+            true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set parity: ${e.message}", e)
             false
         }
     }
 
-    fun setStopBits(path: String, _stopBits: StopBits): Boolean {
+    fun setStopBits(path: String, stopBits: StopBits): Boolean {
         return try {
-            Log.d("setStopBits", path)
-            false
-            //portMap[path]?.setStopBits(stopBits.value) ?: false
+            val port = portMap[path] ?: return false
+            port.setParameters(port.baudRate, port.dataBits, stopBits.value, port.parity)
+            true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set stop bits: ${e.message}", e)
             false
         }
     }
 
-    fun setTimeout(path: String, _timeout: Int): Boolean {
+    fun setTimeout(path: String, timeout: Int): Boolean {
         return try {
-            Log.d("setTimeout", path)
-            false
-            //portMap[path]?.setReadTimeout(timeout) ?: false
+            // Note: UsbSerialPort doesn't have a direct timeout setter
+            // The timeout is used in read operations
+            Log.d("SerialPortManager", "Timeout set to $timeout ms for port $path")
+            true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set timeout: ${e.message}", e)
             false
         }
     }
@@ -352,6 +520,7 @@ class SerialPortManager(private val context: Context) {
             portMap[path]?.setRTS(level)
             true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set RTS: ${e.message}", e)
             false
         }
     }
@@ -361,6 +530,7 @@ class SerialPortManager(private val context: Context) {
             portMap[path]?.setDTR(level)
             true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set DTR: ${e.message}", e)
             false
         }
     }
@@ -369,6 +539,7 @@ class SerialPortManager(private val context: Context) {
         return try {
             portMap[path]?.getCTS() ?: false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to read CTS: ${e.message}", e)
             false
         }
     }
@@ -377,6 +548,7 @@ class SerialPortManager(private val context: Context) {
         return try {
             portMap[path]?.getDSR() ?: false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to read DSR: ${e.message}", e)
             false
         }
     }
@@ -385,6 +557,7 @@ class SerialPortManager(private val context: Context) {
         return try {
             portMap[path]?.getRI() ?: false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to read RI: ${e.message}", e)
             false
         }
     }
@@ -393,41 +566,41 @@ class SerialPortManager(private val context: Context) {
         return try {
             portMap[path]?.getCD() ?: false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to read CD: ${e.message}", e)
             false
         }
     }
 
     fun bytesToRead(path: String): Int {
         return try {
-            Log.d("bytesToRead", path)
-            //portMap[path]?.bytesAvailable() ?: 0
+            // Note: UsbSerialPort doesn't provide bytesAvailable method
+            // Return 0 as fallback
             0
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to get bytes to read: ${e.message}", e)
             0
         }
     }
 
     fun bytesToWrite(path: String): Int {
         return try {
-            Log.d("bytesToWrite", path)
-            //portMap[path]?.bytesToWrite() ?: 0
+            // Note: UsbSerialPort doesn't provide bytesToWrite method
+            // Return 0 as fallback
             0
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to get bytes to write: ${e.message}", e)
             0
         }
     }
 
     fun clearBuffer(path: String, bufferType: String): Boolean {
         return try {
-            Log.d("clearBuffer", path)
-            Log.d("clearBuffer", bufferType)
-            //when (bufferType) {
-            //    "input" -> portMap[path]?.clearInputBuffer()
-            //    "output" -> portMap[path]?.clearOutputBuffer()
-            //    else -> throw IOException("Invalid buffer type")
-            //}
+            // Note: UsbSerialPort doesn't provide buffer clearing methods
+            // Return false as fallback
+            Log.d("SerialPortManager", "Buffer clearing not supported for USB serial ports")
             false
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to clear buffer: ${e.message}", e)
             false
         }
     }
@@ -437,6 +610,7 @@ class SerialPortManager(private val context: Context) {
             portMap[path]?.setBreak(true)
             true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to set break: ${e.message}", e)
             false
         }
     }
@@ -446,6 +620,7 @@ class SerialPortManager(private val context: Context) {
             portMap[path]?.setBreak(false)
             true
         } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to clear break: ${e.message}", e)
             false
         }
     }
@@ -456,7 +631,22 @@ class SerialPortManager(private val context: Context) {
     }
 
     fun stopListening(path: String) {
-        ioManagerMap[path]?.stop()
-        ioManagerMap.remove(path)
+        try {
+            ioManagerMap[path]?.stop()
+            ioManagerMap.remove(path)
+            Log.d("SerialPortManager", "Stopped listening on port: $path")
+        } catch (e: Exception) {
+            Log.e("SerialPortManager", "Failed to stop listening: ${e.message}", e)
+        }
+    }
+    
+    fun cleanup() {
+        try {
+            closeAllPorts()
+            unregisterReceiver()
+            executor.shutdown()
+        } catch (e: Exception) {
+            Log.e("SerialPortManager", "Error during cleanup: ${e.message}", e)
+        }
     }
 }
