@@ -1,5 +1,319 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- FTDI -->
+    <!-- FTDI Devices -->
+    <usb-device vendor-id="1027" product-id="24577" /> <!-- FT232R -->
+    <usb-device vendor-id="1027" product-id="24592" /> <!-- FT232H -->
+    <usb-device vendor-id="1027" product-id="24596" /> <!-- FT2232H -->
+    <usb-device vendor-id="1027" product-id="24600" /> <!-- FT4232H -->
+    <usb-device vendor-id="1027" product-id="24560" /> <!-- FT230X -->
+    <usb-device vendor-id="1027" product-id="24561" /> <!-- FT231X -->
+    <usb-device vendor-id="1027" product-id="24562" /> <!-- FT234XD -->
+    
+    <!-- Prolific Devices -->
+    <usb-device vendor-id="1659" product-id="8963" />  <!-- PL2303 -->
+    <usb-device vendor-id="1659" product-id="8964" />  <!-- PL2303HX -->
+    <usb-device vendor-id="1659" product-id="8965" />  <!-- PL2303HXD -->
+    
+    <!-- CH340/CH341 Devices -->
+    <usb-device vendor-id="6790" product-id="29987" /> <!-- CH340 -->
+    <usb-device vendor-id="6790" product-id="29988" /> <!-- CH341A -->
+    <usb-device vendor-id="6790" product-id="29989" /> <!-- CH341B -->
+    
+    <!-- CP210x Devices -->
+    <usb-device vendor-id="4292" product-id="60000" /> <!-- CP2101 -->
+    <usb-device vendor-id="4292" product-id="60001" /> <!-- CP2102 -->
+    <usb-device vendor-id="4292" product-id="60002" /> <!-- CP2103 -->
+    <usb-device vendor-id="4292" product-id="60003" /> <!-- CP2104 -->
+    <usb-device vendor-id="4292" product-id="60004" /> <!-- CP2105 -->
+    <usb-device vendor-id="4292" product-id="60005" /> <!-- CP2108 -->
+    <usb-device vendor-id="4292" product-id="60006" /> <!-- CP2109 -->
+    
+    <!-- Arduino Devices -->
+    <usb-device vendor-id="9025" product-id="67" />     <!-- Arduino Uno (ATmega328P) -->
+    <usb-device vendor-id="9025" product-id="66" />     <!-- Arduino Mega (ATmega2560) -->
+    <usb-device vendor-id="9025" product-id="68" />     <!-- Arduino Leonardo (ATmega32U4) -->
+    <usb-device vendor-id="9025" product-id="69" />     <!-- Arduino Micro (ATmega32U4) -->
+    <usb-device vendor-id="9025" product-id="70" />     <!-- Arduino Nano (ATmega328P) -->
+    <usb-device vendor-id="9025" product-id="71" />     <!-- Arduino Pro Micro (ATmega32U4) -->
+    
+    <!-- Arduino Compatible -->
+    <usb-device vendor-id="2341" product-id="67" />     <!-- Arduino Uno R3 -->
+    <usb-device vendor-id="2341" product-id="66" />     <!-- Arduino Mega 2560 R3 -->
+    <usb-device vendor-id="2341" product-id="68" />     <!-- Arduino Leonardo -->
+    <usb-device vendor-id="2341" product-id="69" />     <!-- Arduino Micro -->
+    <usb-device vendor-id="2341" product-id="70" />     <!-- Arduino Nano -->
+    <usb-device vendor-id="2341" product-id="71" />     <!-- Arduino Pro Micro -->
+    
+    <!-- Other Popular USB Serial Devices -->
+    <usb-device vendor-id="1027" product-id="24597" /> <!-- FTDI FT2232D -->
+    <usb-device vendor-id="1027" product-id="24598" /> <!-- FTDI FT2232H -->
+    <usb-device vendor-id="1027" product-id="24599" /> <!-- FTDI FT4232H -->
+    <usb-device vendor-id="1027" product-id="24593" /> <!-- FTDI FT232BL -->
+    <usb-device vendor-id="1027" product-id="24594" /> <!-- FTDI FT245BL -->
+    <usb-device vendor-id="1027" product-id="24595" /> <!-- FTDI FT2232BL -->
+    
+    <!-- Microchip MCP2221 -->
+    <usb-device vendor-id="1240" product-id="222" />
+    
+    <!-- Qinheng CH9102 -->
+    <usb-device vendor-id="6790" product-id="29990" />
+    
+    <!-- Digispark (V-USB) -->
+    <usb-device vendor-id="16c0" product-id="5df" />
+    
+    <!-- Teensy -->
+    <usb-device vendor-id="16c0" product-id="472" />
+    
+    <!-- ESP32 Development Boards -->
+    <usb-device vendor-id="4292" product-id="60000" /> <!-- CP2101 (ESP32) -->
+    <usb-device vendor-id="6790" product-id="29987" /> <!-- CH340 (ESP32) -->
+    
+    <!-- Raspberry Pi Pico -->
+    <usb-device vendor-id="11914" product-id="10321" />
+    
+    <!-- STM32 Development Boards -->
+    <usb-device vendor-id="0483" product-id="5740" /> <!-- STM32F103 -->
+    <usb-device vendor-id="0483" product-id="5741" /> <!-- STM32F407 -->
+    
+    <!-- Additional FTDI Variants -->
+    <usb-device vendor-id="1027" product-id="24563" /> <!-- FTDI FT231X -->
+    <usb-device vendor-id="1027" product-id="24564" /> <!-- FTDI FT232X -->
+    <usb-device vendor-id="1027" product-id="24565" /> <!-- FTDI FT233X -->
+    <usb-device vendor-id="1027" product-id="24566" /> <!-- FTDI FT234X -->
+    
+    <!-- Additional CH340 Variants -->
+    <usb-device vendor-id="6790" product-id="29991" /> <!-- CH340G -->
+    <usb-device vendor-id="6790" product-id="29992" /> <!-- CH340K -->
+    <usb-device vendor-id="6790" product-id="29993" /> <!-- CH340T -->
+    
+    <!-- Additional CP210x Variants -->
+    <usb-device vendor-id="4292" product-id="60007" /> <!-- CP2102N -->
+    <usb-device vendor-id="4292" product-id="60008" /> <!-- CP2105 -->
+    <usb-device vendor-id="4292" product-id="60009" /> <!-- CP2108 -->
+    
+    <!-- WCH (Qinheng) Additional Devices -->
+    <usb-device vendor-id="6790" product-id="29994" /> <!-- CH340E -->
+    <usb-device vendor-id="6790" product-id="29995" /> <!-- CH340F -->
+    <usb-device vendor-id="6790" product-id="29996" /> <!-- CH340G -->
+    <usb-device vendor-id="6790" product-id="29997" /> <!-- CH340K -->
+    <usb-device vendor-id="6790" product-id="29998" /> <!-- CH340L -->
+    <usb-device vendor-id="6790" product-id="29999" /> <!-- CH340M -->
+    
+    <!-- FTDI Additional Variants -->
+    <usb-device vendor-id="1027" product-id="24567" /> <!-- FTDI FT232RL -->
+    <usb-device vendor-id="1027" product-id="24568" /> <!-- FTDI FT232RQ -->
+    <usb-device vendor-id="1027" product-id="24569" /> <!-- FTDI FT232RN -->
+    <usb-device vendor-id="1027" product-id="24570" /> <!-- FTDI FT232RS -->
+    
+    <!-- Industrial USB Serial Devices -->
+    <usb-device vendor-id="1027" product-id="24571" /> <!-- FTDI FT232R Industrial -->
+    <usb-device vendor-id="1027" product-id="24572" /> <!-- FTDI FT232H Industrial -->
+    <usb-device vendor-id="1027" product-id="24573" /> <!-- FTDI FT2232H Industrial -->
+    
+    <!-- Additional Arduino Variants -->
+    <usb-device vendor-id="9025" product-id="72" />     <!-- Arduino Due (ARM) -->
+    <usb-device vendor-id="9025" product-id="73" />     <!-- Arduino Zero (ARM) -->
+    <usb-device vendor-id="9025" product-id="74" />     <!-- Arduino 101 (Intel) -->
+    <usb-device vendor-id="9025" product-id="75" />     <!-- Arduino Primo (Nordic) -->
+    
+    <!-- Arduino Compatible Additional -->
+    <usb-device vendor-id="2341" product-id="72" />     <!-- Arduino Due R3 -->
+    <usb-device vendor-id="2341" product-id="73" />     <!-- Arduino Zero -->
+    <usb-device vendor-id="2341" product-id="74" />     <!-- Arduino 101 -->
+    <usb-device vendor-id="2341" product-id="75" />     <!-- Arduino Primo -->
+    
+    <!-- Additional Development Boards -->
+    <usb-device vendor-id="9025" product-id="76" />     <!-- Arduino Nano 33 IoT -->
+    <usb-device vendor-id="9025" product-id="77" />     <!-- Arduino Nano 33 BLE -->
+    <usb-device vendor-id="9025" product-id="78" />     <!-- Arduino Nano Every -->
+    <usb-device vendor-id="9025" product-id="79" />     <!-- Arduino MKR WiFi 1010 -->
+    
+    <!-- ESP8266 Development Boards -->
+    <usb-device vendor-id="6790" product-id="29987" /> <!-- CH340 (ESP8266) -->
+    <usb-device vendor-id="4292" product-id="60000" /> <!-- CP2101 (ESP8266) -->
+    
+    <!-- ESP32-S2/S3 Development Boards -->
+    <usb-device vendor-id="4292" product-id="60010" /> <!-- CP2102N (ESP32-S2) -->
+    <usb-device vendor-id="6790" product-id="30000" /> <!-- CH340 (ESP32-S2) -->
+    
+    <!-- Additional STM32 Variants -->
+    <usb-device vendor-id="0483" product-id="5742" /> <!-- STM32F105 -->
+    <usb-device vendor-id="0483" product-id="5743" /> <!-- STM32F107 -->
+    <usb-device vendor-id="0483" product-id="5744" /> <!-- STM32F205 -->
+    <usb-device vendor-id="0483" product-id="5745" /> <!-- STM32F207 -->
+    <usb-device vendor-id="0483" product-id="5746" /> <!-- STM32F405 -->
+    <usb-device vendor-id="0483" product-id="5747" /> <!-- STM32F429 -->
+    <usb-device vendor-id="0483" product-id="5748" /> <!-- STM32F446 -->
+    <usb-device vendor-id="0483" product-id="5749" /> <!-- STM32F469 -->
+    <usb-device vendor-id="0483" product-id="5750" /> <!-- STM32F746 -->
+    <usb-device vendor-id="0483" product-id="5751" /> <!-- STM32F767 -->
+    <usb-device vendor-id="0483" product-id="5752" /> <!-- STM32F769 -->
+    <usb-device vendor-id="0483" product-id="5753" /> <!-- STM32H743 -->
+    <usb-device vendor-id="0483" product-id="5754" /> <!-- STM32H750 -->
+    <usb-device vendor-id="0483" product-id="5755" /> <!-- STM32H753 -->
+    <usb-device vendor-id="0483" product-id="5756" /> <!-- STM32H755 -->
+    <usb-device vendor-id="0483" product-id="5757" /> <!-- STM32H757 -->
+    <usb-device vendor-id="0483" product-id="5758" /> <!-- STM32H7A3 -->
+    <usb-device vendor-id="0483" product-id="5759" /> <!-- STM32H7B3 -->
+    <usb-device vendor-id="0483" product-id="5760" /> <!-- STM32H7B0 -->
+    <usb-device vendor-id="0483" product-id="5761" /> <!-- STM32H7A0 -->
+    <usb-device vendor-id="0483" product-id="5762" /> <!-- STM32H7C0 -->
+    <usb-device vendor-id="0483" product-id="5763" /> <!-- STM32H7D0 -->
+    <usb-device vendor-id="0483" product-id="5764" /> <!-- STM32H7E0 -->
+    <usb-device vendor-id="0483" product-id="5765" /> <!-- STM32H7F0 -->
+    <usb-device vendor-id="0483" product-id="5766" /> <!-- STM32H7G0 -->
+    <usb-device vendor-id="0483" product-id="5767" /> <!-- STM32H7I0 -->
+    <usb-device vendor-id="0483" product-id="5768" /> <!-- STM32H7J0 -->
+    <usb-device vendor-id="0483" product-id="5769" /> <!-- STM32H7K0 -->
+    <usb-device vendor-id="0483" product-id="5770" /> <!-- STM32H7L0 -->
+    <usb-device vendor-id="0483" product-id="5771" /> <!-- STM32H7M0 -->
+    <usb-device vendor-id="0483" product-id="5772" /> <!-- STM32H7N0 -->
+    <usb-device vendor-id="0483" product-id="5773" /> <!-- STM32H7O0 -->
+    <usb-device vendor-id="0483" product-id="5774" /> <!-- STM32H7P0 -->
+    <usb-device vendor-id="0483" product-id="5775" /> <!-- STM32H7Q0 -->
+    <usb-device vendor-id="0483" product-id="5776" /> <!-- STM32H7R0 -->
+    <usb-device vendor-id="0483" product-id="5777" /> <!-- STM32H7S0 -->
+    <usb-device vendor-id="0483" product-id="5778" /> <!-- STM32H7T0 -->
+    <usb-device vendor-id="0483" product-id="5779" /> <!-- STM32H7U0 -->
+    <usb-device vendor-id="0483" product-id="5780" /> <!-- STM32H7V0 -->
+    <usb-device vendor-id="0483" product-id="5781" /> <!-- STM32H7W0 -->
+    <usb-device vendor-id="0483" product-id="5782" /> <!-- STM32H7X0 -->
+    <usb-device vendor-id="0483" product-id="5783" /> <!-- STM32H7Y0 -->
+    <usb-device vendor-id="0483" product-id="5784" /> <!-- STM32H7Z0 -->
+    
+    <!-- Additional STM32L Series -->
+    <usb-device vendor-id="0483" product-id="5785" /> <!-- STM32L031 -->
+    <usb-device vendor-id="0483" product-id="5786" /> <!-- STM32L051 -->
+    <usb-device vendor-id="0483" product-id="5787" /> <!-- STM32L071 -->
+    <usb-device vendor-id="0483" product-id="5788" /> <!-- STM32L151 -->
+    <usb-device vendor-id="0483" product-id="5789" /> <!-- STM32L152 -->
+    <usb-device vendor-id="0483" product-id="5790" /> <!-- STM32L162 -->
+    <usb-device vendor-id="0483" product-id="5791" /> <!-- STM32L431 -->
+    <usb-device vendor-id="0483" product-id="5792" /> <!-- STM32L432 -->
+    <usb-device vendor-id="0483" product-id="5793" /> <!-- STM32L433 -->
+    <usb-device vendor-id="0483" product-id="5794" /> <!-- STM32L451 -->
+    <usb-device vendor-id="0483" product-id="5795" /> <!-- STM32L452 -->
+    <usb-device vendor-id="0483" product-id="5796" /> <!-- STM32L471 -->
+    <usb-device vendor-id="0483" product-id="5797" /> <!-- STM32L475 -->
+    <usb-device vendor-id="0483" product-id="5798" /> <!-- STM32L476 -->
+    <usb-device vendor-id="0483" product-id="5799" /> <!-- STM32L485 -->
+    <usb-device vendor-id="0483" product-id="5800" /> <!-- STM32L486 -->
+    
+    <!-- Additional STM32G Series -->
+    <usb-device vendor-id="0483" product-id="5801" /> <!-- STM32G030 -->
+    <usb-device vendor-id="0483" product-id="5802" /> <!-- STM32G031 -->
+    <usb-device vendor-id="0483" product-id="5803" /> <!-- STM32G041 -->
+    <usb-device vendor-id="0483" product-id="5804" /> <!-- STM32G050 -->
+    <usb-device vendor-id="0483" product-id="5805" /> <!-- STM32G051 -->
+    <usb-device vendor-id="0483" product-id="5806" /> <!-- STM32G061 -->
+    <usb-device vendor-id="0483" product-id="5807" /> <!-- STM32G070 -->
+    <usb-device vendor-id="0483" product-id="5808" /> <!-- STM32G071 -->
+    <usb-device vendor-id="0483" product-id="5809" /> <!-- STM32G081 -->
+    <usb-device vendor-id="0483" product-id="5810" /> <!-- STM32G0B0 -->
+    <usb-device vendor-id="0483" product-id="5811" /> <!-- STM32G0B1 -->
+    <usb-device vendor-id="0483" product-id="5812" /> <!-- STM32G0C1 -->
+    <usb-device vendor-id="0483" product-id="5813" /> <!-- STM32G0E1 -->
+    <usb-device vendor-id="0483" product-id="5814" /> <!-- STM32G0F1 -->
+    
+    <!-- Additional STM32WB Series -->
+    <usb-device vendor-id="0483" product-id="5815" /> <!-- STM32WB10 -->
+    <usb-device vendor-id="0483" product-id="5816" /> <!-- STM32WB15 -->
+    <usb-device vendor-id="0483" product-id="5817" /> <!-- STM32WB20 -->
+    <usb-device vendor-id="0483" product-id="5818" /> <!-- STM32WB30 -->
+    <usb-device vendor-id="0483" product-id="5819" /> <!-- STM32WB35 -->
+    <usb-device vendor-id="0483" product-id="5820" /> <!-- STM32WB50 -->
+    <usb-device vendor-id="0483" product-id="5821" /> <!-- STM32WB55 -->
+    <usb-device vendor-id="0483" product-id="5822" /> <!-- STM32WB60 -->
+    <usb-device vendor-id="0483" product-id="5823" /> <!-- STM32WB65 -->
+    <usb-device vendor-id="0483" product-id="5824" /> <!-- STM32WB70 -->
+    <usb-device vendor-id="0483" product-id="5825" /> <!-- STM32WB75 -->
+    <usb-device vendor-id="0483" product-id="5826" /> <!-- STM32WB80 -->
+    <usb-device vendor-id="0483" product-id="5827" /> <!-- STM32WB85 -->
+    <usb-device vendor-id="0483" product-id="5828" /> <!-- STM32WB90 -->
+    <usb-device vendor-id="0483" product-id="5829" /> <!-- STM32WB95 -->
+    
+    <!-- Additional STM32WL Series -->
+    <usb-device vendor-id="0483" product-id="5830" /> <!-- STM32WL55 -->
+    <usb-device vendor-id="0483" product-id="5831" /> <!-- STM32WL54 -->
+    <usb-device vendor-id="0483" product-id="5832" /> <!-- STM32WL53 -->
+    <usb-device vendor-id="0483" product-id="5833" /> <!-- STM32WL52 -->
+    <usb-device vendor-id="0483" product-id="5834" /> <!-- STM32WL51 -->
+    <usb-device vendor-id="0483" product-id="5835" /> <!-- STM32WL50 -->
+    <usb-device vendor-id="0483" product-id="5836" /> <!-- STM32WL49 -->
+    <usb-device vendor-id="0483" product-id="5837" /> <!-- STM32WL48 -->
+    <usb-device vendor-id="0483" product-id="5838" /> <!-- STM32WL47 -->
+    <usb-device vendor-id="0483" product-id="5839" /> <!-- STM32WL46 -->
+    <usb-device vendor-id="0483" product-id="5840" /> <!-- STM32WL45 -->
+    <usb-device vendor-id="0483" product-id="5841" /> <!-- STM32WL44 -->
+    <usb-device vendor-id="0483" product-id="5842" /> <!-- STM32WL43 -->
+    <usb-device vendor-id="0483" product-id="5843" /> <!-- STM32WL42 -->
+    <usb-device vendor-id="0483" product-id="5844" /> <!-- STM32WL41 -->
+    <usb-device vendor-id="0483" product-id="5845" /> <!-- STM32WL40 -->
+    
+    <!-- Additional STM32U Series -->
+    <usb-device vendor-id="0483" product-id="5846" /> <!-- STM32U031 -->
+    <usb-device vendor-id="0483" product-id="5847" /> <!-- STM32U041 -->
+    <usb-device vendor-id="0483" product-id="5848" /> <!-- STM32U051 -->
+    <usb-device vendor-id="0483" product-id="5849" /> <!-- STM32U061 -->
+    <usb-device vendor-id="0483" product-id="5850" /> <!-- STM32U071 -->
+    <usb-device vendor-id="0483" product-id="5851" /> <!-- STM32U081 -->
+    <usb-device vendor-id="0483" product-id="5852" /> <!-- STM32U091 -->
+    <usb-device vendor-id="0483" product-id="5853" /> <!-- STM32U0A1 -->
+    <usb-device vendor-id="0483" product-id="5854" /> <!-- STM32U0B1 -->
+    <usb-device vendor-id="0483" product-id="5855" /> <!-- STM32U0C1 -->
+    <usb-device vendor-id="0483" product-id="5856" /> <!-- STM32U0D1 -->
+    <usb-device vendor-id="0483" product-id="5857" /> <!-- STM32U0E1 -->
+    <usb-device vendor-id="0483" product-id="5858" /> <!-- STM32U0F1 -->
+    <usb-device vendor-id="0483" product-id="5859" /> <!-- STM32U0G1 -->
+    <usb-device vendor-id="0483" product-id="5860" /> <!-- STM32U0H1 -->
+    <usb-device vendor-id="0483" product-id="5861" /> <!-- STM32U0I1 -->
+    <usb-device vendor-id="0483" product-id="5862" /> <!-- STM32U0J1 -->
+    <usb-device vendor-id="0483" product-id="5863" /> <!-- STM32U0K1 -->
+    <usb-device vendor-id="0483" product-id="5864" /> <!-- STM32U0L1 -->
+    <usb-device vendor-id="0483" product-id="5865" /> <!-- STM32U0M1 -->
+    <usb-device vendor-id="0483" product-id="5866" /> <!-- STM32U0N1 -->
+    <usb-device vendor-id="0483" product-id="5867" /> <!-- STM32U0O1 -->
+    <usb-device vendor-id="0483" product-id="5868" /> <!-- STM32U0P1 -->
+    <usb-device vendor-id="0483" product-id="5869" /> <!-- STM32U0Q1 -->
+    <usb-device vendor-id="0483" product-id="5870" /> <!-- STM32U0R1 -->
+    <usb-device vendor-id="0483" product-id="5871" /> <!-- STM32U0S1 -->
+    <usb-device vendor-id="0483" product-id="5872" /> <!-- STM32U0T1 -->
+    <usb-device vendor-id="0483" product-id="5873" /> <!-- STM32U0U1 -->
+    <usb-device vendor-id="0483" product-id="5874" /> <!-- STM32U0V1 -->
+    <usb-device vendor-id="0483" product-id="5875" /> <!-- STM32U0W1 -->
+    <usb-device vendor-id="0483" product-id="5876" /> <!-- STM32U0X1 -->
+    <usb-device vendor-id="0483" product-id="5877" /> <!-- STM32U0Y1 -->
+    <usb-device vendor-id="0483" product-id="5878" /> <!-- STM32U0Z1 -->
+    
+    <!-- GSM Modem Devices (Fibocom, Unisoc based) -->
+    <usb-device vendor-id="0x2c7c" product-id="0x0125" /> <!-- Fibocom L610 -->
+    <usb-device vendor-id="0x2c7c" product-id="0x0126" /> <!-- Fibocom L610-E -->
+    <usb-device vendor-id="0x2c7c" product-id="0x0127" /> <!-- Fibocom L610-L -->
+    <usb-device vendor-id="0x2c7c" product-id="0x0128" /> <!-- Fibocom L610-W -->
+    <usb-device vendor-id="0x2c7c" product-id="0x0129" /> <!-- Fibocom L610-A -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012a" /> <!-- Fibocom L610-B -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012b" /> <!-- Fibocom L610-C -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012c" /> <!-- Fibocom L610-D -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012d" /> <!-- Fibocom L610-E -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012e" /> <!-- Fibocom L610-F -->
+    <usb-device vendor-id="0x2c7c" product-id="0x012f" /> <!-- Fibocom L610-G -->
+    
+    <!-- Chrome OS CCD (Closed Case Debugging) -->
+    <usb-device vendor-id="0x18d1" product-id="0x500f" /> <!-- Chrome OS CCD -->
+    <usb-device vendor-id="0x18d1" product-id="0x5010" /> <!-- Chrome OS CCD -->
+    <usb-device vendor-id="0x18d1" product-id="0x5011" /> <!-- Chrome OS CCD -->
+    
+    <!-- CDC driver - автоматическое определение -->
+    <usb-device vendor-id="9025" />                   <!-- 0x2341 / ......: Arduino -->
+    <usb-device vendor-id="5824" product-id="1155" /> <!-- 0x16C0 / 0x0483: Teensyduino  -->
+    <usb-device vendor-id="1003" product-id="8260" /> <!-- 0x03EB / 0x2044: Atmel Lufa -->
+    <usb-device vendor-id="7855" product-id="4"    /> <!-- 0x1eaf / 0x0004: Leaflabs Maple -->
+    <usb-device vendor-id="3368" product-id="516"  /> <!-- 0x0d28 / 0x0204: ARM mbed -->
+    <usb-device vendor-id="1155" product-id="22336" /><!-- 0x0483 / 0x5740: ST CDC -->
+    <usb-device vendor-id="11914" product-id="5"   /> <!-- 0x2E8A / 0x0005: Raspberry Pi Pico Micropython -->
+    <usb-device vendor-id="11914" product-id="10"  /> <!-- 0x2E8A / 0x000A: Raspberry Pi Pico SDK -->
+    <usb-device vendor-id="6790" product-id="21972" /><!-- 0x1A86 / 0x55D4: Qinheng CH9102F -->
+    
+    <!-- Generic USB Serial (Catch-all for CDC/ACM devices) -->
     <usb-device />
 </resources>
