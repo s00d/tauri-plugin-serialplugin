@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { SerialPort } from "tauri-plugin-serialplugin";
+  import { SerialPort } from "tauri-plugin-serialplugin-api";
   import { invoke } from "@tauri-apps/api/core";
   import SerialPortComponent from "./components/SerialPortComponent.svelte";
 

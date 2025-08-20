@@ -9,6 +9,8 @@
 
 A comprehensive plugin for Tauri applications to communicate with serial ports. This plugin provides a complete API for reading from and writing to serial devices, with support for various configuration options and control signals.
 
+> **⚠️ Important Notice:** The JavaScript dependency has been renamed from `tauri-plugin-serialplugin` to `tauri-plugin-serialplugin-api`. Please update your `package.json` before updating to the latest version, following the same pattern used by other Tauri plugins.
+
 ---
 
 ## Table of Contents
@@ -43,22 +45,54 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 - **Tauri** 2.0 or higher
 - **Node.js** and an npm-compatible package manager (npm, yarn, pnpm)
 
-### Installation Methods
 
-**Using crates.io and npm (Recommended)**
+
+
+## Installation
+
+### Automatic Installation (Recommended)
+
+Use the Tauri CLI to automatically install both the Rust and JavaScript parts of the plugin:
 
 ```bash
-# Install the Rust dependency
+# npm
+npm run tauri add serialplugin
+
+# yarn  
+yarn run tauri add serialplugin
+
+# pnpm
+pnpm tauri add serialplugin
+
+# deno
+deno task tauri add serialplugin
+
+# bun
+bun tauri add serialplugin
+
+# cargo
+cargo tauri add serialplugin
+```
+
+### Manual Installation
+
+#### Backend (Rust)
+
+Add the plugin using cargo:
+
+```bash
+cd ./src-tauri
 cargo add tauri-plugin-serialplugin
 ```
 
+#### Frontend (JavaScript/TypeScript)
+
+Install the JavaScript API:
+
 ```bash
-# Install JavaScript bindings
-npm add tauri-plugin-serialplugin
+npm install tauri-plugin-serialplugin-api
 # or
-yarn add tauri-plugin-serialplugin
-# or
-pnpm add tauri-plugin-serialplugin
+pnpm add tauri-plugin-serialplugin-api
 ```
 
 ---
@@ -93,7 +127,7 @@ pnpm add tauri-plugin-serialplugin
 
 3. **Basic Example**
    ```typescript
-   import { SerialPort } from "tauri-plugin-serialplugin";
+   import { SerialPort } from "tauri-plugin-serialplugin-api";
 
    // List available ports
    const ports = await SerialPort.available_ports();
@@ -123,7 +157,7 @@ pnpm add tauri-plugin-serialplugin
 
 4. **Error Handling Example**
    ```typescript
-   import { SerialPort } from "tauri-plugin-serialplugin";
+   import { SerialPort } from "tauri-plugin-serialplugin-api";
 
    async function handleSerialPort() {
      let port: SerialPort | null = null;
@@ -223,7 +257,7 @@ import {
   PortInfo,
   SerialportOptions,
   ReadOptions 
-} from "tauri-plugin-serialplugin";
+} from "tauri-plugin-serialplugin-api";
 ```
 
 ### Type Definitions
@@ -241,7 +275,7 @@ import {
 ### Configuration Example with Types
 
 ```typescript
-import { SerialPort, DataBits, FlowControl, Parity, StopBits } from "tauri-plugin-serialplugin";
+import { SerialPort, DataBits, FlowControl, Parity, StopBits } from "tauri-plugin-serialplugin-api";
 
 const port = new SerialPort({
   path: "/dev/ttyUSB0",
@@ -284,7 +318,7 @@ const cd = await port.readCarrierDetect();
 ### Buffer Management with Types
 
 ```typescript
-import { ClearBuffer } from "tauri-plugin-serialplugin";
+import { ClearBuffer } from "tauri-plugin-serialplugin-api";
 
 // Check buffer status
 const bytesToRead = await port.bytesToRead();

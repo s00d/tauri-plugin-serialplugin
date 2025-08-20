@@ -85,7 +85,7 @@ use tauri::{AppHandle, Runtime, State};
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const ports = await SerialPort.available_ports();
 /// console.log("Available ports:", ports);
@@ -134,7 +134,7 @@ pub fn available_ports<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const ports = await SerialPort.available_ports_direct();
 /// console.log("Detailed port information:", ports);
@@ -182,7 +182,7 @@ pub fn available_ports_direct<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const openPorts = await SerialPort.managed_ports();
 /// console.log("Currently open ports:", openPorts);
@@ -228,7 +228,7 @@ pub fn managed_ports<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.cancelListen();
@@ -275,7 +275,7 @@ pub fn cancel_read<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.close();
@@ -321,7 +321,7 @@ pub fn close<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// await SerialPort.closeAll();
 /// ```
@@ -367,7 +367,7 @@ pub fn close_all<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.forceClose();
@@ -431,7 +431,7 @@ pub fn force_close<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({
 ///   path: "COM1",
@@ -503,7 +503,7 @@ pub fn open<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -558,7 +558,7 @@ pub fn write<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -614,7 +614,7 @@ pub fn write_binary<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -670,7 +670,7 @@ pub fn read<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -724,7 +724,7 @@ pub fn read_binary<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -777,7 +777,7 @@ pub fn start_listening<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.stopListening();
@@ -826,7 +826,7 @@ pub fn stop_listening<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -878,7 +878,7 @@ pub fn set_baud_rate<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort, DataBits } from "tauri-plugin-serialplugin";
+/// import { SerialPort, DataBits } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -931,7 +931,7 @@ pub fn set_data_bits<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort, FlowControl } from "tauri-plugin-serialplugin";
+/// import { SerialPort, FlowControl } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -983,7 +983,7 @@ pub fn set_flow_control<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort, Parity } from "tauri-plugin-serialplugin";
+/// import { SerialPort, Parity } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1035,7 +1035,7 @@ pub fn set_parity<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort, StopBits } from "tauri-plugin-serialplugin";
+/// import { SerialPort, StopBits } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1086,7 +1086,7 @@ pub fn set_stop_bits<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1138,7 +1138,7 @@ pub fn set_timeout<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1189,7 +1189,7 @@ pub fn write_request_to_send<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1241,7 +1241,7 @@ pub fn write_data_terminal_ready<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1293,7 +1293,7 @@ pub fn read_clear_to_send<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1345,7 +1345,7 @@ pub fn read_data_set_ready<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1397,7 +1397,7 @@ pub fn read_ring_indicator<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1449,7 +1449,7 @@ pub fn read_carrier_detect<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1501,7 +1501,7 @@ pub fn bytes_to_read<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1553,7 +1553,7 @@ pub fn bytes_to_write<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort, ClearBuffer } from "tauri-plugin-serialplugin";
+/// import { SerialPort, ClearBuffer } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1604,7 +1604,7 @@ pub fn clear_buffer<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();
@@ -1653,7 +1653,7 @@ pub fn set_break<R: Runtime>(
 /// # JavaScript Equivalent
 /// 
 /// ```javascript
-/// import { SerialPort } from "tauri-plugin-serialplugin";
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";;
 /// 
 /// const port = new SerialPort({ path: "COM1" });
 /// await port.open();

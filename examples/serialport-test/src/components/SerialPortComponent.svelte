@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { SerialPort } from 'tauri-plugin-serialplugin';
+    import { SerialPort } from 'tauri-plugin-serialplugin-api';
     import {
         ClearBuffer,
         DataBits,
