@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.19.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.17.1...v2.19.0) (2025-08-26)
+
+
+### Features
+
+* **serialplugin:** add logging for serial port operations and cleanup ([e474046](https://github.com/s00d/tauri-plugin-serialplugin/commit/e47404639249b2246a4a3acc9b07765fdf188f0c))
+* **serialport-manager:** add custom prober for unknown USB devices ([74b3915](https://github.com/s00d/tauri-plugin-serialplugin/commit/74b3915fd84ae5ec7a7d63ade01c757272dc6d14))
+
+
+### Bug Fixes
+
+* **android:** require USB host feature in AndroidManifest.xml ([2227513](https://github.com/s00d/tauri-plugin-serialplugin/commit/22275138b6da65fd8eabfac25a6f241d4018ab76))
+* **serial:** correct minimum timeout value for serial port ([dd83ded](https://github.com/s00d/tauri-plugin-serialplugin/commit/dd83ded0b68a5f09a06645cc96a3eaf218e9fc06))
+
 ### [2.17.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.17.0...v2.17.1) (2025-07-02)
 
 ## [2.17.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.16.0...v2.17.0) (2025-07-02)
