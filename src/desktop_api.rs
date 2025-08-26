@@ -435,7 +435,7 @@ impl<R: Runtime> SerialPort<R> {
                 .try_clone()
                 .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
 
-            let timeout_ms = timeout.unwrap_or(200).min(100);
+            let timeout_ms = timeout.unwrap_or(200).min(1);
 
             serial
                 .set_timeout(Duration::from_millis(timeout_ms))
