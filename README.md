@@ -140,16 +140,16 @@ pnpm add tauri-plugin-serialplugin-api
    });
    await port.open();
 
-  // Write data
-  await port.write("Hello, Serial Port!");
+   // Write data
+   await port.write("Hello, Serial Port!");
 
-  // Start port listening
-  await port.startListening();
+   // Start port listening
+   await port.startListening();
 
-  // Start port listening
-  const unsubscribe = await port.listen((data) => {
-    console.log("Received:", data);
-  });
+   // Start port listening
+   const unsubscribe = await port.listen((data) => {
+      console.log("Received:", data);
+   });
 
    // Stop listening when done
    await port.cancelListen();
