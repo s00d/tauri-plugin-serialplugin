@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.21.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.20.0...v2.21.0) (2025-10-11)
+
+
+### Features
+
+* **serial:** emit disconnection events on serial port closure ([9870d1f](https://github.com/s00d/tauri-plugin-serialplugin/commit/9870d1f398c03c516b9d61149ddb99facd663517))
+
 ## [2.20.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.19.0...v2.20.0) (2025-10-11)
 
 
