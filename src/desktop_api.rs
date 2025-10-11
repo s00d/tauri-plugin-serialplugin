@@ -3,8 +3,7 @@ use crate::state::{
     ClearBuffer, DataBits, FlowControl, Parity, ReadData, SerialportInfo, StopBits, BLUETOOTH, PCI,
     UNKNOWN, USB,
 };
-use crate::{log_debug, log_error, log_info};
-use serde::{Deserialize, Serialize};
+use crate::{log_debug, log_error, log_info, log_warn};
 use serialport::{
     DataBits as SerialDataBits, FlowControl as SerialFlowControl, Parity as SerialParity,
     StopBits as SerialStopBits,
@@ -23,13 +22,6 @@ pub struct SerialPort<R: Runtime> {
     #[allow(dead_code)]
     pub(crate) app: AppHandle<R>,
     pub(crate) serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MobileResponse<T> {
-    success: bool,
-    data: Option<T>,
-    error: Option<String>,
 }
 
 impl<R: Runtime> SerialPort<R> {
@@ -248,6 +240,18 @@ impl<R: Runtime> SerialPort<R> {
     /// Close the specified serial port
     pub fn close(&self, path: String) -> Result<(), Error> {
         log_debug!("close {}", path);
+        
+        // Emit disconnected event before closing
+        let event_path = path.replace(".", "-").replace("/", "-");
+        let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
+        
+        if let Err(e) = self.app.emit(
+            &disconnected_event,
+            format!("Serial port {} closed", &path),
+        ) {
+            log_warn!("Failed to send disconnection event on close: {}", e);
+        }
+        
         match self.serialports.lock() {
             Ok(mut serialports) => {
                 if let Some(port_info) = serialports.remove(&path) {
@@ -290,6 +294,17 @@ impl<R: Runtime> SerialPort<R> {
         let mut errors = vec![];
 
         for (path, port_info) in ports.drain() {
+            // Emit disconnected event for each port
+            let event_path = path.replace(".", "-").replace("/", "-");
+            let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
+            
+            if let Err(e) = self.app.emit(
+                &disconnected_event,
+                format!("Serial port {} closed (close_all)", &path),
+            ) {
+                log_warn!("Failed to send disconnection event for {}: {}", path, e);
+            }
+            
             if let Some(sender) = port_info.sender {
                 if let Err(e) = sender.send(1) {
                     errors.push(format!("Port {}: {}", path, e));
