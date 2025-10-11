@@ -18,22 +18,24 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 1. [Installation](#installation)
 2. [Basic Usage](#basic-usage)
 3. [TypeScript Support](#typescript-support)
-4. [Rust Usage](#rust-usage)
-5. [Permissions](#permissions)
-6. [API Reference](#api-reference)  
-   6.1. [Port Discovery](#port-discovery)  
-   6.2. [Connection Management](#connection-management)  
-   6.3. [Data Transfer](#data-transfer)  
-   6.4. [Port Configuration](#port-configuration)  
-   6.5. [Control Signals](#control-signals)  
-   6.6. [Buffer Management](#buffer-management)
-7. [Common Use Cases](#common-use-cases)
-8. [Android Setup](#android-setup)
-9. [Contributing](#contributing)
-10. [Development Setup](#development-setup)
-11. [Testing](#testing)
-12. [Partners](#partners)
-13. [License](#license)
+4. [Log Level Control](#log-level-control)
+5. [Rust Usage](#rust-usage)
+6. [Permissions](#permissions)
+7. [API Reference](#api-reference)  
+   7.1. [Port Discovery](#port-discovery)  
+   7.2. [Connection Management](#connection-management)  
+   7.3. [Data Transfer](#data-transfer)  
+   7.4. [Port Configuration](#port-configuration)  
+   7.5. [Control Signals](#control-signals)  
+   7.6. [Buffer Management](#buffer-management)  
+   7.7. [Log Control](#log-control)
+8. [Common Use Cases](#common-use-cases)
+9. [Android Setup](#android-setup)
+10. [Contributing](#contributing)
+11. [Development Setup](#development-setup)
+12. [Testing](#testing)
+13. [Partners](#partners)
+14. [License](#license)
 
 ---
 
@@ -335,6 +337,113 @@ await port.clearBuffer(ClearBuffer.All);
 // Break signal control
 await port.setBreak();
 await port.clearBreak();
+```
+
+---
+
+## Log Level Control
+
+The plugin provides comprehensive logging control to help you manage verbosity in production environments. By default, the plugin logs informational messages, but you can adjust this to reduce noise or enable detailed debugging.
+
+### TypeScript/JavaScript Usage
+
+```typescript
+import { SerialPort, LogLevel } from "tauri-plugin-serialplugin-api";
+
+// Disable all logs (recommended for production)
+await SerialPort.setLogLevel(LogLevel.None);
+
+// Show only errors
+await SerialPort.setLogLevel(LogLevel.Error);
+
+// Show errors and warnings
+await SerialPort.setLogLevel(LogLevel.Warn);
+
+// Show errors, warnings, and info (default)
+await SerialPort.setLogLevel(LogLevel.Info);
+
+// Enable all logs including debug information
+await SerialPort.setLogLevel(LogLevel.Debug);
+
+// Get current log level
+const currentLevel = await SerialPort.getLogLevel();
+console.log("Current log level:", currentLevel);
+```
+
+### Rust Usage
+
+```rust
+use tauri_plugin_serialplugin::state::{LogLevel, set_log_level};
+
+// Set log level on plugin initialization
+fn main() {
+    // Disable logs in production
+    set_log_level(LogLevel::None);
+    
+    tauri::Builder::default()
+        .plugin(tauri_plugin_serialplugin::init())
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+Or configure via command:
+
+```rust
+use tauri_plugin_serialplugin::commands::set_log_level;
+use tauri_plugin_serialplugin::state::LogLevel;
+use tauri::{AppHandle, State};
+
+#[tauri::command]
+async fn configure_production_logging(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+) -> Result<(), String> {
+    // Only show errors in production
+    set_log_level(app, serial, LogLevel::Error)
+        .map_err(|e| e.to_string())
+}
+```
+
+### Log Levels
+
+- **`None`** - No logging output (recommended for production)
+- **`Error`** - Only critical errors
+- **`Warn`** - Errors and warnings
+- **`Info`** - Errors, warnings, and general information (default)
+- **`Debug`** - All logging including debug information (for development)
+
+### Common Use Cases
+
+#### Production Environment
+
+```typescript
+// Disable noisy logs when polling for available ports
+await SerialPort.setLogLevel(LogLevel.None);
+
+setInterval(async () => {
+  const ports = await SerialPort.available_ports();
+  // No "listen event: plugin-serialplugin-disconnected-COM6" logs
+}, 1000);
+```
+
+#### Development with Debugging
+
+```typescript
+// Enable detailed logging for troubleshooting
+await SerialPort.setLogLevel(LogLevel.Debug);
+
+const port = new SerialPort({ path: "COM1", baudRate: 9600 });
+await port.open();
+// See all internal events and state changes
+```
+
+#### Conditional Logging
+
+```typescript
+// Set log level based on environment
+const isDevelopment = import.meta.env.DEV;
+await SerialPort.setLogLevel(isDevelopment ? LogLevel.Debug : LogLevel.Error);
 ```
 
 ---
@@ -902,6 +1011,10 @@ Below is a list of all permissions the plugin supports. Granting or denying them
 | `serialplugin:deny-start-listening`         | Denies starting automatic port monitoring and data listening                  |
 | `serialplugin:allow-stop-listening`         | Allows stopping automatic port monitoring and data listening                  |
 | `serialplugin:deny-stop-listening`          | Denies stopping automatic port monitoring and data listening                  |
+| `serialplugin:allow-set-log-level`          | Allows setting the global log level                                           |
+| `serialplugin:deny-set-log-level`           | Denies setting the global log level                                           |
+| `serialplugin:allow-get-log-level`          | Allows getting the current log level                                          |
+| `serialplugin:deny-get-log-level`           | Denies getting the current log level                                          |
 
 ### Granting All Permissions (Example)
 
@@ -937,7 +1050,9 @@ Below is a list of all permissions the plugin supports. Granting or denying them
   "serialplugin:allow-set-break",
   "serialplugin:allow-clear-break",
   "serialplugin:allow-start-listening",
-  "serialplugin:allow-stop-listening"
+  "serialplugin:allow-stop-listening",
+  "serialplugin:allow-set-log-level",
+  "serialplugin:allow-get-log-level"
 ]
 ```
 
@@ -1281,6 +1396,46 @@ class SerialPort {
    * await port.clearBreak();
    */
   async clearBreak(): Promise<void>;
+}
+```
+
+### Log Control
+
+```typescript
+class SerialPort {
+  /**
+   * Sets the global log level for the plugin
+   * @param {LogLevel} level The log level to set (None, Error, Warn, Info, Debug)
+   * @returns {Promise<void>}
+   * @example
+   * // Disable all logs in production
+   * await SerialPort.setLogLevel(LogLevel.None);
+   * 
+   * // Show only errors
+   * await SerialPort.setLogLevel(LogLevel.Error);
+   * 
+   * // Enable debug logs
+   * await SerialPort.setLogLevel(LogLevel.Debug);
+   */
+  static async setLogLevel(level: LogLevel): Promise<void>;
+
+  /**
+   * Gets the current global log level
+   * @returns {Promise<LogLevel>} A promise that resolves to the current log level
+   * @example
+   * const currentLevel = await SerialPort.getLogLevel();
+   * console.log("Current log level:", currentLevel);
+   */
+  static async getLogLevel(): Promise<LogLevel>;
+}
+
+// Available log levels
+enum LogLevel {
+  None = "None",      // No logging output
+  Error = "Error",    // Only critical errors
+  Warn = "Warn",      // Errors and warnings
+  Info = "Info",      // Errors, warnings, and info (default)
+  Debug = "Debug"     // All logging including debug information
 }
 ```
 
