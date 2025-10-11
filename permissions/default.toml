@@ -75,5 +75,7 @@ permissions = [
     "allow-write-data-terminal-ready",
     "allow-write-dtr",
     "allow-write-request-to-send",
-    "allow-write-rts"
+    "allow-write-rts",
+    "allow-set-log-level",
+    "allow-get-log-level"
 ]

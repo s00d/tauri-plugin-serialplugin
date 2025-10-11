@@ -1667,3 +1667,103 @@ pub fn clear_break<R: Runtime>(
 ) -> Result<(), Error> {
     serial.clear_break(path)
 }
+
+/// Sets the global log level for the plugin
+/// 
+/// Controls how much logging output the plugin produces. Use this to reduce noise
+/// in production environments or enable detailed logs for debugging.
+/// 
+/// # Arguments
+/// 
+/// * `_app` - The Tauri app handle
+/// * `_serial` - The serial port state
+/// * `level` - The log level to set (None, Error, Warn, Info, Debug)
+/// 
+/// # Returns
+/// 
+/// Returns `Ok(())` on success.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::commands::set_log_level;
+/// use tauri_plugin_serialplugin::state::LogLevel;
+/// use tauri::{AppHandle, State};
+/// 
+/// #[tauri::command]
+/// async fn configure_logging(
+///     app: AppHandle<tauri::Wry>,
+///     serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+/// ) -> Result<(), String> {
+///     // Set to error only to reduce noise in production
+///     set_log_level(app, serial, LogLevel::Error)
+///         .map_err(|e| e.to_string())
+/// }
+/// ```
+/// 
+/// # JavaScript Equivalent
+/// 
+/// ```javascript
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";
+/// 
+/// // Disable all logs in production
+/// await SerialPort.setLogLevel("None");
+/// 
+/// // Or show only errors
+/// await SerialPort.setLogLevel("Error");
+/// ```
+#[tauri::command]
+pub fn set_log_level<R: Runtime>(
+    _app: AppHandle<R>,
+    _serial: State<'_, SerialPort<R>>,
+    level: crate::state::LogLevel,
+) -> Result<(), Error> {
+    crate::state::set_log_level(level);
+    Ok(())
+}
+
+/// Gets the current global log level
+/// 
+/// Returns the currently configured log level for the plugin.
+/// 
+/// # Arguments
+/// 
+/// * `_app` - The Tauri app handle
+/// * `_serial` - The serial port state
+/// 
+/// # Returns
+/// 
+/// Returns the current `LogLevel`.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::commands::get_log_level;
+/// use tauri::{AppHandle, State};
+/// 
+/// #[tauri::command]
+/// async fn check_log_level(
+///     app: AppHandle<tauri::Wry>,
+///     serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+/// ) -> Result<String, String> {
+///     let level = get_log_level(app, serial)
+///         .map_err(|e| e.to_string())?;
+///     Ok(format!("{:?}", level))
+/// }
+/// ```
+/// 
+/// # JavaScript Equivalent
+/// 
+/// ```javascript
+/// import { SerialPort } from "tauri-plugin-serialplugin-api";
+/// 
+/// const currentLevel = await SerialPort.getLogLevel();
+/// console.log("Current log level:", currentLevel);
+/// ```
+#[tauri::command]
+pub fn get_log_level<R: Runtime>(
+    _app: AppHandle<R>,
+    _serial: State<'_, SerialPort<R>>,
+) -> Result<crate::state::LogLevel, Error> {
+    Ok(crate::state::get_log_level())
+}

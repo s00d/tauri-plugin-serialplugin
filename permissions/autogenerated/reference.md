@@ -75,6 +75,8 @@ On Windows the webview data folder access is denied.
 - `allow-write-dtr`
 - `allow-write-request-to-send`
 - `allow-write-rts`
+- `allow-set-log-level`
+- `allow-get-log-level`
 
 ## Permission Table
 
@@ -341,6 +343,32 @@ Enables the force_close command without any pre-configured scope.
 <td>
 
 Denies the force_close command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-get-log-level`
+
+</td>
+<td>
+
+Enables the get_log_level command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-get-log-level`
+
+</td>
+<td>
+
+Denies the get_log_level command without any pre-configured scope.
 
 </td>
 </tr>
@@ -783,6 +811,32 @@ Enables the set_flow_control command without any pre-configured scope.
 <td>
 
 Denies the set_flow_control command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-set-log-level`
+
+</td>
+<td>
+
+Enables the set_log_level command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-set-log-level`
+
+</td>
+<td>
+
+Denies the set_log_level command without any pre-configured scope.
 
 </td>
 </tr>

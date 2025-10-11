@@ -42,6 +42,14 @@ use std::sync::{Arc, Mutex};
 /// }
 /// ```
 pub mod commands;
+
+/// Centralized logging module
+/// 
+/// Provides logging macros that respect the global log level setting.
+/// Use `log_error!`, `log_warn!`, `log_info!`, and `log_debug!` macros
+/// instead of direct println!/eprintln! calls.
+pub mod logger;
+
 #[cfg(test)]
 mod tests {
     mod mock;
@@ -196,6 +204,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             clear_buffer,
             set_break,
             clear_break,
+            set_log_level,
+            get_log_level,
         ])
         .setup(|app, _api| {
             #[cfg(target_os = "android")]

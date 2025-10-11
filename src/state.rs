@@ -25,7 +25,7 @@ use serialport::{
 use std::thread::JoinHandle;
 use std::{
     collections::HashMap,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{mpsc::Sender, Arc, Mutex, OnceLock},
 };
 
 /// Main state structure for managing serial ports
@@ -451,4 +451,105 @@ impl From<ClearBuffer> for SerialClearBuffer {
             ClearBuffer::All => SerialClearBuffer::All,
         }
     }
+}
+
+/// Logging level for controlling plugin verbosity
+/// 
+/// This enum allows you to control how much logging output the plugin produces.
+/// Use it to reduce noise in production environments or enable detailed logs for debugging.
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::LogLevel;
+/// 
+/// let log_level = LogLevel::Error; // Only show errors
+/// ```
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LogLevel {
+    /// No logging output
+    None,
+    /// Only critical errors
+    Error,
+    /// Errors and warnings
+    Warn,
+    /// Errors, warnings, and general information
+    Info,
+    /// All logging including debug information
+    Debug,
+}
+
+impl Default for LogLevel {
+    fn default() -> Self {
+        LogLevel::Info
+    }
+}
+
+impl LogLevel {
+    /// Checks if error messages should be logged at the current level
+    pub fn should_log_error(&self) -> bool {
+        matches!(self, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug)
+    }
+
+    /// Checks if warning messages should be logged at the current level
+    pub fn should_log_warn(&self) -> bool {
+        matches!(self, LogLevel::Warn | LogLevel::Info | LogLevel::Debug)
+    }
+
+    /// Checks if info messages should be logged at the current level
+    pub fn should_log_info(&self) -> bool {
+        matches!(self, LogLevel::Info | LogLevel::Debug)
+    }
+
+    /// Checks if debug messages should be logged at the current level
+    pub fn should_log_debug(&self) -> bool {
+        matches!(self, LogLevel::Debug)
+    }
+}
+
+/// Global log level state
+static LOG_LEVEL: OnceLock<Mutex<LogLevel>> = OnceLock::new();
+
+/// Gets or initializes the log level mutex
+fn get_log_level_mutex() -> &'static Mutex<LogLevel> {
+    LOG_LEVEL.get_or_init(|| Mutex::new(LogLevel::Info))
+}
+
+/// Sets the global log level for the plugin
+/// 
+/// # Arguments
+/// 
+/// * `level` - The new log level to set
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::{LogLevel, set_log_level};
+/// 
+/// set_log_level(LogLevel::Error);
+/// ```
+pub fn set_log_level(level: LogLevel) {
+    if let Ok(mut log_level) = get_log_level_mutex().lock() {
+        *log_level = level;
+    }
+}
+
+/// Gets the current global log level
+/// 
+/// # Returns
+/// 
+/// The current log level
+/// 
+/// # Example
+/// 
+/// ```rust
+/// use tauri_plugin_serialplugin::state::get_log_level;
+/// 
+/// let level = get_log_level();
+/// ```
+pub fn get_log_level() -> LogLevel {
+    get_log_level_mutex().lock().unwrap_or_else(|e| {
+        eprintln!("Failed to lock log level: {}", e);
+        e.into_inner()
+    }).clone()
 }

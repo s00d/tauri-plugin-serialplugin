@@ -40,6 +40,8 @@ const COMMANDS: &[&str] = &[
     "read_dsr",
     "read_ri",
     "read_cd",
+    "set_log_level",
+    "get_log_level",
 ];
 
 fn main() {

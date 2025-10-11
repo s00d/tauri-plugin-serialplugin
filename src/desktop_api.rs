@@ -3,6 +3,7 @@ use crate::state::{
     ClearBuffer, DataBits, FlowControl, Parity, ReadData, SerialportInfo, StopBits, BLUETOOTH, PCI,
     UNKNOWN, USB,
 };
+use crate::{log_debug, log_error, log_info};
 use serde::{Deserialize, Serialize};
 use serialport::{
     DataBits as SerialDataBits, FlowControl as SerialFlowControl, Parity as SerialParity,
@@ -246,11 +247,11 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Close the specified serial port
     pub fn close(&self, path: String) -> Result<(), Error> {
-        println!("close {}", path);
+        log_debug!("close {}", path);
         match self.serialports.lock() {
             Ok(mut serialports) => {
                 if let Some(port_info) = serialports.remove(&path) {
-                    println!("stop {}", path);
+                    log_debug!("stop {}", path);
                     // Signal the thread to stop
                     if let Some(sender) = &port_info.sender {
                         sender.send(1).map_err(|e| {
@@ -261,7 +262,7 @@ impl<R: Runtime> SerialPort<R> {
                         })?;
                     }
 
-                    println!("thread to finish {}", path);
+                    log_debug!("thread to finish {}", path);
                     // Wait for the thread to finish
                     if let Some(handle) = port_info.thread_handle {
                         handle.join().map_err(|e| {
@@ -269,7 +270,7 @@ impl<R: Runtime> SerialPort<R> {
                         })?;
                     }
 
-                    println!("end {}", path);
+                    log_debug!("end {}", path);
 
                     Ok(())
                 } else {
@@ -352,7 +353,7 @@ impl<R: Runtime> SerialPort<R> {
 
         // Close existing port before opening a new one
         if let Some(mut existing) = serialports.remove(&path) {
-            println!("Force closing existing port {}", path);
+            log_info!("Force closing existing port {}", path);
 
             // Stop the reading thread
             if let Some(sender) = existing.sender.take() {
@@ -401,14 +402,14 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<(), Error> {
-        println!("Starting listening on port: {}", path);
+        log_debug!("Starting listening on port: {}", path);
 
         self.get_serialport(path.clone(), |port_info| {
             if port_info.sender.is_some() {
-                println!("Existing listener found, stopping it first");
+                log_debug!("Existing listener found, stopping it first");
                 if let Some(sender) = &port_info.sender {
                     sender.send(1).map_err(|e| {
-                        eprintln!("Failed to stop existing listener: {}", e);
+                        log_error!("Failed to stop existing listener: {}", e);
                         Error::String(format!("Failed to stop existing listener: {}", e))
                     })?;
                 }
@@ -416,9 +417,9 @@ impl<R: Runtime> SerialPort<R> {
 
                 // Wait for thread to finish
                 if let Some(handle) = port_info.thread_handle.take() {
-                    println!("Waiting for existing thread to finish");
+                    log_debug!("Waiting for existing thread to finish");
                     if let Err(e) = handle.join() {
-                        eprintln!("Error joining thread: {:?}", e);
+                        log_error!("Error joining thread: {:?}", e);
                     }
                 }
             }
@@ -428,7 +429,7 @@ impl<R: Runtime> SerialPort<R> {
             let read_event = format!("plugin-serialplugin-read-{}", &event_path);
             let disconnected_event = format!("plugin-serialplugin-disconnected-{}", &event_path);
 
-            println!("Setting up port monitoring for: {}", read_event);
+            log_debug!("Setting up port monitoring for: {}", read_event);
 
             let mut serial = port_info
                 .serialport
@@ -457,7 +458,7 @@ impl<R: Runtime> SerialPort<R> {
                                 &disconnected_event,
                                 format!("Serial port {} disconnected!", &path_clone),
                             ) {
-                                eprintln!("Failed to send disconnection event: {}", e);
+                                log_error!("Failed to send disconnection event: {}", e);
                             }
                             break;
                         }
@@ -471,7 +472,7 @@ impl<R: Runtime> SerialPort<R> {
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}
                         Err(e) => {
-                            eprintln!("Failed to read data: {}", e);
+                            log_error!("Failed to read data: {}", e);
 
                             // Emit disconnected event if the port is gone
                             if let Err(err) = app_clone.emit(
@@ -481,7 +482,7 @@ impl<R: Runtime> SerialPort<R> {
                                     &path_clone, e
                                 ),
                             ) {
-                                eprintln!("Failed to send disconnection event: {}", err);
+                                log_error!("Failed to send disconnection event: {}", err);
                             }
 
                             break;
@@ -506,7 +507,7 @@ impl<R: Runtime> SerialPort<R> {
                                 data: combined_buffer.as_mut_slice(),
                             },
                         ) {
-                            eprintln!("Failed to send data: {}", e);
+                            log_error!("Failed to send data: {}", e);
                         }
 
                         combined_buffer.clear();
@@ -521,7 +522,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn stop_listening(&self, path: String) -> Result<(), Error> {
-        println!("Stopping listening on port: {}", path);
+        log_debug!("Stopping listening on port: {}", path);
 
         self.get_serialport(path.clone(), |port_info| {
             if let Some(sender) = &port_info.sender {
