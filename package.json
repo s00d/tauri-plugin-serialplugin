@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin-api",
-  "version": "2.19.0",
+  "version": "2.20.0",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",

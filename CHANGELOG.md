@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.20.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.19.0...v2.20.0) (2025-10-11)
+
+
+### Features
+
+* **logger:** add centralized logging functionality for the serial plugin ([887dcf9](https://github.com/s00d/tauri-plugin-serialplugin/commit/887dcf9f30e6be059952ceb27c8c508be153b323))
+* **logging:** add centralized logging module with adjustable log levels ([6cb8a51](https://github.com/s00d/tauri-plugin-serialplugin/commit/6cb8a51425680a52ec65832ea4a94c61f187e312))
+* **logging:** add centralized logging module with adjustable log levels ([7a7eacd](https://github.com/s00d/tauri-plugin-serialplugin/commit/7a7eacd398e72f4237c8a4ed97aaec7aa2cbac7e))
+
+
+### Bug Fixes
+
+* **readme:** correct indentation and enhance serial port listening example ([6e997b5](https://github.com/s00d/tauri-plugin-serialplugin/commit/6e997b58c8c8641c0626c7bfb5d9243f191d26e6))
+* **readme:** correct indentation and enhance serial port listening example ([df46965](https://github.com/s00d/tauri-plugin-serialplugin/commit/df46965af6fec40ef8452d423fbdea3dbcd3a600))
+
 ## [2.19.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.17.1...v2.19.0) (2025-08-26)
 
 
