@@ -2,7 +2,7 @@ import {invoke} from "@tauri-apps/api/core";
 import {listen, UnlistenFn} from '@tauri-apps/api/event';
 import {AutoReconnectManager} from './auto-reconnect-manager';
 import {ListenerManager} from './listener-manager';
-import {setLogLevel as setInternalLogLevel, logError, logWarn, logInfo, logDebug} from './logger';
+import {setLogLevel as setInternalLogLevel, logError, logWarn, logInfo, logDebug, type LogLevel} from './logger';
 
 // All type definitions for the serial plugin
 
@@ -79,14 +79,6 @@ export enum ClearBuffer {
   Input = "Input",
   Output = "Output",
   All = "All"
-}
-
-export enum LogLevel {
-  None = "None",
-  Error = "Error",
-  Warn = "Warn",
-  Info = "Info",
-  Debug = "Debug"
 }
 
 // Additional type utilities
@@ -1016,3 +1008,5 @@ class SerialPort {
 export {
   SerialPort
 };
+
+export type { LogLevel }
