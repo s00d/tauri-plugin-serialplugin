@@ -24,7 +24,7 @@ android = { level = "full", notes = "" }
 tauri-plugin = { version = "2.3.0", features = [ "build" ] }
 
 [dependencies]
-serialport = "4.7.2"
+serialport = "4.8.1"
 tauri = { version = "2.6.2", features = ["test"] }
 serde = { version = "1.0.219", features = ["derive"] }
 thiserror = "2.0.12"
