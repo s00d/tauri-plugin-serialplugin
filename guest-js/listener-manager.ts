@@ -1,4 +1,5 @@
 import { UnlistenFn } from '@tauri-apps/api/event';
+import { logWarn } from './logger';
 
 export class ListenerManager {
   private listeners: Map<string, { unlisten: UnlistenFn; type: 'data' | 'disconnect' }> = new Map();
@@ -14,7 +15,7 @@ export class ListenerManager {
           unlisten();
         }
       } catch (error) {
-        console.warn(`Error in unlisten function for ${id}:`, error);
+        logWarn(`Error in unlisten function for ${id}:`, error);
       }
     };
   }
@@ -28,7 +29,7 @@ export class ListenerManager {
           listener.unlisten();
         }
       } catch (error) {
-        console.warn(`Error in unlisten function for ${id}:`, error);
+        logWarn(`Error in unlisten function for ${id}:`, error);
       }
     };
   }

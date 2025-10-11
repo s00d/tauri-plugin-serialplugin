@@ -2,6 +2,7 @@ import {invoke} from "@tauri-apps/api/core";
 import {listen, UnlistenFn} from '@tauri-apps/api/event';
 import {AutoReconnectManager} from './auto-reconnect-manager';
 import {ListenerManager} from './listener-manager';
+import {setLogLevel as setInternalLogLevel, logError, logWarn, logInfo, logDebug} from './logger';
 
 // All type definitions for the serial plugin
 
@@ -78,6 +79,14 @@ export enum ClearBuffer {
   Input = "Input",
   Output = "Output",
   All = "All"
+}
+
+export enum LogLevel {
+  None = "None",
+  Error = "Error",
+  Warn = "Warn",
+  Info = "Info",
+  Debug = "Debug"
 }
 
 // Additional type utilities
@@ -180,6 +189,37 @@ class SerialPort {
   }
 
   /**
+   * @description Sets the global log level for the plugin
+   * @param {LogLevel} level The log level to set (None, Error, Warn, Info, Debug)
+   * @returns {Promise<void>} A promise that resolves when the log level is set
+   * @example
+   * // Disable all logs in production
+   * await SerialPort.setLogLevel(LogLevel.None);
+   * 
+   * // Show only errors
+   * await SerialPort.setLogLevel(LogLevel.Error);
+   * 
+   * // Enable all logs for debugging
+   * await SerialPort.setLogLevel(LogLevel.Debug);
+   */
+  static async setLogLevel(level: LogLevel): Promise<void> {
+    // Sync log level with internal logger
+    setInternalLogLevel(level as any);
+    return await invoke<void>('plugin:serialplugin|set_log_level', { level });
+  }
+
+  /**
+   * @description Gets the current global log level
+   * @returns {Promise<LogLevel>} A promise that resolves to the current log level
+   * @example
+   * const currentLevel = await SerialPort.getLogLevel();
+   * console.log("Current log level:", currentLevel);
+   */
+  static async getLogLevel(): Promise<LogLevel> {
+    return await invoke<LogLevel>('plugin:serialplugin|get_log_level');
+  }
+
+  /**
    * @description Cancels listening for serial port data (does not affect disconnect listeners)
    * @returns {Promise<void>} A promise that resolves when listening is cancelled
    */
@@ -193,7 +233,7 @@ class SerialPort {
             listener.unlisten();
           }
         } catch (error) {
-          console.warn(`Error unlistening data listener ${id}:`, error);
+          logWarn(`Error unlistening data listener ${id}:`, error);
         }
         // Remove from map regardless of success/failure
         this.listeners.delete(id);
@@ -217,7 +257,7 @@ class SerialPort {
             listener.unlisten();
           }
         } catch (error) {
-          console.warn(`Error unlistening listener ${id}:`, error);
+          logWarn(`Error unlistening listener ${id}:`, error);
         }
         // Remove from map regardless of success/failure
         this.listeners.delete(id);
@@ -299,7 +339,7 @@ class SerialPort {
       try {
         await this.cancelRead();
       } catch (cancelReadError) {
-        console.warn('Error during cancelRead:', cancelReadError);
+        logWarn('Error during cancelRead:', cancelReadError);
       }
 
       // Closing the port
@@ -309,19 +349,19 @@ class SerialPort {
           path: this.options.path,
         });
       } catch (closeError) {
-        console.warn('Error during port close:', closeError);
+        logWarn('Error during port close:', closeError);
       }
 
       // Cancel all listeners
       try {
         await this.cancelAllListeners();
       } catch (cancelListenError) {
-        console.warn('Error during cancelAllListeners:', cancelListenError);
+        logWarn('Error during cancelAllListeners:', cancelListenError);
         // Try to clear listeners manually as fallback
         try {
           this.listeners.clear();
         } catch (clearError) {
-          console.warn('Error during manual listener clear:', clearError);
+          logWarn('Error during manual listener clear:', clearError);
         }
       }
 
@@ -341,7 +381,7 @@ class SerialPort {
   async disconnected(fn: (...args: any[]) => void): Promise<void> {
     let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
     let checkEvent = `plugin-serialplugin-disconnected-${sub_path}`;
-    console.log('listen event: ' + checkEvent)
+    logDebug('listen event: ' + checkEvent)
 
     const unListenResult = await listen<ReadDataResult>(
         checkEvent,
@@ -349,7 +389,7 @@ class SerialPort {
           try {
             fn();
           } catch (error) {
-            console.error(error);
+            logError(error);
           }
         },
     );
@@ -357,7 +397,7 @@ class SerialPort {
     if (typeof unListenResult === 'function') {
       this.listeners.add('disconnect', unListenResult);
     } else {
-      console.warn('disconnected() did not return a valid unlisten function');
+      logWarn('disconnected() did not return a valid unlisten function');
     }
   }
 
@@ -441,16 +481,16 @@ class SerialPort {
   async manualReconnect(): Promise<boolean> {
     try {
       if (this.isOpen) {
-        console.log('Port is already open, no need to reconnect');
+        logInfo('Port is already open, no need to reconnect');
         return true;
       }
 
-      console.log('Manual reconnection attempt...');
+      logInfo('Manual reconnection attempt...');
       await this.open();
-      console.log('Manual reconnection successful');
+      logInfo('Manual reconnection successful');
       return true;
     } catch (error) {
-      console.error('Manual reconnection failed:', error);
+      logError('Manual reconnection failed:', error);
       return false;
     }
   }
@@ -469,7 +509,7 @@ class SerialPort {
 
       let sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-")
       let readEvent = `plugin-serialplugin-read-${sub_path}`;
-      console.log('listen event: ' + readEvent)
+      logDebug('listen event: ' + readEvent)
 
       try {
         const unListenResult = await listen<ReadDataResult>(
@@ -483,13 +523,13 @@ class SerialPort {
                     const textData = decoder.decode(uint8Array);
                     fn(textData);
                   } catch (error) {
-                    console.error('Error converting to text with configured encoding:', error);
+                    logError('Error converting to text with configured encoding:', error);
                     try {
                       const fallbackDecoder = new TextDecoder('utf-8');
                       const textData = fallbackDecoder.decode(uint8Array);
                       fn(textData);
                     } catch (fallbackError) {
-                      console.error('Fallback decoding also failed:', fallbackError);
+                      logError('Fallback decoding also failed:', fallbackError);
                       fn(String.fromCharCode(...uint8Array));
                     }
                   }
@@ -497,7 +537,7 @@ class SerialPort {
                   fn(new Uint8Array(payload.data));
                 }
               } catch (error) {
-                console.error(error);
+                logError(error);
               }
             },
         );
@@ -505,11 +545,11 @@ class SerialPort {
         if (typeof unListenResult === 'function') {
           return this.listeners.add('data', unListenResult);
         } else {
-          console.warn('listen() did not return a valid unlisten function');
+          logWarn('listen() did not return a valid unlisten function');
           return Promise.reject('Failed to get unlisten function');
         }
       } catch (listenError) {
-        console.error('Error setting up listener:', listenError);
+        logError('Error setting up listener:', listenError);
         throw listenError;
       }
     } catch (error) {
@@ -547,7 +587,7 @@ class SerialPort {
 
       this.disconnected(() => {
         this.isOpen = false;
-      }).catch(err => console.error(err))
+      }).catch(err => logError(err))
       return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);

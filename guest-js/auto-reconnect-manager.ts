@@ -1,3 +1,5 @@
+import { logError, logWarn, logInfo } from './logger';
+
 /**
  * Auto-reconnect manager for serial ports
  * Handles automatic reconnection logic with configurable settings
@@ -27,7 +29,7 @@ export class AutoReconnectManager {
     reconnectFunction: () => Promise<boolean>;
   }): Promise<void> {
     if (this.enabled) {
-      console.warn('Auto-reconnect is already enabled');
+      logWarn('Auto-reconnect is already enabled');
       return;
     }
 
@@ -38,7 +40,7 @@ export class AutoReconnectManager {
     this.callback = options.onReconnect;
     this.reconnectFunction = options.reconnectFunction;
 
-    console.log(`Auto-reconnect enabled: interval=${this.interval}ms, maxAttempts=${this.maxAttempts === null ? 'infinite' : this.maxAttempts}`);
+    logInfo(`Auto-reconnect enabled: interval=${this.interval}ms, maxAttempts=${this.maxAttempts === null ? 'infinite' : this.maxAttempts}`);
   }
 
   /**
@@ -47,7 +49,7 @@ export class AutoReconnectManager {
    */
   async disable(): Promise<void> {
     if (!this.enabled) {
-      console.warn('Auto-reconnect is not enabled');
+      logWarn('Auto-reconnect is not enabled');
       return;
     }
 
@@ -62,7 +64,7 @@ export class AutoReconnectManager {
       this.timer = null;
     }
 
-    console.log('Auto-reconnect disabled');
+    logInfo('Auto-reconnect disabled');
   }
 
   /**
@@ -128,7 +130,7 @@ export class AutoReconnectManager {
 
     // Проверяем лимит ДО увеличения счётчика
     if (this.maxAttempts !== null && this.currentAttempts >= this.maxAttempts) {
-      console.error(`Auto-reconnect failed after ${this.maxAttempts} attempts`);
+      logError(`Auto-reconnect failed after ${this.maxAttempts} attempts`);
       if (this.callback) {
         this.callback(false, this.currentAttempts);
       }
@@ -136,13 +138,13 @@ export class AutoReconnectManager {
     }
     this.currentAttempts++;
 
-    console.log(`Auto-reconnect attempt ${this.currentAttempts}${this.maxAttempts !== null ? `/${this.maxAttempts}` : ''}`);
+    logInfo(`Auto-reconnect attempt ${this.currentAttempts}${this.maxAttempts !== null ? `/${this.maxAttempts}` : ''}`);
 
     try {
       const success = await this.reconnectFunction();
       
       if (success) {
-        console.log('Auto-reconnect successful');
+        logInfo('Auto-reconnect successful');
         this.currentAttempts = 0; // Reset counter on success
         
         if (this.callback) {
@@ -152,7 +154,7 @@ export class AutoReconnectManager {
         throw new Error('Reconnect function returned false');
       }
     } catch (error) {
-      console.error(`Auto-reconnect attempt ${this.currentAttempts} failed:`, error);
+      logError(`Auto-reconnect attempt ${this.currentAttempts} failed:`, error);
       
       if (this.callback) {
         this.callback(false, this.currentAttempts);
