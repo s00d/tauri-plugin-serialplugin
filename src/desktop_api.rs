@@ -465,6 +465,7 @@ impl<R: Runtime> SerialPort<R> {
             let thread_handle = thread::spawn(move || {
                 let mut combined_buffer: Vec<u8> = Vec::with_capacity(size.unwrap_or(1024));
                 let mut start_time = Instant::now();
+                let max_buffer_size = size.unwrap_or(1024) * 10; // Limit buffer growth to prevent memory leaks
                 loop {
                     match rx.try_recv() {
                         Ok(_) => break,
@@ -483,6 +484,11 @@ impl<R: Runtime> SerialPort<R> {
                     let mut buffer = vec![0; size.unwrap_or(1024)];
                     match serial.read(&mut buffer) {
                         Ok(n) => {
+                            // Prevent buffer from growing too large to avoid memory leaks
+                            if combined_buffer.len() + n > max_buffer_size {
+                                log_warn!("Buffer size limit reached, clearing buffer to prevent memory leak");
+                                combined_buffer.clear();
+                            }
                             combined_buffer.extend_from_slice(&buffer[..n]);
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {}

@@ -100,6 +100,5 @@ impl From<PluginInvokeError> for Error {
     }
 }
 
-// Implementing Send and Sync for Error
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}
+// Error is automatically Send and Sync because all its fields are Send and Sync
+// String is Send and Sync, so Error is safe to use across threads
