@@ -1,7 +1,8 @@
+@file:Suppress("unused")
+
 package app.tauri.serialplugin
 
 import android.app.Activity
-import android.content.Context
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
