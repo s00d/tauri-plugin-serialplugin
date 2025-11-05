@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [2.21.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.0...v2.21.1) (2025-11-05)
+
 ## [2.21.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.20.0...v2.21.0) (2025-10-11)
 
 
