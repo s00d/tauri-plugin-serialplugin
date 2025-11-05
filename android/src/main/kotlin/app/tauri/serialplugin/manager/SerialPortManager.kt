@@ -12,21 +12,22 @@ import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import com.hoho.android.usbserial.util.SerialInputOutputManager
 import com.hoho.android.usbserial.driver.ProbeTable
-import com.hoho.android.usbserial.driver.FtdiSerialDriver
-import com.hoho.android.usbserial.driver.Cp21xxSerialDriver
-import com.hoho.android.usbserial.driver.Ch34xSerialDriver
-import com.hoho.android.usbserial.driver.ProlificSerialDriver
 import app.tauri.serialplugin.models.*
 import java.util.concurrent.Executors
 import java.io.IOException
 import android.util.Log
-import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
+data class ManagedPort (
+    val port: UsbSerialPort,
+    val config: SerialPortConfig
+)
+
 class SerialPortManager(private val context: Context) {
     private val usbManager: UsbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
-    private val portMap = mutableMapOf<String, UsbSerialPort>()
+    private val portMap = mutableMapOf<String, ManagedPort>()
     private val ioManagerMap = mutableMapOf<String, SerialInputOutputManager>()
     private val executor = Executors.newCachedThreadPool()
     private val permissionFutures = mutableMapOf<String, CompletableFuture<Boolean>>()
@@ -75,14 +76,19 @@ class SerialPortManager(private val context: Context) {
         if (Build.VERSION.SDK_INT >= 33) {
             context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
-            context.registerReceiver(usbReceiver, filter)
+            ContextCompat.registerReceiver(
+                context,
+                usbReceiver,
+                filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
         }
     }
 
     fun unregisterReceiver() {
         try {
             context.unregisterReceiver(usbReceiver)
-        } catch (e: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             Log.w("SerialPortManager", "Receiver not registered")
         }
     }
@@ -175,12 +181,9 @@ class SerialPortManager(private val context: Context) {
                 val permissionFuture = CompletableFuture<Boolean>()
                 permissionFutures[device.deviceName] = permissionFuture
                 
-                val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val flags =
                     PendingIntent.FLAG_IMMUTABLE
-                } else {
-                    0
-                }
-                
+
                 val permissionIntent = PendingIntent.getBroadcast(
                     context,
                     0,
@@ -215,7 +218,7 @@ class SerialPortManager(private val context: Context) {
                     config.parity.value
                 )
                 Log.d("SerialPortManager", "Port parameters set successfully")
-            } catch (e: UnsupportedOperationException) {
+            } catch (_: UnsupportedOperationException) {
                 Log.w("SerialPortManager", "setParameters not supported for this device, using default settings")
                 // Some devices don't support parameter changes, continue with defaults
             } catch (e: Exception) {
@@ -228,10 +231,10 @@ class SerialPortManager(private val context: Context) {
                 FlowControl.HARDWARE -> {
                     Log.d("SerialPortManager", "Enabling hardware flow control")
                     try {
-                        port.setDTR(true)
-                        port.setRTS(true)
+                        port.dtr = true
+                        port.rts = true
                         Log.d("SerialPortManager", "Hardware flow control enabled successfully")
-                    } catch (e: UnsupportedOperationException) {
+                    } catch (_: UnsupportedOperationException) {
                         Log.w("SerialPortManager", "Hardware flow control not supported by this device")
                     } catch (e: Exception) {
                         Log.w("SerialPortManager", "Failed to enable hardware flow control: ${e.message}")
@@ -245,7 +248,7 @@ class SerialPortManager(private val context: Context) {
                 }
             }
             
-            portMap[config.path] = port
+            portMap[config.path] = ManagedPort(port, config)
             Log.d("SerialPortManager", "Port opened successfully: ${config.path}")
             return true
             
@@ -294,15 +297,19 @@ class SerialPortManager(private val context: Context) {
         ioManagerMap[path] = ioManager
         
         try {
-            executor.submit(Runnable { 
+            executor.submit {
                 try {
                     ioManager.start()
                     Log.d("SerialPortManager", "IO Manager started successfully for $path")
                 } catch (e: Exception) {
-                    Log.e("SerialPortManager", "Failed to start IO Manager for $path: ${e.message}", e)
+                    Log.e(
+                        "SerialPortManager",
+                        "Failed to start IO Manager for $path: ${e.message}",
+                        e
+                    )
                     closePort(path)
                 }
-            })
+            }
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to submit IO Manager task for $path: ${e.message}", e)
             closePort(path)
@@ -315,14 +322,9 @@ class SerialPortManager(private val context: Context) {
             
             Log.d("SerialPortManager", "Writing to port $path: ${data.size} bytes")
             
-            val bytesWritten = port.write(data, 1000) // 1 second timeout
-            
-            if (bytesWritten > 0) {
-                Log.d("SerialPortManager", "Write successful: $bytesWritten bytes written")
-            } else {
-                Log.w("SerialPortManager", "Write timeout: no bytes written")
-            }
-            
+            port.port.write(data, 1000) // 1 second timeout
+            val bytesWritten = data.size
+
             return bytesWritten
         } catch (e: IOException) {
             Log.e("SerialPortManager", "Write failed: ${e.message}")
@@ -337,7 +339,7 @@ class SerialPortManager(private val context: Context) {
         try {
             ioManagerMap[path]?.stop()
             ioManagerMap.remove(path)
-            portMap[path]?.close()
+            portMap[path]?.port?.close()
             portMap.remove(path)
             Log.d("SerialPortManager", "Port closed: $path")
         } catch (e: Exception) {
@@ -365,7 +367,7 @@ class SerialPortManager(private val context: Context) {
     fun setPortParameters(path: String, config: SerialPortConfig): Boolean {
         return try {
             portMap[path]?.let { port ->
-                port.setParameters(
+                port.port.setParameters(
                     config.baudRate,
                     config.dataBits.value,
                     config.stopBits.value,
@@ -384,7 +386,7 @@ class SerialPortManager(private val context: Context) {
            val port = portMap[path] ?: throw IOException("Port not found")
 
            val targetSize = size ?: 1024
-           val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
+           val maxPacketSize = port.port.readEndpoint.maxPacketSize
            val bufferSize = minOf(targetSize, maxPacketSize)
 
            val buffer = ByteArray(bufferSize)
@@ -392,7 +394,7 @@ class SerialPortManager(private val context: Context) {
            
            Log.d("SerialPortManager", "Reading from port $path: bufferSize=$bufferSize, timeout=$adjustedTimeout")
            
-           val bytesRead = port.read(buffer, adjustedTimeout)
+           val bytesRead = port.port.read(buffer, adjustedTimeout)
 
            if (bytesRead > 0) {
                Log.d("SerialPortManager", "Read successful: $bytesRead bytes")
@@ -416,7 +418,7 @@ class SerialPortManager(private val context: Context) {
        val startTime = System.currentTimeMillis()
 
         val targetSize = size ?: 1024
-       val maxPacketSize = port.getReadEndpoint().getMaxPacketSize()
+       val maxPacketSize = port.port.readEndpoint.maxPacketSize
 
        while (buffer.size < targetSize && (System.currentTimeMillis() - startTime) < timeout) {
            val remainingTime = timeout - (System.currentTimeMillis() - startTime).toInt()
@@ -424,7 +426,7 @@ class SerialPortManager(private val context: Context) {
 
            val chunkSize = minOf(targetSize - buffer.size, maxPacketSize)
            val tempBuffer = ByteArray(chunkSize)
-           val bytesRead = port.read(tempBuffer, remainingTime.coerceAtLeast(200))
+           val bytesRead = port.port.read(tempBuffer, remainingTime.coerceAtLeast(200))
 
            if (bytesRead > 0) {
                buffer.addAll(tempBuffer.copyOf(bytesRead).toList())
@@ -443,7 +445,8 @@ class SerialPortManager(private val context: Context) {
     fun setBaudRate(path: String, baudRate: Int): Boolean {
         return try {
             val port = portMap[path] ?: return false
-            port.setParameters(baudRate, port.dataBits, port.stopBits, port.parity)
+            port.config.baudRate = baudRate
+            port.port.setParameters(port.config.baudRate, port.config.dataBits.value, port.config.stopBits.value, port.config.parity.value)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set baud rate: ${e.message}", e)
@@ -454,7 +457,8 @@ class SerialPortManager(private val context: Context) {
     fun setDataBits(path: String, dataBits: DataBits): Boolean {
         return try {
             val port = portMap[path] ?: return false
-            port.setParameters(port.baudRate, dataBits.value, port.stopBits, port.parity)
+            port.config.dataBits = dataBits
+            port.port.setParameters(port.config.baudRate, port.config.dataBits.value, port.config.stopBits.value, port.config.parity.value)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set data bits: ${e.message}", e)
@@ -466,8 +470,8 @@ class SerialPortManager(private val context: Context) {
         return try {
             when (flowControl) {
                 FlowControl.HARDWARE -> {
-                    portMap[path]?.setDTR(true)
-                    portMap[path]?.setRTS(true)
+                    portMap[path]?.port?.dtr = true
+                    portMap[path]?.port?.rts = true
                 }
                 FlowControl.SOFTWARE -> {
                     // Software flow control implementation
@@ -484,7 +488,8 @@ class SerialPortManager(private val context: Context) {
     fun setParity(path: String, parity: Parity): Boolean {
         return try {
             val port = portMap[path] ?: return false
-            port.setParameters(port.baudRate, port.dataBits, port.stopBits, parity.value)
+            port.config.parity = parity
+            port.port.setParameters(port.config.baudRate, port.config.dataBits.value, port.config.stopBits.value, port.config.parity.value)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set parity: ${e.message}", e)
@@ -495,7 +500,8 @@ class SerialPortManager(private val context: Context) {
     fun setStopBits(path: String, stopBits: StopBits): Boolean {
         return try {
             val port = portMap[path] ?: return false
-            port.setParameters(port.baudRate, port.dataBits, stopBits.value, port.parity)
+            port.config.stopBits = stopBits
+            port.port.setParameters(port.config.baudRate, port.config.dataBits.value, port.config.stopBits.value, port.config.parity.value)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set stop bits: ${e.message}", e)
@@ -517,7 +523,7 @@ class SerialPortManager(private val context: Context) {
 
     fun writeRequestToSend(path: String, level: Boolean): Boolean {
         return try {
-            portMap[path]?.setRTS(level)
+            portMap[path]?.port?.rts = level
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set RTS: ${e.message}", e)
@@ -527,7 +533,7 @@ class SerialPortManager(private val context: Context) {
 
     fun writeDataTerminalReady(path: String, level: Boolean): Boolean {
         return try {
-            portMap[path]?.setDTR(level)
+            portMap[path]?.port?.dtr = level
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set DTR: ${e.message}", e)
@@ -537,7 +543,7 @@ class SerialPortManager(private val context: Context) {
 
     fun readClearToSend(path: String): Boolean {
         return try {
-            portMap[path]?.getCTS() ?: false
+            portMap[path]?.port?.cts ?: false
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to read CTS: ${e.message}", e)
             false
@@ -546,7 +552,7 @@ class SerialPortManager(private val context: Context) {
 
     fun readDataSetReady(path: String): Boolean {
         return try {
-            portMap[path]?.getDSR() ?: false
+            portMap[path]?.port?.dsr ?: false
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to read DSR: ${e.message}", e)
             false
@@ -555,7 +561,7 @@ class SerialPortManager(private val context: Context) {
 
     fun readRingIndicator(path: String): Boolean {
         return try {
-            portMap[path]?.getRI() ?: false
+            portMap[path]?.port?.ri ?: false
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to read RI: ${e.message}", e)
             false
@@ -564,7 +570,7 @@ class SerialPortManager(private val context: Context) {
 
     fun readCarrierDetect(path: String): Boolean {
         return try {
-            portMap[path]?.getCD() ?: false
+            portMap[path]?.port?.cd ?: false
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to read CD: ${e.message}", e)
             false
@@ -607,7 +613,7 @@ class SerialPortManager(private val context: Context) {
 
     fun setBreak(path: String): Boolean {
         return try {
-            portMap[path]?.setBreak(true)
+            portMap[path]?.port?.setBreak(true)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set break: ${e.message}", e)
@@ -617,7 +623,7 @@ class SerialPortManager(private val context: Context) {
 
     fun clearBreak(path: String): Boolean {
         return try {
-            portMap[path]?.setBreak(false)
+            portMap[path]?.port?.setBreak(false)
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to clear break: ${e.message}", e)
@@ -627,7 +633,7 @@ class SerialPortManager(private val context: Context) {
 
     fun startListening(path: String, onDataReceived: (ByteArray) -> Unit) {
         val port = portMap[path] ?: throw IOException("Port not found")
-        startIoManager(path, port, onDataReceived)
+        startIoManager(path, port.port, onDataReceived)
     }
 
     fun stopListening(path: String) {

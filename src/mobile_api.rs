@@ -33,6 +33,24 @@ struct AvailablePortsResponse {
     ports: HashMap<String, PortInfo>,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct WriteResponse {
+    bytes_written: usize,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ReadBinaryResponse {
+    data: Vec<u8>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct ReadResponse {
+    data: String,
+}
+
 impl<R: Runtime> SerialPort<R> {
     /// Lists all available serial ports
     pub fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
@@ -166,8 +184,8 @@ impl<R: Runtime> SerialPort<R> {
             "value": data,
         });
 
-        match self.0.run_mobile_plugin("write", params) {
-            Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as usize),
+        match self.0.run_mobile_plugin::<WriteResponse>("write", params) {
+            Ok(WriteResponse { bytes_written }) => Ok(bytes_written),
             Ok(_) => Err(Error::new("Invalid response format")),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
@@ -180,8 +198,11 @@ impl<R: Runtime> SerialPort<R> {
             "value": data,
         });
 
-        match self.0.run_mobile_plugin("writeBinary", params) {
-            Ok(Value::Number(n)) => Ok(n.as_u64().unwrap_or(0) as usize),
+        match self
+            .0
+            .run_mobile_plugin::<WriteResponse>("writeBinary", params)
+        {
+            Ok(WriteResponse { bytes_written }) => Ok(bytes_written),
             Ok(_) => Err(Error::new("Invalid response format")),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
@@ -201,7 +222,7 @@ impl<R: Runtime> SerialPort<R> {
         });
 
         match self.0.run_mobile_plugin("read", params) {
-            Ok(Value::String(data)) => Ok(data),
+            Ok(ReadResponse { data }) => Ok(data),
             Ok(_) => Err(Error::new("Invalid response format")),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
@@ -215,23 +236,13 @@ impl<R: Runtime> SerialPort<R> {
         size: Option<usize>,
     ) -> Result<Vec<u8>, Error> {
         let params = serde_json::json!({
-        "path": path,
-        "timeout": timeout.unwrap_or(1000),
-        "size": size.unwrap_or(1024),
-    });
+            "path": path,
+            "timeout": timeout.unwrap_or(1000),
+            "size": size.unwrap_or(1024),
+        });
 
-        match self.0.run_mobile_plugin("read_binary", params) {
-            Ok(Value::Array(bytes)) => {
-                let mut result = Vec::with_capacity(bytes.len());
-                for byte in bytes {
-                    if let Some(n) = byte.as_u64() {
-                        result.push(n as u8);
-                    } else {
-                        return Err(Error::new("Invalid byte format"));
-                    }
-                }
-                Ok(result)
-            }
+        match self.0.run_mobile_plugin("readBinary", params) {
+            Ok(ReadBinaryResponse { data }) => Ok(data),
             Ok(_) => Err(Error::new("Invalid response format")),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
