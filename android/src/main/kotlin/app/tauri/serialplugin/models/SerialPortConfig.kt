@@ -10,7 +10,7 @@ enum class DataBits(val value: Int) {
 
     companion object {
         fun fromValue(value: Int): DataBits {
-            return values().find { it.value == value } ?: EIGHT
+            return DataBits.entries.find { it.value == value } ?: EIGHT
         }
     }
 }
@@ -38,7 +38,7 @@ enum class Parity(val value: Int) {
 
     companion object {
         fun fromValue(value: Int): Parity {
-            return values().find { it.value == value } ?: NONE
+            return Parity.entries.find { it.value == value } ?: NONE
         }
     }
 }
@@ -49,7 +49,7 @@ enum class StopBits(val value: Int) {
 
     companion object {
         fun fromValue(value: Int): StopBits {
-            return values().find { it.value == value } ?: ONE
+            return StopBits.entries.find { it.value == value } ?: ONE
         }
     }
 }
@@ -72,11 +72,11 @@ enum class ClearBuffer {
 }
 
 data class SerialPortConfig(
-    val path: String,
-    val baudRate: Int = 9600,
-    val dataBits: DataBits = DataBits.EIGHT,
-    val flowControl: FlowControl = FlowControl.NONE,
-    val parity: Parity = Parity.NONE,
-    val stopBits: StopBits = StopBits.ONE,
-    val timeout: Int = 1000
+    var path: String,
+    var baudRate: Int = 9600,
+    var dataBits: DataBits = DataBits.EIGHT,
+    var flowControl: FlowControl = FlowControl.NONE,
+    var parity: Parity = Parity.NONE,
+    var stopBits: StopBits = StopBits.ONE,
+    var timeout: Int = 1000
 )

@@ -13,7 +13,45 @@ import app.tauri.serialplugin.models.*
 import android.webkit.WebView
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
+import app.tauri.plugin.JSArray
+// --- Reused from previous answer (Converts a Map to a JSObject) ---
+fun Map<String, Any?>.toJSObject(): JSObject {
+    val jsObject = JSObject()
+    for ((key, value) in this) {
+        val convertedValue: Any? = when (value) {
+            is Map<*, *> -> @Suppress("UNCHECKED_CAST") (value as Map<String, Any?>).toJSObject()
+            is List<*> -> @Suppress("UNCHECKED_CAST") value.toJSArray() // Call the new list utility
+            else -> value
+        }
+        jsObject.put(key, convertedValue)
+    }
+    return jsObject
+}
 
+// --- NEW Utility: Converts a List to a JSArray ---
+fun List<Any?>.toJSArray(): JSArray {
+    val jsArray = JSArray()
+
+    for (item in this) {
+        val convertedItem: Any? = when (item) {
+            is Map<*, *> -> {
+                // If the item is a Map, convert it to a JSObject
+                @Suppress("UNCHECKED_CAST")
+                (item as Map<String, Any?>).toJSObject()
+            }
+            is List<*> -> {
+                // If the item is a nested List, convert it to a JSArray (for list of lists)
+                @Suppress("UNCHECKED_CAST")
+                item.toJSArray()
+            }
+            else -> item // Primitives (String, Int, Boolean, etc.) can be put directly
+        }
+        // Add the converted item to the JSArray
+        jsArray.put(convertedItem)
+    }
+
+    return jsArray
+}
 @InvokeArg
 class PortConfigArgs {
     lateinit var path: String
@@ -30,6 +68,12 @@ class PortConfigArgs {
 class WriteArgs {
     lateinit var path: String
     lateinit var value: String
+}
+
+@InvokeArg
+class WriteBinaryArgs {
+    lateinit var path: String
+    lateinit var value: List<Int>
 }
 
 @InvokeArg
@@ -51,14 +95,14 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         Log.d("SerialPlugin", "SerialPlugin loaded successfully")
     }
 
-    override fun onDetach() {
+    override fun onDestroy() {
         try {
             Log.d("SerialPlugin", "SerialPlugin detaching, cleaning up resources")
             serialPortManager.cleanup()
         } catch (e: Exception) {
             Log.e("SerialPlugin", "Failed to cleanup: ${e.message}", e)
         }
-        super.onDetach()
+        super.onDestroy()
     }
 
     @Command
@@ -68,7 +112,8 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
             val ports = serialPortManager.getAvailablePorts()
             Log.d("SerialPlugin", "Available ports fetched successfully: ${ports.size} ports")
             val result = JSObject()
-            result.put("ports", ports)
+
+            result.put("ports", ports.toJSObject())
             invoke.resolve(result)
         } catch (e: Exception) {
             Log.e("SerialPlugin", "Failed to get available ports: ${e.message}", e)
@@ -208,9 +253,10 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun writeBinary(invoke: Invoke) {
         try {
-            val args = invoke.parseArgs(WriteArgs::class.java)
+            val args = invoke.parseArgs(WriteBinaryArgs::class.java)
             Log.d("SerialPlugin", "Writing binary to port: ${args.path}")
-            val bytesWritten = serialPortManager.writeToPort(args.path, args.value.toByteArray())
+            val bytesToSend = args.value.map { it.toByte() }.toByteArray()
+            val bytesWritten = serialPortManager.writeToPort(args.path, bytesToSend)
             val result = JSObject()
             result.put("bytesWritten", bytesWritten)
             Log.d("SerialPlugin", "Binary write successful: $bytesWritten bytes written")
@@ -226,7 +272,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             Log.d("SerialPlugin", "Reading from port: ${args.path}")
-            val data = serialPortManager.readFromPort(args.path, args.timeout, 1024)
+            val data = serialPortManager.readFromPort(args.path, args.timeout, args.size)
             val result = JSObject()
             result.put("data", String(data))
             Log.d("SerialPlugin", "Read successful: ${data.size} bytes read")
@@ -242,9 +288,9 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             Log.d("SerialPlugin", "Reading binary from port: ${args.path}")
-            val data = serialPortManager.readFullyFromPort(args.path, args.timeout, args.size)
+            val data = serialPortManager.readFromPort(args.path, args.timeout, args.size)
             val result = JSObject().apply {
-                put("data", data.toList())
+                put("data", data.toList().map { it.toInt() and 0xFF }.toJSArray())
             }
             Log.d("SerialPlugin", "Binary read successful: ${data.size} bytes read")
             invoke.resolve(result)
@@ -260,7 +306,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
             val args = invoke.parseArgs(CloseArgs::class.java)
             Log.d("SerialPlugin", "Starting listening on port: ${args.path}")
             
-            val listener = { data: ByteArray ->
+            val listener: (ByteArray) -> Unit = { data: ByteArray ->
                 try {
                     val eventData = JSObject()
                     eventData.put("path", args.path)
