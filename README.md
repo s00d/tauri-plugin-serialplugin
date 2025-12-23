@@ -97,6 +97,46 @@ npm install tauri-plugin-serialplugin-api
 pnpm add tauri-plugin-serialplugin-api
 ```
 
+### Android Setup (Required for Android builds)
+
+> **⚠️ Important:** If you're building for Android, you **must** configure the JitPack repository before building. The plugin will not compile without this step.
+
+The plugin depends on `com.github.mik3y:usb-serial-for-android:3.8.1`, which is hosted on JitPack. Add the following to your `/src-tauri/gen/android/build.gradle.kts` file:
+
+```kotlin
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
+        // ... your other dependencies
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+
+tasks.register("clean").configure {
+    delete("build")
+}
+```
+
+**Without this configuration, you will get an error:**
+```
+could not find com.github.mik3y:usb-serial-for-android:3.8.1
+```
+
+For more details and troubleshooting, see the [Android Setup](#android-setup) section.
+
 ---
 
 ## Basic Usage
@@ -1620,24 +1660,54 @@ await port.disableAutoReconnect();
 
 ## Android Setup
 
-To use this plugin on Android, you need to add the JitPack repository to your project's `build.gradle.kts` file located at `/src-tauri/gen/android/build.gradle.kts`. Below is an example of how to configure it:
+To use this plugin on Android, you **must** add the JitPack repository to your project's `build.gradle.kts` file located at `/src-tauri/gen/android/build.gradle.kts`. This is required because the plugin depends on `com.github.mik3y:usb-serial-for-android:3.8.1`, which is hosted on JitPack.
+
+### Required Configuration
+
+Add the JitPack repository to both `buildscript` and `allprojects` sections:
 
 ```kotlin
 buildscript {
     repositories {
-        // ...
+        google()
+        mavenCentral()
         maven { url = uri("https://jitpack.io") }
     }
-    // ...
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
+        // ... your other dependencies
+    }
 }
 
 allprojects {
     repositories {
-        // ...
+        google()
+        mavenCentral()
         maven { url = uri("https://jitpack.io") }
     }
 }
+
+tasks.register("clean").configure {
+    delete("build")
+}
 ```
+
+### Why is this needed?
+
+The plugin uses the [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) library, which is published on JitPack rather than Maven Central. Without adding JitPack to your repositories, Gradle will fail with an error like:
+
+```
+could not find com.github.mik3y:usb-serial-for-android:3.8.1
+```
+
+### Troubleshooting
+
+If you still encounter issues after adding JitPack:
+
+1. Make sure you've added it to **both** `buildscript.repositories` and `allprojects.repositories`
+2. Sync your Gradle files in your IDE
+3. Clean and rebuild your project: `./gradlew clean build`
 
 ---
 
