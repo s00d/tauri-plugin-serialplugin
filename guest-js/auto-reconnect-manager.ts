@@ -128,15 +128,18 @@ export class AutoReconnectManager {
       return;
     }
 
-    // Проверяем лимит ДО увеличения счётчика
-    if (this.maxAttempts !== null && this.currentAttempts >= this.maxAttempts) {
+    // Atomically check limit and increment counter to prevent race conditions
+    const currentAttempt = this.currentAttempts + 1;
+    
+    if (this.maxAttempts !== null && currentAttempt > this.maxAttempts) {
       logError(`Auto-reconnect failed after ${this.maxAttempts} attempts`);
       if (this.callback) {
         this.callback(false, this.currentAttempts);
       }
       return;
     }
-    this.currentAttempts++;
+    
+    this.currentAttempts = currentAttempt;
 
     logInfo(`Auto-reconnect attempt ${this.currentAttempts}${this.maxAttempts !== null ? `/${this.maxAttempts}` : ''}`);
 
@@ -160,11 +163,16 @@ export class AutoReconnectManager {
         this.callback(false, this.currentAttempts);
       }
 
-      // Schedule next attempt
-      if (this.enabled) {
+      // Schedule next attempt only if still enabled and within limits
+      if (this.enabled && (this.maxAttempts === null || this.currentAttempts < this.maxAttempts)) {
         this.timer = setTimeout(() => {
           this.performAttempt();
         }, this.interval);
+      } else if (this.enabled && this.maxAttempts !== null && this.currentAttempts >= this.maxAttempts) {
+        logError(`Auto-reconnect stopped: maximum attempts (${this.maxAttempts}) reached`);
+        if (this.callback) {
+          this.callback(false, this.currentAttempts);
+        }
       }
     }
   }
