@@ -352,9 +352,9 @@ describe('SerialPort Listeners', () => {
       // Just verify that all data listeners were properly managed
       const listenersInfo = serialPort.getListenersInfo();
       expect(listenersInfo.data).toBe(0); // No data listeners should remain
-      // Note: disconnect listener from open() is now managed by listen(), so total is 1
-      expect(listenersInfo.disconnect).toBe(1);
-      expect(listenersInfo.total).toBe(1);
+      // open() registers disconnect via internal disconnectUnlisten (not ListenerManager)
+      expect(listenersInfo.disconnect).toBe(0);
+      expect(listenersInfo.total).toBe(0);
       
       // Should not have thrown any errors
       expect(mockUnlisten).toHaveBeenCalledTimes(5);

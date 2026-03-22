@@ -4,6 +4,9 @@
 // Mock Tauri API modules
 jest.mock('@tauri-apps/api/core', () => ({
   invoke: jest.fn(),
+  addPluginListener: jest.fn().mockResolvedValue({
+    unregister: jest.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 jest.mock('@tauri-apps/api/event', () => ({

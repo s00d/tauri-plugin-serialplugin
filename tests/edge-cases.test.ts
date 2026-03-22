@@ -110,7 +110,7 @@ describe('SerialPort Edge Cases', () => {
         throw new Error('Callback error');
       });
       mockListen.mockImplementationOnce((event, cb) => {
-        cb({ payload: 'test' });
+        cb({ payload: { data: [116, 101, 115, 116] } }); // "test"
         return Promise.resolve(mockUnlisten);
       });
       await serialPort.listen(callback);
@@ -120,7 +120,7 @@ describe('SerialPort Edge Cases', () => {
     });
 
     it('should handle error in disconnected event', async () => {
-      serialPort.isOpen = true;
+      // Do not set isOpen = true before open(): otherwise open() returns early and never registers disconnect listen
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       
       // Create callback that throws error
@@ -132,15 +132,8 @@ describe('SerialPort Edge Cases', () => {
       const portPath = '/dev/tty.usbserial';
       const subPath = portPath.replaceAll(".", "-").replaceAll("/", "-");
       const disconnectedEvent = `plugin-serialplugin-disconnected-${subPath}`;
-      let eventCallback: ((event: any) => void) | undefined;
       
-      // Add debug output to check calls
-      mockListen.mockImplementationOnce((event, cb) => {
-        if (event === disconnectedEvent) {
-          eventCallback = cb;
-        }
-        return Promise.resolve(mockUnlisten);
-      });
+      mockListen.mockResolvedValue(mockUnlisten);
 
       // Mock invoke for successful port opening
       mockInvoke.mockResolvedValueOnce(undefined);
@@ -148,21 +141,21 @@ describe('SerialPort Edge Cases', () => {
       // Open port and set disconnect handler
       await serialPort.open();
       
-      // Check that disconnected method was called
-      const disconnectedSpy = jest.spyOn(serialPort, 'disconnected');
       await serialPort.disconnected(errorCallback);
-      expect(disconnectedSpy).toHaveBeenCalledWith(errorCallback);
       
       // Check that listen was called with correct event
       expect(mockListen).toHaveBeenCalledWith(disconnectedEvent, expect.any(Function));
       
-      // Check that event handler was set
-      expect(eventCallback).toBeDefined();
+      // User handler is the last subscription for same event (after open()'s internal listener)
+      // open() + disconnected() each register listen() for the same disconnect event name
+      expect(mockListen.mock.calls.length).toBeGreaterThanOrEqual(2);
+      const disconnectCalls = mockListen.mock.calls.filter((c) => c[0] === disconnectedEvent);
+      expect(disconnectCalls.length).toBeGreaterThanOrEqual(1);
+      const userEventCallback = disconnectCalls[disconnectCalls.length - 1][1] as (e: any) => void;
+      expect(userEventCallback).toBeDefined();
       
       // Simulate disconnect event
-      if (eventCallback) {
-        eventCallback({});
-      }
+      userEventCallback({});
       
       // Give time for event processing and check results
       await new Promise(process.nextTick);
@@ -173,7 +166,6 @@ describe('SerialPort Edge Cases', () => {
       
       // Clear all mocks
       consoleSpy.mockRestore();
-      disconnectedSpy.mockRestore();
     });
 
     it('should handle error in available_ports', async () => {

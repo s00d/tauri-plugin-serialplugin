@@ -22,7 +22,7 @@ describe('SerialPort Encoding Operations', () => {
     it('should write and read with different encodings', async () => {
       // Test UTF-8
       serialPort.encoding = 'utf-8';
-      const utf8Data = 'Привет, мир!';
+      const utf8Data = 'Hello, world! 🚀';
       
       // Mock successful write
       mockInvoke.mockImplementationOnce(() => Promise.resolve(utf8Data.length));
@@ -66,7 +66,7 @@ describe('SerialPort Encoding Operations', () => {
 
     it('should handle encoding errors', async () => {
       serialPort.encoding = 'ascii';
-      const invalidData = 'Привет'; // Cyrillic characters in ASCII
+      const invalidData = 'café'; // non-ASCII text in ASCII encoding mode
       
       mockInvoke.mockImplementationOnce(() => Promise.reject(new Error('Invalid encoding')));
       await expect(serialPort.write(invalidData)).rejects.toThrow('Invalid encoding');

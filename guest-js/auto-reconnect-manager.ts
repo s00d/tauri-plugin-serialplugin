@@ -128,7 +128,7 @@ export class AutoReconnectManager {
       return;
     }
 
-    // Проверяем лимит ДО увеличения счётчика
+    // Check the limit before incrementing the attempt counter
     if (this.maxAttempts !== null && this.currentAttempts >= this.maxAttempts) {
       logError(`Auto-reconnect failed after ${this.maxAttempts} attempts`);
       if (this.callback) {

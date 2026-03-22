@@ -42,6 +42,8 @@ describe('SerialPort Auto-Reconnect', () => {
     // Emulate Tauri disconnect event
     expect(disconnectCallback).toBeDefined();
     await disconnectCallback!({});
+    // enableAutoReconnect uses async handler + performAttempt; flush async work
+    await new Promise<void>((r) => setTimeout(r, 0));
 
     // Check that the port is open again (reconnected)
     expect(serialPort.isOpen).toBe(true);

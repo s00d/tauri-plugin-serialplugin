@@ -1,4 +1,4 @@
-import {invoke} from "@tauri-apps/api/core";
+import {invoke, addPluginListener, type PluginListener} from "@tauri-apps/api/core";
 import {listen, UnlistenFn} from '@tauri-apps/api/event';
 import {AutoReconnectManager} from './auto-reconnect-manager';
 import {ListenerManager} from './listener-manager';
@@ -31,6 +31,8 @@ export interface SerialportOptions {
   stopBits?: StopBits;
   timeout?: number;
   size?: number;
+  /** Android: batch interval (ms) for `serialData` events when listening (native default 100). */
+  serialDataFlushIntervalMs?: number;
   [key: string]: any;
 }
 
@@ -43,6 +45,7 @@ export interface Options {
   stopBits: StopBits;
   size?: number;
   timeout: number;
+  serialDataFlushIntervalMs?: number;
   [key: string]: any;
 }
 
@@ -92,6 +95,7 @@ export type SerialPortConfig = {
   timeout?: number;
   size?: number;
   encoding?: string;
+  serialDataFlushIntervalMs?: number;
 };
 
 // Utility types for common operations
@@ -107,6 +111,14 @@ class SerialPort {
   size: number;
   private listeners: ListenerManager = new ListenerManager();
   private autoReconnectManager: AutoReconnectManager = new AutoReconnectManager();
+  /** Internal disconnect subscription from open(); not tracked in ListenerManager — must be single per session. */
+  private disconnectUnlisten: UnlistenFn | null = null;
+  /** Stateful UTF-8/text decoding across chunked reads (avoids splitting UTF-8 code points across packets). */
+  private textStreamDecoder: TextDecoder | null = null;
+  /** Android: [Plugin.trigger] serialError — keeps JS state in sync when native IO thread dies (unplug). */
+  private serialErrorPluginListener: PluginListener | null = null;
+  /** Prevents overlapping open/close (double-tap / race with UI). */
+  private isProcessingOpenClose = false;
 
   constructor(options: SerialportOptions) {
     this.isOpen = false;
@@ -120,6 +132,9 @@ class SerialPort {
       stopBits: options.stopBits || StopBits.One,
       size: options.size || 1024,
       timeout: options.timeout || 200,
+      ...(options.serialDataFlushIntervalMs != null && {
+        serialDataFlushIntervalMs: options.serialDataFlushIntervalMs,
+      }),
     };
     this.size = options.size || 1024;
   }
@@ -236,12 +251,44 @@ class SerialPort {
     }
   }
 
+  private resetTextStreamDecoder(): void {
+    try {
+      this.textStreamDecoder = new TextDecoder(this.encoding, { fatal: false });
+    } catch (_e) {
+      this.textStreamDecoder = new TextDecoder('utf-8', { fatal: false });
+    }
+  }
+
+  private async clearDisconnectUnlisten(): Promise<void> {
+    if (this.disconnectUnlisten) {
+      try {
+        await this.disconnectUnlisten();
+      } catch (error) {
+        logWarn('Error removing disconnect listener:', error);
+      }
+      this.disconnectUnlisten = null;
+    }
+  }
+
+  private async clearSerialErrorPluginListener(): Promise<void> {
+    if (this.serialErrorPluginListener) {
+      try {
+        await this.serialErrorPluginListener.unregister();
+      } catch (error) {
+        logWarn('Error unregistering serialError plugin listener:', error);
+      }
+      this.serialErrorPluginListener = null;
+    }
+  }
+
   /**
    * @description Cancels all listeners (both data and disconnect listeners)
    * @returns {Promise<void>} A promise that resolves when all listeners are cancelled
    */
   async cancelAllListeners(): Promise<void> {
     try {
+      await this.clearDisconnectUnlisten();
+      await this.clearSerialErrorPluginListener();
       const allListeners = this.listeners.all();
       for (const [id, listener] of allListeners) {
         try {
@@ -316,26 +363,31 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when the port is closed
    */
   async close(): Promise<void> {
-    try {
-      if (!this.isOpen) {
-        return;
-      }
+    if (!this.isOpen) {
+      return;
+    }
+    if (this.isProcessingOpenClose) {
+      return Promise.reject(new Error('Serial port open/close already in progress'));
+    }
+    this.isProcessingOpenClose = true;
 
-      // Stop auto-reconnect temporarily to prevent conflicts
-      const wasAutoReconnectEnabled = this.autoReconnectManager.isEnabled();
-      if (wasAutoReconnectEnabled) {
+    const wasAutoReconnectEnabled = this.autoReconnectManager.isEnabled();
+    if (wasAutoReconnectEnabled) {
+      try {
         await this.autoReconnectManager.stop();
+      } catch (e) {
+        logWarn('Error during autoReconnect stop:', e);
       }
+    }
 
-      // First we cancel the reading
+    try {
       try {
         await this.cancelRead();
       } catch (cancelReadError) {
         logWarn('Error during cancelRead:', cancelReadError);
       }
 
-      // Closing the port
-      let res = undefined;
+      let res: unknown = undefined;
       try {
         res = await invoke<void>('plugin:serialplugin|close', {
           path: this.options.path,
@@ -344,12 +396,10 @@ class SerialPort {
         logWarn('Error during port close:', closeError);
       }
 
-      // Cancel all listeners
       try {
         await this.cancelAllListeners();
       } catch (cancelListenError) {
         logWarn('Error during cancelAllListeners:', cancelListenError);
-        // Try to clear listeners manually as fallback
         try {
           this.listeners.clear();
         } catch (clearError) {
@@ -357,11 +407,14 @@ class SerialPort {
         }
       }
 
-      this.isOpen = false;
-
-      return res;
+      return res as void;
     } catch (error) {
-      return Promise.reject(error);
+      logError('Error during close:', error);
+      throw error;
+    } finally {
+      // Always reset isOpen and isProcessingOpenClose (including on cancelRead/invoke/cancelAllListeners errors)
+      this.isOpen = false;
+      this.isProcessingOpenClose = false;
     }
   }
 
@@ -511,15 +564,23 @@ class SerialPort {
                 if (isDecode) {
                   const uint8Array = new Uint8Array(payload.data);
                   try {
-                    const decoder = new TextDecoder(this.encoding);
-                    const textData = decoder.decode(uint8Array);
-                    fn(textData);
+                    if (!this.textStreamDecoder) {
+                      this.resetTextStreamDecoder();
+                    }
+                    const decoder = this.textStreamDecoder as TextDecoder;
+                    const textData = decoder.decode(uint8Array, { stream: true });
+                    if (textData.length > 0) {
+                      fn(textData);
+                    }
                   } catch (error) {
                     logError('Error converting to text with configured encoding:', error);
                     try {
-                      const fallbackDecoder = new TextDecoder('utf-8');
-                      const textData = fallbackDecoder.decode(uint8Array);
-                      fn(textData);
+                      this.textStreamDecoder = new TextDecoder('utf-8', { fatal: false });
+                      const fallbackDecoder = this.textStreamDecoder as TextDecoder;
+                      const textData = fallbackDecoder.decode(uint8Array, { stream: true });
+                      if (textData.length > 0) {
+                        fn(textData);
+                      }
                     } catch (fallbackError) {
                       logError('Fallback decoding also failed:', fallbackError);
                       fn(String.fromCharCode(...uint8Array));
@@ -554,17 +615,20 @@ class SerialPort {
    * @returns {Promise<void>} A promise that resolves when the port is opened
    */
   async open(): Promise<void> {
+    if (!this.options.path) {
+      return Promise.reject(`path Can not be empty!`);
+    }
+    if (!this.options.baudRate) {
+      return Promise.reject(`baudRate Can not be empty!`);
+    }
+    if (this.isOpen) {
+      return;
+    }
+    if (this.isProcessingOpenClose) {
+      return Promise.reject(new Error('Serial port open/close already in progress'));
+    }
+    this.isProcessingOpenClose = true;
     try {
-      if (!this.options.path) {
-        return Promise.reject(`path Can not be empty!`);
-      }
-      if (!this.options.baudRate) {
-        return Promise.reject(`baudRate Can not be empty!`);
-      }
-      if (this.isOpen) {
-        return;
-      }
-
       const res = await invoke<void>('plugin:serialplugin|open', {
         path: this.options.path,
         baudRate: this.options.baudRate,
@@ -575,14 +639,63 @@ class SerialPort {
         timeout: this.options.timeout,
       });
 
-      this.isOpen = true;
+      this.resetTextStreamDecoder();
 
-      this.disconnected(() => {
-        this.isOpen = false;
-      }).catch(err => logError(err))
+      const sub_path = this.options.path?.toString().replaceAll(".", "-").replaceAll("/", "-");
+      const disconnectEvent = `plugin-serialplugin-disconnected-${sub_path}`;
+      logDebug('listen event: ' + disconnectEvent);
+
+      await this.clearDisconnectUnlisten();
+
+      const unListenResult = await listen(
+        disconnectEvent,
+        () => {
+          try {
+            this.isOpen = false;
+            const u = this.disconnectUnlisten;
+            this.disconnectUnlisten = null;
+            if (typeof u === 'function') {
+              u();
+            }
+          } catch (error) {
+            logError(error);
+          }
+        },
+      );
+
+      if (typeof unListenResult === 'function') {
+        this.disconnectUnlisten = unListenResult;
+      } else {
+        logWarn('open() disconnect listen did not return a valid unlisten function');
+      }
+
+      await this.clearSerialErrorPluginListener();
+      try {
+        this.serialErrorPluginListener = await addPluginListener<{ path: string; error: string }>(
+          'serialplugin',
+          'serialError',
+          (payload) => {
+            try {
+              if (!payload || (payload as { path?: string }).path !== this.options.path) {
+                return;
+              }
+              this.isOpen = false;
+              void this.clearDisconnectUnlisten();
+            } catch (e) {
+              logError(e);
+            }
+          },
+        );
+      } catch (e) {
+        logDebug('addPluginListener(serialError) skipped (desktop or unsupported):', e);
+      }
+
+      this.isOpen = true;
       return Promise.resolve(res);
     } catch (error) {
       return Promise.reject(error);
+    } finally {
+      this.isProcessingOpenClose = false;
     }
   }
 
@@ -602,11 +715,15 @@ class SerialPort {
    */
   async startListening(): Promise<void> {
     try {
-      await invoke<string>('plugin:serialplugin|start_listening', {
+      const payload: Record<string, unknown> = {
         path: this.options.path,
         size: this.options.size,
         timeout: this.options.timeout,
-      });
+      };
+      if (this.options.serialDataFlushIntervalMs != null) {
+        payload.serialDataFlushIntervalMs = this.options.serialDataFlushIntervalMs;
+      }
+      await invoke<string>('plugin:serialplugin|start_listening', payload);
     } catch (error) {
       return Promise.reject(error);
     }
