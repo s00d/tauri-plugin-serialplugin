@@ -16,6 +16,7 @@ Tests live under `src/test/kotlin/`. Pure JVM tests (no Robolectric required):
 - `SerialByteAccumulatorTest` — thread-safe byte coalescing for `BufferedEmitter`
 - `SerialDataEmitFieldsTest` — `serialDataPayloadFromChunk` / `flushAccumulatorToEmit` / `applyToJSObject` (binary + UTF-8)
 - `SerialPluginConversionTest` — `Map.toJSObject` / `List.toJSArray` helpers from `SerialPlugin.kt`
+- `BufferedEmitterTest` — `pendingByteCount()` before flush
 
 JVM unit tests use **`testImplementation("org.json:json:…")`** so `JSONObject.put` is not the Android stub that throws (“Method … not mocked”).
 
@@ -38,4 +39,5 @@ This repo includes a Gradle wrapper (`gradlew`, `gradle/wrapper/`). The module d
 | `setTimeout` | Stored in `SerialPortConfig.timeout` and used for `write()` and as a fallback for `read()` when the call passes `timeout == 0`. |
 | `clearBuffer` | `UsbSerialPort.purgeHwBuffers()` (when supported by the driver). |
 | `setFlowControl` | `UsbSerialPort.setFlowControl(RTS_CTS / XON_XOFF / NONE)`. |
-| `bytesToRead` / `bytesToWrite` | Not exposed by usb-serial — returns `0`. |
+| `bytesToRead` | With **listening** (`startListening`): bytes in the plugin’s [BufferedEmitter] before the next `serialData` flush (not the kernel queue). Without listening: `0`. |
+| `bytesToWrite` | Always `0`: writes are synchronous; usb-serial exposes no TX backlog. |

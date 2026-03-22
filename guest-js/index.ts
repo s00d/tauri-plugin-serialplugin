@@ -33,9 +33,9 @@ export interface SerialportOptions {
   size?: number;
   /** Android: batch interval (ms) for `serialData` events when listening (native default 100). */
   serialDataFlushIntervalMs?: number;
-  [key: string]: any;
 }
 
+/** Normalized port settings used after construction (see {@link SerialportOptions}). */
 export interface Options {
   path?: string;
   baudRate?: number;
@@ -46,7 +46,6 @@ export interface Options {
   size?: number;
   timeout: number;
   serialDataFlushIntervalMs?: number;
-  [key: string]: any;
 }
 
 export interface ReadOptions {
@@ -141,11 +140,11 @@ class SerialPort {
 
   /**
    * @description Lists all available serial ports
-   * @returns {Promise<{ [key: string]: PortInfo }>} A promise that resolves to a map of port names to port information
+   * @returns {Promise<Record<string, PortInfo>>} A promise that resolves to a map of port names to port information
    */
-  static async available_ports(): Promise<{ [key: string]: PortInfo }> {
+  static async available_ports(): Promise<Record<string, PortInfo>> {
     try {
-      const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports');
+      const result = await invoke<Record<string, PortInfo>>('plugin:serialplugin|available_ports');
       return Promise.resolve(result)
     } catch (error) {
       return Promise.reject(error);
@@ -154,11 +153,11 @@ class SerialPort {
 
   /**
    * @description Lists all available serial ports using platform-specific commands
-   * @returns {Promise<{ [key: string]: PortInfo }>} A promise that resolves to a map of port names to port information
+   * @returns {Promise<Record<string, PortInfo>>} A promise that resolves to a map of port names to port information
    */
-  static async available_ports_direct(): Promise<{ [key: string]: PortInfo }> {
+  static async available_ports_direct(): Promise<Record<string, PortInfo>> {
     try {
-      const result = await invoke<{ [key: string]: PortInfo }>('plugin:serialplugin|available_ports_direct');
+      const result = await invoke<Record<string, PortInfo>>('plugin:serialplugin|available_ports_direct');
       return Promise.resolve(result)
     } catch (error) {
       return Promise.reject(error);
@@ -1004,8 +1003,12 @@ class SerialPort {
   }
 
   /**
-   * @description Gets the number of bytes available to read
-   * @returns {Promise<number>} A promise that resolves to the number of bytes
+   * @description Gets an estimate of bytes ready to read.
+   * **Desktop:** driver/OS input queue (same idea as POSIX `FIONREAD` / `ioctl`).
+   * **Android:** only while `startListening` is active — bytes already received by the native
+   * listener but not yet flushed to JS as `serialData` (plugin-side buffer). Otherwise `0`.
+   * This is **not** the same as desktop when listening is off or on other platforms.
+   * @returns {Promise<number>} Byte count (platform-specific semantics above).
    */
   async bytesToRead(): Promise<number> {
     try {
@@ -1018,8 +1021,10 @@ class SerialPort {
   }
 
   /**
-   * @description Gets the number of bytes waiting to be written
-   * @returns {Promise<number>} A promise that resolves to the number of bytes
+   * @description Gets the number of bytes waiting to be written (output queue).
+   * **Android:** typically always `0` after a successful `write` — the USB stack does not expose
+   * a pending-TX count and writes complete synchronously from the app’s perspective.
+   * @returns {Promise<number>} Pending output bytes (often `0` on Android).
    */
   async bytesToWrite(): Promise<number> {
     try {

@@ -626,17 +626,25 @@ class SerialPortManager(
         }
     }
 
+    /**
+     * When [startListening] is active, returns bytes accumulated in [BufferedEmitter] before the next
+     * `serialData` flush — **not** the OS/driver queue (UsbSerialPort exposes no such API).
+     * Without an active listener, returns `0`.
+     */
     fun bytesToRead(path: String): Int {
-        // UsbSerialPort (mik3y) has no incoming-queue length API — kernel buffer is opaque.
         return try {
             if (!portMap.containsKey(path)) throw IOException("Port not found")
-            0
+            emitters[path]?.pendingByteCount() ?: 0
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to get bytes to read: ${e.message}", e)
             0
         }
     }
 
+    /**
+     * [UsbSerialPort] does not expose a pending TX queue; [writeToPort] is synchronous, so there is
+     * nothing application-level queued after a successful write — always `0` here.
+     */
     fun bytesToWrite(path: String): Int {
         return try {
             if (!portMap.containsKey(path)) throw IOException("Port not found")

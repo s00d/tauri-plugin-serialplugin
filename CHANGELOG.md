@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+For **Android/USB-focused** details (behavior, limits, testing), see also [`android/README.md`](android/README.md).
+
+## [2.22.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.1...v2.22.0) (2026-03-21)
+
+### Android / USB
+
+* **Lifecycle:** `SerialPlugin` registers `Application.ActivityLifecycleCallbacks` and runs `SerialPortManager.cleanup()` when the host `Activity` is destroyed (close USB ports, unregister permission receiver, shut down IO executor).
+* **Listening:** Incoming data is coalesced in `BufferedEmitter` / `SerialByteAccumulator` before `serialData` events; flush interval via `serialDataFlushIntervalMs` (native clamp typically 10–2000 ms).
+* **USB serial (usb-serial-for-android):** Read/write use configured timeouts; `clearBuffer` maps to `purgeHwBuffers` when supported; `setFlowControl` (RTS/CTS, XON/XOFF); `SerialInputOutputManager` errors trigger `serialError` and port cleanup.
+* **`bytesToRead` / `bytesToWrite` (Android):** `bytesToRead` returns bytes buffered **in the plugin** only while `startListening` is active (not the kernel queue — not exposed by `UsbSerialPort`). `bytesToWrite` is `0` (writes complete synchronously from the app’s perspective). Documented in JSDoc on the JS API.
+* **Tooling:** Gradle wrapper and `android/` settings for local `./gradlew test`; JVM unit tests use a real `org.json` artifact (Android JSON stubs break `JSONObject.put` in tests). Kotlin tests cover models, JSON helpers, emit pipeline, `BufferedEmitter`.
+
+### Features
+
+* **guest-js:** Stricter `SerialportOptions` / `Options` typing (removed open index signatures); `Record<string, PortInfo>` for `available_ports` maps.
+
 ### [2.21.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.0...v2.21.1) (2025-11-05)
 
 ## [2.21.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.20.0...v2.21.0) (2025-10-11)

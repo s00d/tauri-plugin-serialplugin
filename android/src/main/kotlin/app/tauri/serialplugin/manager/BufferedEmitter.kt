@@ -49,6 +49,12 @@ internal class BufferedEmitter(
         accumulator.append(data)
     }
 
+    /**
+     * Bytes received via [addData] but not yet emitted to JS (waiting for the next flush).
+     * Does not include data still inside the USB/driver stack — only this plugin buffer.
+     */
+    fun pendingByteCount(): Int = accumulator.pendingByteCount()
+
     fun stop() {
         scheduled.cancel(false)
         scheduler.shutdown()
