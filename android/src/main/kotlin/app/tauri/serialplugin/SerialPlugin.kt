@@ -3,6 +3,8 @@
 package app.tauri.serialplugin
 
 import android.app.Activity
+import android.app.Application
+import android.os.Bundle
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -13,7 +15,6 @@ import app.tauri.serialplugin.manager.SerialPortManager
 import app.tauri.serialplugin.models.*
 import android.webkit.WebView
 import android.util.Log
-import java.util.concurrent.ConcurrentHashMap
 import app.tauri.plugin.JSArray
 // --- Reused from previous answer (Converts a Map to a JSObject) ---
 fun Map<String, Any?>.toJSObject(): JSObject {
@@ -82,28 +83,77 @@ class CloseArgs {
     lateinit var path: String
 }
 
+@InvokeArg
+class StartListenArgs {
+    lateinit var path: String
+    /** Flush interval for batched serialData events (ms). Default 100; clamped 10–2000 on native side. */
+    var serialDataFlushIntervalMs: Long = 100L
+}
+
 @TauriPlugin
 class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     private var webView: WebView? = null
     private lateinit var serialPortManager: SerialPortManager
-    private val listeners = ConcurrentHashMap<String, (ByteArray) -> Unit>()
+    /** Unregistered after [activity] is destroyed so we do not leak the callback. */
+    private var activityDestroyCallback: Application.ActivityLifecycleCallbacks? = null
 
     override fun load(webView: WebView) {
         super.load(webView)
-        serialPortManager = SerialPortManager(activity)
+        serialPortManager = SerialPortManager(activity) { path, message ->
+            try {
+                val errorData = JSObject()
+                errorData.put("path", path)
+                errorData.put("error", message)
+                trigger("serialError", errorData)
+            } catch (e: Exception) {
+                Log.e("SerialPlugin", "serialError trigger failed: ${e.message}", e)
+            }
+        }
         this.webView = webView
-        
+        registerActivityDestroyCleanup()
+
         Log.d("SerialPlugin", "SerialPlugin loaded successfully")
     }
 
-    override fun onDestroy() {
-        try {
-            Log.d("SerialPlugin", "SerialPlugin detaching, cleaning up resources")
-            serialPortManager.cleanup()
-        } catch (e: Exception) {
-            Log.e("SerialPlugin", "Failed to cleanup: ${e.message}", e)
+    /**
+     * [Plugin] has no `onDestroy()`. When the host [Activity] is destroyed (back, process kill path),
+     * release USB threads/receiver/ports so we do not leak or fire stale events after WebView is gone.
+     */
+    private fun registerActivityDestroyCleanup() {
+        unregisterActivityDestroyCleanup()
+        val app = activity.application
+        val cb = object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityDestroyed(destroyed: Activity) {
+                if (destroyed !== activity) return
+                try {
+                    Log.d("SerialPlugin", "Activity destroyed — releasing USB serial resources")
+                    serialPortManager.cleanup()
+                } catch (e: Exception) {
+                    Log.e("SerialPlugin", "cleanup on activity destroy failed: ${e.message}", e)
+                } finally {
+                    unregisterActivityDestroyCleanup()
+                }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
         }
-        super.onDestroy()
+        activityDestroyCallback = cb
+        app.registerActivityLifecycleCallbacks(cb)
+    }
+
+    private fun unregisterActivityDestroyCleanup() {
+        activityDestroyCallback?.let { cb ->
+            try {
+                activity.application.unregisterActivityLifecycleCallbacks(cb)
+            } catch (_: Exception) {
+            }
+            activityDestroyCallback = null
+        }
     }
 
     @Command
@@ -304,26 +354,20 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun startListening(invoke: Invoke) {
         try {
-            val args = invoke.parseArgs(CloseArgs::class.java)
-            Log.d("SerialPlugin", "Starting listening on port: ${args.path}")
-            
-            val listener: (ByteArray) -> Unit = { data: ByteArray ->
-                try {
-                    val eventData = JSObject()
-                    eventData.put("path", args.path)
-                    eventData.put("data", String(data))
-                    eventData.put("size", data.size)
+            val args = invoke.parseArgs(StartListenArgs::class.java)
+            val path = args.path
+            val flushMs = args.serialDataFlushIntervalMs.coerceIn(10L, 2000L)
+            Log.d("SerialPlugin", "Starting listening on port: $path (flush ${flushMs}ms)")
 
-                    Log.d("SerialPlugin", "Data received on ${args.path}: ${data.size} bytes")
+            serialPortManager.startListening(path, flushMs) { eventData: JSObject ->
+                try {
+                    Log.d("SerialPlugin", "Emitting serialData batch for $path")
                     trigger("serialData", eventData)
                 } catch (e: Exception) {
-                    Log.e("SerialPlugin", "Error in listener callback: ${e.message}", e)
+                    Log.e("SerialPlugin", "Error in serialData emit: ${e.message}", e)
                 }
             }
-
-            listeners[args.path] = listener
-            serialPortManager.startListening(args.path, listener)
-            Log.d("SerialPlugin", "Listening started successfully on port: ${args.path}")
+            Log.d("SerialPlugin", "Listening started successfully on port: $path")
             invoke.resolve()
         } catch (e: Exception) {
             Log.e("SerialPlugin", "Failed to start listening: ${e.message}", e)
@@ -336,7 +380,6 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             Log.d("SerialPlugin", "Stopping listening on port: ${args.path}")
-            listeners.remove(args.path)
             serialPortManager.stopListening(args.path)
             Log.d("SerialPlugin", "Listening stopped successfully on port: ${args.path}")
             invoke.resolve()

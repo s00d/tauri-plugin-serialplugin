@@ -3,22 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://jitpack.io' }
-    }
-}
-
 android {
-    compileSdkVersion 26
-
     namespace = "app.tauri.serialplugin"
     compileSdk = 34
 
     defaultConfig {
         minSdk = 24
+        targetSdk = 34
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
@@ -48,6 +39,8 @@ dependencies {
     implementation("com.google.android.material:material:1.7.0")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.3")
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for JVM unit tests (Android stubs throw on JSONObject.put — see not-mocked)
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     implementation(project(":tauri-android"))

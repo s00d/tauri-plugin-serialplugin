@@ -12,7 +12,9 @@ import com.hoho.android.usbserial.driver.UsbSerialPort
 import com.hoho.android.usbserial.driver.UsbSerialProber
 import com.hoho.android.usbserial.util.SerialInputOutputManager
 import com.hoho.android.usbserial.driver.ProbeTable
+import app.tauri.plugin.JSObject
 import app.tauri.serialplugin.models.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.io.IOException
 import android.util.Log
@@ -25,21 +27,31 @@ data class ManagedPort (
     val config: SerialPortConfig
 )
 
-class SerialPortManager(private val context: Context) {
+/**
+ * @param onIoRunError Optional: invoked on [SerialInputOutputManager.Listener.onRunError] before [closePort]
+ * (e.g. emit plugin event so JS can set isOpen = false).
+ */
+class SerialPortManager(
+    private val context: Context,
+    private val onIoRunError: ((path: String, message: String) -> Unit)? = null,
+) {
     private val usbManager: UsbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
     private val portMap = mutableMapOf<String, ManagedPort>()
-    private val ioManagerMap = mutableMapOf<String, SerialInputOutputManager>()
+    /** Active [SerialInputOutputManager] per path; must be stopped on close/stop/replace to avoid thread leaks. */
+    private val ioManagers = ConcurrentHashMap<String, SerialInputOutputManager>()
+    /** Batched emission to WebView (one per path while listening). */
+    private val emitters = ConcurrentHashMap<String, BufferedEmitter>()
     private val executor = Executors.newCachedThreadPool()
     private val permissionFutures = mutableMapOf<String, CompletableFuture<Boolean>>()
     
     private val ACTION_USB_PERMISSION = "app.tauri.serialplugin.USB_PERMISSION"
     
-    // Custom prober for unknown devices (только для кастомных VID/PID)
+    // Custom prober for unknown devices (custom VID/PID only)
     private val customProber: UsbSerialProber by lazy {
         val customTable = ProbeTable()
         
-        // Добавляем только устройства с кастомными VID/PID, которые не поддерживаются по умолчанию
-        // Например, если у вас есть устройство с VID=0x1234 и PID=0x0001, которое совместимо с FTDI
+        // Add only devices with custom VID/PID not covered by the default table
+        // Example: device with VID=0x1234 and PID=0x0001 compatible with FTDI
         // customTable.addProduct(0x1234, 0x0001, FtdiSerialDriver::class.java)
         
         UsbSerialProber(customTable)
@@ -226,25 +238,41 @@ class SerialPortManager(private val context: Context) {
                 // Continue with default parameters
             }
             
-            // Handle flow control
+            // Flow control — [UsbSerialPort.setFlowControl](https://github.com/mik3y/usb-serial-for-android)
             when (config.flowControl) {
-                FlowControl.HARDWARE -> {
-                    Log.d("SerialPortManager", "Enabling hardware flow control")
+                FlowControl.NONE -> {
                     try {
-                        port.dtr = true
-                        port.rts = true
-                        Log.d("SerialPortManager", "Hardware flow control enabled successfully")
-                    } catch (_: UnsupportedOperationException) {
-                        Log.w("SerialPortManager", "Hardware flow control not supported by this device")
+                        port.setFlowControl(UsbSerialPort.FlowControl.NONE)
+                        Log.d("SerialPortManager", "Flow control: NONE")
                     } catch (e: Exception) {
-                        Log.w("SerialPortManager", "Failed to enable hardware flow control: ${e.message}")
+                        Log.w("SerialPortManager", "setFlowControl(NONE): ${e.message}")
+                    }
+                }
+                FlowControl.HARDWARE -> {
+                    Log.d("SerialPortManager", "Enabling RTS/CTS flow control")
+                    try {
+                        port.setFlowControl(UsbSerialPort.FlowControl.RTS_CTS)
+                        Log.d("SerialPortManager", "Hardware (RTS/CTS) flow control set")
+                    } catch (_: UnsupportedOperationException) {
+                        Log.w("SerialPortManager", "RTS/CTS not supported, falling back to DTR/RTS pins")
+                        try {
+                            port.dtr = true
+                            port.rts = true
+                        } catch (e: Exception) {
+                            Log.w("SerialPortManager", "Fallback DTR/RTS failed: ${e.message}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("SerialPortManager", "Failed to set RTS/CTS: ${e.message}")
                     }
                 }
                 FlowControl.SOFTWARE -> {
-                    Log.d("SerialPortManager", "Software flow control not implemented in this library")
-                }
-                FlowControl.NONE -> {
-                    Log.d("SerialPortManager", "No flow control - using default settings")
+                    Log.d("SerialPortManager", "Enabling XON/XOFF flow control")
+                    try {
+                        port.setFlowControl(UsbSerialPort.FlowControl.XON_XOFF)
+                        Log.d("SerialPortManager", "Software flow control set")
+                    } catch (e: Exception) {
+                        Log.w("SerialPortManager", "XON/XOFF not supported: ${e.message}")
+                    }
                 }
             }
             
@@ -262,12 +290,30 @@ class SerialPortManager(private val context: Context) {
         return usbManager.deviceList.values.find { it.deviceName == deviceName }
     }
 
-    private fun startIoManager(path: String, port: UsbSerialPort, onDataReceived: (ByteArray) -> Unit) {
+    private fun startIoManager(
+        path: String,
+        port: UsbSerialPort,
+        flushIntervalMs: Long,
+        emit: (JSObject) -> Unit,
+    ) {
+        // Replace existing reader: stop previous manager so threads are not leaked
+        emitters.remove(path)?.stop()
+        ioManagers.remove(path)?.let { old ->
+            try {
+                old.stop()
+            } catch (e: Exception) {
+                Log.w("SerialPortManager", "Failed to stop previous IO manager for $path: ${e.message}")
+            }
+        }
+
+        val emitter = BufferedEmitter(path, flushIntervalMs, emit)
+        emitters[path] = emitter
+
         val ioManager = SerialInputOutputManager(port, object : SerialInputOutputManager.Listener {
             override fun onNewData(data: ByteArray) {
                 try {
                     Log.d("SerialPortManager", "Data received on $path: ${data.size} bytes")
-                    onDataReceived(data)
+                    emitter.addData(data)
                 } catch (e: Exception) {
                     Log.e("SerialPortManager", "Error in data callback for $path: ${e.message}", e)
                 }
@@ -275,27 +321,18 @@ class SerialPortManager(private val context: Context) {
 
             override fun onRunError(e: Exception) {
                 Log.e("SerialPortManager", "IO Manager error for $path: ${e.message}", e)
-                
-                // Try to recover from certain errors
-                when (e) {
-                    is IOException -> {
-                        Log.w("SerialPortManager", "IO error on $path, attempting to close port")
-                        closePort(path)
-                    }
-                    is IllegalStateException -> {
-                        Log.w("SerialPortManager", "Illegal state on $path, attempting to close port")
-                        closePort(path)
-                    }
-                    else -> {
-                        Log.e("SerialPortManager", "Unknown error on $path, closing port")
-                        closePort(path)
-                    }
+                val msg = e.message ?: e.toString()
+                try {
+                    onIoRunError?.invoke(path, msg)
+                } catch (cb: Exception) {
+                    Log.e("SerialPortManager", "onIoRunError callback failed: ${cb.message}", cb)
                 }
+                closePort(path)
             }
         })
 
-        ioManagerMap[path] = ioManager
-        
+        ioManagers[path] = ioManager
+
         try {
             executor.submit {
                 try {
@@ -307,11 +344,15 @@ class SerialPortManager(private val context: Context) {
                         "Failed to start IO Manager for $path: ${e.message}",
                         e
                     )
+                    ioManagers.remove(path)
+                    emitters.remove(path)?.stop()
                     closePort(path)
                 }
             }
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to submit IO Manager task for $path: ${e.message}", e)
+            ioManagers.remove(path)
+            emitters.remove(path)?.stop()
             closePort(path)
         }
     }
@@ -322,7 +363,8 @@ class SerialPortManager(private val context: Context) {
             
             Log.d("SerialPortManager", "Writing to port $path: ${data.size} bytes")
             
-            port.port.write(data, 1000) // 1 second timeout
+            val writeTimeout = port.config.timeout.coerceIn(1, 600_000)
+            port.port.write(data, writeTimeout)
             val bytesWritten = data.size
 
             return bytesWritten
@@ -337,8 +379,15 @@ class SerialPortManager(private val context: Context) {
 
     fun closePort(path: String) {
         try {
-            ioManagerMap[path]?.stop()
-            ioManagerMap.remove(path)
+            emitters.remove(path)?.stop()
+            ioManagers[path]?.let { mgr ->
+                try {
+                    mgr.stop()
+                } catch (e: Exception) {
+                    Log.w("SerialPortManager", "Failed to stop IO manager for $path: ${e.message}")
+                }
+            }
+            ioManagers.remove(path)
             portMap[path]?.port?.close()
             portMap.remove(path)
             Log.d("SerialPortManager", "Port closed: $path")
@@ -390,7 +439,9 @@ class SerialPortManager(private val context: Context) {
            val bufferSize = minOf(targetSize, maxPacketSize)
 
            val buffer = ByteArray(bufferSize)
-           val adjustedTimeout = timeout.coerceAtLeast(200) // Minimum 200ms timeout
+           // Prefer invoke timeout; fall back to open/config timeout (usb-serial: read timeout in ms)
+           val stored = port.config.timeout
+           val adjustedTimeout = (if (timeout > 0) timeout else stored).coerceAtLeast(200)
            
            Log.d("SerialPortManager", "Reading from port $path: bufferSize=$bufferSize, timeout=$adjustedTimeout")
            
@@ -468,16 +519,13 @@ class SerialPortManager(private val context: Context) {
 
     fun setFlowControl(path: String, flowControl: FlowControl): Boolean {
         return try {
+            val p = portMap[path]?.port ?: return false
             when (flowControl) {
-                FlowControl.HARDWARE -> {
-                    portMap[path]?.port?.dtr = true
-                    portMap[path]?.port?.rts = true
-                }
-                FlowControl.SOFTWARE -> {
-                    // Software flow control implementation
-                }
-                FlowControl.NONE -> {}
+                FlowControl.NONE -> p.setFlowControl(UsbSerialPort.FlowControl.NONE)
+                FlowControl.HARDWARE -> p.setFlowControl(UsbSerialPort.FlowControl.RTS_CTS)
+                FlowControl.SOFTWARE -> p.setFlowControl(UsbSerialPort.FlowControl.XON_XOFF)
             }
+            portMap[path]?.let { it.config.flowControl = flowControl }
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set flow control: ${e.message}", e)
@@ -511,9 +559,10 @@ class SerialPortManager(private val context: Context) {
 
     fun setTimeout(path: String, timeout: Int): Boolean {
         return try {
-            // Note: UsbSerialPort doesn't have a direct timeout setter
-            // The timeout is used in read operations
-            Log.d("SerialPortManager", "Timeout set to $timeout ms for port $path")
+            val managed = portMap[path] ?: return false
+            // No USB-level "read timeout" register — store for read()/write() (see usb-serial read/write timeout args)
+            managed.config.timeout = timeout.coerceIn(1, 600_000)
+            Log.d("SerialPortManager", "Read/write timeout preference set to ${managed.config.timeout} ms for $path")
             true
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to set timeout: ${e.message}", e)
@@ -578,9 +627,9 @@ class SerialPortManager(private val context: Context) {
     }
 
     fun bytesToRead(path: String): Int {
+        // UsbSerialPort (mik3y) has no incoming-queue length API — kernel buffer is opaque.
         return try {
-            // Note: UsbSerialPort doesn't provide bytesAvailable method
-            // Return 0 as fallback
+            if (!portMap.containsKey(path)) throw IOException("Port not found")
             0
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to get bytes to read: ${e.message}", e)
@@ -590,8 +639,7 @@ class SerialPortManager(private val context: Context) {
 
     fun bytesToWrite(path: String): Int {
         return try {
-            // Note: UsbSerialPort doesn't provide bytesToWrite method
-            // Return 0 as fallback
+            if (!portMap.containsKey(path)) throw IOException("Port not found")
             0
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to get bytes to write: ${e.message}", e)
@@ -599,11 +647,19 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
+    /** [UsbSerialPort.purgeHwBuffers](https://github.com/mik3y/usb-serial-for-android) */
     fun clearBuffer(path: String, bufferType: String): Boolean {
         return try {
-            // Note: UsbSerialPort doesn't provide buffer clearing methods
-            // Return false as fallback
-            Log.d("SerialPortManager", "Buffer clearing not supported for USB serial ports")
+            val p = portMap[path]?.port ?: return false
+            when (bufferType.lowercase()) {
+                "input" -> p.purgeHwBuffers(false, true)
+                "output" -> p.purgeHwBuffers(true, false)
+                "all" -> p.purgeHwBuffers(true, true)
+                else -> return false
+            }
+            true
+        } catch (e: UnsupportedOperationException) {
+            Log.w("SerialPortManager", "purgeHwBuffers not supported: ${e.message}")
             false
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to clear buffer: ${e.message}", e)
@@ -631,15 +687,29 @@ class SerialPortManager(private val context: Context) {
         }
     }
 
-    fun startListening(path: String, onDataReceived: (ByteArray) -> Unit) {
+    /**
+     * @param flushIntervalMs how often to flush buffered bytes to [emit] (10–2000 ms).
+     */
+    fun startListening(
+        path: String,
+        flushIntervalMs: Long,
+        emit: (JSObject) -> Unit,
+    ) {
         val port = portMap[path] ?: throw IOException("Port not found")
-        startIoManager(path, port.port, onDataReceived)
+        startIoManager(path, port.port, flushIntervalMs, emit)
     }
 
     fun stopListening(path: String) {
         try {
-            ioManagerMap[path]?.stop()
-            ioManagerMap.remove(path)
+            emitters.remove(path)?.stop()
+            ioManagers[path]?.let { mgr ->
+                try {
+                    mgr.stop()
+                } catch (e: Exception) {
+                    Log.w("SerialPortManager", "Failed to stop IO manager for $path: ${e.message}")
+                }
+            }
+            ioManagers.remove(path)
             Log.d("SerialPortManager", "Stopped listening on port: $path")
         } catch (e: Exception) {
             Log.e("SerialPortManager", "Failed to stop listening: ${e.message}", e)

@@ -303,7 +303,7 @@
     <usb-device vendor-id="0x18d1" product-id="0x5010" /> <!-- Chrome OS CCD -->
     <usb-device vendor-id="0x18d1" product-id="0x5011" /> <!-- Chrome OS CCD -->
     
-    <!-- CDC driver - автоматическое определение -->
+    <!-- CDC driver — auto-detection -->
     <usb-device vendor-id="9025" />                   <!-- 0x2341 / ......: Arduino -->
     <usb-device vendor-id="5824" product-id="1155" /> <!-- 0x16C0 / 0x0483: Teensyduino  -->
     <usb-device vendor-id="1003" product-id="8260" /> <!-- 0x03EB / 0x2044: Atmel Lufa -->
