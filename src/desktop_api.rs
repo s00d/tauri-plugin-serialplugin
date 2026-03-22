@@ -1,7 +1,7 @@
 use crate::error::Error;
 use crate::state::{
-    ClearBuffer, DataBits, FlowControl, Parity, ReadData, SerialportInfo, StopBits, BLUETOOTH, PCI,
-    UNKNOWN, USB,
+    ClearBuffer, ConnectedPort, DataBits, FlowControl, Parity, PortState, ReadData, SerialportInfo,
+    StopBits, BLUETOOTH, PCI, UNKNOWN, USB,
 };
 use crate::{log_debug, log_error, log_info, log_warn};
 use serialport::{
@@ -16,6 +16,25 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri::plugin::PluginHandle;
+
+/// Tear down resources held by a [`SerialportInfo`] (listener thread + port).
+fn finish_serialport_info(info: SerialportInfo) -> Result<(), Error> {
+    match info.state {
+        PortState::Connected(mut cp) => {
+            if let Some(sender) = cp.sender.take() {
+                sender.send(1).ok();
+            }
+            if let Some(handle) = cp.thread_handle.take() {
+                handle
+                    .join()
+                    .map_err(|e| Error::String(format!("Failed to join thread: {:?}", e)))?;
+            }
+            drop(cp.port);
+            Ok(())
+        }
+        PortState::Opening | PortState::Closed => Ok(()),
+    }
+}
 
 /// Access to the serial port APIs for mobile platforms.
 pub struct SerialPort<R: Runtime> {
@@ -226,13 +245,13 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Cancel reading data from the serial port
     pub fn cancel_read(&self, path: String) -> Result<(), Error> {
-        self.get_serialport(path.clone(), |serialport_info| {
-            if let Some(sender) = &serialport_info.sender {
+        self.with_connected_port(path.clone(), |cp| {
+            if let Some(sender) = &cp.sender {
                 sender.send(1).map_err(|e| {
                     Error::String(format!("Failed to cancel serial port data reading: {}", e))
                 })?;
             }
-            serialport_info.sender = None;
+            cp.sender = None;
             Ok(())
         })
     }
@@ -256,23 +275,7 @@ impl<R: Runtime> SerialPort<R> {
             Ok(mut serialports) => {
                 if let Some(port_info) = serialports.remove(&path) {
                     log_debug!("stop {}", path);
-                    // Signal the thread to stop
-                    if let Some(sender) = &port_info.sender {
-                        sender.send(1).map_err(|e| {
-                            Error::String(format!(
-                                "Failed to cancel serial port data reading: {}",
-                                e
-                            ))
-                        })?;
-                    }
-
-                    log_debug!("thread to finish {}", path);
-                    // Wait for the thread to finish
-                    if let Some(handle) = port_info.thread_handle {
-                        handle.join().map_err(|e| {
-                            Error::String(format!("Failed to join thread: {:?}", e))
-                        })?;
-                    }
+                    finish_serialport_info(port_info)?;
 
                     log_debug!("end {}", path);
 
@@ -304,17 +307,9 @@ impl<R: Runtime> SerialPort<R> {
             ) {
                 log_warn!("Failed to send disconnection event for {}: {}", path, e);
             }
-            
-            if let Some(sender) = port_info.sender {
-                if let Err(e) = sender.send(1) {
-                    errors.push(format!("Port {}: {}", path, e));
-                }
-            }
 
-            if let Some(handle) = port_info.thread_handle {
-                if let Err(e) = handle.join() {
-                    errors.push(format!("Port {} thread join: {:?}", path, e));
-                }
+            if let Err(e) = finish_serialport_info(port_info) {
+                errors.push(e.to_string());
             }
         }
 
@@ -330,20 +325,7 @@ impl<R: Runtime> SerialPort<R> {
         match self.serialports.lock() {
             Ok(mut map) => {
                 if let Some(serial) = map.remove(&path) {
-                    if let Some(sender) = &serial.sender {
-                        sender.send(1).map_err(|e| {
-                            Error::String(format!(
-                                "Failed to cancel serial port data reading: {}",
-                                e
-                            ))
-                        })?;
-                    }
-
-                    if let Some(handle) = serial.thread_handle {
-                        handle.join().map_err(|e| {
-                            Error::String(format!("Failed to join thread: {:?}", e))
-                        })?;
-                    }
+                    finish_serialport_info(serial)?;
                 }
                 Ok(())
             }
@@ -367,25 +349,20 @@ impl<R: Runtime> SerialPort<R> {
             .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
         // Close existing port before opening a new one
-        if let Some(mut existing) = serialports.remove(&path) {
+        if let Some(existing) = serialports.remove(&path) {
             log_info!("Force closing existing port {}", path);
-
-            // Stop the reading thread
-            if let Some(sender) = existing.sender.take() {
-                sender.send(1).ok();
-            }
-
-            // Close the port
-            if let Some(handle) = existing.thread_handle.take() {
-                handle.join().ok();
-            }
-
-            // Explicitly release resources
-            drop(existing.serialport);
+            finish_serialport_info(existing)?;
         }
 
-        // Open new port
-        let port = serialport::new(path.clone(), baud_rate)
+        serialports.insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Opening,
+            },
+        );
+
+        // Open new port (mutex held — concurrent access to this path sees Opening)
+        let port_result = serialport::new(path.clone(), baud_rate)
             .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
             .flow_control(
                 flow_control
@@ -395,19 +372,25 @@ impl<R: Runtime> SerialPort<R> {
             .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
             .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
             .timeout(Duration::from_millis(timeout.unwrap_or(200)))
-            .open()
-            .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
+            .open();
 
-        serialports.insert(
-            path,
-            SerialportInfo {
-                serialport: port,
-                sender: None,
-                thread_handle: None,
-            },
-        );
-
-        Ok(())
+        match port_result {
+            Ok(port) => {
+                let entry = serialports
+                    .get_mut(&path)
+                    .ok_or_else(|| Error::String(format!("Port '{}' disappeared during open", path)))?;
+                entry.state = PortState::Connected(ConnectedPort {
+                    port,
+                    sender: None,
+                    thread_handle: None,
+                });
+                Ok(())
+            }
+            Err(e) => {
+                serialports.remove(&path);
+                Err(Error::String(format!("Failed to open serial port: {}", e)))
+            }
+        }
     }
 
     /// Read data from the serial port
@@ -419,7 +402,7 @@ impl<R: Runtime> SerialPort<R> {
     ) -> Result<(), Error> {
         log_debug!("Starting listening on port: {}", path);
 
-        self.get_serialport(path.clone(), |port_info| {
+        self.with_connected_port(path.clone(), |port_info| {
             if port_info.sender.is_some() {
                 log_debug!("Existing listener found, stopping it first");
                 if let Some(sender) = &port_info.sender {
@@ -447,7 +430,7 @@ impl<R: Runtime> SerialPort<R> {
             log_debug!("Setting up port monitoring for: {}", read_event);
 
             let mut serial = port_info
-                .serialport
+                .port
                 .try_clone()
                 .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
 
@@ -539,7 +522,7 @@ impl<R: Runtime> SerialPort<R> {
     pub fn stop_listening(&self, path: String) -> Result<(), Error> {
         log_debug!("Stopping listening on port: {}", path);
 
-        self.get_serialport(path.clone(), |port_info| {
+        self.with_connected_port(path.clone(), |port_info| {
             if let Some(sender) = &port_info.sender {
                 sender.send(1).map_err(|e| {
                     Error::String(format!("Failed to cancel serial port data reading: {}", e))
@@ -559,16 +542,14 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<String, Error> {
-        self.get_serialport(path.clone(), |serialport_info| {
+        self.get_serialport(path.clone(), |port| {
             let timeout = timeout.unwrap_or(1000);
 
             let mut buffer = vec![0; size.unwrap_or(1024)];
-            serialport_info
-                .serialport
-                .set_timeout(Duration::from_millis(timeout))
+            port.set_timeout(Duration::from_millis(timeout))
                 .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
 
-            match serialport_info.serialport.read(&mut buffer) {
+            match port.read(&mut buffer) {
                 Ok(n) => {
                     let data = String::from_utf8_lossy(&buffer[..n]).to_string();
                     Ok(data)
@@ -588,7 +569,7 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<Vec<u8>, Error> {
-        self.get_serialport(path.clone(), |serialport_info| {
+        self.get_serialport(path.clone(), |port| {
             let target_size = size.unwrap_or(1024);
             let timeout = timeout.unwrap_or(1000);
             let mut buffer = Vec::with_capacity(target_size);
@@ -596,7 +577,7 @@ impl<R: Runtime> SerialPort<R> {
 
             while buffer.len() < target_size && start.elapsed() < Duration::from_millis(timeout) {
                 let mut temp_buf = vec![0; target_size - buffer.len()];
-                match serialport_info.serialport.read(&mut temp_buf) {
+                match port.read(&mut temp_buf) {
                     Ok(n) if n > 0 => {
                         buffer.extend_from_slice(&temp_buf[..n]);
                     }
@@ -621,196 +602,157 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Write data to the serial port
     pub fn write(&self, path: String, value: String) -> Result<usize, Error> {
-        self.get_serialport(path.clone(), |serialport_info| {
-            serialport_info
-                .serialport
-                .write(value.as_bytes())
+        self.get_serialport(path.clone(), |port| {
+            port.write(value.as_bytes())
                 .map_err(|e| Error::String(format!("Failed to write data: {}", e)))
         })
     }
 
     /// Write binary data to the serial port
     pub fn write_binary(&self, path: String, value: Vec<u8>) -> Result<usize, Error> {
-        self.get_serialport(path.clone(), |serialport_info| {
-            serialport_info
-                .serialport
-                .write(&value)
+        self.get_serialport(path.clone(), |port| {
+            port.write(&value)
                 .map_err(|e| Error::String(format!("Failed to write binary data: {}", e)))
         })
     }
 
     /// Set the baud rate
     pub fn set_baud_rate(&self, path: String, baud_rate: u32) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_baud_rate(baud_rate)
+        self.get_serialport(path, |port| {
+            port.set_baud_rate(baud_rate)
                 .map_err(|e| Error::String(format!("Failed to set baud rate: {}", e)))
         })
     }
 
     /// Set the data bits
     pub fn set_data_bits(&self, path: String, data_bits: DataBits) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_data_bits(data_bits.into())
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.set_data_bits(data_bits.into()).map_err(Error::from)
         })
     }
 
     /// Set the flow control
     pub fn set_flow_control(&self, path: String, flow_control: FlowControl) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_flow_control(flow_control.into())
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.set_flow_control(flow_control.into()).map_err(Error::from)
         })
     }
 
     /// Set the parity
     pub fn set_parity(&self, path: String, parity: Parity) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_parity(parity.into())
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.set_parity(parity.into()).map_err(Error::from)
         })
     }
 
     /// Set the stop bits
     pub fn set_stop_bits(&self, path: String, stop_bits: StopBits) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_stop_bits(stop_bits.into())
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.set_stop_bits(stop_bits.into()).map_err(Error::from)
         })
     }
 
     /// Set the timeout
     pub fn set_timeout(&self, path: String, timeout: Duration) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .set_timeout(timeout)
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.set_timeout(timeout).map_err(Error::from)
         })
     }
 
     /// Set the RTS (Request To Send) control signal
     pub fn write_request_to_send(&self, path: String, level: bool) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .write_request_to_send(level)
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.write_request_to_send(level).map_err(Error::from)
         })
     }
 
     /// Set the DTR (Data Terminal Ready) control signal
     pub fn write_data_terminal_ready(&self, path: String, level: bool) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .write_data_terminal_ready(level)
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.write_data_terminal_ready(level).map_err(Error::from)
         })
     }
 
     /// Read the CTS (Clear To Send) control signal state
     pub fn read_clear_to_send(&self, path: String) -> Result<bool, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .read_clear_to_send()
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.read_clear_to_send().map_err(Error::from)
         })
     }
 
     /// Read the DSR (Data Set Ready) control signal state
     pub fn read_data_set_ready(&self, path: String) -> Result<bool, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .read_data_set_ready()
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.read_data_set_ready().map_err(Error::from)
         })
     }
 
     /// Read the RI (Ring Indicator) control signal state
     pub fn read_ring_indicator(&self, path: String) -> Result<bool, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .read_ring_indicator()
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.read_ring_indicator().map_err(Error::from)
         })
     }
 
     /// Read the CD (Carrier Detect) control signal state
     pub fn read_carrier_detect(&self, path: String) -> Result<bool, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .read_carrier_detect()
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.read_carrier_detect().map_err(Error::from)
         })
     }
 
     /// Get the number of bytes available to read
     pub fn bytes_to_read(&self, path: String) -> Result<u32, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info.serialport.bytes_to_read().map_err(Error::from)
-        })
+        self.get_serialport(path, |port| port.bytes_to_read().map_err(Error::from))
     }
 
     /// Get the number of bytes waiting to be written
     pub fn bytes_to_write(&self, path: String) -> Result<u32, Error> {
-        self.get_serialport(path, |port_info| {
-            port_info.serialport.bytes_to_write().map_err(Error::from)
-        })
+        self.get_serialport(path, |port| port.bytes_to_write().map_err(Error::from))
     }
 
     /// Clear input/output buffers
     pub fn clear_buffer(&self, path: String, buffer_to_clear: ClearBuffer) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info
-                .serialport
-                .clear(buffer_to_clear.into())
-                .map_err(Error::from)
+        self.get_serialport(path, |port| {
+            port.clear(buffer_to_clear.into()).map_err(Error::from)
         })
     }
 
     /// Start break signal transmission
     pub fn set_break(&self, path: String) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info.serialport.set_break().map_err(Error::from)
-        })
+        self.get_serialport(path, |port| port.set_break().map_err(Error::from))
     }
 
     /// Stop break signal transmission
     pub fn clear_break(&self, path: String) -> Result<(), Error> {
-        self.get_serialport(path, |port_info| {
-            port_info.serialport.clear_break().map_err(Error::from)
-        })
+        self.get_serialport(path, |port| port.clear_break().map_err(Error::from))
     }
 
-    fn get_serialport<T, F>(&self, path: String, f: F) -> Result<T, Error>
+    /// Run `f` only when the port is [`PortState::Connected`].
+    fn with_connected_port<T, F>(&self, path: String, f: F) -> Result<T, Error>
     where
-        F: FnOnce(&mut SerialportInfo) -> Result<T, Error>,
+        F: FnOnce(&mut ConnectedPort) -> Result<T, Error>,
     {
         let mut ports = self
             .serialports
             .lock()
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
 
-        let serial_info = ports
+        let info = ports
             .get_mut(&path)
             .ok_or_else(|| Error::String(format!("Port '{}' not found", path)))?;
 
-        f(serial_info)
+        match &mut info.state {
+            PortState::Connected(cp) => f(cp),
+            other => Err(Error::String(other.not_connected_reason())),
+        }
+    }
+
+    fn get_serialport<T, F>(&self, path: String, f: F) -> Result<T, Error>
+    where
+        F: FnOnce(&mut Box<dyn serialport::SerialPort>) -> Result<T, Error>,
+    {
+        self.with_connected_port(path, |cp| f(&mut cp.port))
     }
 
     fn get_port_info(&self, port: serialport::SerialPortType) -> HashMap<String, String> {

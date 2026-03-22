@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::state::{FlowControl, Parity, SerialportInfo};
+    use crate::state::{FlowControl, Parity, PortState, SerialportInfo};
     use crate::tests::mock::MockSerialPort;
     use serialport::SerialPort;
     use std::time::Duration;
@@ -8,21 +8,21 @@ mod tests {
     #[test]
     fn test_serialport_info() {
         let mock_port = MockSerialPort::new();
-        let info = SerialportInfo {
-            serialport: Box::new(mock_port),
-            sender: None,
-            thread_handle: None,
+        let info = SerialportInfo::new(Box::new(mock_port));
+        let cp = match &info.state {
+            PortState::Connected(c) => c,
+            _ => panic!("expected Connected"),
         };
 
-        assert_eq!(info.serialport.name().unwrap(), "COM1");
-        assert_eq!(info.serialport.baud_rate().unwrap(), 9600);
-        assert_eq!(info.serialport.data_bits().unwrap(), serialport::DataBits::Eight);
-        assert_eq!(info.serialport.flow_control().unwrap(), serialport::FlowControl::None);
-        assert_eq!(info.serialport.parity().unwrap(), serialport::Parity::None);
-        assert_eq!(info.serialport.stop_bits().unwrap(), serialport::StopBits::One);
-        assert_eq!(info.serialport.timeout(), Duration::from_millis(1000));
-        assert!(info.sender.is_none());
-        assert!(info.thread_handle.is_none());
+        assert_eq!(cp.port.name().unwrap(), "COM1");
+        assert_eq!(cp.port.baud_rate().unwrap(), 9600);
+        assert_eq!(cp.port.data_bits().unwrap(), serialport::DataBits::Eight);
+        assert_eq!(cp.port.flow_control().unwrap(), serialport::FlowControl::None);
+        assert_eq!(cp.port.parity().unwrap(), serialport::Parity::None);
+        assert_eq!(cp.port.stop_bits().unwrap(), serialport::StopBits::One);
+        assert_eq!(cp.port.timeout(), Duration::from_millis(1000));
+        assert!(cp.sender.is_none());
+        assert!(cp.thread_handle.is_none());
     }
 
     #[test]

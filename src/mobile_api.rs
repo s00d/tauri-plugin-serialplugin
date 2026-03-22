@@ -52,6 +52,26 @@ struct ReadResponse {
 }
 
 impl<R: Runtime> SerialPort<R> {
+    fn ensure_mobile_success(value: Value, fallback_error: &str) -> Result<(), Error> {
+        match value {
+            Value::Null => Ok(()),
+            Value::Bool(true) => Ok(()),
+            Value::Object(_) => {
+                let response: MobileResponse<bool> = serde_json::from_value(value)
+                    .map_err(|e| Error::new(format!("Invalid mobile response format: {}", e)))?;
+                match response.data {
+                    Some(true) => Ok(()),
+                    _ => Err(Error::new(
+                        response
+                            .error
+                            .unwrap_or_else(|| fallback_error.to_string()),
+                    )),
+                }
+            }
+            _ => Err(Error::new("Invalid response format")),
+        }
+    }
+
     /// Lists all available serial ports
     pub fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         let response: AvailablePortsResponse = self
@@ -133,48 +153,30 @@ impl<R: Runtime> SerialPort<R> {
     /// Closes a serial port
     pub fn close(&self, path: String) -> Result<(), Error> {
         let params = serde_json::json!({ "path": path });
-        let response: MobileResponse<bool> = self
+        let response: Value = self
             .0
-            .run_mobile_plugin::<MobileResponse<bool>>("close", params)?;
-        match response.data {
-            Some(true) => Ok(()),
-            _ => Err(Error::new(
-                response
-                    .error
-                    .unwrap_or_else(|| "Failed to close port".to_string()),
-            )),
-        }
+            .run_mobile_plugin("close", params)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))?;
+        Self::ensure_mobile_success(response, "Failed to close port")
     }
 
     /// Closes all open serial ports
     pub fn close_all(&self) -> Result<(), Error> {
-        let response: MobileResponse<bool> = self
+        let response: Value = self
             .0
-            .run_mobile_plugin::<MobileResponse<bool>>("closeAll", ())?;
-        match response.data {
-            Some(true) => Ok(()),
-            _ => Err(Error::new(
-                response
-                    .error
-                    .unwrap_or_else(|| "Failed to close all ports".to_string()),
-            )),
-        }
+            .run_mobile_plugin("closeAll", ())
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))?;
+        Self::ensure_mobile_success(response, "Failed to close all ports")
     }
 
     /// Force closes a serial port
     pub fn force_close(&self, path: String) -> Result<(), Error> {
         let params = serde_json::json!({ "path": path });
-        let response: MobileResponse<bool> = self
+        let response: Value = self
             .0
-            .run_mobile_plugin::<MobileResponse<bool>>("forceClose", params)?;
-        match response.data {
-            Some(true) => Ok(()),
-            _ => {
-                Err(Error::new(response.error.unwrap_or_else(|| {
-                    "Failed to force close port".to_string()
-                })))
-            }
-        }
+            .run_mobile_plugin("forceClose", params)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))?;
+        Self::ensure_mobile_success(response, "Failed to force close port")
     }
 
     /// Writes data to the serial port
@@ -256,29 +258,21 @@ impl<R: Runtime> SerialPort<R> {
         size: Option<usize>,
     ) -> Result<(), Error> {
         let params = serde_json::json!({ "path": path, "timeout": timeout, "size": size });
-        let response: MobileResponse<bool> = self.0.run_mobile_plugin("startListening", params)?;
-        match response.data {
-            Some(true) => Ok(()),
-            _ => Err(Error::new(
-                response
-                    .error
-                    .unwrap_or_else(|| "Failed to start listening".to_string()),
-            )),
-        }
+        let response: Value = self
+            .0
+            .run_mobile_plugin("startListening", params)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))?;
+        Self::ensure_mobile_success(response, "Failed to start listening")
     }
 
     /// Stops listening for data on the serial port
     pub fn stop_listening(&self, path: String) -> Result<(), Error> {
         let params = serde_json::json!({ "path": path });
-        let response: MobileResponse<bool> = self.0.run_mobile_plugin("stopListening", params)?;
-        match response.data {
-            Some(true) => Ok(()),
-            _ => Err(Error::new(
-                response
-                    .error
-                    .unwrap_or_else(|| "Failed to stop listening".to_string()),
-            )),
-        }
+        let response: Value = self
+            .0
+            .run_mobile_plugin("stopListening", params)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))?;
+        Self::ensure_mobile_success(response, "Failed to stop listening")
     }
 
     /// Sets the baud rate for the serial port
@@ -497,5 +491,52 @@ impl<R: Runtime> SerialPort<R> {
             Ok(_) => Err(Error::new("Failed to clear break")),
             Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SerialPort;
+    use tauri::test::MockRuntime;
+
+    #[test]
+    fn ensure_mobile_success_accepts_null() {
+        let result = SerialPort::<MockRuntime>::ensure_mobile_success(
+            serde_json::Value::Null,
+            "fallback",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_mobile_success_accepts_true_bool() {
+        let result = SerialPort::<MockRuntime>::ensure_mobile_success(
+            serde_json::Value::Bool(true),
+            "fallback",
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_mobile_success_accepts_mobile_response_object() {
+        let payload = serde_json::json!({
+            "success": true,
+            "data": true,
+            "error": null
+        });
+        let result = SerialPort::<MockRuntime>::ensure_mobile_success(payload, "fallback");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ensure_mobile_success_rejects_false_with_fallback_error() {
+        let payload = serde_json::json!({
+            "success": false,
+            "data": false,
+            "error": null
+        });
+        let result = SerialPort::<MockRuntime>::ensure_mobile_success(payload, "fallback");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "fallback");
     }
 }

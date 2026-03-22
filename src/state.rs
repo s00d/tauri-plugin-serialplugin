@@ -28,6 +28,37 @@ use std::{
     sync::{mpsc::Sender, Arc, Mutex, OnceLock},
 };
 
+/// Open serial port with optional background read thread handles (desktop).
+pub struct ConnectedPort {
+    /// Underlying serial device
+    pub port: Box<dyn SerialPort>,
+    /// Signal channel for the read thread (when listening)
+    pub sender: Option<Sender<usize>>,
+    /// Background read thread
+    pub thread_handle: Option<JoinHandle<()>>,
+}
+
+/// Lifecycle state for a managed port (desktop).
+pub enum PortState {
+    /// Slot unused or released (only kept for tests / explicit transitions)
+    Closed,
+    /// `open()` is in progress — I/O must wait
+    Opening,
+    /// Port is ready for read/write/settings
+    Connected(ConnectedPort),
+}
+
+impl PortState {
+    /// Human-readable reason when [`PortState::Connected`] is required but state differs.
+    pub fn not_connected_reason(&self) -> String {
+        match self {
+            PortState::Closed => "Port is closed".to_string(),
+            PortState::Opening => "Port is still opening".to_string(),
+            PortState::Connected(_) => "Port is connected".to_string(),
+        }
+    }
+}
+
 /// Main state structure for managing serial ports
 /// 
 /// This structure holds the global state of all serial ports managed by the plugin.
@@ -49,10 +80,9 @@ pub struct SerialportState {
     /// to their corresponding `SerialportInfo` structures.
     pub serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,
 }
-/// Information structure for a single serial port
+/// Information structure for a single serial port (desktop)
 /// 
-/// This structure holds all the information needed to manage a single serial port,
-/// including the port itself, communication channels, and background threads.
+/// Holds a [`PortState`] so I/O runs only in [`PortState::Connected`], avoiding use-after-close.
 /// 
 /// # Example
 /// 
@@ -64,52 +94,28 @@ pub struct SerialportState {
 /// // let info = SerialportInfo::new(port);
 /// ```
 pub struct SerialportInfo {
-    /// The actual serial port implementation
-    /// 
-    /// This is a boxed trait object that implements the `SerialPort` trait,
-    /// providing the actual serial communication functionality.
-    pub serialport: Box<dyn SerialPort>,
-    
-    /// Optional sender for communication with background threads
-    /// 
-    /// This sender is used to communicate with background threads that handle
-    /// asynchronous reading operations. It's `None` when no background reading
-    /// is active.
-    pub sender: Option<Sender<usize>>,
-    
-    /// Optional handle to background thread
-    /// 
-    /// This handle allows the plugin to manage background threads that perform
-    /// continuous reading operations. It's `None` when no background thread
-    /// is running.
-    pub thread_handle: Option<JoinHandle<()>>,
+    /// Current lifecycle state (desktop).
+    pub state: PortState,
 }
 
 impl SerialportInfo {
-    /// Creates a new `SerialportInfo` instance
-    /// 
-    /// This constructor creates a new serial port information structure
-    /// with the provided serial port implementation. The sender and thread
-    /// handle are initialized to `None` and should be set later if needed.
-    /// 
-    /// # Arguments
-    /// 
-    /// * `serialport` - A boxed serial port implementation
-    /// 
-    /// # Example
-    /// 
-    /// ```rust
-    /// use tauri_plugin_serialplugin::state::SerialportInfo;
-    /// use serialport::SerialPort;
-    /// 
-    /// // This is typically used internally by the plugin
-    /// // let info = SerialportInfo::new(port);
-    /// ```
-    pub fn new(serialport: Box<dyn SerialPort>) -> Self {
+    /// Creates a new `SerialportInfo` in [`PortState::Connected`] with no listener thread.
+    pub fn new(port: Box<dyn SerialPort>) -> Self {
         Self {
-            serialport,
-            sender: None,
-            thread_handle: None,
+            state: PortState::Connected(ConnectedPort {
+                port,
+                sender: None,
+                thread_handle: None,
+            }),
+        }
+    }
+
+    /// Mutable access to [`ConnectedPort`] when state is [`PortState::Connected`].
+    #[cfg(test)]
+    pub(crate) fn connected_port_mut(&mut self) -> Option<&mut ConnectedPort> {
+        match &mut self.state {
+            PortState::Connected(cp) => Some(cp),
+            _ => None,
         }
     }
 }

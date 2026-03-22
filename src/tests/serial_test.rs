@@ -259,11 +259,7 @@ mod tests {
 
             let mut mock_port = MockSerialPort::new();
             mock_port.is_open = true;
-            ports.insert(path, SerialportInfo {
-                serialport: Box::new(mock_port),
-                sender: None,
-                thread_handle: None,
-            });
+            ports.insert(path, SerialportInfo::new(Box::new(mock_port)));
 
             Ok(())
         }
@@ -274,7 +270,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.write(value.as_bytes())
+                port_info.connected_port_mut().unwrap().port.write(value.as_bytes())
                     .map_err(|e| Error::String(format!("Failed to write data: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -288,7 +284,7 @@ mod tests {
             if let Some(port_info) = ports.get_mut(&path) {
                 let target_size = size.unwrap_or(1024);
                 let mut buffer = vec![0; target_size];
-                let n = port_info.serialport.read(&mut buffer)
+                let n = port_info.connected_port_mut().unwrap().port.read(&mut buffer)
                     .map_err(|e| Error::String(format!("Failed to read data: {}", e)))?;
 
                 String::from_utf8(buffer[..n].to_vec())
@@ -318,7 +314,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.set_baud_rate(baud_rate)
+                port_info.connected_port_mut().unwrap().port.set_baud_rate(baud_rate)
                     .map_err(|e| Error::String(format!("Failed to set baud rate: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -336,7 +332,7 @@ mod tests {
                     DataBits::Seven => serialport::DataBits::Seven,
                     DataBits::Eight => serialport::DataBits::Eight,
                 };
-                port_info.serialport.set_data_bits(bits)
+                port_info.connected_port_mut().unwrap().port.set_data_bits(bits)
                     .map_err(|e| Error::String(format!("Failed to set data bits: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -353,7 +349,7 @@ mod tests {
                     FlowControl::Software => serialport::FlowControl::Software,
                     FlowControl::Hardware => serialport::FlowControl::Hardware,
                 };
-                port_info.serialport.set_flow_control(flow)
+                port_info.connected_port_mut().unwrap().port.set_flow_control(flow)
                     .map_err(|e| Error::String(format!("Failed to set flow control: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -370,7 +366,7 @@ mod tests {
                     Parity::Odd => serialport::Parity::Odd,
                     Parity::Even => serialport::Parity::Even,
                 };
-                port_info.serialport.set_parity(par)
+                port_info.connected_port_mut().unwrap().port.set_parity(par)
                     .map_err(|e| Error::String(format!("Failed to set parity: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -386,7 +382,7 @@ mod tests {
                     StopBits::One => serialport::StopBits::One,
                     StopBits::Two => serialport::StopBits::Two,
                 };
-                port_info.serialport.set_stop_bits(bits)
+                port_info.connected_port_mut().unwrap().port.set_stop_bits(bits)
                     .map_err(|e| Error::String(format!("Failed to set stop bits: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -398,7 +394,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.write_request_to_send(level)
+                port_info.connected_port_mut().unwrap().port.write_request_to_send(level)
                     .map_err(|e| Error::String(format!("Failed to set RTS: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -410,7 +406,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.write_data_terminal_ready(level)
+                port_info.connected_port_mut().unwrap().port.write_data_terminal_ready(level)
                     .map_err(|e| Error::String(format!("Failed to set DTR: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -422,7 +418,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.read_clear_to_send()
+                port_info.connected_port_mut().unwrap().port.read_clear_to_send()
                     .map_err(|e| Error::String(format!("Failed to read CTS: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -434,7 +430,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.read_data_set_ready()
+                port_info.connected_port_mut().unwrap().port.read_data_set_ready()
                     .map_err(|e| Error::String(format!("Failed to read DSR: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -446,7 +442,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.set_break()
+                port_info.connected_port_mut().unwrap().port.set_break()
                     .map_err(|e| Error::String(format!("Failed to set break: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -458,7 +454,7 @@ mod tests {
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.serialport.clear_break()
+                port_info.connected_port_mut().unwrap().port.clear_break()
                     .map_err(|e| Error::String(format!("Failed to clear break: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -818,12 +814,13 @@ mod tests {
     #[test]
     fn test_port_info_creation() {
         let mock_port = Box::new(MockSerialPort::new());
-        let info = SerialportInfo {
-            serialport: mock_port,
-            sender: None,
-            thread_handle: None,
-        };
-        assert!(info.serialport.name().unwrap() == "COM1");
+        let info = SerialportInfo::new(mock_port);
+        match &info.state {
+            crate::state::PortState::Connected(cp) => {
+                assert_eq!(cp.port.name().unwrap(), "COM1");
+            }
+            _ => panic!("expected Connected"),
+        }
     }
 
     #[test]
@@ -926,7 +923,7 @@ mod tests {
 
         // Test error when working with invalid parameters
         // Use valid UTF-8 data but with unusual characters
-        let test_data = "Тестовые данные с русскими символами и эмодзи 🚀";
+        let test_data = "Test data with UTF-8 and emoji 🚀";
         let result = serial.write("COM1".to_string(), test_data.to_string());
         assert!(result.is_ok());
 
@@ -1191,7 +1188,7 @@ mod tests {
             // Set timeout for port
             let mut ports = serial.serialports.lock().unwrap();
             if let Some(port_info) = ports.get_mut(&port) {
-                port_info.serialport.set_timeout(Duration::from_millis(timeout)).unwrap();
+                port_info.connected_port_mut().unwrap().port.set_timeout(Duration::from_millis(timeout)).unwrap();
             }
             drop(ports);
 

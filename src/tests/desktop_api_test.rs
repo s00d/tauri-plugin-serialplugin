@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::desktop_api::SerialPort;
-    use crate::state::{DataBits, FlowControl, Parity, StopBits};
+    use crate::state::{DataBits, FlowControl, Parity, PortState, SerialportInfo, StopBits};
     use tauri::test::MockRuntime;
     use tauri::Manager;
     use tauri::App;
@@ -66,6 +66,30 @@ mod tests {
         // Check that port is not added to managed ports list
         let ports = serial_port.managed_ports().unwrap();
         assert!(!ports.contains(&"NONEXISTENT".to_string()));
+    }
+
+    #[test]
+    fn test_write_rejects_closed_port_state() {
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let path = "COM_STATE_CLOSED".to_string();
+        serial_port
+            .serialports
+            .lock()
+            .unwrap()
+            .insert(path.clone(), SerialportInfo {
+                state: PortState::Closed,
+            });
+
+        let err = serial_port
+            .write(path, "x".to_string())
+            .expect_err("write on Closed must fail");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("closed") || msg.contains("Closed"),
+            "unexpected message: {}",
+            msg
+        );
     }
 
     #[test]
