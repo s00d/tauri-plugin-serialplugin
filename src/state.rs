@@ -17,18 +17,24 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+#[cfg(desktop)]
 use serialport::{self, SerialPort};
+#[cfg(desktop)]
 use serialport::{
     ClearBuffer as SerialClearBuffer, DataBits as SerialDataBits, FlowControl as SerialFlowControl,
     Parity as SerialParity, StopBits as SerialStopBits,
 };
+#[cfg(desktop)]
 use std::thread::JoinHandle;
+use std::sync::{Mutex, OnceLock};
+#[cfg(desktop)]
 use std::{
     collections::HashMap,
-    sync::{mpsc::Sender, Arc, Mutex, OnceLock},
+    sync::{mpsc::Sender, Arc},
 };
 
 /// Open serial port with optional background read thread handles (desktop).
+#[cfg(desktop)]
 pub struct ConnectedPort {
     /// Underlying serial device
     pub port: Box<dyn SerialPort>,
@@ -39,6 +45,7 @@ pub struct ConnectedPort {
 }
 
 /// Lifecycle state for a managed port (desktop).
+#[cfg(desktop)]
 pub enum PortState {
     /// Slot unused or released (only kept for tests / explicit transitions)
     Closed,
@@ -48,6 +55,7 @@ pub enum PortState {
     Connected(ConnectedPort),
 }
 
+#[cfg(desktop)]
 impl PortState {
     /// Human-readable reason when [`PortState::Connected`] is required but state differs.
     pub fn not_connected_reason(&self) -> String {
@@ -71,6 +79,7 @@ impl PortState {
 /// 
 /// let state = SerialportState::default();
 /// ```
+#[cfg(desktop)]
 #[derive(Default)]
 pub struct SerialportState {
     /// Thread-safe map of port names to port information
@@ -93,11 +102,13 @@ pub struct SerialportState {
 /// // This is typically created internally by the plugin
 /// // let info = SerialportInfo::new(port);
 /// ```
+#[cfg(desktop)]
 pub struct SerialportInfo {
     /// Current lifecycle state (desktop).
     pub state: PortState,
 }
 
+#[cfg(desktop)]
 impl SerialportInfo {
     /// Creates a new `SerialportInfo` in [`PortState::Connected`] with no listener thread.
     pub fn new(port: Box<dyn SerialPort>) -> Self {
@@ -185,7 +196,6 @@ pub struct ReadData<'a> {
 ///     _ => println!("Unknown port type"),
 /// }
 /// ```
-
 /// Unknown port type
 pub const UNKNOWN: &str = "Unknown";
 /// USB serial port
@@ -219,6 +229,7 @@ pub enum DataBits {
     Eight,
 }
 
+#[cfg(desktop)]
 impl From<DataBits> for SerialDataBits {
     fn from(bits: DataBits) -> Self {
         match bits {
@@ -279,6 +290,7 @@ pub enum FlowControl {
     Hardware,
 }
 
+#[cfg(desktop)]
 impl From<FlowControl> for SerialFlowControl {
     fn from(flow: FlowControl) -> Self {
         match flow {
@@ -337,6 +349,7 @@ pub enum Parity {
     Even,
 }
 
+#[cfg(desktop)]
 impl From<Parity> for SerialParity {
     fn from(parity: Parity) -> Self {
         match parity {
@@ -393,6 +406,7 @@ pub enum StopBits {
     Two,
 }
 
+#[cfg(desktop)]
 impl From<StopBits> for SerialStopBits {
     fn from(bits: StopBits) -> Self {
         match bits {
@@ -449,6 +463,7 @@ pub enum ClearBuffer {
     All,
 }
 
+#[cfg(desktop)]
 impl From<ClearBuffer> for SerialClearBuffer {
     fn from(buffer: ClearBuffer) -> Self {
         match buffer {
@@ -471,7 +486,7 @@ impl From<ClearBuffer> for SerialClearBuffer {
 /// 
 /// let log_level = LogLevel::Error; // Only show errors
 /// ```
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum LogLevel {
     /// No logging output
     None,
@@ -480,15 +495,10 @@ pub enum LogLevel {
     /// Errors and warnings
     Warn,
     /// Errors, warnings, and general information
+    #[default]
     Info,
     /// All logging including debug information
     Debug,
-}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        LogLevel::Info
-    }
 }
 
 impl LogLevel {
@@ -554,8 +564,8 @@ pub fn set_log_level(level: LogLevel) {
 /// let level = get_log_level();
 /// ```
 pub fn get_log_level() -> LogLevel {
-    get_log_level_mutex().lock().unwrap_or_else(|e| {
+    *get_log_level_mutex().lock().unwrap_or_else(|e| {
         eprintln!("Failed to lock log level: {}", e);
         e.into_inner()
-    }).clone()
+    })
 }

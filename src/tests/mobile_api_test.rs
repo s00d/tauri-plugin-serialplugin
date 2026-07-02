@@ -9,8 +9,6 @@ mod tests {
     use std::time::Duration;
     use tauri::{App, Manager, Runtime, State};
     use tauri::test::MockRuntime;
-    use crate::tests::mock::{MockSerialPort, create_mock_serialport_info};
-
     fn create_test_serial_port() -> SerialPort<MockRuntime> {
         let app = tauri::test::mock_app();
         SerialPort::new(app.handle().clone())

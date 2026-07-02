@@ -2925,9 +2925,9 @@ dependencies = [
 
 [[package]]
 name = "serialport"
-version = "4.8.1"
+version = "4.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21f60a586160667241d7702c420fc223939fb3c0bb8d3fac84f78768e8970dee"
+checksum = "a4d91116f97173694f1642263b2ff837f80d933aa837e2314969f6728f661df3"
 dependencies = [
  "bitflags 2.9.1",
  "cfg-if",
@@ -2937,7 +2937,6 @@ dependencies = [
  "libudev",
  "mach2",
  "nix",
- "quote",
  "scopeguard",
  "unescaper",
  "windows-sys 0.52.0",
@@ -3349,7 +3348,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "2.22.0"
+version = "2.23.0"
 dependencies = [
  "serde",
  "serde_json",

@@ -52,13 +52,19 @@ pub mod logger;
 
 #[cfg(test)]
 mod tests {
+    #[cfg(desktop)]
     mod mock;
+    #[cfg(desktop)]
     mod commands_test;
+    #[cfg(desktop)]
     mod state_test;
+    #[cfg(desktop)]
     mod error_test;
+    #[cfg(desktop)]
     mod desktop_api_test;
-    mod mobile_api_test;
+    #[cfg(desktop)]
     mod serial_test;
+    mod mobile_api_test;
 }
 
 #[cfg(desktop)]

@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-serialplugin"
-version = "2.22.0"
+version = "2.23.0"
 description = "Access the current process of your Tauri application."
 edition = "2021"
 authors = ["Tauri Programme within The Commons Conservancy"]
@@ -24,11 +24,13 @@ android = { level = "full", notes = "" }
 tauri-plugin = { version = "2.3.0", features = [ "build" ] }
 
 [dependencies]
-serialport = "4.8.1"
 tauri = { version = "2.6.2", features = ["test"] }
 serde = { version = "1.0.219", features = ["derive"] }
 thiserror = "2.0.12"
 serde_json = "1.0.140"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+serialport = "4.9.0"
 
 [profile.release]
 panic = "abort"

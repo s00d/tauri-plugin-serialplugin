@@ -56,6 +56,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[cfg(desktop)]
 impl From<serialport::Error> for Error {
     fn from(err: serialport::Error) -> Self {
         Error::SerialPort(err.to_string())

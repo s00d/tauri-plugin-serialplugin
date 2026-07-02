@@ -244,6 +244,7 @@ mod tests {
             }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn open(
             &self,
             path: String,
@@ -795,8 +796,7 @@ mod tests {
             std::thread::spawn(move || {
                 let read_result = serial.read(port, Some(1000), Some(1024));
                 // Read might succeed or timeout, both are valid in concurrent scenario
-                if read_result.is_ok() {
-                    let data = read_result.unwrap();
+                if let Ok(data) = read_result {
                     assert!(!data.is_empty(), "Read data should not be empty if successful");
                 }
             })

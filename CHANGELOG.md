@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file. See [standa
 
 For **Android/USB-focused** details (behavior, limits, testing), see also [`android/README.md`](android/README.md).
 
+## [2.23.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.22.0...v2.23.0) (2026-07-02)
+
+### Bug Fixes
+
+* **desktop:** `write` / `write_binary` now flush the full buffer via `write_all` (retries partial kernel writes instead of returning after the first `write` syscall). Mitigates truncated sends on Windows and slow links ([#29](https://github.com/s00d/tauri-plugin-serialplugin/issues/29)).
+* **desktop:** Default open/read/write timeout raised from **200 ms** to **1000 ms** (`DEFAULT_SERIAL_TIMEOUT_MS` in JS and Rust).
+* **desktop:** `start_listening` listener read-poll timeout fixed: was capped at **1 ms** (`.min(1)` regression); now clamped to **1–100 ms** while the user timeout still controls buffer coalescing.
+
+### Features
+
+* **guest-js:** Export `DEFAULT_SERIAL_TIMEOUT_MS`; document `timeout` on `SerialportOptions`; clarify `write` / `writeBinary` return value vs payload length.
+
+### Build / Android
+
+* **Rust:** `serialport` is a **desktop-only** dependency (`cfg(not(android/ios))`); Android builds no longer link the unused crate. Desktop-only state (`ConnectedPort`, `PortState`, …) and `From<serialport::Error>` are gated accordingly.
+
 ## [2.22.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.1...v2.22.0) (2026-03-21)
 
 ### Android / USB

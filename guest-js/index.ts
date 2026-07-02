@@ -6,6 +6,9 @@ import {setLogLevel as setInternalLogLevel, logError, logWarn, logInfo, logDebug
 
 // All type definitions for the serial plugin
 
+/** Default read/write timeout (ms) when opening a port on desktop. */
+export const DEFAULT_SERIAL_TIMEOUT_MS = 1000;
+
 export interface PortInfo {
   path: "Unknown" | string;
   manufacturer: "Unknown" | string;
@@ -29,6 +32,7 @@ export interface SerialportOptions {
   flowControl?: FlowControl;
   parity?: Parity;
   stopBits?: StopBits;
+  /** Read/write timeout in milliseconds (default {@link DEFAULT_SERIAL_TIMEOUT_MS}). */
   timeout?: number;
   size?: number;
   /** Android: batch interval (ms) for `serialData` events when listening (native default 100). */
@@ -130,7 +134,7 @@ class SerialPort {
       parity: options.parity || Parity.None,
       stopBits: options.stopBits || StopBits.One,
       size: options.size || 1024,
-      timeout: options.timeout || 200,
+      timeout: options.timeout ?? DEFAULT_SERIAL_TIMEOUT_MS,
       ...(options.serialDataFlushIntervalMs != null && {
         serialDataFlushIntervalMs: options.serialDataFlushIntervalMs,
       }),
@@ -1081,7 +1085,9 @@ class SerialPort {
   }
 
   /**
-   * @description Writes string data to the serial port
+   * @description Writes string data to the serial port. On desktop the plugin writes the full
+   * buffer (retries partial kernel writes). The resolved value is the number of bytes written;
+   * compare it to `value.length` (UTF-8 byte length) if you need to detect encoding/size mismatch.
    * @param {string} value The data to write
    * @returns {Promise<number>} A promise that resolves to the number of bytes written
    */
@@ -1101,7 +1107,9 @@ class SerialPort {
   }
 
   /**
-   * @description Writes binary data to the serial port
+   * @description Writes binary data to the serial port. On desktop the plugin writes the full
+   * buffer. The resolved value is the number of bytes written; compare to `value.length` when
+   * passing a `Uint8Array` or `number[]`.
    * @param {Uint8Array | number[]} value The binary data to write
    * @returns {Promise<number>} A promise that resolves to the number of bytes written
    */

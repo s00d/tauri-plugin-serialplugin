@@ -9,6 +9,7 @@ use serialport::{
     StopBits as SerialStopBits,
 };
 use std::collections::HashMap;
+use std::io::Write;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -16,6 +17,22 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Runtime};
 use tauri::plugin::PluginHandle;
+
+/// Default read/write timeout (ms) when opening a port.
+const DEFAULT_PORT_TIMEOUT_MS: u64 = 1000;
+/// Upper bound for per-read poll timeout in the listener thread (ms).
+const LISTENER_READ_TIMEOUT_CAP_MS: u64 = 100;
+
+/// Write the full buffer, retrying until all bytes are sent or an error occurs.
+fn write_all_port(
+    port: &mut Box<dyn serialport::SerialPort>,
+    buf: &[u8],
+    operation: &str,
+) -> Result<usize, Error> {
+    port.write_all(buf)
+        .map_err(|e| Error::String(format!("Failed to {}: {}", operation, e)))?;
+    Ok(buf.len())
+}
 
 /// Tear down resources held by a [`SerialportInfo`] (listener thread + port).
 fn finish_serialport_info(info: SerialportInfo) -> Result<(), Error> {
@@ -333,6 +350,7 @@ impl<R: Runtime> SerialPort<R> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
         path: String,
@@ -371,7 +389,7 @@ impl<R: Runtime> SerialPort<R> {
             )
             .parity(parity.map(Into::into).unwrap_or(SerialParity::None))
             .stop_bits(stop_bits.map(Into::into).unwrap_or(SerialStopBits::One))
-            .timeout(Duration::from_millis(timeout.unwrap_or(200)))
+            .timeout(Duration::from_millis(timeout.unwrap_or(DEFAULT_PORT_TIMEOUT_MS)))
             .open();
 
         match port_result {
@@ -434,7 +452,9 @@ impl<R: Runtime> SerialPort<R> {
                 .try_clone()
                 .map_err(|e| Error::String(format!("Failed to clone serial port: {}", e)))?;
 
-            let timeout_ms = timeout.unwrap_or(200).min(1);
+            let timeout_ms = timeout
+                .unwrap_or(DEFAULT_PORT_TIMEOUT_MS)
+                .clamp(1, LISTENER_READ_TIMEOUT_CAP_MS);
 
             serial
                 .set_timeout(Duration::from_millis(timeout_ms))
@@ -489,7 +509,8 @@ impl<R: Runtime> SerialPort<R> {
 
                     let elapsed_time = start_time.elapsed();
 
-                    if elapsed_time > Duration::from_millis(timeout.unwrap_or(200)) {
+                    if elapsed_time > Duration::from_millis(timeout.unwrap_or(DEFAULT_PORT_TIMEOUT_MS))
+                    {
                         start_time = Instant::now();
 
                         let size = combined_buffer.len();
@@ -515,7 +536,7 @@ impl<R: Runtime> SerialPort<R> {
 
             port_info.thread_handle = Some(thread_handle);
 
-            Ok({})
+            Ok(())
         })
     }
 
@@ -531,7 +552,7 @@ impl<R: Runtime> SerialPort<R> {
             port_info.sender = None;
             port_info.thread_handle = None;
 
-            Ok({})
+            Ok(())
         })
     }
 
@@ -603,16 +624,14 @@ impl<R: Runtime> SerialPort<R> {
     /// Write data to the serial port
     pub fn write(&self, path: String, value: String) -> Result<usize, Error> {
         self.get_serialport(path.clone(), |port| {
-            port.write(value.as_bytes())
-                .map_err(|e| Error::String(format!("Failed to write data: {}", e)))
+            write_all_port(port, value.as_bytes(), "write data")
         })
     }
 
     /// Write binary data to the serial port
     pub fn write_binary(&self, path: String, value: Vec<u8>) -> Result<usize, Error> {
         self.get_serialport(path.clone(), |port| {
-            port.write(&value)
-                .map_err(|e| Error::String(format!("Failed to write binary data: {}", e)))
+            write_all_port(port, &value, "write binary data")
         })
     }
 

@@ -444,6 +444,7 @@ pub fn force_close<R: Runtime>(
 /// await port.open();
 /// ```
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn open<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,

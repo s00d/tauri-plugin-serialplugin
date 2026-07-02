@@ -123,6 +123,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     /// Opens a serial port with the specified settings
+    #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
         path: String,
@@ -186,11 +187,10 @@ impl<R: Runtime> SerialPort<R> {
             "value": data,
         });
 
-        match self.0.run_mobile_plugin::<WriteResponse>("write", params) {
-            Ok(WriteResponse { bytes_written }) => Ok(bytes_written),
-            Ok(_) => Err(Error::new("Invalid response format")),
-            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
-        }
+        self.0
+            .run_mobile_plugin::<WriteResponse>("write", params)
+            .map(|WriteResponse { bytes_written }| bytes_written)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))
     }
 
     /// Writes binary data to the serial port
@@ -200,14 +200,10 @@ impl<R: Runtime> SerialPort<R> {
             "value": data,
         });
 
-        match self
-            .0
+        self.0
             .run_mobile_plugin::<WriteResponse>("writeBinary", params)
-        {
-            Ok(WriteResponse { bytes_written }) => Ok(bytes_written),
-            Ok(_) => Err(Error::new("Invalid response format")),
-            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
-        }
+            .map(|WriteResponse { bytes_written }| bytes_written)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))
     }
 
     /// Reads data from the serial port
@@ -223,11 +219,10 @@ impl<R: Runtime> SerialPort<R> {
             "size": size.unwrap_or(1024),
         });
 
-        match self.0.run_mobile_plugin("read", params) {
-            Ok(ReadResponse { data }) => Ok(data),
-            Ok(_) => Err(Error::new("Invalid response format")),
-            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
-        }
+        self.0
+            .run_mobile_plugin::<ReadResponse>("read", params)
+            .map(|ReadResponse { data }| data)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))
     }
 
     /// Reads data from the serial port
@@ -243,11 +238,10 @@ impl<R: Runtime> SerialPort<R> {
             "size": size.unwrap_or(1024),
         });
 
-        match self.0.run_mobile_plugin("readBinary", params) {
-            Ok(ReadBinaryResponse { data }) => Ok(data),
-            Ok(_) => Err(Error::new("Invalid response format")),
-            Err(e) => Err(Error::new(format!("Plugin error: {}", e))),
-        }
+        self.0
+            .run_mobile_plugin::<ReadBinaryResponse>("readBinary", params)
+            .map(|ReadBinaryResponse { data }| data)
+            .map_err(|e| Error::new(format!("Plugin error: {}", e)))
     }
 
     /// Starts listening for data on the serial port

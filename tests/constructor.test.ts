@@ -1,4 +1,4 @@
-import { SerialPort, DataBits, FlowControl, Parity, StopBits } from '../guest-js';
+import { SerialPort, DataBits, FlowControl, Parity, StopBits, DEFAULT_SERIAL_TIMEOUT_MS } from '../guest-js';
 
 describe('SerialPort Constructor', () => {
   describe('constructor', () => {
@@ -14,7 +14,7 @@ describe('SerialPort Constructor', () => {
       expect(port.options.flowControl).toBe(FlowControl.None);
       expect(port.options.parity).toBe(Parity.None);
       expect(port.options.stopBits).toBe(StopBits.One);
-      expect(port.options.timeout).toBe(200);
+      expect(port.options.timeout).toBe(DEFAULT_SERIAL_TIMEOUT_MS);
       expect(port.size).toBe(1024);
     });
 
