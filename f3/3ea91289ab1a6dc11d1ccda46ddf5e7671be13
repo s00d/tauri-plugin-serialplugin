@@ -1,0 +1,92 @@
+src/error.rs
+  s_c01253b1f96ab7::t_8495295cc8255b 59
+tests/constructor.test.ts
+  s_c01253b1f96ab7::t_adf2d977ec15d6 17
+  s_c01253b1f96ab7::t_73f07ebe5bf5ef 1
+src/state.rs
+  s_c01253b1f96ab7::t_58f25344a61c3a 29,33
+  s_c01253b1f96ab7::t_0c1aab0be06a43 111
+  s_c01253b1f96ab7::t_d3d6b6d6feb0cb 48
+  s_c01253b1f96ab7::t_158a8ebd9782ab 20,22,27,30,37
+  s_c01253b1f96ab7::t_01748305868b43 232
+  s_c01253b1f96ab7::t_7a63eb9076654d 293
+  s_c01253b1f96ab7::t_c4800e9831636b 409
+  s_c01253b1f96ab7::t_57aeef8c14aff8 567,570
+  s_c01253b1f96ab7::t_d04e84c30315b8 105
+  s_c01253b1f96ab7::t_12746a15399901 58
+  s_c01253b1f96ab7::t_ce9803a9112344 352
+  s_c01253b1f96ab7::t_0709bf4d55237a 82
+  s_c01253b1f96ab7::t_e558939af37067 466
+  s_c01253b1f96ab7::t_ece43f24ab5fac 489,498
+src/tests/serial_test.rs
+  s_c01253b1f96ab7::t_b99cff8e06747f 799
+  s_c01253b1f96ab7::t_e9d79aed9da3f4 247
+src/mobile_api.rs
+  s_c01253b1f96ab7::t_e0a7c067eaa16b 241-244
+  s_c01253b1f96ab7::t_a211717c33357c 203,205-206
+  s_c01253b1f96ab7::t_a1e15d68f73b3e 126
+  s_c01253b1f96ab7::t_830823adb3443e 190-193
+  s_c01253b1f96ab7::t_69e8c174d9dedd 222-225
+src/desktop_api.rs
+  s_c01253b1f96ab7::t_e696bee7fcaf1d 21-26,32,34-36
+  s_c01253b1f96ab7::t_bc52f323d01745 27,29-31,33
+  s_c01253b1f96ab7::t_9584bffd522175 457
+  s_c01253b1f96ab7::t_5c74e68f47dfa0 539
+  s_c01253b1f96ab7::t_7018d5d15cf2df 392
+  s_c01253b1f96ab7::t_a79c964f1cb3d5 512-513
+  s_c01253b1f96ab7::t_2308676072c04e 555
+  s_c01253b1f96ab7::t_fbb9f7adf68170 627,634
+  s_c01253b1f96ab7::t_eddfd78f3bc5a1 455-456
+  s_c01253b1f96ab7::t_b33a12c406146f 12
+  s_c01253b1f96ab7::t_7e193a1322b6fd 353
+  s_c01253b1f96ab7::t_4c598ada066966 28
+src/lib.rs
+  s_c01253b1f96ab7::t_0c8356f47027b2 55,57,59,61,63,65,67
+src/commands.rs
+  s_c01253b1f96ab7::t_ca1e5ab51112fe 447
+package.json
+  h_ee6cac30a1b83a 3
+Cargo.toml
+  s_c01253b1f96ab7::t_63aea78e5ef5f1 33
+  h_ee6cac30a1b83a 3
+  s_c01253b1f96ab7::t_91ad51ae92797c 32
+  s_c01253b1f96ab7::t_adc7e57bcbe530 34
+  s_c01253b1f96ab7::t_b88629fd7cf3ee 40
+guest-js/index.ts
+  s_c01253b1f96ab7::t_e0ff101eb95ca0 137
+  s_c01253b1f96ab7::t_d4cbda17f55bc9 1088-1090
+  s_c01253b1f96ab7::t_e724e6570c3ee3 35
+  s_c01253b1f96ab7::t_5f0e4df1ec3680 1110-1112
+  s_c01253b1f96ab7::t_1dfd855ac28ed6 9-11
+CHANGELOG.md
+  s_c01253b1f96ab7::t_a7868a6065ef51 7-22
+Cargo.lock
+  s_c01253b1f96ab7::t_41da91bcd5e352 2928,2930,3351
+examples/serialport-test/src-tauri/Cargo.lock
+  s_c01253b1f96ab7::t_ef3b1fffb15560 3258,3260,3716
+examples/serialport-test/src-tauri/gen/schemas/android-schema.json
+  s_c01253b1f96ab7::t_c6d36970d662d0 40,52,1019-1024,1127-1132,2088,2091,2153-2158,2261-2266,2393-2398,2501-2506
+examples/serialport-test/src-tauri/gen/schemas/mobile-schema.json
+  s_c01253b1f96ab7::t_1ec28db65db895 40,52,1019-1024,1127-1132,2088,2091,2153-2158,2261-2266,2393-2398,2501-2506
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "f33ea91289ab1a6dc11d1ccda46ddf5e7671be13",
+  "prompts": {},
+  "humans": {
+    "h_ee6cac30a1b83a": {
+      "author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  },
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
