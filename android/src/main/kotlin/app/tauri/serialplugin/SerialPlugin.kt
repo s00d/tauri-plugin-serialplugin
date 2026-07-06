@@ -16,6 +16,9 @@ import app.tauri.serialplugin.models.*
 import android.webkit.WebView
 import android.util.Log
 import app.tauri.plugin.JSArray
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 // --- Reused from previous answer (Converts a Map to a JSObject) ---
 fun Map<String, Any?>.toJSObject(): JSObject {
     val jsObject = JSObject()
@@ -97,6 +100,24 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     /** Unregistered after [activity] is destroyed so we do not leak the callback. */
     private var activityDestroyCallback: Application.ActivityLifecycleCallbacks? = null
 
+    /**
+     * Plugin commands are dispatched synchronously on the Android main looper, so a
+     * blocking `UsbSerialPort.read`/`write`/permission wait inside a command freezes the
+     * UI (polled reads block the main thread for up to the read timeout, per chunk).
+     * All port IO commands run here instead; a single thread preserves command ordering.
+     */
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "serialplugin-io")
+    }
+
+    private fun runOnIoThread(invoke: Invoke, block: () -> Unit) {
+        try {
+            ioExecutor.execute(block)
+        } catch (e: RejectedExecutionException) {
+            invoke.reject("Serial IO executor is shut down")
+        }
+    }
+
     override fun load(webView: WebView) {
         super.load(webView)
         serialPortManager = SerialPortManager(activity) { path, message ->
@@ -131,6 +152,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
                 } catch (e: Exception) {
                     Log.e("SerialPlugin", "cleanup on activity destroy failed: ${e.message}", e)
                 } finally {
+                    ioExecutor.shutdown()
                     unregisterActivityDestroyCleanup()
                 }
             }
@@ -187,7 +209,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun open(invoke: Invoke) {
+    fun open(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             Log.d("SerialPlugin", "Opening port: ${args.path}")
@@ -245,7 +267,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun write(invoke: Invoke) {
+    fun write(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(WriteArgs::class.java)
             Log.d("SerialPlugin", "Writing to port: ${args.path}, data: ${args.value}")
@@ -261,7 +283,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun close(invoke: Invoke) {
+    fun close(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             Log.d("SerialPlugin", "Closing port: ${args.path}")
@@ -275,7 +297,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun closeAll(invoke: Invoke) {
+    fun closeAll(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             Log.d("SerialPlugin", "Closing all ports")
             serialPortManager.closeAllPorts()
@@ -288,7 +310,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun forceClose(invoke: Invoke) {
+    fun forceClose(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             Log.d("SerialPlugin", "Force closing port: ${args.path}")
@@ -302,7 +324,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun writeBinary(invoke: Invoke) {
+    fun writeBinary(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(WriteBinaryArgs::class.java)
             Log.d("SerialPlugin", "Writing binary to port: ${args.path}")
@@ -319,7 +341,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun read(invoke: Invoke) {
+    fun read(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             Log.d("SerialPlugin", "Reading from port: ${args.path}")
@@ -335,7 +357,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun readBinary(invoke: Invoke) {
+    fun readBinary(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             Log.d("SerialPlugin", "Reading binary from port: ${args.path}")
