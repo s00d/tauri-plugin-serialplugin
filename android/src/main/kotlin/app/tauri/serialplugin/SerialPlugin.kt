@@ -104,7 +104,9 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
      * Plugin commands are dispatched synchronously on the Android main looper, so a
      * blocking `UsbSerialPort.read`/`write`/permission wait inside a command freezes the
      * UI (polled reads block the main thread for up to the read timeout, per chunk).
-     * All port IO commands run here instead; a single thread preserves command ordering.
+     * Every command that touches [SerialPortManager] runs here instead: its internal
+     * state (`portMap`) is not thread-safe, so funneling all access through one thread
+     * both keeps the main thread free and preserves command ordering.
      */
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor { r ->
         Thread(r, "serialplugin-io")
@@ -148,9 +150,18 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
                 if (destroyed !== activity) return
                 try {
                     Log.d("SerialPlugin", "Activity destroyed — releasing USB serial resources")
+                    // Enqueue cleanup behind any pending IO so queued read/write tasks
+                    // do not run against already-released ports, then stop the executor.
+                    ioExecutor.execute {
+                        try {
+                            serialPortManager.cleanup()
+                        } catch (e: Exception) {
+                            Log.e("SerialPlugin", "cleanup on activity destroy failed: ${e.message}", e)
+                        }
+                    }
+                } catch (e: RejectedExecutionException) {
+                    // Executor already stopped; release directly.
                     serialPortManager.cleanup()
-                } catch (e: Exception) {
-                    Log.e("SerialPlugin", "cleanup on activity destroy failed: ${e.message}", e)
                 } finally {
                     ioExecutor.shutdown()
                     unregisterActivityDestroyCleanup()
@@ -179,7 +190,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun availablePorts(invoke: Invoke) {
+    fun availablePorts(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             Log.d("SerialPlugin", "Fetching available ports")
             val ports = serialPortManager.getAvailablePorts()
@@ -195,7 +206,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun managedPorts(invoke: Invoke) {
+    fun managedPorts(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val managedPorts = serialPortManager.getManagedPorts()
             Log.d("SerialPlugin", "Managed ports: ${managedPorts.size} ports")
@@ -374,7 +385,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun startListening(invoke: Invoke) {
+    fun startListening(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(StartListenArgs::class.java)
             val path = args.path
@@ -398,7 +409,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun stopListening(invoke: Invoke) {
+    fun stopListening(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             Log.d("SerialPlugin", "Stopping listening on port: ${args.path}")
@@ -412,7 +423,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setBaudRate(invoke: Invoke) {
+    fun setBaudRate(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val success = serialPortManager.setBaudRate(args.path, args.baudRate)
@@ -427,7 +438,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setDataBits(invoke: Invoke) {
+    fun setDataBits(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val dataBits = when (args.dataBits) {
@@ -448,7 +459,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setFlowControl(invoke: Invoke) {
+    fun setFlowControl(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val flowControl = when (args.flowControl) {
@@ -469,7 +480,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setParity(invoke: Invoke) {
+    fun setParity(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val parity = when (args.parity) {
@@ -490,7 +501,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setStopBits(invoke: Invoke) {
+    fun setStopBits(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val stopBits = when (args.stopBits) {
@@ -511,7 +522,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setTimeout(invoke: Invoke) {
+    fun setTimeout(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val success = serialPortManager.setTimeout(args.path, args.timeout)
@@ -526,7 +537,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun writeRequestToSend(invoke: Invoke) {
+    fun writeRequestToSend(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val success = serialPortManager.writeRequestToSend(args.path, args.flowControl == "HARDWARE")
@@ -541,7 +552,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun writeDataTerminalReady(invoke: Invoke) {
+    fun writeDataTerminalReady(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val success = serialPortManager.writeDataTerminalReady(args.path, args.flowControl == "HARDWARE")
@@ -556,7 +567,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun readClearToSend(invoke: Invoke) {
+    fun readClearToSend(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val state = serialPortManager.readClearToSend(args.path)
@@ -569,7 +580,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun readDataSetReady(invoke: Invoke) {
+    fun readDataSetReady(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val state = serialPortManager.readDataSetReady(args.path)
@@ -582,7 +593,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun readRingIndicator(invoke: Invoke) {
+    fun readRingIndicator(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val state = serialPortManager.readRingIndicator(args.path)
@@ -595,7 +606,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun readCarrierDetect(invoke: Invoke) {
+    fun readCarrierDetect(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val state = serialPortManager.readCarrierDetect(args.path)
@@ -608,7 +619,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun bytesToRead(invoke: Invoke) {
+    fun bytesToRead(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val bytes = serialPortManager.bytesToRead(args.path)
@@ -621,7 +632,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun bytesToWrite(invoke: Invoke) {
+    fun bytesToWrite(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val bytes = serialPortManager.bytesToWrite(args.path)
@@ -634,7 +645,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun clearBuffer(invoke: Invoke) {
+    fun clearBuffer(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(PortConfigArgs::class.java)
             val bufferType = when (args.dataBits) {
@@ -655,7 +666,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun setBreak(invoke: Invoke) {
+    fun setBreak(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val success = serialPortManager.setBreak(args.path)
@@ -670,7 +681,7 @@ class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
-    fun clearBreak(invoke: Invoke) {
+    fun clearBreak(invoke: Invoke) = runOnIoThread(invoke) {
         try {
             val args = invoke.parseArgs(CloseArgs::class.java)
             val success = serialPortManager.clearBreak(args.path)
