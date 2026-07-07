@@ -1,0 +1,25 @@
+src/mobile_rx_hub.rs
+  s_c01253b1f96ab7::t_247c527ecb3729 99-102
+src/mobile_registry.rs
+  s_c01253b1f96ab7::t_ef8196f20f5875 208-253
+src/mobile_usb_io.rs
+  s_c01253b1f96ab7::t_aa7992378d6e75 114
+src/mobile_api.rs
+  s_c01253b1f96ab7::t_0e4eb9dd5a2886 516-520
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c6c94ddadeab7924512c5a9585f531d84ef9d7e2",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
