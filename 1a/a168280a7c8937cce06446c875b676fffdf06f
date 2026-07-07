@@ -1,0 +1,19 @@
+.github/workflows/test.yml
+  s_ae5e28f135454d::t_38f7b882bb1b4b 91-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "1aa168280a7c8937cce06446c875b676fffdf06f",
+  "prompts": {},
+  "sessions": {
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
