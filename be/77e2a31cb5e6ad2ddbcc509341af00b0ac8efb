@@ -1,0 +1,30 @@
+android/src/main/kotlin/app/tauri/serialplugin/MobileBridge.kt
+  s_c01253b1f96ab7::t_a88fef4577e659 5,19-42
+android/src/main/kotlin/app/tauri/serialplugin/manager/UsbBridge.kt
+  s_c01253b1f96ab7::t_763a12d8eed835 47-54
+  s_c01253b1f96ab7::t_ce0f03f11a21fe 181-183
+  s_c01253b1f96ab7::t_dffaca4eaa846b 184
+android/build.gradle
+  s_c01253b1f96ab7::t_108809b621cb67 65
+  s_c01253b1f96ab7::t_a81e1a06b714a7 37-41
+android/src/sharedTest/kotlin/app/tauri/serialplugin/manager/FakeUsbSerialPort.kt
+  s_c01253b1f96ab7::t_c1e6bf7a4dde0f 8-9
+  s_c01253b1f96ab7::t_5802802881d350 232-236
+  s_c01253b1f96ab7::t_3a1cc40c5cbd88 28-34,60,64,70,86,94,98,134,138,147,158,166,177,181,192,199,215,219,226,238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "be77e2a31cb5e6ad2ddbcc509341af00b0ac8efb",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
