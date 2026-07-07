@@ -90,7 +90,8 @@ fn poll_read_port(
             Ok(n) => return Ok(n),
             Err(e) if is_benign_read_error(&e) => {
                 drop(p);
-                thread::sleep(Duration::from_millis(1));
+                // Yield so hub_loop can complete drain idle/deadline and flush watch batches.
+                return Ok(0);
             }
             Err(e) => return Err(e),
         }
@@ -263,26 +264,25 @@ fn hub_loop(
 
             if n > 0 {
                 route_drain_chunk(&shared, &path, &buf[..n]);
-            } else {
-                let finish = {
-                    let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                    let Some(drain) = guard.as_mut() else {
-                        continue;
-                    };
-                    if drain.last_byte_at.is_none() {
-                        Some(Ok(Vec::new()))
-                    } else if drain
-                        .last_byte_at
-                        .is_some_and(|t| t.elapsed() >= Duration::from_millis(drain.idle_ms))
-                    {
-                        Some(Ok(std::mem::take(&mut drain.buffer)))
-                    } else {
-                        None
-                    }
+            }
+            let finish = {
+                let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
+                let Some(drain) = guard.as_mut() else {
+                    continue;
                 };
-                if let Some(result) = finish {
-                    finish_drain(&shared, result);
+                if drain.last_byte_at.is_none() {
+                    Some(Ok(Vec::new()))
+                } else if drain
+                    .last_byte_at
+                    .is_some_and(|t| t.elapsed() >= Duration::from_millis(drain.idle_ms))
+                {
+                    Some(Ok(std::mem::take(&mut drain.buffer)))
+                } else {
+                    None
                 }
+            };
+            if let Some(result) = finish {
+                finish_drain(&shared, result);
             }
             continue;
         }

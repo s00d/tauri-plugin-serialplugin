@@ -764,6 +764,81 @@ mod tests {
         let _ = sp.close(path);
     }
 
+    /// Watch + default rx_prepare drain must not block AT exchange on a live PTY.
+    #[cfg(unix)]
+    #[test]
+    fn at_succeeds_with_watch_on_pty() {
+        use crate::at::session::AtSessionConfig;
+        use crate::events::WatchOptions;
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use serialport::SerialPort as SerialPortTrait;
+        use std::io::{Read, Write};
+        use std::thread;
+        use std::time::Duration;
+        use tauri::ipc::Channel;
+
+        let app = create_test_app();
+        let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+
+        let (_pty, mut master, slave) = pty_pair_locked();
+        master
+            .set_timeout(Duration::from_millis(50))
+            .expect("master timeout");
+        let path = "pty-at-watch-ok".to_string();
+
+        sp.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+
+        thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            loop {
+                match master.read(&mut buf) {
+                    Ok(0) => thread::sleep(Duration::from_millis(5)),
+                    Ok(n) => {
+                        let cmd = String::from_utf8_lossy(&buf[..n]);
+                        if cmd.contains("AT") {
+                            master
+                                .write_all(b"\r\nOK\r\n")
+                                .expect("write OK");
+                            master.flush().ok();
+                        }
+                    }
+                    Err(_) => thread::sleep(Duration::from_millis(5)),
+                }
+            }
+        });
+
+        let channel = Channel::<crate::events::SerialEvent>::new(|_| Ok(()));
+        sp.watch(path.clone(), WatchOptions::default(), channel)
+            .expect("watch");
+        sp.configure_at_session(
+            path.clone(),
+            AtSessionConfig {
+                default_timeout_ms: Some(2000),
+                expect_ok: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("configure session");
+
+        let result = sp.at(path.clone(), "AT".to_string(), None);
+        assert!(
+            result.is_ok(),
+            "AT with active watch should complete (not drain-timeout): {:?}",
+            result.err()
+        );
+        assert_eq!(
+            result.unwrap().status,
+            crate::at::parse::AtParseStatus::Ok
+        );
+
+        let _ = sp.close(path);
+    }
+
     /// Status I/O (bytesToRead, modem lines) must succeed while watch is active (demo connect path).
     #[cfg(unix)]
     #[test]
