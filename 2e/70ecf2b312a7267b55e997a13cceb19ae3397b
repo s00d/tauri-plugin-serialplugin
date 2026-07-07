@@ -1,0 +1,20 @@
+.github/workflows/test.yml
+  s_c01253b1f96ab7::t_9a42eca0aff3b3 159-178
+  s_c01253b1f96ab7::t_5a473a7f3d9f2f 121-158,179-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2e70ecf2b312a7267b55e997a13cceb19ae3397b",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
