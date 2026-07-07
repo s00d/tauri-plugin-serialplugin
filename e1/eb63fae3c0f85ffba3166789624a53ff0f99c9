@@ -1,0 +1,29 @@
+src/port_tx_queue.rs
+  s_c01253b1f96ab7::t_b9fe7adcf0fcdf 79,96,181-184,186-188
+  s_c01253b1f96ab7::t_b3cecfe31a842a 185
+  s_c01253b1f96ab7::t_d4100570215f64 189
+src/mobile_api.rs
+  s_c01253b1f96ab7::t_eaab1a249bfe1d 570,597-620
+  s_c01253b1f96ab7::t_b2e3605dc74f20 521-522
+src/at_parse.rs
+  s_c01253b1f96ab7::t_7a1a418f3a5abd 107-120
+src/desktop_api.rs
+  s_c01253b1f96ab7::t_51b03a03ee303c 1163,1170
+  s_c01253b1f96ab7::t_ad0393f347762c 930,953-974
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e1eb63fae3c0f85ffba3166789624a53ff0f99c9",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
