@@ -126,15 +126,6 @@ internal class UsbPortSession(
         return data.size
     }
 
-    fun pollRead(timeout: Int, size: Int): ByteArray {
-        if (isReading) throw IOException(LISTEN_READ_MUTEX_MESSAGE)
-        val buf = ByteArray(maxOf(size, MIN_READ_BUF))
-        val ms = maxOf(if (timeout > 0) timeout else config.timeout, 200)
-        val n = port.read(buf, ms)
-        if (n > 0) return buf.copyOf(n)
-        throw IOException("Read timeout ($ms ms)")
-    }
-
     fun close() {
         synchronized(siomLock) {
             alive = false
@@ -177,7 +168,6 @@ internal class UsbPortSession(
         "clearBuffer" -> clearBuffer(ClearBuffer.fromValue(params["bufferType"]?.toString() ?: "input"))
         "setBreak" -> setBreak(true)
         "clearBreak" -> setBreak(false)
-        "cancelRead" -> true
         "bytesToWrite" -> 0
         else -> false
     }
@@ -248,7 +238,5 @@ internal class UsbPortSession(
         private const val TAG = "UsbPort"
         private const val WRITE_TIMEOUT_MS = 2000
         private const val MIN_READ_BUF = 64
-        const val LISTEN_READ_MUTEX_MESSAGE =
-            "Cannot read while watch is active; call unwatch first"
     }
 }

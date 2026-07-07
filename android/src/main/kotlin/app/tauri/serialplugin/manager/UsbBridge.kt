@@ -108,6 +108,7 @@ class UsbBridge private constructor(
     fun shutdown() {
         if (testMode) {
             sessions.keys.toList().forEach { close(it) }
+            rxSink.shutdown()
             return
         }
         shutDown = true
@@ -119,6 +120,7 @@ class UsbBridge private constructor(
                 try {
                     sessions.keys.toList().forEach { close(it) }
                 } finally {
+                    rxSink.shutdown()
                     if (shouldUnregister && ctx != null) {
                         try {
                             ctx.unregisterReceiver(usbReceiver)
@@ -130,6 +132,7 @@ class UsbBridge private constructor(
             }
         } catch (_: RejectedExecutionException) {
             sessions.keys.toList().forEach { close(it) }
+            rxSink.shutdown()
             if (shouldUnregister && ctx != null) {
                 try {
                     ctx.unregisterReceiver(usbReceiver)
@@ -181,7 +184,7 @@ class UsbBridge private constructor(
         }
     }
 
-    fun open(config: SerialPortConfig) {
+    fun open(config: SerialPortConfig): String {
         val mgr = usbManager ?: throw IOException("no UsbManager")
         val (deviceName, pathPort) = UsbPath.parse(config.path)
         val portIndex = if (pathPort != 0) pathPort else config.portIndex
@@ -210,6 +213,7 @@ class UsbBridge private constructor(
         putSession(sessionPath, newSession(sessionPath, port, sessionConfig))
         sessions[sessionPath]!!.startReadLoop()
         Log.i(TAG, "open $sessionPath port=$portIndex")
+        return sessionPath
     }
 
     fun close(path: String?) {
@@ -223,6 +227,7 @@ class UsbBridge private constructor(
                 session.shutdown()
                 session.close()
             }
+            rxSink.onPortClosed(path)
         } finally {
             closing.remove(path)
         }
@@ -230,9 +235,6 @@ class UsbBridge private constructor(
 
     fun write(path: String, data: ByteArray): Int =
         session(path).write(data)
-
-    fun read(path: String, timeout: Int, size: Int?): ByteArray =
-        session(path).pollRead(timeout, size ?: 1024)
 
     fun ctl(path: String, op: String, params: Map<String, Any?>): Any? =
         session(path).ctl(op, params)
@@ -300,14 +302,13 @@ class UsbBridge private constructor(
         val future = CompletableFuture<Boolean>()
         permissionFutures[device.deviceName] = future
         try {
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                PendingIntent.FLAG_MUTABLE
-            } else {
-                PendingIntent.FLAG_IMMUTABLE
+            val intent = Intent(ACTION_USB_PERMISSION).apply {
+                setPackage(ctx.packageName)
             }
+            val flags = PendingIntent.FLAG_IMMUTABLE
             usbManager!!.requestPermission(
                 device,
-                PendingIntent.getBroadcast(ctx, 0, Intent(ACTION_USB_PERMISSION), flags),
+                PendingIntent.getBroadcast(ctx, 0, intent, flags),
             )
             if (!future.get(10, TimeUnit.SECONDS)) {
                 throw IOException("permission denied")

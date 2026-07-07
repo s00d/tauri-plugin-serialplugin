@@ -3,7 +3,9 @@
 #[cfg(target_os = "android")]
 use crate::error::Error;
 #[cfg(target_os = "android")]
-use jni::objects::{GlobalRef, JByteArray, JClass, JObject, JString, JValue, JValueOwned};
+use jni::errors::Error as JniError;
+#[cfg(target_os = "android")]
+use jni::objects::{GlobalRef, JClass, JObject, JString, JValue, JValueOwned};
 #[cfg(target_os = "android")]
 use jni::sys::{jboolean, jint};
 #[cfg(target_os = "android")]
@@ -30,6 +32,13 @@ fn not_init() -> Error {
 }
 
 #[cfg(target_os = "android")]
+impl From<JniError> for Error {
+    fn from(err: JniError) -> Self {
+        Error::new(err.to_string())
+    }
+}
+
+#[cfg(target_os = "android")]
 fn with_env<T, F>(f: F) -> Result<T, Error>
 where
     F: FnOnce(&mut JNIEnv) -> Result<T, Error>,
@@ -38,14 +47,28 @@ where
     let mut env = vm
         .attach_current_thread()
         .map_err(|e| Error::new(format!("JNI attach failed: {e}")))?;
-    let out = f(&mut env)?;
-    map_exception(&mut env, "USB operation failed")?;
-    Ok(out)
+    env.with_local_frame(32, |env| {
+        let out = f(env)?;
+        map_exception(env, "USB operation failed")?;
+        Ok(out)
+    })
+}
+
+#[cfg(target_os = "android")]
+fn map_jni_error(env: &mut JNIEnv, fallback: &str, e: JniError) -> Error {
+    if matches!(e, JniError::JavaException) {
+        map_exception(env, fallback).unwrap_err()
+    } else {
+        Error::new(format!("{fallback}: {e}"))
+    }
 }
 
 #[cfg(target_os = "android")]
 fn map_exception(env: &mut JNIEnv, fallback: &str) -> Result<(), Error> {
-    if !env.exception_check().map_err(|e| Error::new(e.to_string()))? {
+    if !env
+        .exception_check()
+        .map_err(|e| Error::new(e.to_string()))?
+    {
         return Ok(());
     }
     let msg = env
@@ -94,8 +117,7 @@ fn jint_value(value: JValueOwned<'_>, label: &str) -> Result<jint, Error> {
 
 #[cfg(target_os = "android")]
 fn bool_value(value: JValueOwned<'_>, label: &str) -> Result<bool, Error> {
-    let v: jboolean = jboolean::try_from(value)
-        .map_err(|e| Error::new(format!("{label}: {e}")))?;
+    let v: jboolean = jboolean::try_from(value).map_err(|e| Error::new(format!("{label}: {e}")))?;
     Ok(v != 0)
 }
 
@@ -120,8 +142,13 @@ pub fn call_enumerate_json() -> Result<String, Error> {
     with_env(|env| {
         let cache = cache()?;
         let json = env
-            .call_static_method(usb_class(cache), "enumerateJson", "()Ljava/lang/String;", &[])
-            .map_err(|e| Error::new(format!("enumerateJson: {e}")))?;
+            .call_static_method(
+                usb_class(cache),
+                "enumerateJson",
+                "()Ljava/lang/String;",
+                &[],
+            )
+            .map_err(|e| map_jni_error(env, "enumerateJson", e))?;
         match json {
             JValueOwned::Object(obj) => {
                 if obj.is_null() {
@@ -146,26 +173,38 @@ pub fn call_open(
     parity: u8,
     stop_bits: u8,
     timeout: u64,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     with_env(|env| {
         let cache = cache()?;
         let jpath = jstring(env, path)?;
-        env.call_static_method(
-            usb_class(cache),
-            "open",
-            "(Ljava/lang/String;IIIIII)V",
-            &[
-                JValue::Object(&jpath),
-                JValue::Int(baud_rate as i32),
-                JValue::Int(data_bits as i32),
-                JValue::Int(flow_control as i32),
-                JValue::Int(parity as i32),
-                JValue::Int(stop_bits as i32),
-                JValue::Int(timeout as i32),
-            ],
-        )
-        .map_err(|e| Error::new(format!("open: {e}")))?;
-        Ok(())
+        let session_path = env
+            .call_static_method(
+                usb_class(cache),
+                "open",
+                "(Ljava/lang/String;IIIIII)Ljava/lang/String;",
+                &[
+                    JValue::Object(&jpath),
+                    JValue::Int(baud_rate as i32),
+                    JValue::Int(data_bits as i32),
+                    JValue::Int(flow_control as i32),
+                    JValue::Int(parity as i32),
+                    JValue::Int(stop_bits as i32),
+                    JValue::Int(timeout as i32),
+                ],
+            )
+            .map_err(|e| map_jni_error(env, "open", e))?;
+        match session_path {
+            JValueOwned::Object(obj) => {
+                if obj.is_null() {
+                    return Err(Error::new("open returned null session path"));
+                }
+                let jstr: &JString = obj.as_ref().into();
+                env.get_string(jstr)
+                    .map(|s| s.into())
+                    .map_err(|e| Error::new(format!("open decode: {e}")))
+            }
+            _ => Err(Error::new("open returned non-string")),
+        }
     })
 }
 
@@ -183,7 +222,7 @@ pub fn call_close(path: Option<&str>) -> Result<(), Error> {
             "(Ljava/lang/String;)V",
             &[JValue::Object(&jpath)],
         )
-        .map_err(|e| Error::new(format!("close: {e}")))?;
+        .map_err(|e| map_jni_error(env, "close", e))?;
         Ok(())
     })
 }
@@ -203,43 +242,12 @@ pub fn call_write(path: &str, data: &[u8]) -> Result<usize, Error> {
                 "(Ljava/lang/String;[B)I",
                 &[JValue::Object(&jpath), JValue::Object(&jdata)],
             )
-            .map_err(|e| Error::new(format!("write: {e}")))?;
+            .map_err(|e| map_jni_error(env, "write", e))?;
         let v = jint_value(n, "write")?;
         if v >= 0 {
             Ok(v as usize)
         } else {
             Err(Error::new("write returned invalid count"))
-        }
-    })
-}
-
-#[cfg(target_os = "android")]
-pub fn call_read(path: &str, timeout_ms: u64, size: usize) -> Result<Vec<u8>, Error> {
-    with_env(|env| {
-        let cache = cache()?;
-        let jpath = jstring(env, path)?;
-        let arr = env
-            .call_static_method(
-                usb_class(cache),
-                "read",
-                "(Ljava/lang/String;II)[B",
-                &[
-                    JValue::Object(&jpath),
-                    JValue::Int(timeout_ms as i32),
-                    JValue::Int(size as i32),
-                ],
-            )
-            .map_err(|e| Error::new(format!("read: {e}")))?;
-        match arr {
-            JValueOwned::Object(obj) => {
-                if obj.is_null() {
-                    return Err(Error::new("read returned null"));
-                }
-                let jarr = JByteArray::from(obj);
-                env.convert_byte_array(&jarr)
-                    .map_err(|e| Error::new(format!("read decode: {e}")))
-            }
-            _ => Err(Error::new("read returned non-array")),
         }
     })
 }
@@ -278,7 +286,7 @@ pub fn call_ctl(
                     JValue::Int(buffer_type),
                 ],
             )
-            .map_err(|e| Error::new(format!("ctl {op}: {e}")))?;
+            .map_err(|e| map_jni_error(env, &format!("ctl {op}"), e))?;
         bool_value(ok, op)
     })
 }
@@ -295,7 +303,7 @@ pub fn call_ctl_bytes_to_write(path: &str) -> Result<u32, Error> {
                 "(Ljava/lang/String;)I",
                 &[JValue::Object(&jpath)],
             )
-            .map_err(|e| Error::new(format!("ctlBytesToWrite: {e}")))?;
+            .map_err(|e| map_jni_error(env, "ctlBytesToWrite", e))?;
         let v = jint_value(n, "ctlBytesToWrite")?;
         if v >= 0 {
             Ok(v as u32)
@@ -322,7 +330,7 @@ pub fn call_signal(path: &str, op: &str, level: bool) -> Result<bool, Error> {
                     JValue::Bool(level as u8),
                 ],
             )
-            .map_err(|e| Error::new(format!("signal {op}: {e}")))?;
+            .map_err(|e| map_jni_error(env, &format!("signal {op}"), e))?;
         bool_value(ok, op)
     })
 }

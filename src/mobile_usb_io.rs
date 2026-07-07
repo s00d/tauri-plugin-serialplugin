@@ -81,6 +81,7 @@ impl MobileUsbIo {
 
     pub fn available_ports(
         &self,
+        single_port_per_device: bool,
     ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         #[cfg(target_os = "android")]
         {
@@ -98,10 +99,16 @@ impl MobileUsbIo {
                 map.insert("serial_number".to_string(), info.serial_number);
                 result.insert(name, map);
             }
-            return Ok(result);
+            return Ok(crate::port_list::apply_android_single_port_per_device(
+                result,
+                single_port_per_device,
+            ));
         }
         #[cfg(not(target_os = "android"))]
-        Ok(HashMap::new())
+        {
+            let _ = single_port_per_device;
+            Ok(HashMap::new())
+        }
     }
 
     /// Rust tracks managed ports; Kotlin enumeration-only layer has no managed list.
@@ -119,7 +126,7 @@ impl MobileUsbIo {
         parity: Parity,
         stop_bits: StopBits,
         timeout: u64,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         #[cfg(target_os = "android")]
         {
             return mobile_usb_jni::call_open(
@@ -171,41 +178,6 @@ impl MobileUsbIo {
             let _ = (path, data);
             Err(Error::new("USB I/O only on Android"))
         }
-    }
-
-    pub fn read_poll(
-        &self,
-        path: &str,
-        timeout_ms: u64,
-        size: usize,
-    ) -> Result<Vec<u8>, Error> {
-        #[cfg(target_os = "android")]
-        return mobile_usb_jni::call_read(path, timeout_ms, size);
-        #[cfg(not(target_os = "android"))]
-        {
-            let _ = (path, timeout_ms, size);
-            Err(Error::new("USB I/O only on Android"))
-        }
-    }
-
-    pub fn read_text(
-        &self,
-        path: &str,
-        timeout_ms: u64,
-        size: usize,
-    ) -> Result<String, Error> {
-        let bytes = self.read_poll(path, timeout_ms, size)?;
-        Ok(String::from_utf8_lossy(&bytes).into_owned())
-    }
-
-    /// SIOM starts on `usbOpen`; no-op for Rust watch path.
-    pub fn start_listen(&self, _path: &str) -> Result<(), Error> {
-        Ok(())
-    }
-
-    /// SIOM stops on `usbClose`; no-op for Rust unwatch path.
-    pub fn stop_listen(&self, _path: &str) -> Result<(), Error> {
-        Ok(())
     }
 
     pub fn clear_buffer(&self, path: &str, buffer_type: ClearBuffer) -> Result<(), Error> {
@@ -350,6 +322,7 @@ impl MobileUsbIo {
     }
 
     pub fn bytes_to_write(&self, path: &str) -> Result<u32, Error> {
+        // Android USB layer has no host-side TX queue; always reports 0.
         #[cfg(target_os = "android")]
         return mobile_usb_jni::call_ctl_bytes_to_write(path);
         #[cfg(not(target_os = "android"))]
@@ -360,9 +333,7 @@ impl MobileUsbIo {
     }
 
     pub fn set_break(&self, path: &str) -> Result<(), Error> {
-        self.ctl_ok(
-            path, "setBreak", 0, 0, 0, 0, 0, 0, 0, "Failed to set break",
-        )
+        self.ctl_ok(path, "setBreak", 0, 0, 0, 0, 0, 0, 0, "Failed to set break")
     }
 
     pub fn clear_break(&self, path: &str) -> Result<(), Error> {
@@ -377,21 +348,6 @@ impl MobileUsbIo {
             0,
             0,
             "Failed to clear break",
-        )
-    }
-
-    pub fn cancel_read(&self, path: &str) -> Result<(), Error> {
-        self.ctl_ok(
-            path,
-            "cancelRead",
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            "Failed to cancel read",
         )
     }
 }

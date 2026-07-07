@@ -44,20 +44,18 @@ object UsbNative {
         parity: Int,
         stopBits: Int,
         timeout: Int,
-    ) {
-        usb().runOnIoSync {
-            usb().open(
-                SerialPortConfig(
-                    path = path,
-                    baudRate = baudRate,
-                    dataBits = DataBits.fromValue(dataBits),
-                    flowControl = FlowControl.fromValue(flowControl),
-                    parity = Parity.fromValue(parity),
-                    stopBits = StopBits.fromValue(stopBits),
-                    timeout = timeout,
-                ),
-            )
-        }
+    ): String = usb().runOnIoSync {
+        usb().open(
+            SerialPortConfig(
+                path = path,
+                baudRate = baudRate,
+                dataBits = DataBits.fromValue(dataBits),
+                flowControl = FlowControl.fromValue(flowControl),
+                parity = Parity.fromValue(parity),
+                stopBits = StopBits.fromValue(stopBits),
+                timeout = timeout,
+            ),
+        )
     }
 
     @JvmStatic
@@ -68,10 +66,6 @@ object UsbNative {
     @JvmStatic
     fun write(path: String, data: ByteArray): Int =
         usb().runOnIoSync { usb().write(path, data) }
-
-    @JvmStatic
-    fun read(path: String, timeout: Int, size: Int): ByteArray =
-        usb().runOnIoSync { usb().read(path, timeout, size) }
 
     @JvmStatic
     fun ctl(

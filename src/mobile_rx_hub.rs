@@ -1,13 +1,13 @@
 //! Push-model RX hub for Android (bytes fed from Kotlin/JNI instead of poll loop).
 
+use crate::cmux::CmuxSession;
+use crate::events::SerialEvent;
 use crate::port_rx_hub::{HubRoutingState, RxHubShared};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tauri::ipc::Channel;
-use crate::events::SerialEvent;
-use crate::cmux::CmuxSession;
 
 const MOBILE_HUB_TICK_MS: u64 = 20;
 
@@ -49,7 +49,7 @@ impl MobileRxHub {
             return;
         }
         let pending = {
-            let mut routing = self.routing.lock().unwrap();
+            let mut routing = crate::sync_util::lock_or_recover(&self.routing);
             self.shared.feed_bytes(chunk, &mut routing);
             std::mem::take(&mut routing.pending_events)
         };
@@ -57,8 +57,13 @@ impl MobileRxHub {
     }
 
     pub fn pending_watch_bytes(&self) -> usize {
-        let routing = self.routing.lock().unwrap();
+        let routing = crate::sync_util::lock_or_recover(&self.routing);
         self.shared.pending_watch_bytes(&routing)
+    }
+
+    pub fn buffered_len(&self) -> usize {
+        let routing = crate::sync_util::lock_or_recover(&self.routing);
+        self.shared.buffered_len() + self.shared.pending_watch_bytes(&routing)
     }
 
     pub fn attach_watch(
@@ -67,7 +72,8 @@ impl MobileRxHub {
         batch_timeout_ms: u64,
         read_size: usize,
     ) {
-        self.shared.attach_watch(channel, batch_timeout_ms, read_size);
+        self.shared
+            .attach_watch(channel, batch_timeout_ms, read_size);
     }
 
     pub fn detach_watch(&self) {
@@ -97,16 +103,17 @@ impl MobileRxHub {
         cancel: Arc<AtomicBool>,
         solicited_prefixes: Vec<String>,
     ) -> Result<Vec<u8>, String> {
-        self.shared.drain(idle_ms, max_ms, cancel, solicited_prefixes)
+        self.shared
+            .drain(idle_ms, max_ms, cancel, solicited_prefixes)
     }
 
     pub fn shutdown(&self) {
         self.stop.store(true, Ordering::SeqCst);
-        if let Some(h) = self.timer.lock().unwrap().take() {
+        if let Some(h) = crate::sync_util::lock_or_recover(&self.timer).take() {
             let _ = h.join();
         }
         let pending = {
-            let mut routing = self.routing.lock().unwrap();
+            let mut routing = crate::sync_util::lock_or_recover(&self.routing);
             self.shared.flush_watch_now(&mut routing);
             std::mem::take(&mut routing.pending_events)
         };
@@ -126,7 +133,7 @@ fn spawn_tick_thread(
             if stop.load(Ordering::SeqCst) {
                 break;
             }
-            let mut guard = routing.lock().unwrap();
+            let mut guard = crate::sync_util::lock_or_recover(&routing);
             shared.tick(&path, &mut guard);
             let pending = std::mem::take(&mut guard.pending_events);
             drop(guard);

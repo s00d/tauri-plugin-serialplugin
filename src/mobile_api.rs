@@ -41,10 +41,7 @@ fn finish_mobile_port(path: &str, cp: &MobileConnectedPortHandle) {
 }
 
 fn ensure_mobile_rx_hub(cp: &MobileConnectedPortHandle) -> Result<(), Error> {
-    let mut guard = cp
-        .rx_hub
-        .lock()
-        .map_err(|e| lock_err(e))?;
+    let mut guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
     if guard.is_none() {
         let hub = Arc::new(MobileRxHub::new(cp.path.clone()));
         mobile_registry::global_registry().register(hub.clone(), cp.clone());
@@ -79,8 +76,10 @@ impl<R: Runtime> SerialPort<R> {
                 crate::log_warn!("rust_fail_port_state {}: {}", path, e);
             }
         }));
-        let io_enum = self.io.clone();
-        crate::port_list_monitor::set_android_enumerator(move |_single| io_enum.available_ports());
+        crate::port_list_monitor::set_android_enumerator({
+            let io_enum = self.io.clone();
+            move |single| io_enum.available_ports(single)
+        });
         mobile_registry::init_registry();
     }
 
@@ -98,9 +97,7 @@ impl<R: Runtime> SerialPort<R> {
         }
         let mut map = ports.lock().map_err(|e| lock_err(e))?;
         if let Some(info) = map.remove(path) {
-            if let MobilePortState::Connected(cp) = info.state {
-                cp.listening.store(false, Ordering::SeqCst);
-            }
+            let _ = info;
         }
         Ok(())
     }
@@ -140,8 +137,7 @@ impl<R: Runtime> SerialPort<R> {
         &self,
         single_port_per_device: bool,
     ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-        let _ = single_port_per_device;
-        self.io.available_ports()
+        self.io.available_ports(single_port_per_device)
     }
 
     pub fn managed_ports(&self) -> Result<Vec<String>, Error> {
@@ -170,7 +166,7 @@ impl<R: Runtime> SerialPort<R> {
         parity: Option<Parity>,
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         if self.managed_ports()?.contains(&path) {
             let _ = self.close(path.clone());
         }
@@ -197,15 +193,27 @@ impl<R: Runtime> SerialPort<R> {
 
         let mut ports = self.ports.lock().map_err(|e| lock_err(e))?;
         match result {
-            Ok(()) => {
-                let entry = ports.get_mut(&path).ok_or_else(|| {
-                    Error::String(format!("Port '{}' disappeared during open", path))
+            Ok(session_path) => {
+                if session_path != path {
+                    ports.remove(&path);
+                }
+                if !ports.contains_key(&session_path) {
+                    ports.insert(
+                        session_path.clone(),
+                        MobileSerialportInfo {
+                            state: MobilePortState::Opening,
+                        },
+                    );
+                }
+                let entry = ports.get_mut(&session_path).ok_or_else(|| {
+                    Error::String(format!("Port '{}' disappeared during open", session_path))
                 })?;
-                entry.state = MobilePortState::Connected(MobileConnectedPort::new(path));
+                entry.state =
+                    MobilePortState::Connected(MobileConnectedPort::new(session_path.clone()));
                 if let MobilePortState::Connected(cp) = &entry.state {
                     let _ = ensure_mobile_rx_hub(&cp.handle());
                 }
-                Ok(())
+                Ok(session_path)
             }
             Err(e) => {
                 ports.remove(&path);
@@ -285,11 +293,7 @@ impl<R: Runtime> SerialPort<R> {
 
     pub fn write(&self, path: String, data: String) -> Result<usize, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| {
-            self.io
-                .write(&path, data.as_bytes())
-                .map_err(|e| e)
-        })
+        tx_queue.run_serial(|| self.io.write(&path, data.as_bytes()).map_err(|e| e))
     }
 
     pub fn write_binary(&self, path: String, data: Vec<u8>) -> Result<usize, Error> {
@@ -303,19 +307,7 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<String, Error> {
-        self.with_connected_port(path.clone(), |cp| {
-            if cp.listening.load(Ordering::SeqCst) {
-                return Err(Error::String(
-                    "Cannot read while watch is active; use watch or exchange".into(),
-                ));
-            }
-            Ok(())
-        })?;
-        let bytes = self.io.read_poll(
-            &path,
-            timeout.unwrap_or(DEFAULT_PORT_TIMEOUT_MS),
-            size.unwrap_or(1024),
-        )?;
+        let bytes = self.read_via_hub(path, timeout, size, false)?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 
@@ -325,19 +317,30 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<Vec<u8>, Error> {
+        self.read_via_hub(path, timeout, size, true)
+    }
+
+    fn read_via_hub(
+        &self,
+        path: String,
+        timeout: Option<u64>,
+        size: Option<usize>,
+        fill: bool,
+    ) -> Result<Vec<u8>, Error> {
         self.with_connected_port(path.clone(), |cp| {
-            if cp.listening.load(Ordering::SeqCst) {
-                return Err(Error::String(
-                    "Cannot read while watch is active; use watch or exchange".into(),
-                ));
-            }
-            Ok(())
-        })?;
-        self.io.read_poll(
-            &path,
-            timeout.unwrap_or(DEFAULT_PORT_TIMEOUT_MS),
-            size.unwrap_or(1024),
-        )
+            ensure_mobile_rx_hub(&cp)?;
+            let guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
+            let hub = guard
+                .as_ref()
+                .ok_or_else(|| Error::String("RX hub missing".into()))?;
+            hub.shared()
+                .read_request(
+                    size.unwrap_or(1024),
+                    timeout.unwrap_or(DEFAULT_PORT_TIMEOUT_MS),
+                    fill,
+                )
+                .map_err(Error::String)
+        })
     }
 
     pub fn watch(
@@ -373,13 +376,6 @@ impl<R: Runtime> SerialPort<R> {
             return Err(e);
         }
 
-        if let Ok(mut ports) = self.ports.lock() {
-            if let Some(info) = ports.get_mut(&path) {
-                if let MobilePortState::Connected(cp) = &mut info.state {
-                    cp.listening.store(true, Ordering::SeqCst);
-                }
-            }
-        }
         Ok(channel_id)
     }
 
@@ -398,13 +394,6 @@ impl<R: Runtime> SerialPort<R> {
             }
             Ok(())
         })?;
-        if let Ok(mut ports) = self.ports.lock() {
-            if let Some(info) = ports.get_mut(path) {
-                if let MobilePortState::Connected(cp) = &mut info.state {
-                    cp.listening.store(false, Ordering::SeqCst);
-                }
-            }
-        }
         Ok(())
     }
 
@@ -485,16 +474,22 @@ impl<R: Runtime> SerialPort<R> {
             RxPrepareMode::None => {}
         }
 
-        let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel);
-        {
+        let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel.clone());
+        let hub_shared = {
             let guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
-            guard
+            let hub = guard
                 .as_ref()
-                .ok_or_else(|| Error::String("RX hub missing".into()))?
-                .set_exchange_waiter(waiter.clone());
-        }
+                .ok_or_else(|| Error::String("RX hub missing".into()))?;
+            hub.set_exchange_waiter(waiter.clone());
+            hub.shared()
+        };
 
         self.io.write(&path, &payload)?;
+
+        let stale = hub_shared.take_idle_bytes();
+        if !stale.is_empty() {
+            waiter.push_bytes(&stale);
+        }
 
         let wait_result = waiter.wait(resolved.timeout_ms);
         {
@@ -589,9 +584,7 @@ impl<R: Runtime> SerialPort<R> {
                 exchange_opts.rx_prepare = Some(rp);
             }
             let payload = match &phase.write {
-                AtPhaseWrite::Text(s) => {
-                    normalize_at_command(s, session.append_cr()).into_bytes()
-                }
+                AtPhaseWrite::Text(s) => normalize_at_command(s, session.append_cr()).into_bytes(),
                 AtPhaseWrite::Binary(b) => b.clone(),
             };
             let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
@@ -720,9 +713,7 @@ impl<R: Runtime> SerialPort<R> {
             let mux = cp.mux.lock().map_err(|e| lock_err(e))?.clone();
             mux.ok_or_else(|| Error::String("CMUX not enabled".into()))?
         };
-        ensure_mobile_rx_hub(
-            &self.with_connected_port(physical_path.clone(), |h| Ok(h))?,
-        )?;
+        ensure_mobile_rx_hub(&self.with_connected_port(physical_path.clone(), |h| Ok(h))?)?;
         session.register_dlci(dlci, virtual_path.clone());
         let vp = MobileVirtualPortRef {
             physical_path: physical_path.clone(),
@@ -788,7 +779,15 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn cancel_read(&self, path: String) -> Result<(), Error> {
-        self.io.cancel_read(&path)
+        self.with_connected_port(path, |cp| {
+            ensure_mobile_rx_hub(&cp)?;
+            if let Ok(guard) = cp.rx_hub.lock() {
+                if let Some(hub) = guard.as_ref() {
+                    hub.shared().cancel_pending_read();
+                }
+            }
+            Ok(())
+        })
     }
 
     pub fn read_clear_to_send(&self, path: String) -> Result<bool, Error> {
@@ -809,15 +808,17 @@ impl<R: Runtime> SerialPort<R> {
 
     pub fn bytes_to_read(&self, path: String) -> Result<u32, Error> {
         self.with_connected_port(path.clone(), |cp| {
+            ensure_mobile_rx_hub(&cp)?;
             if let Ok(guard) = cp.rx_hub.lock() {
                 if let Some(hub) = guard.as_ref() {
-                    return Ok(hub.pending_watch_bytes() as u32);
+                    return Ok(hub.buffered_len() as u32);
                 }
             }
             Ok(0)
         })
     }
 
+    /// Returns pending host TX bytes; Android USB always reports `0` (no kernel queue).
     pub fn bytes_to_write(&self, path: String) -> Result<u32, Error> {
         self.io.bytes_to_write(&path)
     }

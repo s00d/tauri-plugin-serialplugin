@@ -83,23 +83,6 @@ class UsbBridgeTest {
     }
 
     @Test
-    fun pollRead_rejectedWhileSiomActive() {
-        val ex = assertThrows(IOException::class.java) {
-            bridge.read(path, timeout = 500, size = 64)
-        }
-        assertEquals(UsbPortSession.LISTEN_READ_MUTEX_MESSAGE, ex.message)
-    }
-
-    @Test
-    fun pollRead_afterStopSiom_returnsEnqueuedBytes() {
-        bridge.stopSiom(path)
-        Thread.sleep(200)
-        fake.enqueueRx("OK\r\n".toByteArray())
-        val data = bridge.read(path, timeout = 500, size = 64)
-        assertArrayEquals("OK\r\n".toByteArray(), data)
-    }
-
-    @Test
     fun siom_deliversRxViaSink() {
         fake.enqueueRx("RING\r\n".toByteArray())
         val rx = sink.awaitRx(path, timeoutMs = 3000)
