@@ -1,0 +1,23 @@
+src/watch_registry.rs
+  s_c01253b1f96ab7::t_0c0cb4546792f3 14-15,17,27,31-35
+src/port_rx_hub.rs
+  s_c01253b1f96ab7::t_0de4d4c263e5e1 1164-1198
+  s_c01253b1f96ab7::t_361da65ee125fd 796,809
+  s_c01253b1f96ab7::t_7bc2275ffcc323 539,551,559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "2071e15ee2893f5a026dcc20dc932574067408e3",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
