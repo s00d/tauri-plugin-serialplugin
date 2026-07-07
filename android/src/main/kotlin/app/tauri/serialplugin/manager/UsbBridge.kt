@@ -46,6 +46,8 @@ class UsbBridge private constructor(
             UsbBridge(null, rxSink, false, true)
     }
 
+    @Volatile private var shutDown = false
+
     private val ioExecutor: Executor = if (testMode) {
         Executor { it.run() }
     } else {
@@ -102,12 +104,13 @@ class UsbBridge private constructor(
         }
     }
 
-    /** Enqueue port teardown on [usb-io], then stop the executor (PR #34 lifecycle pattern). */
+    /** Enqueue port teardown on [usb-io], then stop the executor (PR #34 / cubic lifecycle). */
     fun shutdown() {
         if (testMode) {
             sessions.keys.toList().forEach { close(it) }
             return
         }
+        shutDown = true
         val pool = ioExecutor as ExecutorService
         val ctx = context
         val shouldUnregister = registerReceiver
@@ -122,6 +125,7 @@ class UsbBridge private constructor(
                         } catch (_: IllegalArgumentException) {
                         }
                     }
+                    pool.shutdown()
                 }
             }
         } catch (_: RejectedExecutionException) {
@@ -132,22 +136,29 @@ class UsbBridge private constructor(
                 } catch (_: IllegalArgumentException) {
                 }
             }
+            pool.shutdown()
         }
-        pool.shutdown()
     }
 
     /** All blocking USB work runs here — never on the UI thread. */
     fun runOnIo(block: () -> Unit) {
-        ioExecutor.execute(block)
+        if (shutDown) return
+        try {
+            ioExecutor.execute(block)
+        } catch (_: RejectedExecutionException) {
+        }
     }
 
     /** Blocking USB work on [usb-io]; safe from any JNI/Rust thread. */
-    fun <T> runOnIoSync(block: () -> T): T =
-        if (testMode) {
-            block()
-        } else {
+    fun <T> runOnIoSync(block: () -> T): T {
+        if (shutDown) throw IOException("USB bridge shut down")
+        if (testMode) return block()
+        return try {
             CompletableFuture.supplyAsync(block, ioExecutor).get()
+        } catch (e: RejectedExecutionException) {
+            throw IOException("USB bridge shut down", e)
         }
+    }
 
     internal fun adoptFakePort(port: UsbSerialPort, config: SerialPortConfig) {
         check(testMode)
@@ -252,7 +263,7 @@ class UsbBridge private constructor(
         port,
         config,
         onRx = { rxSink.feedRx(path, it) },
-        onError = { msg -> fail(path, msg) },
+        onError = { msg -> runOnIo { fail(path, msg) } },
         onRecover = { runOnIo { sessions[path]?.restartReadLoop() } },
     )
 
