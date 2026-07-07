@@ -114,4 +114,77 @@ describe('SerialPort Auto-Reconnect', () => {
     expect(ok).toBe(true);
     expect(watchCallCount).toBe(2);
   });
+
+  it('stops auto-reconnect after maxAttempts is exhausted', async () => {
+    let openCount = 0;
+    const onReconnect = jest.fn();
+
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') {
+        openCount += 1;
+        if (openCount === 1) {
+          return Promise.resolve('/dev/tty.usbserial');
+        }
+        return Promise.reject(new Error('reconnect failed'));
+      }
+      if (cmd === 'plugin:serialplugin|watch') {
+        watchCallCount += 1;
+        return Promise.resolve(watchCallCount);
+      }
+      if (cmd === 'plugin:serialplugin|unwatch') return Promise.resolve();
+      return Promise.resolve();
+    });
+
+    await serialPort.open();
+    serialPort.enableAutoReconnect({ interval: 100, maxAttempts: 2, onReconnect });
+    await serialPort.watch({ onData: jest.fn() });
+
+    MockChannel.lastInstance!.onmessage?.({
+      kind: 'disconnect',
+      path: '/dev/tty.usbserial',
+      reason: 'lost',
+    });
+
+    await jest.runAllTimersAsync();
+
+    expect(openCount).toBe(3);
+    expect(serialPort.isOpen).toBe(false);
+    expect(onReconnect).toHaveBeenCalledWith(false, 2);
+  });
+
+  it('disableAutoReconnect prevents reopen after disconnect', async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
+      if (cmd === 'plugin:serialplugin|watch') {
+        watchCallCount += 1;
+        return Promise.resolve(watchCallCount);
+      }
+      if (cmd === 'plugin:serialplugin|unwatch') return Promise.resolve();
+      return Promise.resolve();
+    });
+
+    await serialPort.open();
+    serialPort.enableAutoReconnect({ interval: 100 });
+    await serialPort.watch({ onData: jest.fn() });
+    serialPort.disableAutoReconnect();
+
+    const openCallsBeforeDisconnect = mockInvoke.mock.calls.filter(
+      (call) => call[0] === 'plugin:serialplugin|open',
+    ).length;
+
+    MockChannel.lastInstance!.onmessage?.({
+      kind: 'disconnect',
+      path: '/dev/tty.usbserial',
+      reason: 'lost',
+    });
+
+    await jest.runOnlyPendingTimersAsync();
+
+    const openCallsAfterDisconnect = mockInvoke.mock.calls.filter(
+      (call) => call[0] === 'plugin:serialplugin|open',
+    ).length;
+    expect(openCallsAfterDisconnect).toBe(openCallsBeforeDisconnect);
+    expect(serialPort.isOpen).toBe(false);
+    expect(serialPort.getAutoReconnectInfo().enabled).toBe(false);
+  });
 });

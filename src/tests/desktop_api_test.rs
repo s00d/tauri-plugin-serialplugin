@@ -142,11 +142,6 @@ mod tests {
         // So we just check that the function returns successfully
         // The ports list can be empty in CI/CD
         println!("Available ports: {:?}", ports);
-        // Assert that we got a valid result (even if empty)
-        assert!(
-            ports.is_empty() || !ports.is_empty(),
-            "Ports list should be valid"
-        );
     }
 
     #[test]
@@ -1248,6 +1243,224 @@ mod tests {
         .unwrap_or(false);
         assert!(hub_running, "hub should have been restarted");
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn stop_on_error_false_continues_phases() {
+        use crate::at_session::{AtPhase, AtPhaseWrite, AtSessionConfig};
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use serialport::SerialPort as SerialPortTrait;
+        use std::io::{Read, Write};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use std::thread;
+        use std::time::Duration;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "pty-stop-on-error-false".to_string();
+
+        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        master
+            .set_timeout(Duration::from_millis(50))
+            .expect("master timeout");
+
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+
+        let cmd_count = Arc::new(AtomicUsize::new(0));
+        let cmd_count_bg = cmd_count.clone();
+        thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            loop {
+                match master.read(&mut buf) {
+                    Ok(0) => thread::sleep(Duration::from_millis(5)),
+                    Ok(n) => {
+                        let seen = cmd_count_bg.fetch_add(1, Ordering::SeqCst) + 1;
+                        if seen >= 2 {
+                            master.write_all(b"\r\nOK\r\n").ok();
+                            master.flush().ok();
+                        }
+                        let _ = n;
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {}
+                    Err(_) => break,
+                }
+            }
+        });
+
+        serial_port
+            .configure_at_session(
+                path.clone(),
+                AtSessionConfig {
+                    stop_on_error: Some(false),
+                    default_timeout_ms: Some(500),
+                    expect_ok: Some(false),
+                    ..Default::default()
+                },
+            )
+            .expect("configure session");
+
+        let results = serial_port
+            .at_phases(
+                path.clone(),
+                vec![
+                    AtPhase {
+                        write: AtPhaseWrite::Text("ATFAIL".to_string()),
+                        command: Some("phase1".to_string()),
+                        completion_mode: None,
+                        result_format: None,
+                        timeout_ms: Some(150),
+                        rx_prepare: Some(crate::events::RxPrepareMode::None),
+                    },
+                    AtPhase {
+                        write: AtPhaseWrite::Text("ATOK".to_string()),
+                        command: Some("phase2".to_string()),
+                        completion_mode: None,
+                        result_format: None,
+                        timeout_ms: Some(500),
+                        rx_prepare: Some(crate::events::RxPrepareMode::None),
+                    },
+                ],
+            )
+            .expect("at_phases");
+
+        assert_eq!(results.len(), 2);
+        assert_ne!(
+            results[0].status,
+            crate::at_parse::AtParseStatus::Ok,
+            "phase1 should time out without line response: {:?}",
+            results[0]
+        );
+        assert_eq!(
+            results[1].status,
+            crate::at_parse::AtParseStatus::Ok,
+            "phase2 should succeed after OK response: {:?}",
+            results[1]
+        );
+        assert!(cmd_count.load(Ordering::SeqCst) >= 2);
+
+        let _ = serial_port.close(path);
+    }
+
+    #[test]
+    fn take_idle_bytes_replayed_after_write() {
+        use crate::events::ExchangeOptions;
+        use crate::port_rx_hub::HubRoutingState;
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use crate::tests::mock_serial::MockSerialPort;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "mock-idle-replay".to_string();
+
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(MockSerialPort::new()))),
+            },
+        );
+
+        let _ = serial_port.read(path.clone(), Some(50), Some(8));
+
+        {
+            let mut ports = serial_port.serialports.lock().unwrap();
+            let cp = ports
+                .get_mut(&path)
+                .and_then(|info| info.connected_port_mut())
+                .expect("connected");
+            let hub = cp
+                .rx_hub
+                .lock()
+                .unwrap()
+                .as_ref()
+                .expect("hub started")
+                .shared();
+            hub.feed_bytes(b"\r\nOK\r\n", &mut HubRoutingState::new(path.clone()));
+        }
+
+        let response = serial_port
+            .exchange(
+                path.clone(),
+                "AT\r".to_string(),
+                ExchangeOptions {
+                    timeout_ms: Some(1000),
+                    rx_prepare: Some(crate::events::RxPrepareMode::None),
+                    ..Default::default()
+                },
+            )
+            .expect("exchange should complete from idle buffer");
+
+        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        let text = String::from_utf8_lossy(&response.raw);
+        assert!(text.contains("OK"), "expected OK in {:?}", text);
+
+        let _ = serial_port.close(path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn exchange_fails_fast_on_disconnect() {
+        use crate::events::ExchangeOptions;
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use std::thread;
+        use std::time::{Duration, Instant};
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "pty-exchange-disconnect".to_string();
+
+        let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+
+        let sp = serial_port.clone();
+        let path_bg = path.clone();
+        let exchange_thread = thread::spawn(move || {
+            sp.exchange(
+                path_bg,
+                "AT\r".to_string(),
+                ExchangeOptions {
+                    timeout_ms: Some(5000),
+                    rx_prepare: Some(crate::events::RxPrepareMode::None),
+                    ..Default::default()
+                },
+            )
+        });
+
+        thread::sleep(Duration::from_millis(80));
+        drop(master);
+
+        let start = Instant::now();
+        let exchange_result = exchange_thread.join().expect("join");
+        let elapsed = start.elapsed();
+
+        assert!(
+            exchange_result.is_err(),
+            "exchange should fail on disconnect, got {:?}",
+            exchange_result.ok()
+        );
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "expected fail-fast disconnect, took {elapsed:?}"
+        );
+        let err = exchange_result.unwrap_err().to_string();
+        assert!(
+            err.contains("disconnect") || err.contains("Broken pipe") || err.contains("closed"),
+            "unexpected error: {err}"
+        );
+
+        let _ = serial_port.close(path);
+    }
+
     #[test]
     fn close_virtual_while_managed_ports_does_not_deadlock() {
         use crate::state::{ConnectedPort, PortState, SerialportInfo, VirtualPortRef};
