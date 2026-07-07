@@ -18,7 +18,7 @@ export function mockExchangeResponse(
     (l) => l.startsWith('+') && !urcLines.includes(l) && l !== 'OK' && l !== 'ERROR',
   );
   return {
-    raw,
+    raw: new Uint8Array(raw),
     matched,
     lines,
     status,
@@ -42,6 +42,6 @@ export function mockAtCommandResult(
     status: exchange.status,
     solicitedBody: exchange.solicitedBody,
     urcLines: exchange.urcLines,
-    timedOut: false as const,
+    timedOut: false,
   };
 }

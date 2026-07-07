@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::state::{FlowControl, Parity, PortState, SerialportInfo};
-    use crate::tests::mock::MockSerialPort;
+    use crate::tests::mock_serial::MockSerialPort;
     use serialport::SerialPort;
     use std::time::Duration;
 

@@ -1,6 +1,9 @@
+//! Shared desktop serial port mock for unit tests (scripted RX, TX capture, error injection).
+
 use crate::state::{ConnectedPort, PortState, SerialportInfo};
 use serialport::{self, SerialPort};
 use std::io::{self, Read, Write};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[allow(dead_code)]
@@ -32,9 +35,13 @@ pub trait SerialPortTrait: Read + Write + Send {
     fn clear_break(&self) -> io::Result<()>;
 }
 
+/// In-memory serial port with optional scripted RX chunks and read-error injection.
 #[allow(dead_code)]
 pub struct MockSerialPort {
-    pub buffer: Vec<u8>,
+    pub rx_buffer: Vec<u8>,
+    pub rx_script: Vec<Vec<u8>>,
+    pub captured_tx: Arc<Mutex<Vec<u8>>>,
+    pub next_read_error: Option<io::ErrorKind>,
     pub baud_rate: u32,
     pub data_bits: serialport::DataBits,
     pub flow_control: serialport::FlowControl,
@@ -47,7 +54,10 @@ pub struct MockSerialPort {
 impl MockSerialPort {
     pub fn new() -> Self {
         Self {
-            buffer: Vec::new(),
+            rx_buffer: Vec::new(),
+            rx_script: Vec::new(),
+            captured_tx: Arc::new(Mutex::new(Vec::new())),
+            next_read_error: None,
             baud_rate: 9600,
             data_bits: serialport::DataBits::Eight,
             flow_control: serialport::FlowControl::None,
@@ -55,6 +65,39 @@ impl MockSerialPort {
             stop_bits: serialport::StopBits::One,
             timeout: Duration::from_millis(1000),
         }
+    }
+
+    pub fn with_rx_script(chunks: impl IntoIterator<Item = impl AsRef<[u8]>>) -> Self {
+        let mut mock = Self::new();
+        mock.rx_script = chunks.into_iter().map(|c| c.as_ref().to_vec()).collect();
+        mock
+    }
+
+    pub fn push_rx(&mut self, chunk: impl AsRef<[u8]>) {
+        self.rx_buffer.extend_from_slice(chunk.as_ref());
+    }
+
+    pub fn inject_read_error(&mut self, kind: io::ErrorKind) {
+        self.next_read_error = Some(kind);
+    }
+
+    pub fn captured_tx(&self) -> Vec<u8> {
+        self.captured_tx.lock().unwrap().clone()
+    }
+
+    fn pull_rx(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.rx_buffer.is_empty() {
+            if let Some(chunk) = self.rx_script.first().cloned() {
+                self.rx_script.remove(0);
+                self.rx_buffer = chunk;
+            }
+        }
+        let len = std::cmp::min(buf.len(), self.rx_buffer.len());
+        if len > 0 {
+            buf[..len].copy_from_slice(&self.rx_buffer[..len]);
+            self.rx_buffer.drain(..len);
+        }
+        Ok(len)
     }
 }
 
@@ -142,7 +185,7 @@ impl SerialPort for MockSerialPort {
     }
 
     fn bytes_to_read(&self) -> Result<u32, serialport::Error> {
-        Ok(self.buffer.len() as u32)
+        Ok((self.rx_buffer.len() + self.rx_script.iter().map(|c| c.len()).sum::<usize>()) as u32)
     }
 
     fn bytes_to_write(&self) -> Result<u32, serialport::Error> {
@@ -155,7 +198,10 @@ impl SerialPort for MockSerialPort {
 
     fn try_clone(&self) -> Result<Box<dyn SerialPort>, serialport::Error> {
         Ok(Box::new(MockSerialPort {
-            buffer: self.buffer.clone(),
+            rx_buffer: self.rx_buffer.clone(),
+            rx_script: self.rx_script.clone(),
+            captured_tx: self.captured_tx.clone(),
+            next_read_error: self.next_read_error,
             baud_rate: self.baud_rate,
             data_bits: self.data_bits,
             flow_control: self.flow_control,
@@ -176,18 +222,16 @@ impl SerialPort for MockSerialPort {
 
 impl Read for MockSerialPort {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let len = std::cmp::min(buf.len(), self.buffer.len());
-        if len > 0 {
-            buf[..len].copy_from_slice(&self.buffer[..len]);
-            self.buffer.drain(..len);
+        if let Some(kind) = self.next_read_error.take() {
+            return Err(io::Error::new(kind, "injected read error"));
         }
-        Ok(len)
+        self.pull_rx(buf)
     }
 }
 
 impl Write for MockSerialPort {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
+        self.captured_tx.lock().unwrap().extend_from_slice(buf);
         Ok(buf.len())
     }
 

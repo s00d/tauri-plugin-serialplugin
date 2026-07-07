@@ -89,7 +89,7 @@ describe('SerialPort watch lifecycle', () => {
   it('calls onDisconnect and marks port closed', async () => {
     const { mockInvoke } = setupTestMocks();
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
       if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
       return Promise.resolve();
     });
@@ -109,26 +109,71 @@ describe('SerialPort watch lifecycle', () => {
     expect(port.isOpen).toBe(false);
   });
 
-  it('rejects duplicate watch on same instance', async () => {
+  it('dispatches onUrc for urc events', async () => {
     const { mockInvoke } = setupTestMocks();
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
       if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
       return Promise.resolve();
     });
 
     const port = createTestSerialPort();
     await port.open();
-    await port.watch({ onData: jest.fn() });
-    await expect(port.watch({ onData: jest.fn() })).rejects.toThrow(
-      'A watch is already active on this port instance',
-    );
+    const onUrc = jest.fn();
+    await port.watch({ onData: jest.fn(), onUrc });
+
+    MockChannel.lastInstance!.onmessage?.({
+      kind: 'urc',
+      path: '/dev/tty.usbserial',
+      line: '+CREG: 1,1',
+    });
+
+    expect(onUrc).toHaveBeenCalledWith('+CREG: 1,1');
+  });
+
+  it('exposes activeWatch while subscribed', async () => {
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(9);
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    expect(port.activeWatch).toBeNull();
+    const handle = await port.watch({ onData: jest.fn() });
+    expect(port.activeWatch).toBe(handle);
+  });
+
+  it('re-establishes watch after change()', async () => {
+    let watchCount = 0;
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
+      if (cmd === 'plugin:serialplugin|watch') {
+        watchCount += 1;
+        return Promise.resolve(watchCount);
+      }
+      if (cmd === 'plugin:serialplugin|unwatch') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|close') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|cancel_read') return Promise.resolve();
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    const onData = jest.fn();
+    await port.watch({ onData });
+    await port.change({ baudRate: 115200 });
+    expect(watchCount).toBe(2);
+    expect(port.activeWatch?.channelId).toBe(2);
   });
 
   it('ignores events for other paths', async () => {
     const { mockInvoke } = setupTestMocks();
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
       if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
       return Promise.resolve();
     });
@@ -146,6 +191,22 @@ describe('SerialPort watch lifecycle', () => {
     });
 
     expect(onData).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate watch on same instance', async () => {
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    await port.watch({ onData: jest.fn() });
+    await expect(port.watch({ onData: jest.fn() })).rejects.toThrow(
+      'A watch is already active on this port instance',
+    );
   });
 
   it('unwatch on close', async () => {
