@@ -106,6 +106,9 @@ fn ensure_rx_hub_on_physical<R: Runtime>(
 }
 
 /// Access to the serial port APIs on desktop platforms.
+///
+/// Lock order: `serialports` before `virtual_ports`; never hold a map lock across
+/// device I/O, thread spawn, or `JoinHandle` join.
 pub struct SerialPort<R: Runtime> {
     #[allow(dead_code)]
     pub(crate) app: AppHandle<R>,
@@ -205,30 +208,32 @@ impl<R: Runtime> SerialPort<R> {
         if let Ok(mut virtuals) = self.virtual_ports.lock() {
             if let Some(vp) = virtuals.remove(&path) {
                 vp.tx_queue.cancel_all();
-                let _ = self.with_connected_port(vp.physical_path.clone(), |cp| {
+                let physical = vp.physical_path.clone();
+                let dlci = vp.dlci;
+                drop(virtuals);
+                if let Ok(cp) = self.resolve_connected_port(&physical) {
                     if let Some(session) = cp.mux.lock().unwrap().clone() {
-                        session.unregister_dlci(vp.dlci);
+                        session.unregister_dlci(dlci);
                     }
-                    Ok(())
-                });
+                }
                 return Ok(());
             }
         }
 
-        match self.serialports.lock() {
-            Ok(mut serialports) => {
-                if let Some(port_info) = serialports.remove(&path) {
-                    log_debug!("stop {}", path);
-                    finish_serialport_info(port_info)?;
-
-                    log_debug!("end {}", path);
-
-                    Ok(())
-                } else {
-                    Err(Error::String(format!("Serial port {} is not open!", &path)))
-                }
+        let removed = match self.serialports.lock() {
+            Ok(mut serialports) => serialports.remove(&path),
+            Err(error) => {
+                return Err(Error::String(format!("Failed to acquire lock: {}", error)));
             }
-            Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
+        };
+
+        if let Some(port_info) = removed {
+            log_debug!("stop {}", path);
+            finish_serialport_info(port_info)?;
+            log_debug!("end {}", path);
+            Ok(())
+        } else {
+            Err(Error::String(format!("Serial port {} is not open!", &path)))
         }
     }
 
@@ -279,29 +284,35 @@ impl<R: Runtime> SerialPort<R> {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
     ) -> Result<(), Error> {
-        if self.managed_ports()?.contains(&path) {
-            let _ = self.close(path.clone());
-        }
+        let stale = {
+            let mut serialports = self
+                .serialports
+                .lock()
+                .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
+            if matches!(
+                serialports.get(&path).map(|i| &i.state),
+                Some(PortState::Opening)
+            ) {
+                return Err(Error::String(format!(
+                    "open already in progress for {}",
+                    path
+                )));
+            }
+            let stale = serialports.remove(&path);
+            serialports.insert(
+                path.clone(),
+                SerialportInfo {
+                    state: PortState::Opening,
+                },
+            );
+            stale
+        };
 
-        let mut serialports = self
-            .serialports
-            .lock()
-            .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
-
-        // Close existing port entry before opening a new one
-        if let Some(existing) = serialports.remove(&path) {
+        if let Some(existing) = stale {
             log_info!("Replacing existing port {}", path);
             finish_serialport_info(existing)?;
         }
 
-        serialports.insert(
-            path.clone(),
-            SerialportInfo {
-                state: PortState::Opening,
-            },
-        );
-
-        // Open new port (mutex held — concurrent access to this path sees Opening)
         let port_result = serialport::new(path.clone(), baud_rate)
             .data_bits(data_bits.map(Into::into).unwrap_or(SerialDataBits::Eight))
             .flow_control(
@@ -316,16 +327,34 @@ impl<R: Runtime> SerialPort<R> {
             ))
             .open();
 
+        let mut serialports = self
+            .serialports
+            .lock()
+            .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
+
         match port_result {
             Ok(port) => {
+                let cp = ConnectedPort::new(port);
+                ensure_rx_hub(&cp.handle(), &path)?;
                 let entry = serialports.get_mut(&path).ok_or_else(|| {
                     Error::String(format!("Port '{}' disappeared during open", path))
                 })?;
-                entry.state = PortState::Connected(ConnectedPort::new(port));
+                if !matches!(entry.state, PortState::Opening) {
+                    return Err(Error::String(format!(
+                        "Port '{}' state changed during open",
+                        path
+                    )));
+                }
+                entry.state = PortState::Connected(cp);
                 Ok(())
             }
             Err(e) => {
-                serialports.remove(&path);
+                if matches!(
+                    serialports.get(&path).map(|i| &i.state),
+                    Some(PortState::Opening)
+                ) {
+                    serialports.remove(&path);
+                }
                 Err(Error::String(format!("Failed to open serial port: {}", e)))
             }
         }
@@ -349,14 +378,18 @@ impl<R: Runtime> SerialPort<R> {
         let read_size = options.size.unwrap_or(1024);
 
         if let Ok(virtuals) = self.virtual_ports.lock() {
-            if let Some(vp) = virtuals.get(&path) {
-                let session = self.with_connected_port(vp.physical_path.clone(), |cp| {
-                    cp.mux
+            if let Some(vp) = virtuals.get(&path).cloned() {
+                drop(virtuals);
+                let session = {
+                    let cp = self.resolve_connected_port(&vp.physical_path)?;
+                    let mux = cp
+                        .mux
                         .lock()
                         .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
                         .clone()
-                        .ok_or_else(|| Error::String("CMUX not enabled".into()))
-                })?;
+                        .ok_or_else(|| Error::String("CMUX not enabled".into()))?;
+                    mux
+                };
                 ensure_rx_hub_on_physical(self, &vp.physical_path)?;
                 session.set_watch(vp.dlci, channel, batch_timeout);
                 return Ok(channel_id);
@@ -407,13 +440,12 @@ impl<R: Runtime> SerialPort<R> {
 
     fn stop_watch_thread(&self, path: &str) -> Result<(), Error> {
         if let Ok(virtuals) = self.virtual_ports.lock() {
-            if let Some(vp) = virtuals.get(path) {
-                if let Ok(Some(session)) = self
-                    .with_connected_port(vp.physical_path.clone(), |cp| {
-                        Ok(cp.mux.lock().unwrap().clone())
-                    })
-                {
-                    session.clear_watch(vp.dlci);
+            if let Some(vp) = virtuals.get(path).cloned() {
+                drop(virtuals);
+                if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
+                    if let Some(session) = cp.mux.lock().unwrap().clone() {
+                        session.clear_watch(vp.dlci);
+                    }
                 }
                 return Ok(());
             }
@@ -1047,29 +1079,28 @@ impl<R: Runtime> SerialPort<R> {
             },
         )?;
 
-        self.with_connected_port(path.clone(), |cp| {
-            if cp.virtual_dlci.is_some() {
-                return Err(Error::String("enable_mux on virtual port".into()));
-            }
-            if cp.mux.lock().unwrap().is_some() {
-                return Err(Error::String("CMUX already enabled".into()));
-            }
-            cp.port
-                .lock()
-                .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
-                .clear(ClearBuffer::Input.into())
-                .map_err(Error::from)?;
-            let session = CmuxSession::new(
-                path.clone(),
-                Arc::new(crate::cmux::SerialPortIo(cp.port.clone())),
-            );
-            ensure_rx_hub(&cp.handle(), &path)?;
-            if let Some(hub) = cp.rx_hub.lock().unwrap().as_ref() {
-                hub.attach_cmux(session.clone());
-            }
-            *cp.mux.lock().unwrap() = Some(session);
-            Ok(())
-        })
+        let cp = self.resolve_connected_port(&path)?;
+        if cp.virtual_dlci.is_some() {
+            return Err(Error::String("enable_mux on virtual port".into()));
+        }
+        if cp.mux.lock().unwrap().is_some() {
+            return Err(Error::String("CMUX already enabled".into()));
+        }
+        cp.port
+            .lock()
+            .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
+            .clear(ClearBuffer::Input.into())
+            .map_err(Error::from)?;
+        let session = CmuxSession::new(
+            path.clone(),
+            Arc::new(crate::cmux::SerialPortIo(cp.port.clone())),
+        );
+        ensure_rx_hub(&cp, &path)?;
+        if let Some(hub) = cp.rx_hub.lock().unwrap().as_ref() {
+            hub.attach_cmux(session.clone());
+        }
+        *cp.mux.lock().unwrap() = Some(session);
+        Ok(())
     }
 
     /// Register a virtual DLCI channel on an CMUX-enabled physical port.

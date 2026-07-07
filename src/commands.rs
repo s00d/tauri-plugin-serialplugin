@@ -536,7 +536,7 @@ pub struct EnableMuxOptions {
 
 /// Enter GSM 07.10 CMUX mode on a physical port (desktop).
 #[tauri::command]
-pub fn enable_mux<R: Runtime>(
+pub async fn enable_mux<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
@@ -546,7 +546,11 @@ pub fn enable_mux<R: Runtime>(
     let command = opts
         .command
         .unwrap_or_else(|| "AT+CMUX=0,0,5,31,10,2".to_string());
-    serial.enable_mux(path, command, opts.timeout_ms.unwrap_or(5000))
+    let timeout_ms = opts.timeout_ms.unwrap_or(5000);
+    let serial = serial.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || serial.enable_mux(path, command, timeout_ms))
+        .await
+        .map_err(|e| Error::String(format!("enable_mux task failed: {e}")))?
 }
 
 /// Open a virtual CMUX channel (returns composite path).
