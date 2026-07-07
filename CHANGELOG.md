@@ -15,6 +15,11 @@ For **Android/USB-focused** details (behavior, limits, testing), see also [`andr
 
 ### Features
 
+* **Unified RX hub (desktop + Android):** Single consumer per port; `watch`, `exchange`, `read`, and drain share one hub. Android no longer uses a separate poll-read path for managed ports.
+* **`take_idle_bytes`:** Stale RX in the hub idle buffer is replayed into the next `exchange` after write (early OK/URC without waiting on the line).
+* **Guest-js v3 types:** `AtCommandResult.raw` / `ExchangeResponse.raw` are `Uint8Array`; `timedOut` is a real `boolean` from native timeouts.
+* **`open()` canonical path:** Returns the session key (Android `UsbPath.sessionKey`; desktop echoes the input path).
+* **TX queue:** Failed jobs no longer halt the port queue until reopen; `stopOnError` only affects remaining phases in one `sendAtPhases` batch.
 * **Android USB watch + TX:** bulkTransfer SIOM read (`readTimeout=200`, `queue=0`); direct `port.write` with short `synchronized(port)` on TX only (no lock across blocking read — fixes deadlock with `LockedUsbSerialPort`).
 * **Desktop `PortTxQueue`:** Ticket turnstile per port; `stop_on_error` drains waiters; `cancel_exchange` flushes queue.
 * **Android `PortTxQueue`:** Mirror FIFO + AT session merge in Kotlin.

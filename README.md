@@ -34,6 +34,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 | `open()` | `void` | returns **canonical path** (Android re-keys to `UsbPath.sessionKey`; desktop echoes input) |
 | `cancel_read` | also detached watch on some builds | **does not** unwatch — use `close()` or `handle.unwatch()` |
 | TX queue after error | port could stay halted until reopen | next `exchange` / `sendAt` job runs normally (`stopOnError` only stops remaining phases in one `sendAtPhases` batch) |
+| Early RX before `exchange` | often lost or raced with wait | native hub keeps **idle** bytes; `exchange` replays them via `take_idle_bytes` after write (no extra line response needed) |
 
 ### Watch events (`SerialEvent`)
 
@@ -1721,6 +1722,10 @@ Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the pe
 - **Android:** `android/src/test/...` — Robolectric + `FakeUsbSerialPort` (no `pollRead`; SIOM feeds the Rust RX hub)
 
 > **Note:** `bytesToWrite()` returns **0 on Android** (writes are synchronous over JNI). Desktop returns the driver queue depth when available.
+
+### Known limitations
+
+* **Windows port enumeration** uses `wmic` for supplemental metadata on some builds. This path is **not exercised in CI** and may behave differently on Windows 11 if `wmic` is unavailable or restricted.
 
 ---
 

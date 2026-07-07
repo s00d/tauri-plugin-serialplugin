@@ -27,7 +27,7 @@ pnpm vendor:usbserial:latest
 1. **Gradle** — the script syncs `androidx.annotation` from upstream `build.gradle`. Verify `compileSdk` / `minSdk` if upstream raised requirements.
 2. **`BuildConfig`** — if `grep -r BuildConfig android/usbserial/src` finds imports, the stub in [`stubs/com/hoho/android/usbserial/BuildConfig.java`](stubs/com/hoho/android/usbserial/BuildConfig.java) must remain (Tauri `sourceSets`).
 3. **`consumer-rules.pro`** — when upstream changes, the script warns; update [`../consumer-rules.pro`](../consumer-rules.pro) if needed.
-4. **Kotlin wrapper** — review [release notes](https://github.com/mik3y/usb-serial-for-android/releases): `SerialInputOutputManager`, `setReadQueue`, `UsbSerialPort` API → [`UsbPortDriver.kt`](../src/main/kotlin/app/tauri/serialplugin/manager/UsbPortDriver.kt).
+4. **Kotlin wrapper** — review [release notes](https://github.com/mik3y/usb-serial-for-android/releases): `SerialInputOutputManager`, `setReadQueue`, `UsbSerialPort` API → [`UsbBridge.kt`](../src/main/kotlin/app/tauri/serialplugin/manager/UsbBridge.kt) / [`UsbPortSession.kt`](../src/main/kotlin/app/tauri/serialplugin/manager/UsbPortSession.kt).
 5. **Builds**
    ```bash
    cd android && ./gradlew test
