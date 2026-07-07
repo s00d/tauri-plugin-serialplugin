@@ -1,0 +1,21 @@
+.gitignore
+  s_c01253b1f96ab7::t_c655282e081e71 6
+package.json
+  s_c01253b1f96ab7::t_7f0750ec7f06a7 39-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "78a97a3d0528ea6171e124585f72804374753acf",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
