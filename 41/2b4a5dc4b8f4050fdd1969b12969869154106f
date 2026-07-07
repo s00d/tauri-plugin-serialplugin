@@ -1,0 +1,39 @@
+examples/serialport-test/android-integration/fakes/FakeUsbSerialPort.kt
+  s_c01253b1f96ab7::t_06892ca28c2e9e 6
+  s_c01253b1f96ab7::t_7e37f2f3dc1c66 26-28
+  s_c01253b1f96ab7::t_a352cbcfcb03e7 1-5,7-15,17-25,29-225,259-270
+  s_c01253b1f96ab7::t_da1f8f27dc173f 16
+  s_c01253b1f96ab7::t_6bf5e6b4131b7c 226-258
+examples/serialport-test/android-integration/src/androidTest/kotlin/com/serialport/test/jni/UsbErrorChainTest.kt
+  s_c01253b1f96ab7::t_4171603dbbb04c 1-31
+examples/serialport-test/android-integration/src/androidTest/kotlin/com/serialport/test/jni/TxChainTest.kt
+  s_c01253b1f96ab7::t_bf32f05bcf2b0b 1-42
+scripts/sync-android-integration-tests.sh
+  s_c01253b1f96ab7::t_cc2fc811c371a0 1-8,10-25,27,29-30,34-36
+  s_c01253b1f96ab7::t_afe53a547f569c 31,33
+  s_c01253b1f96ab7::t_c04c1165685045 26,28
+  s_c01253b1f96ab7::t_78a52df69e6054 9,32
+examples/serialport-test/package.json
+  s_c01253b1f96ab7::t_cfe236179c5bcb 13
+  s_c01253b1f96ab7::t_85245c300ddaf2 12
+examples/serialport-test/android-integration/src/androidTest/kotlin/com/serialport/test/jni/RxChainTest.kt
+  s_c01253b1f96ab7::t_ebb7a41ff358c7 1-48
+examples/serialport-test/android-integration/src/androidTest/kotlin/com/serialport/test/jni/JniChainFixture.kt
+  s_c01253b1f96ab7::t_e533a4f3846977 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "412b4a5dc4b8f4050fdd1969b12969869154106f",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
