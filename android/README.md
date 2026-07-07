@@ -8,9 +8,9 @@ cd android && ./gradlew test
 
 | File | Role |
 |------|------|
+| `SerialPlugin` | Tauri `@Command` surface → `UsbBridge` |
+| `UsbBridge` | `path → UsbPortSession`, enumerate, permission, attach/detach |
 | `UsbPortSession` | one port: SIOM → JNI `feedRx`, `write` → USB |
-| `UsbBridge` | `path → session`, enumerate, permission, attach/detach |
-| `SerialPlugin` | 6 `@Command` → bridge |
-| `MobileBridge` | 4 JNI callbacks |
+| `MobileBridge` | 4 JNI callbacks (`feedRx`, `onUsbError`, …) |
 
 Logcat: `adb logcat -s UsbBridge UsbPort SerialPlugin`

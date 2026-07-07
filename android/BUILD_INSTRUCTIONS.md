@@ -54,21 +54,18 @@ npm run tauri android dev
 
 ```bash
 # Plugin + Rust only (без шума WebView SSL/DNS):
-adb logcat -v time -s UsbPortDriver SerialPlugin RustStdoutStderr
+adb logcat -v time -s UsbBridge UsbPortSession SerialPlugin RustStdoutStderr
 
 # Только отвалы / снимки состояния порта:
-adb logcat -v time -s UsbPortDriver:W UsbPortDriver:E
+adb logcat -v time -s UsbBridge:W UsbBridge:E
 
 # SIOM подробно (debug APK):
-adb logcat -v time SerialInputOutputManager UsbPortDriver
+adb logcat -v time SerialInputOutputManager UsbBridge
 
-# Перед отвалом ищите SNAPSHOT[heartbeat] и SNAPSHOT[detach-broadcast]:
-#   lastRx=… — когда последний раз приходили данные
-#   siom=RUNNING — был ли listen активен
-#   lastErr — ошибка SIOM до detach (если была)
+# Перед отвалом ищите detach / USB error lines в UsbBridge
 
 # Сохранить сессию в файл:
-adb logcat -v time -s UsbPortDriver SerialPlugin RustStdoutStderr > /tmp/serial-usb.log
+adb logcat -v time -s UsbBridge SerialPlugin RustStdoutStderr > /tmp/serial-usb.log
 ```
 
 ## Troubleshooting

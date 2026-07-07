@@ -25,6 +25,16 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 **New in v3:** `SerialPort.getCapabilities()` — `{ transport, platform, version }` from Rust (`cfg!`), if the app needs to branch by platform (replaces ad-hoc `window` / `@tauri-apps/plugin-os` probing on the app side).
 
+**Breaking API changes (v3):**
+
+| Field / behavior | v2 | v3 |
+|------------------|-----|-----|
+| `AtCommandResult.raw` / `ExchangeResponse.raw` | `number[]` | `Uint8Array` |
+| `AtCommandResult.timedOut` | literal `false` | `boolean` (timeouts surfaced by native layer) |
+| `open()` | `void` | returns **canonical path** (Android re-keys to `UsbPath.sessionKey`; desktop echoes input) |
+| `cancel_read` | also detached watch on some builds | **does not** unwatch — use `close()` or `handle.unwatch()` |
+| TX queue after error | port could stay halted until reopen | next `exchange` / `sendAt` job runs normally (`stopOnError` only stops remaining phases in one `sendAtPhases` batch) |
+
 ### Watch events (`SerialEvent`)
 
 | `kind` | Meaning | Port stays open? |
@@ -37,7 +47,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 | Option | Desktop | Android |
 |--------|---------|---------|
-| `timeout` | Batch coalescing window (ms) | Reserved (not used by native watch yet) |
+| `timeout` | Batch coalescing window (ms) | Coalescing / flush hint where supported |
 | `serialDataFlushIntervalMs` | Preferred batch interval; falls back to `timeout` | `BufferedEmitter` flush (10–2000 ms) |
 | `size` | Read chunk size per syscall | Reserved |
 | `decode` | JS-only: `TextDecoder` on `onData` | JS-only |
@@ -59,7 +69,8 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
    7.4. [Port Configuration](#port-configuration)  
    7.5. [Control Signals](#control-signals)  
    7.6. [Buffer Management](#buffer-management)  
-   7.7. [Log Control](#log-control)
+   7.7. [Log Control](#log-control)  
+   7.8. [Auto-Reconnect](#auto-reconnect-management)
 8. [Common Use Cases](#common-use-cases)
 9. [Android Setup](#android-setup)
 10. [Contributing](#contributing)
@@ -1681,173 +1692,35 @@ pnpm run playground
 
 ## Testing
 
-For testing applications without physical hardware, you can use a mock implementation of the serial port. The mock port emulates all functions of a real port and allows testing the application without physical devices.
+Run the full suite locally:
 
-### Using Mock Port
-
-```rust
-use tauri_plugin_serialplugin::tests::mock::MockSerialPort;
-
-// Create a mock port
-let mock_port = MockSerialPort::new();
-
-// Configure port settings
-mock_port.set_baud_rate(9600).unwrap();
-mock_port.set_data_bits(serialport::DataBits::Eight).unwrap();
-mock_port.set_flow_control(serialport::FlowControl::None).unwrap();
-mock_port.set_parity(serialport::Parity::None).unwrap();
-mock_port.set_stop_bits(serialport::StopBits::One).unwrap();
-
-// Write data
-mock_port.write("Test data".as_bytes()).unwrap();
-
-// Read data
-let mut buffer = [0u8; 1024];
-let bytes_read = mock_port.read(&mut buffer).unwrap();
-let data = String::from_utf8_lossy(&buffer[..bytes_read]);
-assert_eq!(data, "Test data");
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+pnpm install && pnpm check && pnpm test && pnpm build
+cd android && ./gradlew test
 ```
 
-### Mock Port Features
+### Virtual serial port (desktop integration)
 
-- Complete emulation of all real port functions
-- Built-in buffer for data storage
-- Control signal emulation (RTS, DTR, CTS, DSR)
-- Support for parallel operation testing
-- No additional software required
-- Works on all platforms
+For manual or integration testing without hardware, pair two PTY endpoints with **socat**:
 
-### Application Testing Example
-
-```rust
-#[test]
-fn test_serial_communication() {
-    let app = create_test_app();
-    let serial_port = SerialPort::new(app.handle().clone());
-    app.manage(serial_port);
-
-    // Open mock port
-    app.state::<SerialPort<MockRuntime>>().open(
-        "COM1".to_string(),
-        9600,
-        Some(DataBits::Eight),
-        Some(FlowControl::None),
-        Some(Parity::None),
-        Some(StopBits::One),
-        Some(1000),
-    ).unwrap();
-
-    // Test write and read operations
-    app.state::<SerialPort<MockRuntime>>().write(
-        "COM1".to_string(),
-        "Test data".to_string(),
-    ).unwrap();
-
-    let data = app.state::<SerialPort<MockRuntime>>().read(
-        "COM1".to_string(),
-        Some(1000),
-        Some(1024),
-    ).unwrap();
-    assert_eq!(data, "Test data");
-
-    // Test port settings
-    app.state::<SerialPort<MockRuntime>>().set_baud_rate(
-        "COM1".to_string(),
-        115200,
-    ).unwrap();
-
-    // Close port
-    app.state::<SerialPort<MockRuntime>>().close("COM1".to_string()).unwrap();
-}
+```bash
+socat -d -d pty,raw,echo=0 pty,raw,echo=0
+# open the printed /dev/tty* path (or COM* on Windows with com0com)
+pnpm playground
 ```
 
-### Implementing Your Own Mock Port
+Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the peer exercises disconnect fail-fast and hub restart behavior.
 
-You can implement your own mock port by implementing the `SerialPort` trait. Here's a basic example of how to create a custom mock port:
+### Unit tests (no hardware)
 
-```rust
-use std::io::{self, Read, Write};
-use serialport::{self, SerialPort};
-use std::time::Duration;
+- **Rust:** `src/tests/mock_serial.rs` — scripted RX/TX mock used by `cargo test`
+- **JS:** `tests/*.test.ts` — Jest mocks for `invoke` / `Channel`
+- **Android:** `android/src/test/...` — Robolectric + `FakeUsbSerialPort` (no `pollRead`; SIOM feeds the Rust RX hub)
 
-struct CustomMockPort {
-    buffer: Vec<u8>,
-    baud_rate: u32,
-    data_bits: serialport::DataBits,
-    flow_control: serialport::FlowControl,
-    parity: serialport::Parity,
-    stop_bits: serialport::StopBits,
-    timeout: Duration,
-}
-
-impl CustomMockPort {
-    fn new() -> Self {
-        Self {
-            buffer: Vec::new(),
-            baud_rate: 9600,
-            data_bits: serialport::DataBits::Eight,
-            flow_control: serialport::FlowControl::None,
-            parity: serialport::Parity::None,
-            stop_bits: serialport::StopBits::One,
-            timeout: Duration::from_millis(1000),
-        }
-    }
-}
-
-// Implement Read trait for reading data
-impl Read for CustomMockPort {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let len = std::cmp::min(buf.len(), self.buffer.len());
-        if len > 0 {
-            buf[..len].copy_from_slice(&self.buffer[..len]);
-            self.buffer.drain(..len);
-        }
-        Ok(len)
-    }
-}
-
-// Implement Write trait for writing data
-impl Write for CustomMockPort {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-// Implement SerialPort trait for port configuration
-impl SerialPort for CustomMockPort {
-    fn name(&self) -> Option<String> {
-        Some("CUSTOM_PORT".to_string())
-    }
-
-    fn baud_rate(&self) -> serialport::Result<u32> {
-        Ok(self.baud_rate)
-    }
-
-    fn data_bits(&self) -> serialport::Result<serialport::DataBits> {
-        Ok(self.data_bits)
-    }
-
-    // ... implement other required methods ...
-}
-```
-
-For a complete implementation example, see the mock port implementation in the plugin's test directory:
-[`src/tests/mock.rs`](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/src/tests/mock.rs)
-
-The example includes:
-- Full implementation of all required traits
-- Buffer management for read/write operations
-- Control signal emulation
-- Port configuration handling
-- Error handling
-- Thread safety considerations
-
-You can use this implementation as a reference when creating your own mock port with custom behavior for specific testing scenarios.
+> **Note:** `bytesToWrite()` returns **0 on Android** (writes are synchronous over JNI). Desktop returns the driver queue depth when available.
 
 ---
 
