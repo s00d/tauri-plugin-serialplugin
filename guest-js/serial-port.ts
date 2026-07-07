@@ -257,6 +257,7 @@ export class SerialPort {
   private buildWatchHandlers(handlers: WatchHandlers): WatchHandlers {
     return {
       onData: handlers.onData,
+      onUrc: handlers.onUrc,
       onError: handlers.onError,
       onDisconnect: (reason) => {
         void this.handleDisconnect(reason, handlers.onDisconnect);
@@ -288,6 +289,7 @@ export class SerialPort {
 
     this.lastWatchHandlers = {
       onData: handlers.onData,
+      onUrc: handlers.onUrc,
       onError: handlers.onError,
       onDisconnect: handlers.onDisconnect,
     };
@@ -405,6 +407,9 @@ export class SerialPort {
   }
 
   async change(options: { path?: string; baudRate?: number }): Promise<void> {
+    const savedHandlers = this.lastWatchHandlers;
+    const savedOptions = this.lastWatchOptions;
+    const hadWatch = !!this.watchHandle;
     const wasOpen = this.isOpen;
     if (wasOpen) {
       await this.close();
@@ -417,6 +422,11 @@ export class SerialPort {
     }
     if (wasOpen) {
       await this.open();
+      if (hadWatch && savedHandlers) {
+        this.lastWatchHandlers = savedHandlers;
+        this.lastWatchOptions = savedOptions;
+        await this.reestablishWatch();
+      }
     }
   }
 
@@ -485,6 +495,9 @@ export class SerialPort {
       return true;
     }
     try {
+      if (this.watchHandle) {
+        await this.stopWatch();
+      }
       await this.open();
       if (this.lastWatchHandlers) {
         await this.reestablishWatch();
@@ -511,7 +524,7 @@ export class SerialPort {
     }
     this.isProcessingOpenClose = true;
     try {
-      await invoke<void>('plugin:serialplugin|open', {
+      const canonicalPath = await invoke<string>('plugin:serialplugin|open', {
         path: this.options.path,
         baudRate: this.options.baudRate,
         dataBits: this.options.dataBits,
@@ -520,6 +533,9 @@ export class SerialPort {
         stopBits: this.options.stopBits,
         timeout: this.options.timeout,
       });
+      if (canonicalPath) {
+        this.options.path = canonicalPath;
+      }
       this.isOpen = true;
       if (this.atSessionOptions) {
         await this.configureAtSession(this.atSessionOptions);
@@ -595,6 +611,9 @@ export class SerialPort {
   }
 
   async writeRequestToSend(level: boolean): Promise<void> {
+    if (!this.isOpen) {
+      throw new Error('Port is not open');
+    }
     return invoke<void>('plugin:serialplugin|write_request_to_send', {
       path: this.options.path,
       level,
@@ -602,6 +621,9 @@ export class SerialPort {
   }
 
   async writeDataTerminalReady(level: boolean): Promise<void> {
+    if (!this.isOpen) {
+      throw new Error('Port is not open');
+    }
     return invoke<void>('plugin:serialplugin|write_data_terminal_ready', {
       path: this.options.path,
       level,
@@ -656,11 +678,15 @@ export class SerialPort {
     if (!this.isOpen) {
       throw new Error('Port is not open');
     }
-    return invoke<ExchangeResponse>('plugin:serialplugin|exchange', {
+    const result = await invoke<ExchangeResponse>('plugin:serialplugin|exchange', {
       path: this.options.path,
       value,
       options: options ?? {},
     });
+    return {
+      ...result,
+      raw: new Uint8Array(result.raw as unknown as number[]),
+    };
   }
 
   /** Binary write + read-until (e.g. CMGS PDU + Ctrl+Z). */
@@ -668,11 +694,15 @@ export class SerialPort {
     if (!this.isOpen) {
       throw new Error('Port is not open');
     }
-    return invoke<ExchangeResponse>('plugin:serialplugin|exchange_binary', {
+    const result = await invoke<ExchangeResponse>('plugin:serialplugin|exchange_binary', {
       path: this.options.path,
       value: Array.from(value),
       options: options ?? {},
     });
+    return {
+      ...result,
+      raw: new Uint8Array(result.raw as unknown as number[]),
+    };
   }
 
   /** Enter GSM 07.10 CMUX mode on this physical port. */

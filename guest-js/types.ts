@@ -24,7 +24,7 @@ export type SerialEvent =
   | { kind: 'error'; path: string; message: string };
 
 export interface WatchOptions {
-  /** Desktop: batch coalescing window (ms). Android: reserved for future use. */
+  /** Desktop: batch coalescing window (ms). Android: coalescing hint where supported. */
   timeout?: number;
   /** Max bytes per read chunk. */
   size?: number;
@@ -204,7 +204,7 @@ export interface ExchangeOptions {
 
 /** Structured native exchange response. */
 export interface ExchangeResponse {
-  raw: number[];
+  raw: Uint8Array;
   matched: ExchangeMatch;
   lines: string[];
   status: AtParseStatus;
@@ -262,5 +262,5 @@ export interface AtCommandResult {
   solicitedBody: string[];
   urcLines: string[];
   matched: ExchangeMatch;
-  timedOut: false;
+  timedOut: boolean;
 }

@@ -18,14 +18,14 @@
 
 #[cfg(desktop)]
 use crate::cmux::CmuxSession;
-#[cfg(desktop)]
-use crate::port_rx_hub::PortRxHub;
-#[cfg(desktop)]
-use crate::port_tx_queue::PortTxQueue;
 #[cfg(target_os = "android")]
 use crate::cmux::CmuxSession;
 #[cfg(target_os = "android")]
 use crate::mobile_rx_hub::MobileRxHub;
+#[cfg(desktop)]
+use crate::port_rx_hub::PortRxHub;
+#[cfg(desktop)]
+use crate::port_tx_queue::PortTxQueue;
 #[cfg(target_os = "android")]
 use crate::port_tx_queue::PortTxQueue;
 use serde::{Deserialize, Serialize};
@@ -38,10 +38,10 @@ use serialport::{
 };
 #[cfg(desktop)]
 use std::sync::atomic::AtomicBool;
-#[cfg(desktop)]
-use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::sync::atomic::AtomicBool;
+#[cfg(desktop)]
+use std::sync::Arc;
 #[cfg(target_os = "android")]
 use std::sync::Arc;
 use std::sync::{Mutex, OnceLock};
