@@ -136,6 +136,40 @@ pub fn apply_single_port_per_device(
     filter_macos_single_port_per_device(ports)
 }
 
+/// When `single_port_per_device` is true, keeps one USB serial port per Android device
+/// (lowest port index; paths without `#` are port 0).
+pub fn apply_android_single_port_per_device(
+    ports: HashMap<String, HashMap<String, String>>,
+    single_port_per_device: bool,
+) -> HashMap<String, HashMap<String, String>> {
+    if !single_port_per_device {
+        return ports;
+    }
+    let mut best: HashMap<String, (u32, String, HashMap<String, String>)> = HashMap::new();
+    for (path, info) in ports {
+        let (device, port_idx) = android_path_parts(&path);
+        let replace = match best.get(device) {
+            None => true,
+            Some((idx, _, _)) => port_idx < *idx,
+        };
+        if replace {
+            best.insert(device.to_string(), (port_idx, path, info));
+        }
+    }
+    best.into_values()
+        .map(|(_, path, info)| (path, info))
+        .collect()
+}
+
+fn android_path_parts(path: &str) -> (&str, u32) {
+    if let Some(idx) = path.rfind('#') {
+        let port = path[idx + 1..].parse().unwrap_or(0);
+        (&path[..idx], port)
+    } else {
+        (path, 0)
+    }
+}
+
 fn filter_macos_single_port_per_device(
     ports: HashMap<String, HashMap<String, String>>,
 ) -> HashMap<String, HashMap<String, String>> {
@@ -219,5 +253,18 @@ mod tests {
         ]);
         let out = apply_single_port_per_device(ports.clone(), true);
         assert_eq!(out, ports);
+    }
+
+    #[test]
+    fn android_keeps_lowest_port_index_per_device() {
+        let ports = HashMap::from([
+            ("/dev/bus/usb/001/002#1".to_string(), info("USB")),
+            ("/dev/bus/usb/001/002#0".to_string(), info("USB")),
+            ("/dev/bus/usb/001/003".to_string(), info("USB")),
+        ]);
+        let out = apply_android_single_port_per_device(ports, true);
+        assert_eq!(out.len(), 2);
+        assert!(out.contains_key("/dev/bus/usb/001/002#0"));
+        assert!(out.contains_key("/dev/bus/usb/001/003"));
     }
 }

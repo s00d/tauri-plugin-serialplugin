@@ -100,7 +100,3 @@ impl From<PluginInvokeError> for Error {
         Error::String(error.to_string())
     }
 }
-
-// Implementing Send and Sync for Error
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}

@@ -59,17 +59,17 @@ pub mod exchange_read;
 pub mod mobile_jni;
 #[cfg(mobile)]
 pub mod mobile_registry;
-pub mod mobile_response;
 #[cfg(mobile)]
 pub mod mobile_rx_hub;
 #[cfg(mobile)]
-pub mod mobile_usb_jni;
-#[cfg(mobile)]
 pub mod mobile_usb_io;
+#[cfg(mobile)]
+pub mod mobile_usb_jni;
 pub mod port_list;
 pub mod port_list_monitor;
 pub mod port_rx_hub;
 pub mod port_tx_queue;
+pub mod sync_util;
 pub mod watch_registry;
 
 #[cfg(test)]
@@ -84,9 +84,8 @@ mod tests {
     mod error_test;
     #[cfg(desktop)]
     mod invoke_contract_test;
-    mod mobile_api_test;
     #[cfg(desktop)]
-    mod mock;
+    mod mock_serial;
     #[cfg(desktop)]
     mod serial_test;
     #[cfg(desktop)]

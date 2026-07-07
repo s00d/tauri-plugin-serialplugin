@@ -35,21 +35,15 @@ impl MobilePortRegistry {
 
     pub fn register(&self, hub: Arc<MobileRxHub>, handle: MobileConnectedPortHandle) {
         let path = handle.path.clone();
-        self.ports.lock().unwrap().insert(
-            path,
-            PortEntry {
-                hub,
-                handle,
-            },
-        );
+        crate::sync_util::lock_or_recover(&self.ports).insert(path, PortEntry { hub, handle });
     }
 
     pub fn unregister(&self, path: &str) {
-        self.ports.lock().unwrap().remove(path);
+        crate::sync_util::lock_or_recover(&self.ports).remove(path);
     }
 
     pub fn feed_rx(&self, path: &str, chunk: &[u8]) {
-        if let Some(entry) = self.ports.lock().unwrap().get(path) {
+        if let Some(entry) = crate::sync_util::lock_or_recover(&self.ports).get(path) {
             entry.hub.feed(chunk);
         }
     }
@@ -57,7 +51,7 @@ impl MobilePortRegistry {
     pub fn fail_port(&self, path: &str, reason: &str) {
         log_error!("fail_port path={} reason={}", path, reason);
         let (hub, handle) = {
-            let ports = self.ports.lock().unwrap();
+            let ports = crate::sync_util::lock_or_recover(&self.ports);
             let Some(entry) = ports.get(path) else {
                 log_warn!("fail_port: path {} not in registry", path);
                 return;
@@ -84,16 +78,19 @@ impl MobilePortRegistry {
     }
 
     pub fn handle_for(&self, path: &str) -> Option<MobileConnectedPortHandle> {
-        self.ports
-            .lock()
-            .unwrap()
+        crate::sync_util::lock_or_recover(&self.ports)
             .get(path)
             .map(|e| e.handle.clone())
     }
 
     pub fn close_all(&self) {
-        let paths: Vec<String> = self.ports.lock().unwrap().keys().cloned().collect();
-        for path in paths {
+        let entries: Vec<(String, Arc<MobileRxHub>)> =
+            crate::sync_util::lock_or_recover(&self.ports)
+                .iter()
+                .map(|(path, entry)| (path.clone(), entry.hub.clone()))
+                .collect();
+        for (path, hub) in entries {
+            hub.shutdown();
             self.unregister(&path);
         }
     }
