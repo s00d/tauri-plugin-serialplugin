@@ -1,0 +1,48 @@
+android/src/test/kotlin/app/tauri/serialplugin/manager/CoalescingRxSinkTest.kt
+  s_ae5e28f135454d::t_bf33ec164d7b80 18-21
+  s_ae5e28f135454d::t_b4dc4f28a88c10 1-17,22-23
+tests/control-signals.test.ts
+  s_ae5e28f135454d::t_8c8037807c12c0 111
+  s_ae5e28f135454d::t_5767e5981d883c 83
+tests/log-level.test.ts
+  s_ae5e28f135454d::t_6df61ea166fd85 1,5,13-14
+  s_ae5e28f135454d::t_880f933a482704 2-4,6-12,15-30
+tests/exchange-mock.ts
+  s_ae5e28f135454d::t_2c55c4afc667aa 21
+  s_ae5e28f135454d::t_77d209df2f06e0 45
+tests/auto-reconnect.test.ts
+  s_ae5e28f135454d::t_0cdfc7d14858c1 11,19,23,25,35,45,53,75,84,98-115
+  s_ae5e28f135454d::t_1500ce11b0ec43 85-97,116
+tests/watch-lifecycle.test.ts
+  s_ae5e28f135454d::t_bd70ab0633561a 92,112,115,122-131,134,138-176,197-198,201-202,204-205,210
+  s_ae5e28f135454d::t_eccf8a32811dc1 196
+  s_ae5e28f135454d::t_c243783294f13a 199-200
+  s_ae5e28f135454d::t_a9a0b4863e48a1 203
+  s_ae5e28f135454d::t_c28f8e42ebd0e4 206-209
+  s_ae5e28f135454d::t_5a4447f34a7acd 211
+src/tests/mock_serial.rs
+  s_ae5e28f135454d::t_ea4afb9a391fe5 72
+  s_ae5e28f135454d::t_3ecc45fb6f1122 1-71,73-248
+tests/mux.test.ts
+  s_ae5e28f135454d::t_0a8d6d8847bb37 1-47
+tests/exchange.test.ts
+  s_ae5e28f135454d::t_131c54c212f441 1-46
+src/tests/state_test.rs
+  s_ae5e28f135454d::t_9ae64dc116be89 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "222092590bd37683bc4fe7b40c8386d0a484cdea",
+  "prompts": {},
+  "sessions": {
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
