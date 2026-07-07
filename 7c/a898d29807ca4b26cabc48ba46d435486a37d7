@@ -1,0 +1,25 @@
+README.md
+  s_c01253b1f96ab7::t_fa78268c8a5079 37
+  s_c01253b1f96ab7::t_d626b6893ce0c3 1726-1728
+  s_c01253b1f96ab7::t_5e228adc286e4c 1729
+CHANGELOG.md
+  s_c01253b1f96ab7::t_390e48a654fa93 18-22
+android/usbserial/UPDATE.md
+  s_c01253b1f96ab7::t_8b4b644c732e2e 30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "7ca898d29807ca4b26cabc48ba46d435486a37d7",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
