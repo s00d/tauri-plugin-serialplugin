@@ -1,3 +1,4 @@
 /build
 /.tauri
 /.gradle
+usbserial/build/

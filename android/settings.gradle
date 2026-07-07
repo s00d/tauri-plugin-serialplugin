@@ -15,11 +15,11 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         google()
-        maven { url 'https://jitpack.io' }
     }
 }
 
 rootProject.name = 'tauri-plugin-serialplugin-android'
 
+include ':usbserial'
 include ':tauri-android'
 project(':tauri-android').projectDir = new File('./.tauri/tauri-api')

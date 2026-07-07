@@ -1,64 +1,33 @@
 ## Default Permission
 
-# Tauri `serialport` default permissions
-
-This configuration file defines the default permissions granted
-to the serialport.
-
-### Granted Permissions
-
-This default permission set enables all read-related commands and
-allows access to the `$APP` folder and sub directories created in it.
-The location of the `$APP` folder depends on the operating system,
-where the application is run.
-
-In general the `$APP` folder needs to be manually created
-by the application at runtime, before accessing files or folders
-in it is possible.
-
-### Denied Permissions
-
-This default permission set prevents access to critical components
-of the Tauri application by default.
-On Windows the webview data folder access is denied.
+Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,
+port hotplug, AT session, exchange, and configure serial ports on desktop and Android.
 
 #### This default permission set includes the following:
 
 - `allow-managed-ports`
 - `allow-available-ports`
-- `allow-available-ports-direct`
+- `allow-watch-ports`
+- `allow-unwatch-ports`
 - `allow-cancel-read`
 - `allow-close`
 - `allow-close-all`
 - `allow-force-close`
-- `allow-open`
-- `allow-read`
-- `allow-write`
-- `allow-write-binary`
-- `allow-start-listening`
-- `allow-stop-listening`
-- `allow-available-ports`
-- `allow-available-ports-direct`
-- `allow-bytes-to-read`
-- `allow-bytes-to-write`
-- `allow-cancel-read`
-- `allow-clear-break`
-- `allow-clear-buffer`
-- `allow-close`
-- `allow-close-all`
-- `allow-force-close`
-- `allow-managed-ports`
 - `allow-open`
 - `allow-read`
 - `allow-read-binary`
+- `allow-write`
+- `allow-write-binary`
+- `allow-capabilities`
+- `allow-watch`
+- `allow-unwatch`
+- `allow-bytes-to-read`
+- `allow-bytes-to-write`
+- `allow-clear-break`
+- `allow-clear-buffer`
 - `allow-read-carrier-detect`
-- `allow-read-cd`
 - `allow-read-clear-to-send`
-- `allow-read-cts`
 - `allow-read-data-set-ready`
-- `allow-read-dsr`
-- `allow-read-dtr`
-- `allow-read-ri`
 - `allow-read-ring-indicator`
 - `allow-set-baud-rate`
 - `allow-set-break`
@@ -67,16 +36,20 @@ On Windows the webview data folder access is denied.
 - `allow-set-parity`
 - `allow-set-stop-bits`
 - `allow-set-timeout`
-- `allow-start-listening`
-- `allow-stop-listening`
-- `allow-write`
-- `allow-write-binary`
 - `allow-write-data-terminal-ready`
-- `allow-write-dtr`
 - `allow-write-request-to-send`
-- `allow-write-rts`
 - `allow-set-log-level`
 - `allow-get-log-level`
+- `allow-exchange`
+- `allow-exchange-binary`
+- `allow-cancel-exchange`
+- `allow-at`
+- `allow-at-phases`
+- `allow-send-sms-pdu`
+- `allow-configure-at-session`
+- `allow-enable-mux`
+- `allow-open-mux-channel`
+- `allow-disable-mux`
 
 ## Permission Table
 
@@ -86,6 +59,58 @@ On Windows the webview data folder access is denied.
 <th>Description</th>
 </tr>
 
+
+<tr>
+<td>
+
+`serialplugin:allow-at`
+
+</td>
+<td>
+
+Enables the at command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-at`
+
+</td>
+<td>
+
+Denies the at command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-at-phases`
+
+</td>
+<td>
+
+Enables the at_phases command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-at-phases`
+
+</td>
+<td>
+
+Denies the at_phases command without any pre-configured scope.
+
+</td>
+</tr>
 
 <tr>
 <td>
@@ -109,32 +134,6 @@ Enables the available_ports command without any pre-configured scope.
 <td>
 
 Denies the available_ports command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:allow-available-ports-direct`
-
-</td>
-<td>
-
-Enables the available_ports_direct command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-available-ports-direct`
-
-</td>
-<td>
-
-Denies the available_ports_direct command without any pre-configured scope.
 
 </td>
 </tr>
@@ -194,6 +193,32 @@ Denies the bytes_to_write command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-cancel-exchange`
+
+</td>
+<td>
+
+Enables the cancel_exchange command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-cancel-exchange`
+
+</td>
+<td>
+
+Denies the cancel_exchange command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-cancel-read`
 
 </td>
@@ -213,6 +238,32 @@ Enables the cancel_read command without any pre-configured scope.
 <td>
 
 Denies the cancel_read command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-capabilities`
+
+</td>
+<td>
+
+Enables the capabilities command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-capabilities`
+
+</td>
+<td>
+
+Denies the capabilities command without any pre-configured scope.
 
 </td>
 </tr>
@@ -324,6 +375,136 @@ Denies the close_all command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-configure-at-session`
+
+</td>
+<td>
+
+Enables the configure_at_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-configure-at-session`
+
+</td>
+<td>
+
+Denies the configure_at_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-disable-mux`
+
+</td>
+<td>
+
+Enables the disable_mux command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-disable-mux`
+
+</td>
+<td>
+
+Denies the disable_mux command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-enable-mux`
+
+</td>
+<td>
+
+Enables the enable_mux command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-enable-mux`
+
+</td>
+<td>
+
+Denies the enable_mux command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-exchange`
+
+</td>
+<td>
+
+Enables the exchange command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-exchange`
+
+</td>
+<td>
+
+Denies the exchange command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-exchange-binary`
+
+</td>
+<td>
+
+Enables the exchange_binary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-exchange-binary`
+
+</td>
+<td>
+
+Denies the exchange_binary command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-force-close`
 
 </td>
@@ -428,6 +609,32 @@ Denies the open command without any pre-configured scope.
 <tr>
 <td>
 
+`serialplugin:allow-open-mux-channel`
+
+</td>
+<td>
+
+Enables the open_mux_channel command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-open-mux-channel`
+
+</td>
+<td>
+
+Denies the open_mux_channel command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `serialplugin:allow-read`
 
 </td>
@@ -506,32 +713,6 @@ Denies the read_carrier_detect command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:allow-read-cd`
-
-</td>
-<td>
-
-Enables the read_cd command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-read-cd`
-
-</td>
-<td>
-
-Denies the read_cd command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
 `serialplugin:allow-read-clear-to-send`
 
 </td>
@@ -551,32 +732,6 @@ Enables the read_clear_to_send command without any pre-configured scope.
 <td>
 
 Denies the read_clear_to_send command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:allow-read-cts`
-
-</td>
-<td>
-
-Enables the read_cts command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-read-cts`
-
-</td>
-<td>
-
-Denies the read_cts command without any pre-configured scope.
 
 </td>
 </tr>
@@ -610,84 +765,6 @@ Denies the read_data_set_ready command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:allow-read-dsr`
-
-</td>
-<td>
-
-Enables the read_dsr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-read-dsr`
-
-</td>
-<td>
-
-Denies the read_dsr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:allow-read-dtr`
-
-</td>
-<td>
-
-Enables the read_dtr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-read-dtr`
-
-</td>
-<td>
-
-Denies the read_dtr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:allow-read-ri`
-
-</td>
-<td>
-
-Enables the read_ri command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-read-ri`
-
-</td>
-<td>
-
-Denies the read_ri command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
 `serialplugin:allow-read-ring-indicator`
 
 </td>
@@ -707,6 +784,32 @@ Enables the read_ring_indicator command without any pre-configured scope.
 <td>
 
 Denies the read_ring_indicator command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-send-sms-pdu`
+
+</td>
+<td>
+
+Enables the send_sms_pdu command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-send-sms-pdu`
+
+</td>
+<td>
+
+Denies the send_sms_pdu command without any pre-configured scope.
 
 </td>
 </tr>
@@ -922,25 +1025,12 @@ Denies the set_timeout command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:allow-start-listening`
+`serialplugin:allow-unwatch`
 
 </td>
 <td>
 
-Enables the start_listening command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-start-listening`
-
-</td>
-<td>
-
-Denies the start_listening command without any pre-configured scope.
+Enables the unwatch command without any pre-configured scope.
 
 </td>
 </tr>
@@ -948,12 +1038,12 @@ Denies the start_listening command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:allow-stop-listening`
+`serialplugin:deny-unwatch`
 
 </td>
 <td>
 
-Enables the stop_listening command without any pre-configured scope.
+Denies the unwatch command without any pre-configured scope.
 
 </td>
 </tr>
@@ -961,12 +1051,77 @@ Enables the stop_listening command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:deny-stop-listening`
+`serialplugin:allow-unwatch-ports`
 
 </td>
 <td>
 
-Denies the stop_listening command without any pre-configured scope.
+Enables the unwatch_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-unwatch-ports`
+
+</td>
+<td>
+
+Denies the unwatch_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-watch`
+
+</td>
+<td>
+
+Enables the watch command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-watch`
+
+</td>
+<td>
+
+Denies the watch command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-watch-ports`
+
+</td>
+<td>
+
+Enables the watch_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-watch-ports`
+
+</td>
+<td>
+
+Denies the watch_ports command without any pre-configured scope.
 
 </td>
 </tr>
@@ -1052,32 +1207,6 @@ Denies the write_data_terminal_ready command without any pre-configured scope.
 <tr>
 <td>
 
-`serialplugin:allow-write-dtr`
-
-</td>
-<td>
-
-Enables the write_dtr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-write-dtr`
-
-</td>
-<td>
-
-Denies the write_dtr command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
 `serialplugin:allow-write-request-to-send`
 
 </td>
@@ -1097,32 +1226,6 @@ Enables the write_request_to_send command without any pre-configured scope.
 <td>
 
 Denies the write_request_to_send command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:allow-write-rts`
-
-</td>
-<td>
-
-Enables the write_rts command without any pre-configured scope.
-
-</td>
-</tr>
-
-<tr>
-<td>
-
-`serialplugin:deny-write-rts`
-
-</td>
-<td>
-
-Denies the write_rts command without any pre-configured scope.
 
 </td>
 </tr>

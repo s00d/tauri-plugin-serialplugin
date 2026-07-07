@@ -53,11 +53,22 @@ npm run tauri android dev
 ### 3. Checking Logs
 
 ```bash
-# View Android logs
-adb logcat | grep -E "(SerialPlugin|SerialPortManager)"
+# Plugin + Rust only (без шума WebView SSL/DNS):
+adb logcat -v time -s UsbPortDriver SerialPlugin RustStdoutStderr
 
-# Or through Android Studio
-# View -> Tool Windows -> Logcat
+# Только отвалы / снимки состояния порта:
+adb logcat -v time -s UsbPortDriver:W UsbPortDriver:E
+
+# SIOM подробно (debug APK):
+adb logcat -v time SerialInputOutputManager UsbPortDriver
+
+# Перед отвалом ищите SNAPSHOT[heartbeat] и SNAPSHOT[detach-broadcast]:
+#   lastRx=… — когда последний раз приходили данные
+#   siom=RUNNING — был ли listen активен
+#   lastErr — ошибка SIOM до detach (если была)
+
+# Сохранить сессию в файл:
+adb logcat -v time -s UsbPortDriver SerialPlugin RustStdoutStderr > /tmp/serial-usb.log
 ```
 
 ## Troubleshooting

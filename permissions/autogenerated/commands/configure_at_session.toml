@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-configure-at-session"
+description = "Enables the configure_at_session command without any pre-configured scope."
+commands.allow = ["configure_at_session"]
+
+[[permission]]
+identifier = "deny-configure-at-session"
+description = "Denies the configure_at_session command without any pre-configured scope."
+commands.deny = ["configure_at_session"]

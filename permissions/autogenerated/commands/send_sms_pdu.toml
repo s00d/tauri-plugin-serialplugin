@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-send-sms-pdu"
+description = "Enables the send_sms_pdu command without any pre-configured scope."
+commands.allow = ["send_sms_pdu"]
+
+[[permission]]
+identifier = "deny-send-sms-pdu"
+description = "Denies the send_sms_pdu command without any pre-configured scope."
+commands.deny = ["send_sms_pdu"]

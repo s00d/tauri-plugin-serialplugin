@@ -3713,14 +3713,14 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "2.23.0"
+version = "3.0.0"
 dependencies = [
+ "jni",
  "serde",
  "serde_json",
  "serialport",
  "tauri",
  "tauri-plugin",
- "thiserror 2.0.12",
 ]
 
 [[package]]

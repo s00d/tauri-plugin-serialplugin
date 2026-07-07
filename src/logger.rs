@@ -1,5 +1,5 @@
 //! Centralized logging module for the serial plugin
-//! 
+//!
 //! This module provides a unified logging interface with configurable log levels.
 //! All logging in the plugin should use these macros to respect the global log level setting.
 
@@ -73,4 +73,3 @@ mod tests {
         log_debug!("Debug message");
     }
 }
-

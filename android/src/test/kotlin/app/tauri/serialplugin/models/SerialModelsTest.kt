@@ -52,6 +52,13 @@ class SerialModelsTest {
     }
 
     @Test
+    fun clearBuffer_fromNumericValue() {
+        assertEquals(ClearBuffer.INPUT, ClearBuffer.fromValue(0))
+        assertEquals(ClearBuffer.OUTPUT, ClearBuffer.fromValue(1))
+        assertEquals(ClearBuffer.ALL, ClearBuffer.fromValue(2))
+    }
+
+    @Test
     fun clearBuffer_unknownDefaultsToInput() {
         assertEquals(ClearBuffer.INPUT, ClearBuffer.fromValue("not-a-buffer"))
     }

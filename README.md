@@ -9,7 +9,38 @@
 
 A comprehensive plugin for Tauri applications to communicate with serial ports. This plugin provides a complete API for reading from and writing to serial devices, with support for various configuration options and control signals.
 
-> **⚠️ Important Notice:** The JavaScript dependency has been renamed from `tauri-plugin-serialplugin` to `tauri-plugin-serialplugin-api`. Please update your `package.json` before updating to the latest version, following the same pattern used by other Tauri plugins.
+> **v3.0 breaking change:** `listen` / `startListening` / `disconnected` were removed. Use **`watch()`** and **`SerialPort.getCapabilities()`**. See [Migrating to v3](#migrating-to-v3) below.
+
+---
+
+## Migrating to v3
+
+| v2 | v3 |
+|----|-----|
+| `startListening()` + `listen(fn)` | `const handle = await port.watch({ onData: fn })` |
+| `disconnected(fn)` | `watch({ onDisconnect: fn })` |
+| `cancelListen()` / `stopListening()` | `await handle.unwatch()` |
+
+Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (`serialData`, `serialError`) are **no longer part of the public API**.
+
+**New in v3:** `SerialPort.getCapabilities()` — `{ transport, platform, version }` from Rust (`cfg!`), if the app needs to branch by platform (replaces ad-hoc `window` / `@tauri-apps/plugin-os` probing on the app side).
+
+### Watch events (`SerialEvent`)
+
+| `kind` | Meaning | Port stays open? |
+|--------|---------|------------------|
+| `data` | Incoming bytes (decoded to `string` in JS when `decode !== false`) | Yes |
+| `error` | Non-fatal notification (e.g. emitter glitch); watch continues | Yes |
+| `disconnect` | Fatal end of stream (unplug, IO manager stopped); triggers auto-reconnect if enabled | No (`isOpen = false`) |
+
+### Watch options
+
+| Option | Desktop | Android |
+|--------|---------|---------|
+| `timeout` | Batch coalescing window (ms) | Reserved (not used by native watch yet) |
+| `serialDataFlushIntervalMs` | Preferred batch interval; falls back to `timeout` | `BufferedEmitter` flush (10–2000 ms) |
+| `size` | Read chunk size per syscall | Reserved |
+| `decode` | JS-only: `TextDecoder` on `onData` | JS-only |
 
 ---
 
@@ -46,11 +77,6 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 - **Rust** version 1.70 or higher
 - **Tauri** 2.0 or higher
 - **Node.js** and an npm-compatible package manager (npm, yarn, pnpm)
-
-
-
-
-## Installation
 
 ### Automatic Installation (Recommended)
 
@@ -97,45 +123,9 @@ npm install tauri-plugin-serialplugin-api
 pnpm add tauri-plugin-serialplugin-api
 ```
 
-### Android Setup (Required for Android builds)
+### Android
 
-> **⚠️ Important:** If you're building for Android, you **must** configure the JitPack repository before building. The plugin will not compile without this step.
-
-The plugin depends on `com.github.mik3y:usb-serial-for-android:3.8.1`, which is hosted on JitPack. Add the following to your `/src-tauri/gen/android/build.gradle.kts` file:
-
-```kotlin
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.11.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
-        // ... your other dependencies
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-}
-
-tasks.register("clean").configure {
-    delete("build")
-}
-```
-
-**Without this configuration, you will get an error:**
-```
-could not find com.github.mik3y:usb-serial-for-android:3.8.1
-```
-
-For more details and troubleshooting, see the [Android Setup](#android-setup) section.
+USB serial support uses [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) **v3.10.0**, vendored inside the plugin (`android/usbserial/`). **No JitPack or extra Maven repositories** are required — standard `google()` + `mavenCentral()` is enough.
 
 ---
 
@@ -185,16 +175,14 @@ For more details and troubleshooting, see the [Android Setup](#android-setup) se
    // Write data
    await port.write("Hello, Serial Port!");
 
-   // Start port listening
-   await port.startListening();
-
-   // Start port listening
-   const unsubscribe = await port.listen((data) => {
-      console.log("Received:", data);
+   // Stream incoming data (desktop + Android)
+   const handle = await port.watch({
+     onData: (data) => console.log("Received:", data),
+     onDisconnect: (reason) => console.log("Disconnected:", reason),
    });
 
-   // Stop listening when done
-   await port.cancelListen();
+   // Stop streaming when done
+   await handle.unwatch();
 
    // Close port
    await port.close();
@@ -242,13 +230,12 @@ For more details and troubleshooting, see the [Android Setup](#android-setup) se
        }
 
        try {
-         // Start listening
-         await port.startListening();
-         await port.listen((data) => {
-           console.log("Received:", data);
+         const handle = await port.watch({
+           onData: (data) => console.log("Received:", data),
          });
+         // ... use handle.unwatch() in cleanup
        } catch (error) {
-         throw new Error(`Failed to start listening: ${error}`);
+         throw new Error(`Failed to start watch: ${error}`);
        }
 
        try {
@@ -270,7 +257,6 @@ For more details and troubleshooting, see the [Android Setup](#android-setup) se
        // Clean up
        if (port) {
          try {
-           await port.cancelListen();
            await port.close();
          } catch (error) {
            console.error("Error during cleanup:", error);
@@ -346,8 +332,8 @@ await port.setTimeout(500);
 
 ```typescript
 // Set control signals
-await port.setRequestToSend(true);
-await port.setDataTerminalReady(true);
+await port.writeRequestToSend(true);
+await port.writeDataTerminalReady(true);
 
 // Alternative methods (writeRequestToSend and writeDataTerminalReady)
 await port.writeRequestToSend(true);
@@ -463,7 +449,7 @@ await SerialPort.setLogLevel(LogLevel.None);
 
 setInterval(async () => {
   const ports = await SerialPort.available_ports();
-  // No "listen event: plugin-serialplugin-disconnected-COM6" logs
+  // No extra console noise from the plugin while polling
 }, 1000);
 ```
 
@@ -621,7 +607,7 @@ async fn rust_serial_example(
 
 ```rust
 use tauri_plugin_serialplugin::commands::{
-    available_ports, open, write, read, close, force_close, managed_ports, start_listening
+    available_ports, open, write, read, close, force_close, managed_ports, watch, unwatch
 };
 use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
 use tauri::{AppHandle, State};
@@ -670,22 +656,11 @@ async fn advanced_serial_example(
         }
     }
 
-    // Start listening for data
-    match start_listening(
-        app.clone(),
-        serial.clone(),
-        port_path.clone(),
-        Some(1000u64), // timeout
-        Some(1024usize) // max bytes
-    ) {
-        Ok(_) => println!("Started listening"),
-        Err(e) => {
-            eprintln!("Failed to start listening: {}", e);
-            // Continue anyway, we can still read manually
-        }
+    // Poll read (for streaming use `watch` + Channel from the frontend)
+    match read(app.clone(), serial.clone(), port_path.clone(), Some(1000u64), Some(1024usize)) {
+        Ok(data) => println!("Read: {}", data),
+        Err(e) => eprintln!("Read failed: {}", e),
     }
-
-    // Send a command and read response
     let command = "AT\r\n".to_string();
     match write(app.clone(), serial.clone(), port_path.clone(), command) {
         Ok(bytes) => println!("Sent {} bytes", bytes),
@@ -826,7 +801,7 @@ async fn my_serial_function(
     serial: State<'_, SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Use serial methods directly
-    let ports = serial.available_ports()?;
+    let ports = serial.available_ports(false)?;
     // ... rest of your code
 }
 ```
@@ -853,7 +828,6 @@ Here are all the available command functions you can import and use. For detaile
 use tauri_plugin_serialplugin::commands::{
     // Port discovery
     available_ports,           // Get list of available ports
-    available_ports_direct,    // Get ports using platform-specific commands
     managed_ports,             // Get list of currently managed ports
     
     // Connection management
@@ -868,10 +842,11 @@ use tauri_plugin_serialplugin::commands::{
     read,                      // Read string data
     read_binary,               // Read binary data
     
-    // Listening
-    start_listening,           // Start listening for data
-    stop_listening,            // Stop listening
-    cancel_read,               // Cancel read operations
+    // Listening (streaming)
+    capabilities,              // Runtime info
+    watch,                     // Stream events via Channel
+    unwatch,                   // Stop watch session
+    cancel_read,               // Cancel poll read or active watch (shared stop channel)
     
     // Port configuration
     set_baud_rate,             // Set baud rate
@@ -950,7 +925,7 @@ pub fn write<R: Runtime>(
 - "Failed to open serial port: {error}" - Error opening port
 - "Failed to clone serial port: {error}" - Error cloning port
 - "Failed to set short timeout: {error}" - Error setting timeout
-- "Failed to stop existing listener: {error}" - Error stopping existing listener
+- "Failed to cancel serial port watch: {error}" - Error stopping watch thread
 - "Failed to join thread: {error}" - Error waiting for thread completion
 - "Failed to cancel serial port data reading: {error}" - Error canceling data reading
 
@@ -1011,8 +986,6 @@ Below is a list of all permissions the plugin supports. Granting or denying them
 | `serialplugin:deny-write`                   | Denies writing data to serial ports                                           |
 | `serialplugin:allow-write-binary`           | Allows writing binary data to serial ports                                    |
 | `serialplugin:deny-write-binary`            | Denies writing binary data to serial ports                                    |
-| `serialplugin:allow-available-ports-direct` | Enables the `available_ports_direct` command without any pre-configured scope |
-| `serialplugin:deny-available-ports-direct`  | Denies the `available_ports_direct` command without any pre-configured scope  |
 | `serialplugin:allow-set-baud-rate`          | Allows changing the baud rate of serial ports                                 |
 | `serialplugin:deny-set-baud-rate`           | Denies changing the baud rate of serial ports                                 |
 | `serialplugin:allow-set-data-bits`          | Allows changing the data bits configuration                                   |
@@ -1047,10 +1020,12 @@ Below is a list of all permissions the plugin supports. Granting or denying them
 | `serialplugin:deny-set-break`               | Denies starting break signal transmission                                     |
 | `serialplugin:allow-clear-break`            | Allows stopping break signal transmission                                     |
 | `serialplugin:deny-clear-break`             | Denies stopping break signal transmission                                     |
-| `serialplugin:allow-start-listening`        | Allows starting automatic port monitoring and data listening                  |
-| `serialplugin:deny-start-listening`         | Denies starting automatic port monitoring and data listening                  |
-| `serialplugin:allow-stop-listening`         | Allows stopping automatic port monitoring and data listening                  |
-| `serialplugin:deny-stop-listening`          | Denies stopping automatic port monitoring and data listening                  |
+| `serialplugin:allow-capabilities`           | Allows reading runtime plugin capabilities                                    |
+| `serialplugin:deny-capabilities`            | Denies reading runtime plugin capabilities                                    |
+| `serialplugin:allow-watch`                  | Allows streaming port data through a Tauri Channel                            |
+| `serialplugin:deny-watch`                   | Denies streaming port data through a Tauri Channel                            |
+| `serialplugin:allow-unwatch`                | Allows stopping an active watch session                                       |
+| `serialplugin:deny-unwatch`                  | Denies stopping an active watch session                                       |
 | `serialplugin:allow-set-log-level`          | Allows setting the global log level                                           |
 | `serialplugin:deny-set-log-level`           | Denies setting the global log level                                           |
 | `serialplugin:allow-get-log-level`          | Allows getting the current log level                                          |
@@ -1071,7 +1046,6 @@ Below is a list of all permissions the plugin supports. Granting or denying them
   "serialplugin:allow-read",
   "serialplugin:allow-write",
   "serialplugin:allow-write-binary",
-  "serialplugin:allow-available-ports-direct",
   "serialplugin:allow-set-baud-rate",
   "serialplugin:allow-set-data-bits",
   "serialplugin:allow-set-flow-control",
@@ -1089,8 +1063,9 @@ Below is a list of all permissions the plugin supports. Granting or denying them
   "serialplugin:allow-clear-buffer",
   "serialplugin:allow-set-break",
   "serialplugin:allow-clear-break",
-  "serialplugin:allow-start-listening",
-  "serialplugin:allow-stop-listening",
+  "serialplugin:allow-capabilities",
+  "serialplugin:allow-watch",
+  "serialplugin:allow-unwatch",
   "serialplugin:allow-set-log-level",
   "serialplugin:allow-get-log-level"
 ]
@@ -1102,24 +1077,41 @@ Below is a list of all permissions the plugin supports. Granting or denying them
 
 ### Port Discovery
 
+> **Removed in 3.0.0:** `available_ports_direct` — use `available_ports()`.
+
+> **macOS duplicates:** `serialport-rs` lists both `/dev/cu.*` (callout) and `/dev/tty.*` (dial-in) per device. Pass `{ singlePortPerDevice: true }` to keep one path per device (prefers `/dev/cu.*`, like Node.js `SerialPort.list()`). Default returns all paths.
+
 ```typescript
 class SerialPort {
   /**
    * Lists all available serial ports on the system
+   * @param options.macOS `singlePortPerDevice` — see note above
    * @returns {Promise<{[key: string]: PortInfo}>} Map of port names to port information
    * @example
    * const ports = await SerialPort.available_ports();
+   * const onePerDevice = await SerialPort.available_ports({ singlePortPerDevice: true });
    * console.log(ports);
    */
-  static async available_ports(): Promise<{ [key: string]: PortInfo }>;
+  static async available_ports(options?: AvailablePortsOptions): Promise<{ [key: string]: PortInfo }>;
 
   /**
-   * Lists ports using platform-specific commands for enhanced detection
-   * @returns {Promise<{[key: string]: PortInfo}>} Map of port names to port information
+   * Subscribe to available-port hotplug (attach/detach). Sends an initial snapshot,
+   * then `added` / `removed` events through a Tauri Channel.
+   * @param handlers Callbacks for snapshot / added / removed
+   * @param options `singlePortPerDevice`, `pollIntervalMs` (desktop default 2000)
+   * @returns Handle with `unwatch()` to stop
    * @example
-   * const ports = await SerialPort.available_ports_direct();
+   * const handle = await SerialPort.watchAvailablePorts({
+   *   onSnapshot: (ports) => console.log('ports', ports),
+   *   onAdded: (path, info) => console.log('plugged', path, info.type),
+   *   onRemoved: (path) => console.log('unplugged', path),
+   * }, { singlePortPerDevice: true });
+   * // later: await handle.unwatch();
    */
-  static async available_ports_direct(): Promise<{ [key: string]: PortInfo }>;
+  static async watchAvailablePorts(
+    handlers: WatchPortsHandlers,
+    options?: WatchPortsOptions,
+  ): Promise<WatchHandle>;
 
   /**
    * @description Lists all managed serial ports (ports that are currently open and managed by the application).
@@ -1153,27 +1145,24 @@ class SerialPort {
   async close(): Promise<void>;
 
   /**
-   * Starts listening for data on the serial port
-   * @returns {Promise<void>} A promise that resolves when listening starts
-   * @throws {Error} If starting listener fails or port is not open
+   * Streams serial port events through a Tauri Channel.
+   * @returns {Promise<WatchHandle>} Handle with `channelId` and `unwatch()`
    * @example
-   * await port.startListening();
-   *
-   * // Listen for data events
-   * port.listen((data) => {
-   *   console.log("Data received:", data);
+   * const handle = await port.watch({
+   *   onData: (data) => console.log("Data:", data),
+   *   onError: (message) => console.warn("Non-fatal:", message),
+   *   onDisconnect: (reason) => console.log("Disconnected:", reason),
    * });
+   * await handle.unwatch();
    */
-  async startListening(): Promise<void>;
+  async watch(handlers: WatchHandlers, options?: WatchOptions): Promise<WatchHandle>;
 
   /**
-   * Stops listening for data on the serial port
-   * @returns {Promise<void>} A promise that resolves when listening stops
-   * @throws {Error} If stopping listener fails or port is not open
+   * Runtime plugin info (transport, platform, version).
    * @example
-   * await port.stopListening();
+   * const caps = await SerialPort.getCapabilities();
    */
-  async stopListening(): Promise<void>;
+  static getCapabilities(): Promise<Capabilities>;
 
   /**
    * Forces a serial port to close regardless of its state
@@ -1232,29 +1221,6 @@ class SerialPort {
    * const bytesWritten = await port.writeBinary(data);
    */
   async writeBinary(data: Uint8Array | number[]): Promise<number>;
-
-  /**
-   * Sets up a listener for incoming data
-   * @param {(data: string | Uint8Array) => void} callback Function to handle received data
-   * @param {boolean} [decode=true] Whether to decode data as string (true) or return raw bytes (false)
-   * @returns {Promise<UnlistenFn>} A promise that resolves to an unlisten function
-   * @example
-   * const unsubscribe = await port.listen((data) => {
-   *   console.log("Received:", data);
-   * });
-   * 
-   * // Later, to stop listening:
-   * unsubscribe();
-   */
-  async listen(callback: (data: string | Uint8Array) => void, decode?: boolean): Promise<UnlistenFn>;
-
-  /**
-   * Cancels listening for serial port data (does not affect disconnect listeners)
-   * @returns {Promise<void>} A promise that resolves when listening is cancelled
-   * @example
-   * await port.cancelListen();
-   */
-  async cancelListen(): Promise<void>;
 }
 ```
 
@@ -1339,24 +1305,6 @@ class SerialPort {
    * await port.writeDataTerminalReady(true);
    */
   async writeDataTerminalReady(level: boolean): Promise<void>;
-
-  /**
-   * Alternative method to set RTS signal
-   * @param {boolean} value Signal level (true = high, false = low)
-   * @returns {Promise<void>}
-   * @example
-   * await port.setRequestToSend(true);
-   */
-  async setRequestToSend(value: boolean): Promise<void>;
-
-  /**
-   * Alternative method to set DTR signal
-   * @param {boolean} value Signal level (true = high, false = low)
-   * @returns {Promise<void>}
-   * @example
-   * await port.setDataTerminalReady(true);
-   */
-  async setDataTerminalReady(value: boolean): Promise<void>;
 
   /**
    * Reads the CTS (Clear to Send) signal state
@@ -1489,9 +1437,9 @@ class SerialPort {
    * @param {number} [options.interval=5000] Reconnection interval in milliseconds
    * @param {number | null} [options.maxAttempts=10] Maximum number of reconnection attempts (null for infinite)
    * @param {Function} [options.onReconnect] Callback function called on each reconnection attempt
-   * @returns {Promise<void>}
+   * @returns {void}
    * @example
-   * await port.enableAutoReconnect({
+   * port.enableAutoReconnect({
    *   interval: 3000,
    *   maxAttempts: 5,
    *   onReconnect: (success, attempt) => {
@@ -1499,19 +1447,19 @@ class SerialPort {
    *   }
    * });
    */
-  async enableAutoReconnect(options?: {
+  enableAutoReconnect(options?: {
     interval?: number;
     maxAttempts?: number | null;
     onReconnect?: (success: boolean, attempt: number) => void;
-  }): Promise<void>;
+  }): void;
 
   /**
    * Disables auto-reconnect functionality
-   * @returns {Promise<void>}
+   * @returns {void}
    * @example
    * await port.disableAutoReconnect();
    */
-  async disableAutoReconnect(): Promise<void>;
+  disableAutoReconnect(): void;
 
   /**
    * Gets auto-reconnect status and configuration
@@ -1553,11 +1501,13 @@ const port = new SerialPort({
 });
 
 await port.open();
-await port.startListening();
-await port.listen((data) => {
-  const sensorValue = parseFloat(data);
-  console.log("Sensor reading:", sensorValue);
+const handle = await port.watch({
+  onData: (data) => {
+    const sensorValue = parseFloat(String(data));
+    console.log("Sensor reading:", sensorValue);
+  },
 });
+// await handle.unwatch() when done
 ```
 
 ### Binary Protocol Communication
@@ -1574,14 +1524,12 @@ await port.open();
 const command = new Uint8Array([0x02, 0x01, 0x03]);
 await port.writeBinary(command);
 
-// Start listening for response
-await port.startListening();
-
-// Read response (raw bytes)
-await port.listen((data) => {
-  const response = data instanceof Uint8Array ? data : new Uint8Array();
-  console.log("Response:", response);
-}, false);
+const handle = await port.watch({
+  onData: (data) => {
+    const response = data instanceof Uint8Array ? data : new Uint8Array();
+    console.log("Response:", response);
+  },
+}, { decode: false });
 ```
 
 ### Modbus Communication
@@ -1621,27 +1569,20 @@ const port = new SerialPort({
 
 await port.open();
 
-// Enable auto-reconnect with custom settings
+// Enable auto-reconnect: restores both open() and watch() after disconnect
 await port.enableAutoReconnect({
-  interval: 3000,        // Try to reconnect every 3 seconds
-  maxAttempts: 5,        // Maximum 5 attempts
+  interval: 3000,
+  maxAttempts: 5,
   onReconnect: (success, attempt) => {
-    if (success) {
-      console.log(`Reconnected successfully on attempt ${attempt}`);
-    } else {
-      console.log(`Reconnection attempt ${attempt} failed`);
-    }
-  }
+    console.log(success ? `Reconnected on attempt ${attempt}` : `Attempt ${attempt} failed`);
+  },
 });
 
-// Set up data listener
-await port.startListening();
-const unsubscribe = await port.listen((data) => {
-  console.log("Received data:", data);
+const handle = await port.watch({
+  onData: (data) => console.log("Received data:", data),
+  onDisconnect: () => console.log("Port disconnected — auto-reconnect will reopen and re-watch"),
 });
-
-// The port will automatically reconnect if disconnected
-// You can also manually trigger reconnection
+// Manual reconnect also re-establishes watch when a session was active before disconnect
 const success = await port.manualReconnect();
 if (success) {
   console.log("Manual reconnection successful");
@@ -1656,58 +1597,68 @@ console.log("Current attempts:", info.currentAttempts);
 await port.disableAutoReconnect();
 ```
 
+### AT commands (native FIFO queue)
+
+For modems and AT devices, use **`sendAt()`** / **`sendAtPhases()`** / **`sendSmsPdu()`** — native FIFO queue over **`exchange`** with **line-framed AT completion** (`OK` / `ERROR` / `+CME ERROR` as the final line).
+
+| Mode | RX | Use when |
+|------|-----|----------|
+| `watch()` | Streaming Channel events + optional **`onUrc`** | General I/O, live URC |
+| `sendAt()` | One structured response per command | AT modems, request/response scripts |
+
+**Capabilities (v3.0):**
+
+| Feature | Description |
+|---------|-------------|
+| `AtCommandResult` | Structured result: `command`, `response`, `status`, `lines`, `solicitedBody`, `urcLines`, `raw` |
+| Native queue | Parallel `exchange()` / `sendAt()` **wait in FIFO** (no `"Exchange already in progress"`) |
+| `configureAtSession()` | Session defaults: `expectOk`, `stopOnError`, `appendCr`, timeouts, `resultFormat` |
+| Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery |
+| `expectOk`, `solicitedPrefixes` | Per-command control via session + `AtCommandOptions` |
+| Watch during AT | Watch stays active; live **`SerialEvent::Urc`** via `watch({ onUrc })` |
+| Vendor grammar | Auto **`solicitedPrefixes`** from command (`^`, `#`, `$`, `%`, `*`) |
+| `resultFormat: 'numeric'` | `ATV0` line codes (`0`/`3`/`4`…) |
+| `completionMode: 'atIntermediate'` | CMGS `>` prompt and other intermediate lines |
+| `sendAtPhases()` / `sendSmsPdu()` | Multi-phase SMS (prompt → PDU → `SEND OK`) |
+| `exchangeBinary()` | Binary write + read-until (PDU + Ctrl+Z) |
+| CMUX | `enableMux()`, `openMuxChannel(dlci)`, virtual paths `physical#dlci=N` |
+
+**Migration (v3.0 major):**
+
+| Was | Now |
+|-----|-----|
+| `port.at.enqueue('AT')` | `port.sendAt('AT')` |
+| `port.at.enqueuePhases(...)` | `port.sendAtPhases(...)` |
+| `port.at.sendSmsPdu(...)` | `port.sendSmsPdu(...)` |
+| `port.at.cancel()` | `port.cancelAt()` |
+| `new SerialPort({ atSession })` | `atSession` still applies on `open()` via `configureAtSession` |
+| Parallel `exchange()` throws | `exchange()` awaits turn in native queue |
+
+```typescript
+// Session defaults (optional — also via constructor `atSession`)
+await port.configureAtSession({ expectOk: true, defaultTimeoutMs: 5000 });
+
+await port.sendAt('AT^SYSCFG?');
+await port.sendAt('ATV0', { resultFormat: 'numeric' });
+await port.sendSmsPdu(pduLength, pduBytes);
+
+// CMUX: second logical channel on same USB port
+await port.enableMux({ command: 'AT+CMUX=0,0,5,31,10,2' });
+const dataPort = await port.openMuxChannel(2);
+await dataPort.sendAt('AT');
+```
+
+Low-level **`exchange`** / **`exchangeBinary`** return **`ExchangeResponse`** (also queued); **`cancel_exchange`** / **`cancelAt()`** cancels in-flight work and rejects queued waiters.
+
 ---
 
 ## Android Setup
 
-To use this plugin on Android, you **must** add the JitPack repository to your project's `build.gradle.kts` file located at `/src-tauri/gen/android/build.gradle.kts`. This is required because the plugin depends on `com.github.mik3y:usb-serial-for-android:3.8.1`, which is hosted on JitPack.
+The plugin vendors [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) **3.10.0** in `android/usbserial/`. You do **not** need JitPack in your app's `build.gradle.kts` — only the usual Android repositories (`google()`, `mavenCentral()`).
 
-### Required Configuration
+If you previously added `maven { url = uri("https://jitpack.io") }` only for this plugin, you can remove it.
 
-Add the JitPack repository to both `buildscript` and `allprojects` sections:
-
-```kotlin
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.11.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25")
-        // ... your other dependencies
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-}
-
-tasks.register("clean").configure {
-    delete("build")
-}
-```
-
-### Why is this needed?
-
-The plugin uses the [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) library, which is published on JitPack rather than Maven Central. Without adding JitPack to your repositories, Gradle will fail with an error like:
-
-```
-could not find com.github.mik3y:usb-serial-for-android:3.8.1
-```
-
-### Troubleshooting
-
-If you still encounter issues after adding JitPack:
-
-1. Make sure you've added it to **both** `buildscript.repositories` and `allprojects.repositories`
-2. Sync your Gradle files in your IDE
-3. Clean and rebuild your project: `./gradlew clean build`
+See [`android/README.md`](android/README.md) for module details and maintainer notes (`scripts/vendor-usbserial.sh` to refresh upstream sources).
 
 ---
 

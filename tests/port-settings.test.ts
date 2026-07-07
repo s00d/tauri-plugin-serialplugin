@@ -69,7 +69,7 @@ describe('SerialPort Settings', () => {
     });
 
     it('should set RTS', async () => {
-      await serialPort.setRequestToSend(true);
+      await serialPort.writeRequestToSend(true);
       expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_request_to_send', {
         path: '/dev/tty.usbserial',
         level: true
@@ -77,7 +77,7 @@ describe('SerialPort Settings', () => {
     });
 
     it('should set DTR', async () => {
-      await serialPort.setDataTerminalReady(true);
+      await serialPort.writeDataTerminalReady(true);
       expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|write_data_terminal_ready', {
         path: '/dev/tty.usbserial',
         level: true

@@ -1,13 +1,13 @@
 //! State types and enums for serial port configuration
-//! 
+//!
 //! This module contains all the types and enums used for configuring serial ports,
 //! including data bits, flow control, parity, stop bits, and buffer types.
-//! 
+//!
 //! # Example
-//! 
+//!
 //! ```rust
 //! use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
-//! 
+//!
 //! // Configure serial port settings
 //! let data_bits = DataBits::Eight;
 //! let flow_control = FlowControl::None;
@@ -16,6 +16,18 @@
 //! let buffer_type = ClearBuffer::All;
 //! ```
 
+#[cfg(desktop)]
+use crate::cmux::CmuxSession;
+#[cfg(desktop)]
+use crate::port_rx_hub::PortRxHub;
+#[cfg(desktop)]
+use crate::port_tx_queue::PortTxQueue;
+#[cfg(target_os = "android")]
+use crate::cmux::CmuxSession;
+#[cfg(target_os = "android")]
+use crate::mobile_rx_hub::MobileRxHub;
+#[cfg(target_os = "android")]
+use crate::port_tx_queue::PortTxQueue;
 use serde::{Deserialize, Serialize};
 #[cfg(desktop)]
 use serialport::{self, SerialPort};
@@ -25,23 +37,55 @@ use serialport::{
     Parity as SerialParity, StopBits as SerialStopBits,
 };
 #[cfg(desktop)]
-use std::thread::JoinHandle;
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::AtomicBool;
 #[cfg(desktop)]
-use std::{
-    collections::HashMap,
-    sync::{mpsc::Sender, Arc},
-};
+use std::sync::Arc;
+#[cfg(target_os = "android")]
+use std::sync::atomic::AtomicBool;
+#[cfg(target_os = "android")]
+use std::sync::Arc;
+use std::sync::{Mutex, OnceLock};
+
+/// Cloneable Arc handles for I/O without holding the global port map lock.
+#[cfg(desktop)]
+#[derive(Clone)]
+pub struct ConnectedPortHandle {
+    pub port: Arc<Mutex<Box<dyn SerialPort>>>,
+    pub rx_hub: Arc<Mutex<Option<PortRxHub>>>,
+    pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
+    pub virtual_dlci: Option<u8>,
+    pub physical_path: Option<String>,
+    pub exchange_cancel: Arc<AtomicBool>,
+    pub tx_queue: Arc<PortTxQueue>,
+}
 
 /// Open serial port with optional background read thread handles (desktop).
 #[cfg(desktop)]
 pub struct ConnectedPort {
-    /// Underlying serial device
-    pub port: Box<dyn SerialPort>,
-    /// Signal channel for the read thread (when listening)
-    pub sender: Option<Sender<usize>>,
-    /// Background read thread
-    pub thread_handle: Option<JoinHandle<()>>,
+    /// Underlying serial device (shared with the RX hub thread).
+    pub port: Arc<Mutex<Box<dyn SerialPort>>>,
+    /// Single RX consumer on the main fd (lazy-started).
+    pub rx_hub: Arc<Mutex<Option<PortRxHub>>>,
+    /// Active GSM 07.10 CMUX session (physical port only).
+    pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
+    /// When set, this managed port is a virtual CMUX channel (legacy; prefer [`VirtualPortRef`] map).
+    pub virtual_dlci: Option<u8>,
+    /// Physical path when `virtual_dlci` is set.
+    pub physical_path: Option<String>,
+    /// Cancel flag for an in-flight exchange.
+    pub exchange_cancel: Arc<AtomicBool>,
+    /// FIFO turnstile for read-until transactions on this port.
+    pub tx_queue: Arc<PortTxQueue>,
+}
+
+/// Lightweight CMUX virtual channel handle (no duplicate RX hub).
+#[cfg(desktop)]
+#[derive(Clone)]
+pub struct VirtualPortRef {
+    pub physical_path: String,
+    pub dlci: u8,
+    pub exchange_cancel: Arc<AtomicBool>,
+    pub tx_queue: Arc<PortTxQueue>,
 }
 
 /// Lifecycle state for a managed port (desktop).
@@ -67,41 +111,7 @@ impl PortState {
     }
 }
 
-/// Main state structure for managing serial ports
-/// 
-/// This structure holds the global state of all serial ports managed by the plugin.
-/// It uses thread-safe containers to allow concurrent access from multiple threads.
-/// 
-/// # Example
-/// 
-/// ```rust
-/// use tauri_plugin_serialplugin::state::SerialportState;
-/// 
-/// let state = SerialportState::default();
-/// ```
-#[cfg(desktop)]
-#[derive(Default)]
-pub struct SerialportState {
-    /// Thread-safe map of port names to port information
-    /// 
-    /// This field stores all currently managed serial ports. The outer `Arc<Mutex<>>`
-    /// ensures thread safety, while the inner `HashMap` maps port names (like "COM1")
-    /// to their corresponding `SerialportInfo` structures.
-    pub serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,
-}
-/// Information structure for a single serial port (desktop)
-/// 
-/// Holds a [`PortState`] so I/O runs only in [`PortState::Connected`], avoiding use-after-close.
-/// 
-/// # Example
-/// 
-/// ```rust
-/// use tauri_plugin_serialplugin::state::SerialportInfo;
-/// use serialport::SerialPort;
-/// 
-/// // This is typically created internally by the plugin
-/// // let info = SerialportInfo::new(port);
-/// ```
+/// Per-port state container (desktop).
 #[cfg(desktop)]
 pub struct SerialportInfo {
     /// Current lifecycle state (desktop).
@@ -114,9 +124,13 @@ impl SerialportInfo {
     pub fn new(port: Box<dyn SerialPort>) -> Self {
         Self {
             state: PortState::Connected(ConnectedPort {
-                port,
-                sender: None,
-                thread_handle: None,
+                port: Arc::new(Mutex::new(port)),
+                rx_hub: Arc::new(Mutex::new(None)),
+                mux: Arc::new(Mutex::new(None)),
+                virtual_dlci: None,
+                physical_path: None,
+                exchange_cancel: Arc::new(AtomicBool::new(false)),
+                tx_queue: Arc::new(PortTxQueue::new()),
             }),
         }
     }
@@ -131,63 +145,130 @@ impl SerialportInfo {
     }
 }
 
-/// Result structure for Tauri invoke operations
-/// 
-/// This structure is used to return results from Tauri command invocations
-/// with a standardized format including a status code and message.
-/// 
-/// # Example
-/// 
-/// ```rust
-/// use tauri_plugin_serialplugin::state::InvokeResult;
-/// 
-/// let result = InvokeResult {
-///     code: 0,
-///     message: "Operation completed successfully".to_string(),
-/// };
-/// ```
-#[derive(Serialize, Clone)]
-pub struct InvokeResult {
-    /// Status code indicating success (0) or error (non-zero)
-    pub code: i32,
-    /// Human-readable message describing the result
-    pub message: String,
+#[cfg(desktop)]
+impl ConnectedPort {
+    pub fn new(port: Box<dyn SerialPort>) -> Self {
+        Self {
+            port: Arc::new(Mutex::new(port)),
+            rx_hub: Arc::new(Mutex::new(None)),
+            mux: Arc::new(Mutex::new(None)),
+            virtual_dlci: None,
+            physical_path: None,
+            exchange_cancel: Arc::new(AtomicBool::new(false)),
+            tx_queue: Arc::new(PortTxQueue::new()),
+        }
+    }
+
+    /// Clone Arc-backed fields for use after releasing the global port map lock.
+    pub fn handle(&self) -> ConnectedPortHandle {
+        ConnectedPortHandle {
+            port: self.port.clone(),
+            rx_hub: self.rx_hub.clone(),
+            mux: self.mux.clone(),
+            virtual_dlci: self.virtual_dlci,
+            physical_path: self.physical_path.clone(),
+            exchange_cancel: self.exchange_cancel.clone(),
+            tx_queue: self.tx_queue.clone(),
+        }
+    }
 }
 
-/// Structure for holding read data from serial ports
-/// 
-/// This structure holds data that has been read from a serial port,
-/// including a reference to the data and its size.
-/// 
-/// # Example
-/// 
-/// ```rust
-/// use tauri_plugin_serialplugin::state::ReadData;
-/// 
-/// let data = b"Hello World";
-/// let read_data = ReadData {
-///     data: data,
-///     size: data.len(),
-/// };
-/// ```
-#[derive(Serialize, Clone)]
-pub struct ReadData<'a> {
-    /// Reference to the read data bytes
-    pub data: &'a [u8],
-    /// Size of the read data in bytes
-    pub size: usize,
+#[cfg(all(desktop, test))]
+impl ConnectedPort {
+    pub fn test_port_mut(&self) -> std::sync::MutexGuard<'_, Box<dyn SerialPort>> {
+        self.port.lock().unwrap()
+    }
+}
+
+/// Open Android USB port with Rust-side orchestration (RX hub, queue, CMUX).
+#[cfg(target_os = "android")]
+pub struct MobileConnectedPort {
+    pub path: String,
+    pub rx_hub: Arc<Mutex<Option<Arc<MobileRxHub>>>>,
+    pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
+    pub exchange_cancel: Arc<AtomicBool>,
+    pub tx_queue: Arc<PortTxQueue>,
+    pub listening: Arc<AtomicBool>,
+}
+
+#[cfg(target_os = "android")]
+impl MobileConnectedPort {
+    pub fn new(path: String) -> Self {
+        Self {
+            path,
+            rx_hub: Arc::new(Mutex::new(None)),
+            mux: Arc::new(Mutex::new(None)),
+            exchange_cancel: Arc::new(AtomicBool::new(false)),
+            tx_queue: Arc::new(PortTxQueue::new()),
+            listening: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub fn handle(&self) -> MobileConnectedPortHandle {
+        MobileConnectedPortHandle {
+            path: self.path.clone(),
+            rx_hub: self.rx_hub.clone(),
+            mux: self.mux.clone(),
+            exchange_cancel: self.exchange_cancel.clone(),
+            tx_queue: self.tx_queue.clone(),
+            listening: self.listening.clone(),
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+#[derive(Clone)]
+pub struct MobileConnectedPortHandle {
+    pub path: String,
+    pub rx_hub: Arc<Mutex<Option<Arc<MobileRxHub>>>>,
+    pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
+    pub exchange_cancel: Arc<AtomicBool>,
+    pub tx_queue: Arc<PortTxQueue>,
+    pub listening: Arc<AtomicBool>,
+}
+
+#[cfg(target_os = "android")]
+#[derive(Clone)]
+pub struct MobileVirtualPortRef {
+    pub physical_path: String,
+    pub dlci: u8,
+    pub exchange_cancel: Arc<AtomicBool>,
+    pub tx_queue: Arc<PortTxQueue>,
+}
+
+#[cfg(target_os = "android")]
+pub enum MobilePortState {
+    Closed,
+    Opening,
+    Connected(MobileConnectedPort),
+}
+
+#[cfg(target_os = "android")]
+impl MobilePortState {
+    pub fn not_connected_reason(&self) -> String {
+        match self {
+            MobilePortState::Closed => "Port is closed".to_string(),
+            MobilePortState::Opening => "Port is still opening".to_string(),
+            MobilePortState::Connected(_) => "Port is connected".to_string(),
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+pub struct MobileSerialportInfo {
+    pub state: MobilePortState,
 }
 
 /// Port type constants for identifying serial port types
-/// 
+///
 /// These constants are used to identify the type of serial port
 /// when listing available ports.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::{USB, BLUETOOTH, PCI, UNKNOWN};
-/// 
+///
 /// let port_type = USB;
 /// match port_type {
 ///     USB => println!("USB serial port"),
@@ -206,15 +287,15 @@ pub const BLUETOOTH: &str = "Bluetooth";
 pub const PCI: &str = "PCI";
 
 /// Number of bits per character for serial communication
-/// 
+///
 /// This enum defines the number of data bits used in each character transmitted
 /// over the serial port. Most modern applications use 8 data bits.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::DataBits;
-/// 
+///
 /// let data_bits = DataBits::Eight; // Most common setting
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -243,18 +324,18 @@ impl From<DataBits> for SerialDataBits {
 
 impl DataBits {
     /// Converts the data bits enum to its numeric value
-    /// 
+    ///
     /// Returns the number of bits as a `u8` value.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The number of data bits: 5, 6, 7, or 8.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use tauri_plugin_serialplugin::state::DataBits;
-    /// 
+    ///
     /// let data_bits = DataBits::Eight;
     /// assert_eq!(data_bits.as_u8(), 8);
     /// ```
@@ -269,15 +350,15 @@ impl DataBits {
 }
 
 /// Flow control modes for serial communication
-/// 
+///
 /// Flow control prevents data loss by allowing the receiver to signal when it's
 /// ready to receive more data.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::FlowControl;
-/// 
+///
 /// let flow_control = FlowControl::None; // No flow control
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -303,18 +384,18 @@ impl From<FlowControl> for SerialFlowControl {
 
 impl FlowControl {
     /// Converts the flow control enum to its numeric value
-    /// 
+    ///
     /// Returns the flow control mode as a `u8` value.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The flow control mode: 0 (None), 1 (Software), or 2 (Hardware).
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use tauri_plugin_serialplugin::state::FlowControl;
-    /// 
+    ///
     /// let flow_control = FlowControl::None;
     /// assert_eq!(flow_control.as_u8(), 0);
     /// ```
@@ -328,15 +409,15 @@ impl FlowControl {
 }
 
 /// Parity checking modes for serial communication
-/// 
+///
 /// Parity is an error detection method that adds an extra bit to each character
 /// to ensure the total number of 1 bits is either odd or even.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::Parity;
-/// 
+///
 /// let parity = Parity::None; // No parity checking (most common)
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -362,18 +443,18 @@ impl From<Parity> for SerialParity {
 
 impl Parity {
     /// Converts the parity enum to its numeric value
-    /// 
+    ///
     /// Returns the parity mode as a `u8` value.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The parity mode: 0 (None), 1 (Odd), or 2 (Even).
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use tauri_plugin_serialplugin::state::Parity;
-    /// 
+    ///
     /// let parity = Parity::None;
     /// assert_eq!(parity.as_u8(), 0);
     /// ```
@@ -387,15 +468,15 @@ impl Parity {
 }
 
 /// Number of stop bits for serial communication
-/// 
+///
 /// Stop bits are used to signal the end of a character transmission.
 /// Most modern applications use one stop bit.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::StopBits;
-/// 
+///
 /// let stop_bits = StopBits::One; // Most common setting
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -418,18 +499,18 @@ impl From<StopBits> for SerialStopBits {
 
 impl StopBits {
     /// Converts the stop bits enum to its numeric value
-    /// 
+    ///
     /// Returns the number of stop bits as a `u8` value.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The number of stop bits: 1 or 2.
-    /// 
+    ///
     /// # Example
-    /// 
+    ///
     /// ```rust
     /// use tauri_plugin_serialplugin::state::StopBits;
-    /// 
+    ///
     /// let stop_bits = StopBits::One;
     /// assert_eq!(stop_bits.as_u8(), 1);
     /// ```
@@ -442,15 +523,15 @@ impl StopBits {
 }
 
 /// Buffer types for clearing serial port buffers
-/// 
+///
 /// Serial ports maintain input and output buffers to store data.
 /// This enum allows you to specify which buffers to clear.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::ClearBuffer;
-/// 
+///
 /// let buffer_type = ClearBuffer::All; // Clear both input and output buffers
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -475,15 +556,15 @@ impl From<ClearBuffer> for SerialClearBuffer {
 }
 
 /// Logging level for controlling plugin verbosity
-/// 
+///
 /// This enum allows you to control how much logging output the plugin produces.
 /// Use it to reduce noise in production environments or enable detailed logs for debugging.
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::LogLevel;
-/// 
+///
 /// let log_level = LogLevel::Error; // Only show errors
 /// ```
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -504,7 +585,10 @@ pub enum LogLevel {
 impl LogLevel {
     /// Checks if error messages should be logged at the current level
     pub fn should_log_error(&self) -> bool {
-        matches!(self, LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug)
+        matches!(
+            self,
+            LogLevel::Error | LogLevel::Warn | LogLevel::Info | LogLevel::Debug
+        )
     }
 
     /// Checks if warning messages should be logged at the current level
@@ -532,16 +616,16 @@ fn get_log_level_mutex() -> &'static Mutex<LogLevel> {
 }
 
 /// Sets the global log level for the plugin
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `level` - The new log level to set
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::{LogLevel, set_log_level};
-/// 
+///
 /// set_log_level(LogLevel::Error);
 /// ```
 pub fn set_log_level(level: LogLevel) {
@@ -551,16 +635,16 @@ pub fn set_log_level(level: LogLevel) {
 }
 
 /// Gets the current global log level
-/// 
+///
 /// # Returns
-/// 
+///
 /// The current log level
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use tauri_plugin_serialplugin::state::get_log_level;
-/// 
+///
 /// let level = get_log_level();
 /// ```
 pub fn get_log_level() -> LogLevel {

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-at-phases"
+description = "Enables the at_phases command without any pre-configured scope."
+commands.allow = ["at_phases"]
+
+[[permission]]
+identifier = "deny-at-phases"
+description = "Denies the at_phases command without any pre-configured scope."
+commands.deny = ["at_phases"]

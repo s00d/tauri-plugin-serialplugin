@@ -1,7 +1,7 @@
-use std::io::{self, Read, Write};
-use serialport::{self, SerialPort};
-use std::time::Duration;
 use crate::state::{ConnectedPort, PortState, SerialportInfo};
+use serialport::{self, SerialPort};
+use std::io::{self, Read, Write};
+use std::time::Duration;
 
 #[allow(dead_code)]
 pub trait SerialPortTrait: Read + Write + Send {
@@ -199,10 +199,6 @@ impl Write for MockSerialPort {
 #[allow(dead_code)]
 pub fn create_mock_serialport_info() -> SerialportInfo {
     SerialportInfo {
-        state: PortState::Connected(ConnectedPort {
-            port: Box::new(MockSerialPort::new()),
-            sender: None,
-            thread_handle: None,
-        }),
+        state: PortState::Connected(ConnectedPort::new(Box::new(MockSerialPort::new()))),
     }
-} 
+}

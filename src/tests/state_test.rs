@@ -14,15 +14,15 @@ mod tests {
             _ => panic!("expected Connected"),
         };
 
-        assert_eq!(cp.port.name().unwrap(), "COM1");
-        assert_eq!(cp.port.baud_rate().unwrap(), 9600);
-        assert_eq!(cp.port.data_bits().unwrap(), serialport::DataBits::Eight);
-        assert_eq!(cp.port.flow_control().unwrap(), serialport::FlowControl::None);
-        assert_eq!(cp.port.parity().unwrap(), serialport::Parity::None);
-        assert_eq!(cp.port.stop_bits().unwrap(), serialport::StopBits::One);
-        assert_eq!(cp.port.timeout(), Duration::from_millis(1000));
-        assert!(cp.sender.is_none());
-        assert!(cp.thread_handle.is_none());
+        let port = cp.port.lock().unwrap();
+        assert_eq!(port.name().unwrap(), "COM1");
+        assert_eq!(port.baud_rate().unwrap(), 9600);
+        assert_eq!(port.data_bits().unwrap(), serialport::DataBits::Eight);
+        assert_eq!(port.flow_control().unwrap(), serialport::FlowControl::None);
+        assert_eq!(port.parity().unwrap(), serialport::Parity::None);
+        assert_eq!(port.stop_bits().unwrap(), serialport::StopBits::One);
+        assert_eq!(port.timeout(), Duration::from_millis(1000));
+        assert!(cp.rx_hub.lock().unwrap().is_none());
     }
 
     #[test]
@@ -62,4 +62,4 @@ mod tests {
         assert!(port.clear(serialport::ClearBuffer::Input).is_ok());
         assert!(port.clear(serialport::ClearBuffer::Output).is_ok());
     }
-} 
+}

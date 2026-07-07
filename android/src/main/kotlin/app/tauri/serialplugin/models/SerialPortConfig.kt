@@ -68,6 +68,15 @@ enum class ClearBuffer {
                 else -> INPUT
             }
         }
+
+        fun fromValue(value: Int): ClearBuffer {
+            return when (value) {
+                0 -> INPUT
+                1 -> OUTPUT
+                2 -> ALL
+                else -> INPUT
+            }
+        }
     }
 }
 
@@ -78,5 +87,9 @@ data class SerialPortConfig(
     var flowControl: FlowControl = FlowControl.NONE,
     var parity: Parity = Parity.NONE,
     var stopBits: StopBits = StopBits.ONE,
-    var timeout: Int = 1000
+    var timeout: Int = 1000,
+    /** USB port index on multi-port adapters (FT2232, …); also encoded in path as `device#N`. */
+    var portIndex: Int = 0,
+    /** Raise DTR/RTS on open, lower on close (Arduino / modem default). */
+    var assertDtrRts: Boolean = true,
 )

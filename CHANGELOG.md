@@ -4,6 +4,110 @@ All notable changes to this project will be documented in this file. See [standa
 
 For **Android/USB-focused** details (behavior, limits, testing), see also [`android/README.md`](android/README.md).
 
+## [Unreleased]
+
+### Breaking / migration (native transaction queue)
+
+* **Removed `AtCommandQueue` / `port.at`:** Use **`sendAt()`**, **`sendAtPhases()`**, **`sendSmsPdu()`**, **`cancelAt()`**, **`configureAtSession()`**.
+* **Native FIFO queue (Rust + Android):** All `exchange` / AT jobs on one port serialize in FIFO order; parallel invokes **wait** instead of `"Exchange already in progress"`.
+* **`onUrc` removed from `AtSessionOptions`:** Use **`watch({ onUrc })`** for live URC lines.
+* **New commands:** `at`, `at_phases`, `send_sms_pdu`, `configure_at_session`.
+
+### Features
+
+* **Android USB watch + TX:** bulkTransfer SIOM read (`readTimeout=200`, `queue=0`); direct `port.write` with short `synchronized(port)` on TX only (no lock across blocking read — fixes deadlock with `LockedUsbSerialPort`).
+* **Desktop `PortTxQueue`:** Ticket turnstile per port; `stop_on_error` drains waiters; `cancel_exchange` flushes queue.
+* **Android `PortTxQueue`:** Mirror FIFO + AT session merge in Kotlin.
+* **CMUX `VirtualPortRef`:** Virtual channels no longer duplicate RX hub entries; hub uses `try_lock` read to avoid writer starvation.
+* **PTY E2E:** `cmux_virtual_port_exchange_on_pty` test restored.
+* **`watchAvailablePorts()` / `watch_ports`:** Subscribe to serial port hotplug via Channel — initial `snapshot`, then `added` / `removed`. Desktop polls (default 2s); Android uses USB attach/detach + poll fallback. `available_ports()` unchanged.
+
+### Features (v3.3)
+
+* **Desktop PortRxHub:** Single RX thread on main fd; `watch()` subscribes (no `try_clone`); all `exchange`/`drain` through hub.
+* **Extended AT grammar:** Vendor prefixes (`+^#$%*`), V.250 finals (`NO CARRIER`, `BUSY`, `SEND OK`, …), `derive_solicited_prefixes(command)`.
+* **ExchangeDemux:** Live URC before echo during exchange (Rust + Android).
+* **drainRx URC forward:** Drain emits URC to watch/`onUrc` instead of silent discard (desktop hub + Android router).
+* **`AtCommandQueue`:** `enqueue()` without `enable()`; `enable()`/`disable()` deprecated.
+
+### Features (v3.1)
+
+* **Line-framed AT completion:** Native `exchange` completes when the **final line** is `OK`, `ERROR`, `+CME ERROR`, or `+CMS ERROR` (not substring match). `completionMode: 'substring'` for legacy/binary.
+* **Structured `ExchangeResponse`:** `status`, `lines`, `solicitedBody`, `urcLines`, `matched`, `raw` — desktop, Android, guest-js.
+* **`rxPrepare`:** Default **`drain`** (soft idle drain); **`purge`** opt-in (hardware clear); **`none`** unchanged.
+* **`at_parse`:** Rust + Kotlin mirror — solicited `+CSQ` vs URC `+CREG` classification.
+* **`AtCommandQueue`:** `expectOk`, `onUrc` (deferred), `solicitedPrefixes`, `defaultRxPrepare`.
+
+### Features (v3.2)
+
+* **`PortRxHub` / `PortRxRouter`:** Single RX consumer routes bytes to watch vs exchange; exchange allowed while watch is active.
+* **`SerialEvent::Urc`** + **`watch({ onUrc })`** for live unsolicited AT lines.
+* **`pauseWatch` default `false`** — watch stays on during AT; pass `pauseWatch: true` for legacy behavior.
+* **Desktop:** Poll `read()` rejected while watch active; URC routing in watch thread.
+
+### Breaking / migration (v3.0 AT → v3.1+)
+
+* **`exchange()`** returns **`ExchangeResponse`**, not `Uint8Array`. Use `.raw` for bytes.
+* **`clearRx: true`** maps to **`purge`**; default is now **`drain`** when unset.
+
+### Features (v3.0 AT baseline)
+
+* **Native `exchange` / `cancel_exchange`:** Write + read-until terminators, idle silence, wall timeout, and max response size (desktop + Android).
+* **guest-js `AtCommandQueue`:** `port.at.enable()` / `enqueue()` / `disable()` — FIFO AT commands.
+* **Demo:** AT tab in `examples/serialport-test` with queue status, parse status, URC column, and script runner.
+
+## [3.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.23.0...v3.0.0) (2026-07-03)
+
+### Breaking Changes
+
+* **Streaming API:** `startListening()` / `listen()` / `disconnected()` / `cancelListen()` removed. Use **`watch({ onData, onDisconnect?, onError? })`** → `SerialEvent` (`data` | `error` | `disconnect`) over Tauri [`Channel`](https://v2.tauri.app/develop/calling-frontend/) (desktop + Android).
+* **Capabilities:** New `SerialPort.getCapabilities()` (`transport`, `platform`, `version`) — optional runtime info from Rust; the plugin no longer probes the platform via internal `window` hacks.
+* **Commands:** `capabilities`, `watch`, `unwatch` replace `start_listening` / `stop_listening`.
+* **Public events removed:** `plugin-serialplugin-read-*`, Android `serialData` / `serialError` plugin triggers.
+* **Removed:** `available_ports_direct` — use `available_ports()`.
+
+### Migration (v2 → v3)
+
+| v2 | v3 |
+|----|-----|
+| `startListening()` + `listen(fn)` | `watch({ onData: fn })` |
+| `disconnected(fn)` | `watch({ onDisconnect: fn })` |
+| `cancelListen()` / `stopListening()` | `handle.unwatch()` |
+
+**New:** `SerialPort.getCapabilities()` when the app needs `transport` / `platform` / `version` (not a v2 API replacement).
+
+### Features
+
+* **guest-js:** Modular v3 SDK (`serial-port.ts`, `types.ts`); auto-reconnect restores **`open()` + `watch()`** after disconnect (handlers/options saved on first `watch()`).
+* **Android:** `watch` options parsed from nested `options` object (fixes `serialDataFlushIntervalMs` always defaulting to 100 ms).
+* **Desktop:** `serialDataFlushIntervalMs` controls batch coalescing; read poll timeout is internal (1–100 ms).
+* **Events:** `SerialEvent::Error` for non-fatal watch notifications; `disconnect` remains terminal.
+* **macOS:** `available_ports({ singlePortPerDevice: true })` — one path per device (prefers `/dev/cu.*`).
+* **guest-js:** Export `DEFAULT_SERIAL_TIMEOUT_MS`; default open timeout **1000 ms**.
+
+### Bug Fixes
+
+* **Android:** USB permission `PendingIntent` uses `FLAG_MUTABLE` on API 31+ ([#494](https://github.com/mik3y/usb-serial-for-android/issues/494)).
+* **Android:** RTS/DTR honor `level: bool` from Rust; `PortConfigArgs.size` passed to `read` / `readBinary`.
+* **Android:** Poll `read` / `readBinary` rejected while `watch` is active; partial writes retried on `SerialTimeoutException`.
+* **Android:** `cancelRead`, `clearBuffer` (`ClearBufferArgs`), ISO-8859-1 text `read()`, vendored usb-serial **3.10.0** (no JitPack).
+* **Android / Rust bridge:** Fix `managed_ports`, signal-line reads, `bytes_to_read` / `bytes_to_write` parsing.
+* **Android:** Parse enum fields from numeric strings and JS-style names ([#19](https://github.com/s00d/tauri-plugin-serialplugin/issues/19)).
+* **Android:** USB detach + IO errors → `SerialEvent::Disconnect` on Channel ([#27](https://github.com/s00d/tauri-plugin-serialplugin/issues/27)).
+* **desktop:** `write` / `write_binary` flush via `write_all` ([#29](https://github.com/s00d/tauri-plugin-serialplugin/issues/29)).
+* **desktop:** Watch read-poll timeout clamped **1–100 ms**; disconnect on unplug via read I/O error ([#27](https://github.com/s00d/tauri-plugin-serialplugin/issues/27)).
+* **desktop (Windows):** Enrich truncated USB `serial_number` from WMI ([#23](https://github.com/s00d/tauri-plugin-serialplugin/issues/23)).
+* **build:** Remove dead permission aliases; deduplicate `permissions/default.toml`.
+* **desktop:** `close_all` no longer deadlocks; watch registry unregisters on thread exit; `force_close` / `open` clear watches; `cancel_read` joins listener thread; `available_ports` surfaces enumeration errors.
+* **Android / Rust bridge:** Mutating plugin calls accept Kotlin `invoke.resolve()` (`Null`) via `ensure_mobile_success`; `clearBuffer` maps numeric `0`/`1`/`2` to input/output/all.
+* **guest-js:** `readBinary` requires open port; `LogLevel` const object; removed duplicate `setRequestToSend` / `setDataTerminalReady` (use `writeRequestToSend` / `writeDataTerminalReady`).
+* **docs:** README v3 cleanup; `cancel_read` stops poll read and active watch (shared stop channel).
+
+### Build / Android
+
+* **Android:** `setReadQueue(4)`, `setReadBufferSize(max(endpoint, 4096))`, `BufferedEmitter` coalescing, idempotent `closePort`.
+* **Tests:** Jest watch lifecycle, Rust `watch_registry` / `invoke_contract`, JVM `SerialDataEmitFieldsTest`.
+
 ## [2.23.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.22.0...v2.23.0) (2026-07-02)
 
 ### Bug Fixes
@@ -27,7 +131,7 @@ For **Android/USB-focused** details (behavior, limits, testing), see also [`andr
 * **Lifecycle:** `SerialPlugin` registers `Application.ActivityLifecycleCallbacks` and runs `SerialPortManager.cleanup()` when the host `Activity` is destroyed (close USB ports, unregister permission receiver, shut down IO executor).
 * **Listening:** Incoming data is coalesced in `BufferedEmitter` / `SerialByteAccumulator` before `serialData` events; flush interval via `serialDataFlushIntervalMs` (native clamp typically 10–2000 ms).
 * **USB serial (usb-serial-for-android):** Read/write use configured timeouts; `clearBuffer` maps to `purgeHwBuffers` when supported; `setFlowControl` (RTS/CTS, XON/XOFF); `SerialInputOutputManager` errors trigger `serialError` and port cleanup.
-* **`bytesToRead` / `bytesToWrite` (Android):** `bytesToRead` returns bytes buffered **in the plugin** only while `startListening` is active (not the kernel queue — not exposed by `UsbSerialPort`). `bytesToWrite` is `0` (writes complete synchronously from the app’s perspective). Documented in JSDoc on the JS API.
+* **`bytesToRead` / `bytesToWrite` (Android):** With active **`watch`**, `bytesToRead` is the plugin-side buffer before the next Channel flush; `bytesToWrite` is typically `0`.
 * **Tooling:** Gradle wrapper and `android/` settings for local `./gradlew test`; JVM unit tests use a real `org.json` artifact (Android JSON stubs break `JSONObject.put` in tests). Kotlin tests cover models, JSON helpers, emit pipeline, `BufferedEmitter`.
 
 ### Features

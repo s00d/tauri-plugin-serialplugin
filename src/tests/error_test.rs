@@ -109,13 +109,19 @@ mod tests {
         let not_found = Error::from(io::Error::new(io::ErrorKind::NotFound, "Port not found"));
         assert!(not_found.to_string().contains("Port not found"));
 
-        let permission_denied = Error::from(io::Error::new(io::ErrorKind::PermissionDenied, "Access denied"));
+        let permission_denied = Error::from(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Access denied",
+        ));
         assert!(permission_denied.to_string().contains("Access denied"));
 
         let invalid_data = Error::from(io::Error::new(io::ErrorKind::InvalidData, "Invalid data"));
         assert!(invalid_data.to_string().contains("Invalid data"));
 
-        let timed_out = Error::from(io::Error::new(io::ErrorKind::TimedOut, "Operation timed out"));
+        let timed_out = Error::from(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "Operation timed out",
+        ));
         assert!(timed_out.to_string().contains("Operation timed out"));
     }
 
@@ -123,8 +129,10 @@ mod tests {
     fn test_error_custom() {
         // Test custom errors
         let custom_error = Error::new("Custom error with details: port=COM1, baud=9600");
-        assert!(custom_error.to_string().contains("Custom error with details"));
+        assert!(custom_error
+            .to_string()
+            .contains("Custom error with details"));
         assert!(custom_error.to_string().contains("port=COM1"));
         assert!(custom_error.to_string().contains("baud=9600"));
     }
-} 
+}

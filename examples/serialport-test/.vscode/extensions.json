@@ -1,6 +1,6 @@
 {
   "recommendations": [
-    "svelte.svelte-vscode",
+    "Vue.volar",
     "tauri-apps.tauri-vscode",
     "rust-lang.rust-analyzer"
   ]

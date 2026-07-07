@@ -1,65 +1,33 @@
 "$schema" = "schemas/schema.json"
 [default]
 description = """
-# Tauri `serialport` default permissions
-
-This configuration file defines the default permissions granted
-to the serialport.
-
-### Granted Permissions
-
-This default permission set enables all read-related commands and
-allows access to the `$APP` folder and sub directories created in it.
-The location of the `$APP` folder depends on the operating system,
-where the application is run.
-
-In general the `$APP` folder needs to be manually created
-by the application at runtime, before accessing files or folders
-in it is possible.
-
-### Denied Permissions
-
-This default permission set prevents access to critical components
-of the Tauri application by default.
-On Windows the webview data folder access is denied.
-
+Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,
+port hotplug, AT session, exchange, and configure serial ports on desktop and Android.
 """
 permissions = [
     "allow-managed-ports",
     "allow-available-ports",
-    "allow-available-ports-direct",
+    "allow-watch-ports",
+    "allow-unwatch-ports",
     "allow-cancel-read",
     "allow-close",
     "allow-close-all",
     "allow-force-close",
-    "allow-open",
-    "allow-read",
-    "allow-write",
-    "allow-write-binary",
-    "allow-start-listening",
-    "allow-stop-listening",
-    "allow-available-ports",
-    "allow-available-ports-direct",
-    "allow-bytes-to-read",
-    "allow-bytes-to-write",
-    "allow-cancel-read",
-    "allow-clear-break",
-    "allow-clear-buffer",
-    "allow-close",
-    "allow-close-all",
-    "allow-force-close",
-    "allow-managed-ports",
     "allow-open",
     "allow-read",
     "allow-read-binary",
+    "allow-write",
+    "allow-write-binary",
+    "allow-capabilities",
+    "allow-watch",
+    "allow-unwatch",
+    "allow-bytes-to-read",
+    "allow-bytes-to-write",
+    "allow-clear-break",
+    "allow-clear-buffer",
     "allow-read-carrier-detect",
-    "allow-read-cd",
     "allow-read-clear-to-send",
-    "allow-read-cts",
     "allow-read-data-set-ready",
-    "allow-read-dsr",
-    "allow-read-dtr",
-    "allow-read-ri",
     "allow-read-ring-indicator",
     "allow-set-baud-rate",
     "allow-set-break",
@@ -68,14 +36,18 @@ permissions = [
     "allow-set-parity",
     "allow-set-stop-bits",
     "allow-set-timeout",
-    "allow-start-listening",
-    "allow-stop-listening",
-    "allow-write",
-    "allow-write-binary",
     "allow-write-data-terminal-ready",
-    "allow-write-dtr",
     "allow-write-request-to-send",
-    "allow-write-rts",
     "allow-set-log-level",
-    "allow-get-log-level"
+    "allow-get-log-level",
+    "allow-exchange",
+    "allow-exchange-binary",
+    "allow-cancel-exchange",
+    "allow-at",
+    "allow-at-phases",
+    "allow-send-sms-pdu",
+    "allow-configure-at-session",
+    "allow-enable-mux",
+    "allow-open-mux-channel",
+    "allow-disable-mux",
 ]

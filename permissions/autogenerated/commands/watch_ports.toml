@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-watch-ports"
+description = "Enables the watch_ports command without any pre-configured scope."
+commands.allow = ["watch_ports"]
+
+[[permission]]
+identifier = "deny-watch-ports"
+description = "Denies the watch_ports command without any pre-configured scope."
+commands.deny = ["watch_ports"]
