@@ -1,0 +1,19 @@
+examples/serialport-test/src-tauri/.gitignore
+  s_c01253b1f96ab7::t_246957e7e5ed45 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "589efa4f87178244890fc0700282353477085c12",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
