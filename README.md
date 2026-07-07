@@ -435,7 +435,7 @@ use tauri::{AppHandle, State};
 #[tauri::command]
 async fn configure_production_logging(
     app: AppHandle<tauri::Wry>,
-    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+    serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Only show errors in production
     set_log_level(app, serial, LogLevel::Error)
@@ -512,7 +512,7 @@ use std::collections::HashMap;
 #[tauri::command]
 async fn rust_serial_example(
     app: AppHandle<tauri::Wry>,
-    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+    serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Get available ports
     let ports = available_ports(app.clone(), serial.clone())
@@ -628,7 +628,7 @@ use std::collections::HashMap;
 #[tauri::command]
 async fn advanced_serial_example(
     app: AppHandle<tauri::Wry>,
-    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+    serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Get available ports with error handling
     let ports = match available_ports(app.clone(), serial.clone()) {
@@ -734,7 +734,7 @@ use tauri::{AppHandle, State};
 #[tauri::command]
 async fn binary_data_example(
     app: AppHandle<tauri::Wry>,
-    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+    serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     let port_path = "COM1".to_string();
     
@@ -791,7 +791,7 @@ use tauri::{AppHandle, State};
 #[tauri::command]
 async fn my_serial_function(
     app: AppHandle<tauri::Wry>,
-    serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+    serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Use command functions
     let ports = available_ports(app.clone(), serial.clone())?;
@@ -806,7 +806,7 @@ Use the SerialPort methods directly:
 
 ```rust
 use tauri::State;
-use tauri_plugin_serialplugin::desktop_api::SerialPort;
+use tauri_plugin_serialplugin::api::desktop::SerialPort;
 
 #[tauri::command]
 async fn my_serial_function(
@@ -1582,6 +1582,7 @@ const port = new SerialPort({
 await port.open();
 
 // Enable auto-reconnect: restores both open() and watch() after disconnect
+// Reconnection uses a fixed interval (options.interval); exponential backoff is not implemented.
 await port.enableAutoReconnect({
   interval: 3000,
   maxAttempts: 5,
@@ -1625,7 +1626,7 @@ For modems and AT devices, use **`sendAt()`** / **`sendAtPhases()`** / **`sendSm
 | `AtCommandResult` | Structured result: `command`, `response`, `status`, `lines`, `solicitedBody`, `urcLines`, `raw` |
 | Native queue | Parallel `exchange()` / `sendAt()` **wait in FIFO** (no `"Exchange already in progress"`) |
 | `configureAtSession()` | Session defaults: `expectOk`, `stopOnError`, `appendCr`, timeouts, `resultFormat` |
-| Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery |
+| Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery. On **Android**, drain uses the same hub `drain()` path as desktop (push-model hub via JNI `feedRx`). |
 | `expectOk`, `solicitedPrefixes` | Per-command control via session + `AtCommandOptions` |
 | Watch during AT | Watch stays active; live **`SerialEvent::Urc`** via `watch({ onUrc })` |
 | Vendor grammar | Auto **`solicitedPrefixes`** from command (`^`, `#`, `$`, `%`, `*`) |

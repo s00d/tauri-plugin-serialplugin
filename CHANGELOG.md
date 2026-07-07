@@ -6,6 +6,20 @@ For **Android/USB-focused** details (behavior, limits, testing), see also [`andr
 
 ## [Unreleased]
 
+### Breaking / migration (Rust module layout)
+
+* **Removed compat top-level modules:** `desktop_api`, `mobile_api`, `port_rx_hub`, `exchange_runtime`, `cancel_exchange`, `at_runtime`, `exchange_read`, `port_backend`, `rx_hub_handle`, `io_errors`, and `mobile_*` JNI stubs. Use `api::desktop` / `api::mobile`, `hub`, `api::backend`, and `android` instead.
+* **`at/` module:** `at_parse` → `at::parse`, `at_session` → `at::session`, `runtime::at` → `at::commands`.
+* **`exchange/` module:** `runtime::exchange` → `exchange::{io, run, cancel}`, `runtime::read` → `exchange::options`; `check_exchange_complete` moved to `exchange::completion`.
+* **`port/` module:** `port_list` → `port::list`, `port_list_monitor` → `port::list_monitor`, `port_tx_queue` → `port::tx_queue`, `watch_registry` → `port::watch_registry`.
+* **`state/` module:** monolithic `state.rs` split into `state::config` (enums, log level) and `state::handles` (connected port types).
+* **`hub::shared`:** `RxHubShared`, `ExchangeWaiter`, and routing state live in `hub::shared` (not `hub::desktop`). `RxHubHandle` impls live in `hub::desktop` / `hub::mobile`.
+
+### Fixed
+
+* **Android CMUX virtual `exchange`:** Virtual paths (`path#dlci=N`) route through the CMUX session like desktop; `cancel_exchange` wakes the DLCI waiter.
+* **Unified exchange runtime:** Desktop and Android share `exchange_runtime` (`run_physical_exchange` / `run_mux_exchange`) including `rx_prepare: drain` on Android.
+
 ### Breaking / migration (native transaction queue)
 
 * **Removed `AtCommandQueue` / `port.at`:** Use **`sendAt()`**, **`sendAtPhases()`**, **`sendSmsPdu()`**, **`cancelAt()`**, **`configureAtSession()`**.
