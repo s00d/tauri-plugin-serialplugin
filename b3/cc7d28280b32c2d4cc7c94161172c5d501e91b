@@ -1,0 +1,30 @@
+README.md
+  s_c01253b1f96ab7::t_0b97222fdcae12 438,515,631,737,794,809
+  s_c01253b1f96ab7::t_703e9d13db97d3 1585,1629
+android/README.md
+  s_c01253b1f96ab7::t_9b85f2d1e60fb6 32-35
+  s_c01253b1f96ab7::t_703e9d13db97d3 49-54
+  s_c01253b1f96ab7::t_ec9fc2855b009d 3-6,8,12-31,37
+  s_c01253b1f96ab7::t_49a3e5e169ca1a 36
+  s_c01253b1f96ab7::t_b92c4bdf391583 38
+CHANGELOG.md
+  s_c01253b1f96ab7::t_703e9d13db97d3 18-22
+  s_c01253b1f96ab7::t_bffd01e545258f 9-10,17
+  s_c01253b1f96ab7::t_898d1d7f5cc33a 11-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "b3cc7d28280b32c2d4cc7c94161172c5d501e91b",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
