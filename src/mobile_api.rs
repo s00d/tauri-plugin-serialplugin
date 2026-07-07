@@ -518,6 +518,8 @@ impl<R: Runtime> SerialPort<R> {
     pub fn cancel_exchange(&self, path: String) -> Result<(), Error> {
         self.with_connected_port(path.clone(), |cp| {
             cp.exchange_cancel.store(true, Ordering::SeqCst);
+            cp.tx_queue.cancel_all();
+            cp.tx_queue.clear_halt();
             Ok(())
         })
     }
@@ -565,6 +567,7 @@ impl<R: Runtime> SerialPort<R> {
     ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
         let session = tx_queue.at_session();
+        let stop_on_error = session.stop_on_error();
         let mut results = Vec::with_capacity(phases.len());
         for (i, phase) in phases.iter().enumerate() {
             #[cfg(target_os = "android")]
@@ -591,15 +594,30 @@ impl<R: Runtime> SerialPort<R> {
                 }
                 AtPhaseWrite::Binary(b) => b.clone(),
             };
-            let response = self.exchange_bytes_direct(path.clone(), payload, exchange_opts)?;
-            check_expect_ok(
-                &session,
-                response.status,
-                &String::from_utf8_lossy(&response.raw),
-            )?;
-            results.push(crate::at_parse::AtCommandResult::from_exchange(
-                label, response,
-            ));
+            let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
+                let response = self.exchange_bytes_direct(path.clone(), payload, exchange_opts)?;
+                check_expect_ok(
+                    &session,
+                    response.status,
+                    &String::from_utf8_lossy(&response.raw),
+                )?;
+                Ok(crate::at_parse::AtCommandResult::from_exchange(
+                    label.clone(),
+                    response,
+                ))
+            })();
+            match phase_result {
+                Ok(r) => results.push(r),
+                Err(e) => {
+                    if stop_on_error {
+                        return Err(e);
+                    }
+                    results.push(crate::at_parse::AtCommandResult::failed(
+                        label,
+                        e.to_string(),
+                    ));
+                }
+            }
         }
         Ok(results)
     }

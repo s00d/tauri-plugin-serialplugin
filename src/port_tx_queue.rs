@@ -2,7 +2,6 @@
 
 use crate::at_session::AtSessionConfig;
 use crate::error::Error;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex};
 
 const CANCELLED_MSG: &str = "transaction queue cancelled";
@@ -11,7 +10,6 @@ const CANCELLED_MSG: &str = "transaction queue cancelled";
 pub struct PortTxQueue {
     inner: Mutex<Inner>,
     turn: Condvar,
-    halted: AtomicBool,
     at_session: Mutex<AtSessionConfig>,
 }
 
@@ -37,7 +35,6 @@ impl PortTxQueue {
                 drain_waiters: false,
             }),
             turn: Condvar::new(),
-            halted: AtomicBool::new(false),
             at_session: Mutex::new(AtSessionConfig::default()),
         }
     }
@@ -50,13 +47,6 @@ impl PortTxQueue {
         self.at_session.lock().unwrap().clone()
     }
 
-    pub fn at_session_mut<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&mut AtSessionConfig) -> R,
-    {
-        f(&mut self.at_session.lock().unwrap())
-    }
-
     /// Cancel in-flight exchange (via port flag) and reject all queued waiters.
     pub fn cancel_all(&self) {
         let mut inner = self.inner.lock().unwrap();
@@ -66,7 +56,6 @@ impl PortTxQueue {
     }
 
     pub fn clear_halt(&self) {
-        self.halted.store(false, Ordering::SeqCst);
         self.inner.lock().unwrap().drain_waiters = false;
     }
 
@@ -87,7 +76,7 @@ impl PortTxQueue {
 
         let mut inner = self.inner.lock().map_err(lock_err)?;
         while inner.now_serving != ticket {
-            if inner.drain_waiters || self.halted.load(Ordering::SeqCst) {
+            if inner.drain_waiters {
                 return Err(Error::String(CANCELLED_MSG.into()));
             }
             inner = self
@@ -97,23 +86,14 @@ impl PortTxQueue {
         }
         drop(inner);
 
-        let session = self.at_session();
         let result = f();
-
-        if result.is_err() && session.stop_on_error() {
-            self.halted.store(true, Ordering::SeqCst);
-            let mut inner = self.inner.lock().map_err(lock_err)?;
-            inner.drain_waiters = true;
-        }
 
         {
             let mut inner = self.inner.lock().map_err(lock_err)?;
             inner.now_serving += 1;
             if inner.drain_waiters {
                 inner.now_serving = inner.next_ticket;
-                if !self.halted.load(Ordering::SeqCst) {
-                    inner.drain_waiters = false;
-                }
+                inner.drain_waiters = false;
             }
         }
         self.turn.notify_all();
@@ -197,5 +177,14 @@ mod tests {
         q.clear_halt();
         let result = q.run_serial(|| Ok(42));
         assert_eq!(result.unwrap(), 42);
+    }
+
+    #[test]
+    fn error_in_job_does_not_halt_queue() {
+        let q = Arc::new(PortTxQueue::new());
+        let r1: Result<i32, Error> = q.run_serial(|| Err(Error::String("boom".into())));
+        assert!(r1.is_err());
+        let r2 = q.run_serial(|| Ok(99));
+        assert_eq!(r2.unwrap(), 99);
     }
 }

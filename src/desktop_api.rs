@@ -927,6 +927,7 @@ impl<R: Runtime> SerialPort<R> {
     ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
         let session = tx_queue.at_session();
+        let stop_on_error = session.stop_on_error();
         let mut results = Vec::with_capacity(phases.len());
         for (i, phase) in phases.iter().enumerate() {
             let label = phase.command.clone().unwrap_or_else(|| match &phase.write {
@@ -949,15 +950,28 @@ impl<R: Runtime> SerialPort<R> {
                 }
                 AtPhaseWrite::Binary(b) => b.clone(),
             };
-            let response = self.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
-            check_expect_ok(
-                &session,
-                response.status,
-                &String::from_utf8_lossy(&response.raw),
-            )?;
-            results.push(crate::at_parse::AtCommandResult::from_exchange(
-                label, response,
-            ));
+            let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
+                let response =
+                    self.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
+                check_expect_ok(
+                    &session,
+                    response.status,
+                    &String::from_utf8_lossy(&response.raw),
+                )?;
+                Ok(crate::at_parse::AtCommandResult::from_exchange(
+                    label.clone(),
+                    response,
+                ))
+            })();
+            match phase_result {
+                Ok(r) => results.push(r),
+                Err(e) => {
+                    if stop_on_error {
+                        return Err(e);
+                    }
+                    results.push(crate::at_parse::AtCommandResult::failed(label, e.to_string()));
+                }
+            }
         }
         Ok(results)
     }
@@ -1146,12 +1160,14 @@ impl<R: Runtime> SerialPort<R> {
             if let Some(vp) = virtuals.get(&path) {
                 vp.exchange_cancel.store(true, Ordering::SeqCst);
                 vp.tx_queue.cancel_all();
+                vp.tx_queue.clear_halt();
                 return Ok(());
             }
         }
         let cp = self.resolve_connected_port(&path)?;
         cp.exchange_cancel.store(true, Ordering::SeqCst);
         cp.tx_queue.cancel_all();
+        cp.tx_queue.clear_halt();
         Ok(())
     }
 

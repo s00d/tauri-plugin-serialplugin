@@ -104,6 +104,20 @@ impl AtCommandResult {
             timed_out: false,
         }
     }
+
+    pub fn failed(command: String, reason: String) -> Self {
+        Self {
+            command,
+            response: reason.clone(),
+            raw: reason.into_bytes(),
+            matched: ExchangeMatch::Error,
+            lines: Vec::new(),
+            status: AtParseStatus::Error,
+            solicited_body: Vec::new(),
+            urc_lines: Vec::new(),
+            timed_out: false,
+        }
+    }
 }
 
 impl ExchangeResponse {
