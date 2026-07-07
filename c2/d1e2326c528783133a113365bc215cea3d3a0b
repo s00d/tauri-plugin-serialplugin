@@ -1,0 +1,26 @@
+README.md
+  s_ae5e28f135454d::t_4b9c00cf1d7dd0 1695,1697-1702,1705,1707,1709-1712,1715,1717,1719-1721,1723
+  s_ae5e28f135454d::t_8332535ecbe47b 28-37
+  s_ae5e28f135454d::t_6c26361ecbc0a3 72-73
+  s_ae5e28f135454d::t_1263dca61f8e40 50
+android/BUILD_INSTRUCTIONS.md
+  s_ae5e28f135454d::t_d641c5a61ca61d 57,60,63,65,68
+android/README.md
+  s_ae5e28f135454d::t_eaf3546d2d5a4a 11-12,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "c2d1e2326c528783133a113365bc215cea3d3a0b",
+  "prompts": {},
+  "sessions": {
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
