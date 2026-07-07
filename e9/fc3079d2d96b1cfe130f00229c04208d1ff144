@@ -1,0 +1,34 @@
+android/src/main/kotlin/app/tauri/serialplugin/manager/SerialRxSink.kt
+  s_4049462dd61111::t_50a750a8f67f6b 18-21
+  s_4049462dd61111::t_399f6990f205d3 10-11
+src/commands.rs
+  s_ae5e28f135454d::t_7edb57e6e8aa8e 93
+  s_ae5e28f135454d::t_ea4afb9a391fe5 495-497
+  s_ae5e28f135454d::t_9865a58d0acb69 158-159
+android/src/main/kotlin/app/tauri/serialplugin/manager/CoalescingRxSink.kt
+  s_4049462dd61111::t_38d932b795fb5c 50-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "e9fc3079d2d96b1cfe130f00229c04208d1ff144",
+  "prompts": {},
+  "sessions": {
+    "s_4049462dd61111": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7438b990-915c-4ad4-ab60-3bb0201646ba",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    },
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
