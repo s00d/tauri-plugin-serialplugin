@@ -1,0 +1,31 @@
+examples/serialport-test/src-tauri/gen/android/app/src/androidTest/kotlin/com/serialport/test/jni/TxChainTest.kt
+  s_c01253b1f96ab7::t_146affae7703bc 1-42
+examples/serialport-test/src-tauri/gen/android/app/src/androidTest/kotlin/com/serialport/test/jni/RxChainTest.kt
+  s_c01253b1f96ab7::t_146affae7703bc 1-48
+examples/serialport-test/src-tauri/gen/android/app/src/androidTest/kotlin/app/tauri/serialplugin/manager/FakeUsbSerialPort.kt
+  s_c01253b1f96ab7::t_ade31288d6927e 228-238
+  s_c01253b1f96ab7::t_013b8c756a119d 253
+  s_c01253b1f96ab7::t_146affae7703bc 1-5,7-15,17-25,29-224,240,259-270
+  s_c01253b1f96ab7::t_642ac7337f6d72 6,225,227,239,242-252,254-258
+  s_c01253b1f96ab7::t_2093e4bc7a8aec 16,26-28,226,241
+examples/serialport-test/src-tauri/gen/android/app/src/androidTest/kotlin/com/serialport/test/jni/UsbErrorChainTest.kt
+  s_c01253b1f96ab7::t_146affae7703bc 1-31
+examples/serialport-test/src-tauri/gen/android/app/src/androidTest/kotlin/com/serialport/test/jni/JniChainFixture.kt
+  s_c01253b1f96ab7::t_146affae7703bc 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "acad6a0c9ba05de1ec6a57bbf41ebf4d456b3573",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
