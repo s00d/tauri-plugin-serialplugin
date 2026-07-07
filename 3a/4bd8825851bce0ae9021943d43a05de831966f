@@ -1,0 +1,28 @@
+src/commands.rs
+  s_c01253b1f96ab7::t_f9720eaa84f8fe 539,549-553
+src/desktop_api.rs
+  s_c01253b1f96ab7::t_cb2747b8da0ba6 385-386,390-391
+  s_c01253b1f96ab7::t_713144651b55df 287-309,311,330-334,337-338,342-348,352-357
+  s_c01253b1f96ab7::t_bf3f982f17018a 1098
+  s_c01253b1f96ab7::t_444337908aac47 109-111
+  s_c01253b1f96ab7::t_076ab933fba3f8 443-448
+  s_c01253b1f96ab7::t_740f3d1b796248 1082-1097,1099-1103
+  s_c01253b1f96ab7::t_a2f213da4a90d2 211-214,216,218,223-226,228-236
+  s_c01253b1f96ab7::t_7fe8932725fc5b 381-384,392
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "3a4bd8825851bce0ae9021943d43a05de831966f",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
