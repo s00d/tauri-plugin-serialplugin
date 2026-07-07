@@ -1,0 +1,90 @@
+src/mobile_rx_hub.rs
+  s_4049462dd61111::t_9a7fa9ec4f087f 52,60,65,112,116,136
+  s_65fc431df2c089::t_e8e7a919501f72 64,66
+  s_ae5e28f135454d::t_ea4afb9a391fe5 3-4,75-76,106-107
+  s_ae5e28f135454d::t_bd62b41f35997d 67-68
+src/mobile_usb_jni.rs
+  s_4049462dd61111::t_b9e3370f006c41 333
+  s_ae5e28f135454d::t_ea4afb9a391fe5 6,68-71,120,145-150
+  s_4049462dd61111::t_40fd68344889d0 289
+  s_4049462dd61111::t_73bb34fe5e2c42 306
+  s_4049462dd61111::t_8083d33594bd65 151
+  s_4049462dd61111::t_540623b34c59aa 35-38
+  s_4049462dd61111::t_83093b967e4837 50-63
+  s_4049462dd61111::t_d991b0068d88db 176,180-207
+  s_4049462dd61111::t_c69f4543b8dae8 225
+  s_65fc431df2c089::t_810aed0e092e8f 8
+  s_4049462dd61111::t_63d97ea487547e 245
+  s_ae5e28f135454d::t_d6ea4dfc87a693 7,34,39-40
+android/src/main/kotlin/app/tauri/serialplugin/UsbNative.kt
+  s_ae5e28f135454d::t_e6a4c2af6f398d 47-58
+android/src/main/kotlin/app/tauri/serialplugin/manager/UsbBridge.kt
+  s_4049462dd61111::t_e66aa6be31ea5e 305-306,308,311
+  s_4049462dd61111::t_4648c3e4673ea9 230
+  s_4049462dd61111::t_0d2eb50ac3f00e 187
+  s_4049462dd61111::t_7c858e611b95b0 216
+  s_4049462dd61111::t_c007a6301f578c 135
+  s_4049462dd61111::t_3ae48411f2e279 111,123
+src/mobile_usb_io.rs
+  s_4049462dd61111::t_3afad2213e21fd 84,102-105,108-111
+  s_ae5e28f135454d::t_ea4afb9a391fe5 336
+  s_4049462dd61111::t_166e53a1f2abbe 129
+  s_4049462dd61111::t_07d72b8d0b07cf 325
+src/mobile_api.rs
+  s_4049462dd61111::t_2972000520eba3 821
+  s_65fc431df2c089::t_43520e7b73609e 100
+  s_4049462dd61111::t_589b4a7d70b1bc 79-82
+  s_ae5e28f135454d::t_a95d277a2fc32c 169
+  s_65fc431df2c089::t_843cecd78534a6 782-790
+  s_ae5e28f135454d::t_ea4afb9a391fe5 44,209,211-212,296,587,716
+  s_65fc431df2c089::t_c34eef55247de8 320-328,331-343
+  s_4049462dd61111::t_c514c097e403d5 196-199,201-206
+  s_4049462dd61111::t_f12952f69a9bca 200,207-208
+  s_65fc431df2c089::t_5d20201c32de1f 811,814
+  s_4049462dd61111::t_198786bbadaf53 140
+  s_c01253b1f96ab7::t_83fb8f9f83d67a 478,480,482-485,489-492
+  s_65fc431df2c089::t_c01a3478eb5df8 310
+  s_65fc431df2c089::t_35887199ec0bfd 477
+  s_ae5e28f135454d::t_5b5beee350b0ca 216
+  s_ae5e28f135454d::t_5a99c55d1c973e 319,493
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "caa5700a0b1fea37c03281b4dbb1f50dbd2605ad",
+  "prompts": {},
+  "sessions": {
+    "s_4049462dd61111": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7438b990-915c-4ad4-ab60-3bb0201646ba",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    },
+    "s_65fc431df2c089": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "aa1af93b-0b10-4c36-b412-41f99bfe00a5",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    },
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    },
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
