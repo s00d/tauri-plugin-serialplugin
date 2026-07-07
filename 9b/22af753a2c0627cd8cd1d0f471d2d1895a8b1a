@@ -1,0 +1,32 @@
+guest-js/types.ts
+  s_ae5e28f135454d::t_8b811e6d4adfe1 265
+  s_ae5e28f135454d::t_2003d290ed1176 27
+  s_ae5e28f135454d::t_3e648e0919d091 207
+src/state.rs
+  s_ae5e28f135454d::t_ea4afb9a391fe5 25-28,43-44
+guest-js/serial-port.ts
+  s_ae5e28f135454d::t_3ecc96f2f5add3 614-616,624-626
+  s_ae5e28f135454d::t_4f8630f2294e2c 527,536-538
+  s_ae5e28f135454d::t_c79ca35514e298 260
+  s_ae5e28f135454d::t_ffae1645802c75 697,702-705
+  s_ae5e28f135454d::t_a9f0133e4c7f9b 292
+  s_ae5e28f135454d::t_6af546c4c3b084 681,686-689
+  s_ae5e28f135454d::t_5f0b7485708f8a 410-412,425-429
+  s_ae5e28f135454d::t_5fef6b097c19c5 498-500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "9b22af753a2c0627cd8cd1d0f471d2d1895a8b1a",
+  "prompts": {},
+  "sessions": {
+    "s_ae5e28f135454d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b3ca3517-54b4-4490-92be-63be53e83a02",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
