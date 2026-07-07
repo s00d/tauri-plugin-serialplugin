@@ -44,6 +44,14 @@ class UsbBridge private constructor(
 
         internal fun forTesting(rxSink: SerialRxSink): UsbBridge =
             UsbBridge(null, rxSink, false, true)
+
+        /**
+         * Instrumented JNI integration tests: production [JniSerialRxSink] with optional coalescing.
+         * Host app must call [app.tauri.serialplugin.UsbNative.bind] on the returned bridge.
+         */
+        @JvmStatic
+        fun forIntegrationTest(immediateCoalesce: Boolean = true): UsbBridge =
+            forTesting(CoalescingRxSink(JniSerialRxSink, immediate = immediateCoalesce))
     }
 
     @Volatile private var shutDown = false
@@ -169,6 +177,10 @@ class UsbBridge private constructor(
         putSession(config.path, newSession(config.path, port, config))
         sessions[config.path]!!.startReadLoop()
     }
+
+    /** Instrumented tests: inject [FakeUsbSerialPort] without USB hardware. */
+    fun adoptFakePortForTest(port: UsbSerialPort, config: SerialPortConfig) =
+        adoptFakePort(port, config)
 
     fun enumerate(): Map<String, Map<String, String>> {
         val mgr = usbManager ?: return emptyMap()

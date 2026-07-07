@@ -34,6 +34,11 @@ android {
         jvmTarget = "11"
     }
 
+    sourceSets {
+        test.kotlin.srcDirs += "src/sharedTest/kotlin"
+        androidTest.kotlin.srcDirs += "src/sharedTest/kotlin"
+    }
+
     if (isTauriSubproject) {
         buildFeatures {
             buildConfig = true
@@ -57,6 +62,7 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
     implementation(project(":tauri-android"))
     implementation("com.google.code.gson:gson:2.10.1")
 
