@@ -47,6 +47,20 @@ internal class CoalescingRxSink(
 
     override fun onPortListChange() = delegate.onPortListChange()
 
+    override fun onPortClosed(path: String) {
+        cancelFlush(path)
+        buffers.remove(path)
+        delegate.onPortClosed(path)
+    }
+
+    override fun shutdown() {
+        flushTasks.values.forEach { it.cancel(false) }
+        flushTasks.clear()
+        buffers.clear()
+        scheduler.shutdownNow()
+        delegate.shutdown()
+    }
+
     private fun scheduleFlush(path: String) {
         flushTasks.compute(path) { _, existing ->
             existing?.cancel(false)

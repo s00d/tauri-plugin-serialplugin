@@ -90,7 +90,7 @@ pub fn open<R: Runtime>(
     parity: Option<Parity>,
     stop_bits: Option<StopBits>,
     timeout: Option<u64>,
-) -> Result<(), Error> {
+) -> Result<String, Error> {
     serial.open(
         path,
         baud_rate,
@@ -155,8 +155,8 @@ pub fn read_binary<R: Runtime>(
 /// Returns runtime capabilities (transport, platform, version) without window probing.
 /// See README for examples.
 #[tauri::command]
-pub fn capabilities() -> Capabilities {
-    Capabilities::current()
+pub fn capabilities() -> Result<Capabilities, Error> {
+    Ok(Capabilities::current())
 }
 
 /// Streams serial port events through a Tauri IPC channel.
@@ -492,11 +492,9 @@ pub async fn send_sms_pdu<R: Runtime>(
     options: Option<crate::at_session::SendSmsPduOptions>,
 ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
     let serial = serial.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        serial.send_sms_pdu(path, length, pdu, options)
-    })
-    .await
-    .map_err(|e| Error::String(format!("send_sms_pdu task failed: {e}")))?
+    tauri::async_runtime::spawn_blocking(move || serial.send_sms_pdu(path, length, pdu, options))
+        .await
+        .map_err(|e| Error::String(format!("send_sms_pdu task failed: {e}")))?
 }
 
 /// Configure AT session defaults for native `at` on a port.
