@@ -1,0 +1,23 @@
+src/tests/desktop_api_test.rs
+  s_c01253b1f96ab7::t_408b58da218902 767-838
+  s_c01253b1f96ab7::t_fe1b103b9b23c2 764-766
+src/hub/desktop.rs
+  s_c01253b1f96ab7::t_096b74064e9b35 93-94
+  s_c01253b1f96ab7::t_91d6d00cc6c33b 267-271,273-281,283-285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "55f1cb357330f902e4a4b396825445dde70e67a0",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
