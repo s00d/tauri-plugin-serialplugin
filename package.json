@@ -36,7 +36,9 @@
   "files": [
     "dist-js",
     "README.md",
-    "LICENSE"
+    "LICENSE_MIT",
+    "LICENSE_APACHE-2.0",
+    "LICENSE.spdx"
   ],
   "dependencies": {
     "@tauri-apps/api": ">=2.0.0-beta.6"
