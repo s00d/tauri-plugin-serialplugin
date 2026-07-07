@@ -8,7 +8,7 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 async fn get_ports_programmatically(
     app: tauri::AppHandle,
-    serial: tauri::State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>,
+    serial: tauri::State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>,
 ) -> Result<String, String> {
     let available_ports = tauri_plugin_serialplugin::commands::available_ports(app.clone(), serial.clone(), None)
         .map_err(|e| format!("Failed to get available ports: {}", e))?;

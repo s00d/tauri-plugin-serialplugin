@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::desktop_api::SerialPort;
+    use crate::api::desktop::SerialPort;
     use crate::state::{DataBits, FlowControl, Parity, PortState, SerialportInfo, StopBits};
-    use std::sync::Arc;
     use tauri::test::MockRuntime;
     use tauri::App;
     use tauri::Manager;
@@ -12,6 +11,16 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
         app
+    }
+
+    /// Serialize PTY integration tests — parallel `TTYPort::pair()` races on macOS.
+    #[cfg(unix)]
+    fn pty_pair_locked() -> (
+        std::sync::MutexGuard<'static, ()>,
+        serialport::TTYPort,
+        serialport::TTYPort,
+    ) {
+        crate::sync_util::pty_pair_locked()
     }
 
     #[test]
@@ -257,7 +266,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, master, slave) = pty_pair_locked();
         let path = "pty-close-all-test".to_string();
 
         serial_port.serialports.lock().unwrap().insert(
@@ -285,12 +294,12 @@ mod tests {
                 channel,
             )
             .expect("watch");
-        assert!(crate::watch_registry::paths_for_port(&path).contains(&channel_id));
+        assert!(crate::port::watch_registry::paths_for_port(&path).contains(&channel_id));
 
         serial_port.close_all().expect("close_all");
 
         assert!(serial_port.managed_ports().unwrap().is_empty());
-        assert!(crate::watch_registry::paths_for_port(&path).is_empty());
+        assert!(crate::port::watch_registry::paths_for_port(&path).is_empty());
 
         drop(master);
     }
@@ -310,7 +319,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, master, slave) = pty_pair_locked();
         let path = "pty-disconnect-test".to_string();
 
         serial_port.serialports.lock().unwrap().insert(
@@ -372,7 +381,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -422,7 +431,7 @@ mod tests {
         responder.join().expect("responder join");
         let text = String::from_utf8_lossy(&response.raw);
         assert!(text.contains("OK"), "expected OK in {:?}", text);
-        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
 
         let _ = serial_port.close(path);
     }
@@ -441,7 +450,7 @@ mod tests {
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -513,10 +522,13 @@ mod tests {
         use std::thread;
         use std::time::{Duration, Instant};
 
+        // Let prior PTY / hub threads from parallel tests settle (macOS).
+        thread::sleep(Duration::from_millis(150));
+
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -529,6 +541,9 @@ mod tests {
             },
         );
 
+        let _ = sp.read(path.clone(), Some(50), Some(8));
+
+        let (cmd_rx_tx, cmd_rx_rx) = std::sync::mpsc::sync_channel::<()>(1);
         let responder = thread::spawn(move || {
             let mut buf = [0u8; 256];
             let deadline = Instant::now() + Duration::from_secs(5);
@@ -539,13 +554,17 @@ mod tests {
                 match master.read(&mut buf) {
                     Ok(0) => thread::sleep(Duration::from_millis(10)),
                     Ok(_) => {
+                        let _ = cmd_rx_tx.send(());
                         thread::sleep(Duration::from_millis(300));
                         let _ = master.write_all(b"\r\nOK\r\n");
                         let _ = master.flush();
                         return;
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
-                    Err(_) => return,
+                    Err(_) => {
+                        thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
                 }
             }
         });
@@ -555,7 +574,9 @@ mod tests {
         let sp_io = sp.clone();
         let path_io = path.clone();
         let io_thread = thread::spawn(move || {
-            thread::sleep(Duration::from_millis(100));
+            cmd_rx_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("responder read command");
             let io_start = Instant::now();
             sp_io
                 .bytes_to_read(path_io.clone())
@@ -565,9 +586,6 @@ mod tests {
             let _write_result = sp_io.write(path_io, "PING".to_string());
             *io_elapsed_bg.lock().unwrap() = Some((bytes_elapsed, write_start.elapsed()));
         });
-
-        // Let the PTY responder enter its read loop before the exchange writes.
-        thread::sleep(Duration::from_millis(20));
 
         let exchange_result = sp.exchange(
             path.clone(),
@@ -600,7 +618,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn at_uses_configured_session_timeout_on_pty() {
-        use crate::at_session::AtSessionConfig;
+        use crate::at::session::AtSessionConfig;
         use crate::events::RxPrepareMode;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
@@ -611,7 +629,7 @@ mod tests {
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -665,7 +683,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn at_times_out_with_watch_and_status_io_on_pty() {
-        use crate::at_session::AtSessionConfig;
+        use crate::at::session::AtSessionConfig;
         use crate::events::WatchOptions;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
@@ -678,7 +696,7 @@ mod tests {
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -761,7 +779,7 @@ mod tests {
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -811,7 +829,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -881,7 +899,7 @@ mod tests {
         done_tx.send(()).ok();
         responder.join().expect("responder join");
 
-        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
         assert!(
             response
                 .solicited_body
@@ -923,7 +941,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master.set_timeout(Duration::from_millis(50)).unwrap();
         let path = "pty-atv0-test".to_string();
 
@@ -968,7 +986,7 @@ mod tests {
 
         done_tx.send(()).ok();
         responder.join().expect("responder join");
-        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
         let _ = serial_port.close(path);
     }
 
@@ -986,7 +1004,7 @@ mod tests {
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master.set_timeout(Duration::from_millis(50)).unwrap();
         let path = "pty-cmgs-test".to_string();
 
@@ -1038,7 +1056,7 @@ mod tests {
             .expect("prompt exchange");
         assert!(matches!(
             prompt.matched,
-            crate::at_parse::ExchangeMatch::Intermediate { .. }
+            crate::at::parse::ExchangeMatch::Intermediate { .. }
         ));
 
         let final_resp = serial_port
@@ -1056,7 +1074,7 @@ mod tests {
 
         done_tx.send(()).ok();
         responder.join().expect("responder join");
-        assert_eq!(final_resp.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(final_resp.status, crate::at::parse::AtParseStatus::Ok);
         let _ = serial_port.close(path);
     }
 
@@ -1065,13 +1083,12 @@ mod tests {
     fn cmux_session_routes_uih_to_virtual_exchange() {
         use crate::cmux::{encode_uih, CmuxSession};
         use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
-        use crate::exchange_read::ResolvedExchangeOptions;
-        use crate::port_rx_hub::ExchangeWaiter;
-        use serialport::TTYPort;
+        use crate::exchange::options::ResolvedExchangeOptions;
+        use crate::hub::ExchangeWaiter;
         use std::sync::atomic::AtomicBool;
         use std::sync::{Arc, Mutex};
 
-        let (port, _) = TTYPort::pair().expect("pty");
+        let (_pty, port, _master) = pty_pair_locked();
         let path = "cmux-session-test".to_string();
         let session = CmuxSession::new(
             path.clone(),
@@ -1100,7 +1117,7 @@ mod tests {
         session.feed_physical_rx(&frame);
         let (raw, matched) = waiter.wait(1000).expect("virtual exchange complete");
         assert!(String::from_utf8_lossy(&raw).contains("OK"));
-        assert!(matches!(matched, crate::at_parse::ExchangeMatch::Ok));
+        assert!(matches!(matched, crate::at::parse::ExchangeMatch::Ok));
     }
 
     /// Full path: physical PTY + CMUX session + virtual port `sendAt`/`exchange`.
@@ -1108,17 +1125,18 @@ mod tests {
     #[test]
     fn cmux_virtual_port_exchange_on_pty() {
         use crate::cmux::{encode_uih, CmuxSession};
-        use crate::port_rx_hub::PortRxHub;
+        use crate::hub::PortRxHub;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
         use std::io::{Read, Write};
+        use std::sync::Arc;
         use std::thread;
         use std::time::Duration;
 
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master.set_timeout(Duration::from_millis(50)).unwrap();
         let path = "pty-cmux-virtual".to_string();
 
@@ -1142,7 +1160,7 @@ mod tests {
             );
             let mut hub_guard = cp.rx_hub.lock().unwrap();
             if hub_guard.is_none() {
-                *hub_guard = Some(PortRxHub::start(cp.port.clone(), path.clone()));
+                *hub_guard = Some(Arc::new(PortRxHub::start(cp.port.clone(), path.clone())));
             }
             hub_guard
                 .as_ref()
@@ -1185,7 +1203,7 @@ mod tests {
 
         done_tx.send(()).ok();
         responder.join().expect("responder join");
-        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
         let _ = serial_port.close(virtual_path);
         let _ = serial_port.close(path);
     }
@@ -1195,6 +1213,7 @@ mod tests {
     fn ensure_rx_hub_running_restarts_finished_hub() {
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use crate::tests::mock_serial::MockSerialPort;
+        use std::sync::Arc;
 
         let app = create_test_app();
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
@@ -1215,13 +1234,16 @@ mod tests {
             .expect("connected");
         {
             let mut hub_guard = cp.rx_hub.lock().unwrap();
-            let hub = crate::port_rx_hub::PortRxHub::start(cp.port.clone(), path.clone());
+            let hub = Arc::new(crate::hub::PortRxHub::start(cp.port.clone(), path.clone()));
             *hub_guard = Some(hub);
         }
         {
             let mut hub_guard = cp.rx_hub.lock().unwrap();
             if let Some(hub) = hub_guard.take() {
-                hub.stop();
+                match Arc::try_unwrap(hub) {
+                    Ok(hub) => hub.stop(),
+                    Err(hub) => hub.request_stop(),
+                }
             }
             assert!(hub_guard.is_none());
         }
@@ -1247,7 +1269,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn stop_on_error_false_continues_phases() {
-        use crate::at_session::{AtPhase, AtPhaseWrite, AtSessionConfig};
+        use crate::at::session::{AtPhase, AtPhaseWrite, AtSessionConfig};
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
         use std::io::{Read, Write};
@@ -1260,7 +1282,7 @@ mod tests {
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let path = "pty-stop-on-error-false".to_string();
 
-        let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, mut master, slave) = pty_pair_locked();
         master
             .set_timeout(Duration::from_millis(50))
             .expect("master timeout");
@@ -1332,13 +1354,13 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_ne!(
             results[0].status,
-            crate::at_parse::AtParseStatus::Ok,
+            crate::at::parse::AtParseStatus::Ok,
             "phase1 should time out without line response: {:?}",
             results[0]
         );
         assert_eq!(
             results[1].status,
-            crate::at_parse::AtParseStatus::Ok,
+            crate::at::parse::AtParseStatus::Ok,
             "phase2 should succeed after OK response: {:?}",
             results[1]
         );
@@ -1350,7 +1372,7 @@ mod tests {
     #[test]
     fn take_idle_bytes_replayed_after_write() {
         use crate::events::ExchangeOptions;
-        use crate::port_rx_hub::HubRoutingState;
+        use crate::hub::HubRoutingState;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use crate::tests::mock_serial::MockSerialPort;
 
@@ -1395,7 +1417,7 @@ mod tests {
             )
             .expect("exchange should complete from idle buffer");
 
-        assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
+        assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
         let text = String::from_utf8_lossy(&response.raw);
         assert!(text.contains("OK"), "expected OK in {:?}", text);
 
@@ -1414,7 +1436,7 @@ mod tests {
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let path = "pty-exchange-disconnect".to_string();
 
-        let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
+        let (_pty, master, slave) = pty_pair_locked();
         serial_port.serialports.lock().unwrap().insert(
             path.clone(),
             SerialportInfo {
@@ -1486,7 +1508,7 @@ mod tests {
                 physical_path: physical.clone(),
                 dlci: 2,
                 exchange_cancel: Arc::new(AtomicBool::new(false)),
-                tx_queue: Arc::new(crate::port_tx_queue::PortTxQueue::new()),
+                tx_queue: Arc::new(crate::port::tx_queue::PortTxQueue::new()),
             },
         );
 

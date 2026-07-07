@@ -1,11 +1,11 @@
 //! Tauri command handlers for serial port I/O. See README and docs.rs.
 
 #[cfg(desktop)]
-use crate::desktop_api::SerialPort;
+use crate::api::desktop::SerialPort;
+#[cfg(mobile)]
+use crate::api::mobile::SerialPort;
 use crate::error::Error;
 use crate::events::{Capabilities, ExchangeOptions, SerialEvent, WatchOptions};
-#[cfg(mobile)]
-use crate::mobile_api::SerialPort;
 use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -432,7 +432,7 @@ pub async fn exchange<R: Runtime>(
     path: String,
     value: String,
     options: Option<ExchangeOptions>,
-) -> Result<crate::at_parse::ExchangeResponse, Error> {
+) -> Result<crate::at::parse::ExchangeResponse, Error> {
     let serial = serial.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         serial.exchange(path, value, options.unwrap_or_default())
@@ -459,8 +459,8 @@ pub async fn at<R: Runtime>(
     serial: State<'_, SerialPort<R>>,
     path: String,
     command: String,
-    options: Option<crate::at_session::AtCommandOptions>,
-) -> Result<crate::at_parse::AtCommandResult, Error> {
+    options: Option<crate::at::session::AtCommandOptions>,
+) -> Result<crate::at::parse::AtCommandResult, Error> {
     let serial = serial.inner().clone();
     tauri::async_runtime::spawn_blocking(move || serial.at(path, command, options))
         .await
@@ -473,8 +473,8 @@ pub async fn at_phases<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
-    phases: Vec<crate::at_session::AtPhase>,
-) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    phases: Vec<crate::at::session::AtPhase>,
+) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
     let serial = serial.inner().clone();
     tauri::async_runtime::spawn_blocking(move || serial.at_phases(path, phases))
         .await
@@ -489,8 +489,8 @@ pub async fn send_sms_pdu<R: Runtime>(
     path: String,
     length: u32,
     pdu: Vec<u8>,
-    options: Option<crate::at_session::SendSmsPduOptions>,
-) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    options: Option<crate::at::session::SendSmsPduOptions>,
+) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
     let serial = serial.inner().clone();
     tauri::async_runtime::spawn_blocking(move || serial.send_sms_pdu(path, length, pdu, options))
         .await
@@ -503,7 +503,7 @@ pub fn configure_at_session<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
-    session: crate::at_session::AtSessionConfig,
+    session: crate::at::session::AtSessionConfig,
 ) -> Result<(), Error> {
     serial.configure_at_session(path, session)
 }
@@ -516,7 +516,7 @@ pub async fn exchange_binary<R: Runtime>(
     path: String,
     value: Vec<u8>,
     options: Option<crate::events::ExchangeOptions>,
-) -> Result<crate::at_parse::ExchangeResponse, Error> {
+) -> Result<crate::at::parse::ExchangeResponse, Error> {
     let serial = serial.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         serial.exchange_binary(path, value, options.unwrap_or_default())

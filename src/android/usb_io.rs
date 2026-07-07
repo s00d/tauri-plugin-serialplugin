@@ -1,8 +1,6 @@
 //! Thin USB I/O via JNI → Kotlin `UsbNative` (no Tauri `@Command`).
 
 use crate::error::Error;
-#[cfg(target_os = "android")]
-use crate::mobile_usb_jni;
 use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -47,7 +45,7 @@ impl MobileUsbIo {
     ) -> Result<(), Error> {
         #[cfg(target_os = "android")]
         {
-            if mobile_usb_jni::call_ctl(
+            if crate::android::usb_jni::call_ctl(
                 path,
                 op,
                 baud_rate,
@@ -85,7 +83,7 @@ impl MobileUsbIo {
     ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
         #[cfg(target_os = "android")]
         {
-            let json = mobile_usb_jni::call_enumerate_json()?;
+            let json = crate::android::usb_jni::call_enumerate_json()?;
             let response: AvailablePortsResponse = serde_json::from_str(&json)
                 .map_err(|e| Error::new(format!("Invalid enumerate JSON: {e}")))?;
             let mut result = HashMap::new();
@@ -99,7 +97,7 @@ impl MobileUsbIo {
                 map.insert("serial_number".to_string(), info.serial_number);
                 result.insert(name, map);
             }
-            return Ok(crate::port_list::apply_android_single_port_per_device(
+            return Ok(crate::port::list::apply_android_single_port_per_device(
                 result,
                 single_port_per_device,
             ));
@@ -111,7 +109,7 @@ impl MobileUsbIo {
         }
     }
 
-    /// Kotlin enumeration-only layer; managed ports are tracked in Rust (`mobile_api`).
+    /// Kotlin enumeration-only layer; managed ports are tracked in Rust (`api::mobile`).
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
@@ -125,7 +123,7 @@ impl MobileUsbIo {
     ) -> Result<String, Error> {
         #[cfg(target_os = "android")]
         {
-            return mobile_usb_jni::call_open(
+            return crate::android::usb_jni::call_open(
                 &path,
                 baud_rate,
                 data_bits.as_u8(),
@@ -151,7 +149,7 @@ impl MobileUsbIo {
 
     pub fn close(&self, path: &str) -> Result<(), Error> {
         #[cfg(target_os = "android")]
-        return mobile_usb_jni::call_close(Some(path));
+        return crate::android::usb_jni::call_close(Some(path));
         #[cfg(not(target_os = "android"))]
         {
             let _ = path;
@@ -161,14 +159,14 @@ impl MobileUsbIo {
 
     pub fn close_all(&self) -> Result<(), Error> {
         #[cfg(target_os = "android")]
-        return mobile_usb_jni::call_close(None);
+        return crate::android::usb_jni::call_close(None);
         #[cfg(not(target_os = "android"))]
         Err(Error::new("USB I/O only on Android"))
     }
 
     pub fn write(&self, path: &str, data: &[u8]) -> Result<usize, Error> {
         #[cfg(target_os = "android")]
-        return mobile_usb_jni::call_write(path, data);
+        return crate::android::usb_jni::call_write(path, data);
         #[cfg(not(target_os = "android"))]
         {
             let _ = (path, data);
@@ -320,7 +318,7 @@ impl MobileUsbIo {
     pub fn bytes_to_write(&self, path: &str) -> Result<u32, Error> {
         // Android USB layer has no host-side TX queue; always reports 0.
         #[cfg(target_os = "android")]
-        return mobile_usb_jni::call_ctl_bytes_to_write(path);
+        return crate::android::usb_jni::call_ctl_bytes_to_write(path);
         #[cfg(not(target_os = "android"))]
         {
             let _ = path;
@@ -350,7 +348,7 @@ impl MobileUsbIo {
 
 #[cfg(target_os = "android")]
 fn mobile_signal(path: &str, op: &str, level: bool) -> Result<bool, Error> {
-    mobile_usb_jni::call_signal(path, op, level)
+    crate::android::usb_jni::call_signal(path, op, level)
 }
 
 #[cfg(not(target_os = "android"))]

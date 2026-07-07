@@ -2,7 +2,7 @@
 
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
-use crate::port_rx_hub::{HubRoutingState, RxHubShared};
+use crate::hub::shared::{HubRoutingState, RxHubShared};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -88,7 +88,7 @@ impl MobileRxHub {
         self.shared.detach_cmux();
     }
 
-    pub fn set_exchange_waiter(&self, waiter: Arc<crate::port_rx_hub::ExchangeWaiter>) {
+    pub fn set_exchange_waiter(&self, waiter: Arc<crate::hub::ExchangeWaiter>) {
         self.shared.set_exchange_waiter(waiter);
     }
 
@@ -122,6 +122,39 @@ impl MobileRxHub {
             std::mem::take(&mut routing.pending_events)
         };
         self.shared.dispatch_pending_events(pending);
+    }
+}
+
+impl crate::hub::handle::RxHubHandle for MobileRxHub {
+    fn shared(&self) -> Arc<RxHubShared> {
+        self.shared()
+    }
+    fn set_exchange_waiter(&self, waiter: Arc<crate::hub::ExchangeWaiter>) {
+        self.set_exchange_waiter(waiter);
+    }
+    fn clear_exchange_waiter(&self) {
+        self.clear_exchange_waiter();
+    }
+    fn cancel_active_exchange(&self) {
+        self.cancel_active_exchange();
+    }
+    fn attach_watch(&self, channel: Channel<SerialEvent>, batch_timeout_ms: u64, read_size: usize) {
+        self.attach_watch(channel, batch_timeout_ms, read_size);
+    }
+    fn detach_watch(&self) {
+        self.detach_watch();
+    }
+    fn attach_cmux(&self, session: Arc<CmuxSession>) {
+        self.attach_cmux(session);
+    }
+    fn detach_cmux(&self) {
+        self.detach_cmux();
+    }
+    fn feed_rx(&self, chunk: &[u8]) {
+        self.feed(chunk);
+    }
+    fn shutdown_hub(&self) {
+        self.shutdown();
     }
 }
 

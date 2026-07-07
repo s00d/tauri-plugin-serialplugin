@@ -1,19 +1,19 @@
 //! Mobile serial API — Rust orchestration with thin Kotlin USB layer.
 
-use crate::at_session::{
-    check_expect_ok, normalize_at_command, AtCommandOptions, AtPhase, AtPhaseWrite,
-    AtSessionConfig, SendSmsPduOptions,
+use crate::android::usb_io::MobileUsbIo;
+use crate::api::serial_port::{
+    configure_at_session as configure_at_session_shared, run_exchange_queued,
 };
-use crate::cmux::{mux_path, CmuxSession, MobileCmuxIo};
+use crate::at::session::{AtCommandOptions, AtPhase, AtSessionConfig, SendSmsPduOptions};
+use crate::cmux::{mux_path, parse_mux_path, CmuxSession, MobileCmuxIo};
 use crate::error::Error;
 use crate::events::{ExchangeOptions, SerialEvent, WatchOptions, WatchPortsOptions};
-use crate::mobile_registry;
-use crate::mobile_rx_hub::MobileRxHub;
-use crate::mobile_usb_io::MobileUsbIo;
-use crate::port_tx_queue::PortTxQueue;
+use crate::hub::mobile::MobileRxHub;
+use crate::hub::RxHubHandle;
+use crate::port::tx_queue::PortTxQueue;
 use crate::state::{
     ClearBuffer, DataBits, FlowControl, MobileConnectedPort, MobileConnectedPortHandle,
-    MobilePortState, MobileSerialportInfo, MobileVirtualPortRef, Parity, StopBits,
+    MobilePortState, MobileSerialportInfo, Parity, StopBits, VirtualPortRef,
 };
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -30,10 +30,10 @@ fn lock_err<T>(e: std::sync::PoisonError<T>) -> Error {
 }
 
 fn finish_mobile_port(path: &str, cp: &MobileConnectedPortHandle) {
-    mobile_registry::global_registry().unregister(path);
+    crate::android::registry::global_registry().unregister(path);
     if let Ok(mut guard) = cp.rx_hub.lock() {
         if let Some(hub) = guard.take() {
-            hub.shutdown();
+            hub.shutdown_hub();
         }
     }
     cp.tx_queue.cancel_all();
@@ -44,7 +44,8 @@ fn ensure_mobile_rx_hub(cp: &MobileConnectedPortHandle) -> Result<(), Error> {
     let mut guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
     if guard.is_none() {
         let hub = Arc::new(MobileRxHub::new(cp.path.clone()));
-        mobile_registry::global_registry().register(hub.clone(), cp.clone());
+        let hub_handle: Arc<dyn crate::hub::RxHubHandle> = hub.clone();
+        crate::android::registry::global_registry().register(hub_handle, cp.clone());
         *guard = Some(hub);
     }
     Ok(())
@@ -55,7 +56,7 @@ pub struct SerialPort<R: Runtime> {
     io: MobileUsbIo,
     _runtime: PhantomData<fn() -> R>,
     ports: Arc<Mutex<HashMap<String, MobileSerialportInfo>>>,
-    virtual_ports: Arc<Mutex<HashMap<String, MobileVirtualPortRef>>>,
+    virtual_ports: Arc<Mutex<HashMap<String, VirtualPortRef>>>,
 }
 
 impl<R: Runtime> SerialPort<R> {
@@ -71,22 +72,22 @@ impl<R: Runtime> SerialPort<R> {
     pub fn setup_teardown(&self) {
         let ports = self.ports.clone();
         let virtual_ports = self.virtual_ports.clone();
-        mobile_registry::set_rust_state_fail(Box::new(move |path, _reason| {
+        crate::android::registry::set_rust_state_fail(Box::new(move |path, _reason| {
             if let Err(e) = Self::rust_fail_port_state(&ports, &virtual_ports, path) {
                 crate::log_warn!("rust_fail_port_state {}: {}", path, e);
             }
         }));
-        crate::port_list_monitor::set_android_enumerator({
+        crate::port::list_monitor::set_android_enumerator({
             let io_enum = self.io.clone();
             move |single| io_enum.available_ports(single)
         });
-        mobile_registry::init_registry();
+        crate::android::registry::init_registry();
     }
 
     /// Drop managed-port state after USB failure (Kotlin closes the device on main thread).
     fn rust_fail_port_state(
         ports: &Arc<Mutex<HashMap<String, MobileSerialportInfo>>>,
-        virtual_ports: &Arc<Mutex<HashMap<String, MobileVirtualPortRef>>>,
+        virtual_ports: &Arc<Mutex<HashMap<String, VirtualPortRef>>>,
         path: &str,
     ) -> Result<(), Error> {
         if let Ok(mut v) = virtual_ports.lock() {
@@ -223,7 +224,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn close(&self, path: String) -> Result<(), Error> {
-        for channel_id in crate::watch_registry::paths_for_port(&path) {
+        for channel_id in crate::port::watch_registry::paths_for_port(&path) {
             let _ = self.unwatch(channel_id);
         }
 
@@ -273,7 +274,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn force_close(&self, path: String) -> Result<(), Error> {
-        for channel_id in crate::watch_registry::paths_for_port(&path) {
+        for channel_id in crate::port::watch_registry::paths_for_port(&path) {
             let _ = self.unwatch(channel_id);
         }
         let cp = {
@@ -350,7 +351,7 @@ impl<R: Runtime> SerialPort<R> {
         channel: Channel<SerialEvent>,
     ) -> Result<u32, Error> {
         let channel_id = channel.id();
-        crate::watch_registry::register(channel_id, path.clone())?;
+        crate::port::watch_registry::register(channel_id, path.clone())?;
 
         let batch_timeout = options
             .serial_data_flush_interval_ms
@@ -372,7 +373,7 @@ impl<R: Runtime> SerialPort<R> {
             hub.attach_watch(channel, batch_timeout, read_size);
             Ok(())
         }) {
-            crate::watch_registry::unregister(channel_id);
+            crate::port::watch_registry::unregister(channel_id);
             return Err(e);
         }
 
@@ -380,7 +381,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn unwatch(&self, channel_id: u32) -> Result<(), Error> {
-        let path = crate::watch_registry::unregister(channel_id)
+        let path = crate::port::watch_registry::unregister(channel_id)
             .ok_or_else(|| Error::new(format!("No active watch for channel {}", channel_id)))?;
         self.stop_watch(&path)
     }
@@ -403,12 +404,12 @@ impl<R: Runtime> SerialPort<R> {
         channel: Channel<crate::events::PortListEvent>,
     ) -> Result<u32, Error> {
         let channel_id = channel.id();
-        crate::port_list_monitor::subscribe(channel_id, channel, options)?;
+        crate::port::list_monitor::subscribe(channel_id, channel, options)?;
         Ok(channel_id)
     }
 
     pub fn unwatch_ports(&self, channel_id: u32) -> Result<(), Error> {
-        crate::port_list_monitor::unsubscribe(channel_id);
+        crate::port::list_monitor::unsubscribe(channel_id);
         Ok(())
     }
 
@@ -417,7 +418,7 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         value: String,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         self.exchange_bytes(path, value.into_bytes(), options)
     }
 
@@ -426,7 +427,7 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         value: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         self.exchange_bytes(path, value, options)
     }
 
@@ -435,9 +436,93 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
-        let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| self.exchange_bytes_direct(path, payload, options))
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        run_exchange_queued(
+            path,
+            options,
+            |p| self.get_tx_queue(p),
+            |physical_path,
+             dlci,
+             virtual_path,
+             payload,
+             options|
+             -> Result<crate::at::parse::ExchangeResponse, Error> {
+                self.exchange_bytes_mux_direct(physical_path, dlci, virtual_path, payload, options)
+            },
+            |path, payload, options| -> Result<crate::at::parse::ExchangeResponse, Error> {
+                self.exchange_bytes_direct(path, payload, options)
+            },
+            payload,
+        )
+    }
+
+    fn exchange_bytes_mux_direct(
+        &self,
+        physical_path: String,
+        _dlci: u8,
+        virtual_path: String,
+        payload: Vec<u8>,
+        options: ExchangeOptions,
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        let vp = self
+            .virtual_ports
+            .lock()
+            .map_err(|e| lock_err(e))?
+            .get(&virtual_path)
+            .cloned()
+            .ok_or_else(|| Error::String(format!("Virtual port '{}' not open", virtual_path)))?;
+        self.exchange_bytes_mux_via_ref(physical_path, &vp, payload, options)
+    }
+
+    fn exchange_bytes_mux_via_ref(
+        &self,
+        physical_path: String,
+        vp: &VirtualPortRef,
+        payload: Vec<u8>,
+        options: ExchangeOptions,
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        let dlci = vp.dlci;
+        let command = options
+            .command
+            .clone()
+            .unwrap_or_else(|| String::from_utf8_lossy(&payload).into_owned());
+        let user_solicited = options.solicited_prefixes.clone().unwrap_or_default();
+
+        let session = {
+            let cp = self.with_connected_port(physical_path.clone(), |h| Ok(h))?;
+            let mux = cp.mux.lock().map_err(|e| lock_err(e))?.clone();
+            mux.ok_or_else(|| Error::String("CMUX not enabled on physical port".into()))?
+        };
+
+        ensure_mobile_rx_hub(&self.with_connected_port(physical_path, |h| Ok(h))?)?;
+
+        crate::exchange::run::run_mux_exchange(
+            &session,
+            dlci,
+            &command,
+            &user_solicited,
+            payload,
+            options,
+            vp.exchange_cancel.clone(),
+        )
+    }
+
+    fn run_exchange_unqueued(
+        &self,
+        path: String,
+        payload: Vec<u8>,
+        options: ExchangeOptions,
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        if let Some((physical, dlci)) = parse_mux_path(path.as_str()) {
+            return self.exchange_bytes_mux_direct(
+                physical.to_string(),
+                dlci,
+                path,
+                payload,
+                options,
+            );
+        }
+        self.exchange_bytes_direct(path, payload, options)
     }
 
     fn exchange_bytes_direct(
@@ -445,81 +530,86 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         let command = options
             .command
             .clone()
             .unwrap_or_else(|| String::from_utf8_lossy(&payload).into_owned());
         let user_solicited = options.solicited_prefixes.clone().unwrap_or_default();
-        let mut opts = options;
-        if opts.command.is_none() {
-            opts.command = Some(command.clone());
-        }
-        let resolved = opts.resolve();
 
         let cp = self.with_connected_port(path.clone(), |h| Ok(h))?;
-        cp.exchange_cancel.store(false, Ordering::SeqCst);
-        let cancel = cp.exchange_cancel.clone();
-
         ensure_mobile_rx_hub(&cp)?;
 
-        use crate::events::RxPrepareMode;
-        match resolved.rx_prepare {
-            RxPrepareMode::Purge => {
-                self.io.clear_buffer(&path, ClearBuffer::Input)?;
-            }
-            RxPrepareMode::Drain => {
-                // SIOM already feeds the hub during watch; soft-drain is desktop-only.
-            }
-            RxPrepareMode::None => {}
+        struct MobileExchangeIo<'a, R: Runtime> {
+            port: &'a SerialPort<R>,
+            path: String,
         }
-
-        let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel.clone());
-        let hub_shared = {
-            let guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
-            let hub = guard
-                .as_ref()
-                .ok_or_else(|| Error::String("RX hub missing".into()))?;
-            hub.set_exchange_waiter(waiter.clone());
-            hub.shared()
-        };
-
-        self.io.write(&path, &payload)?;
-
-        let stale = hub_shared.take_idle_bytes();
-        if !stale.is_empty() {
-            waiter.push_bytes(&stale);
-        }
-
-        let wait_result = waiter.wait(resolved.timeout_ms);
-        {
-            let guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
-            if let Some(hub) = guard.as_ref() {
-                hub.clear_exchange_waiter();
+        impl<R: Runtime> crate::exchange::io::ExchangeIo for MobileExchangeIo<'_, R> {
+            fn purge_rx(&self) -> Result<(), Error> {
+                self.port.io.clear_buffer(&self.path, ClearBuffer::Input)
+            }
+            fn write_payload(&self, payload: &[u8]) -> Result<(), Error> {
+                self.port
+                    .io
+                    .write(&self.path, payload)
+                    .map(|_| ())
+                    .map_err(|e| e)
             }
         }
-        let (raw, matched) = wait_result.map_err(Error::String)?;
-        let outcome = crate::exchange_read::ReadUntilOutcome { raw, matched };
 
-        Ok(crate::at_parse::ExchangeResponse::from_raw(
-            outcome.raw,
-            outcome.matched,
+        let guard = cp.rx_hub.lock().map_err(|e| lock_err(e))?;
+        let hub = guard
+            .as_ref()
+            .ok_or_else(|| Error::String("RX hub missing".into()))?;
+
+        crate::exchange::run::run_physical_exchange(
+            hub.as_ref(),
+            &MobileExchangeIo {
+                port: self,
+                path: path.clone(),
+            },
             &command,
             &user_solicited,
-            resolved.result_format,
-        ))
+            payload,
+            options,
+            cp.exchange_cancel.clone(),
+        )
     }
 
     pub fn cancel_exchange(&self, path: String) -> Result<(), Error> {
-        self.with_connected_port(path.clone(), |cp| {
-            cp.exchange_cancel.store(true, Ordering::SeqCst);
-            if let Ok(guard) = cp.rx_hub.lock() {
-                if let Some(hub) = guard.as_ref() {
-                    hub.cancel_active_exchange();
+        if let Ok(virtuals) = self.virtual_ports.lock() {
+            if let Some(vp) = virtuals.get(&path).cloned() {
+                drop(virtuals);
+                let session = self.with_connected_port(vp.physical_path.clone(), |cp| {
+                    Ok(cp.mux.lock().map_err(|e| lock_err(e))?.clone())
+                })?;
+                if let Some(session) = session {
+                    crate::exchange::cancel::cancel_virtual_exchange(
+                        &vp.exchange_cancel,
+                        &vp.tx_queue,
+                        &session,
+                        vp.dlci,
+                    );
+                } else {
+                    vp.exchange_cancel.store(true, Ordering::SeqCst);
+                    vp.tx_queue.cancel_all();
+                    vp.tx_queue.clear_halt();
                 }
+                return Ok(());
             }
-            cp.tx_queue.cancel_all();
-            cp.tx_queue.clear_halt();
+        }
+        self.with_connected_port(path, |cp| {
+            crate::exchange::cancel::cancel_physical_exchange(
+                &cp.exchange_cancel,
+                &cp.tx_queue,
+                || {
+                    if let Ok(guard) = cp.rx_hub.lock() {
+                        if let Some(hub) = guard.as_ref() {
+                            hub.cancel_active_exchange();
+                        }
+                    }
+                },
+            );
             Ok(())
         })
     }
@@ -529,95 +619,18 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         command: String,
         options: Option<AtCommandOptions>,
-    ) -> Result<crate::at_parse::AtCommandResult, Error> {
+    ) -> Result<crate::at::parse::AtCommandResult, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| {
-            let session = tx_queue.at_session();
-            let append_cr = options
-                .as_ref()
-                .and_then(|o| o.append_cr)
-                .unwrap_or_else(|| session.append_cr());
-            let payload = normalize_at_command(&command, append_cr);
-            let exchange_opts = session.merge_exchange(&command, options.as_ref());
-            let response = self.exchange_bytes_direct(path, payload.into_bytes(), exchange_opts)?;
-            check_expect_ok(
-                &session,
-                response.status,
-                &String::from_utf8_lossy(&response.raw),
-            )?;
-            Ok(crate::at_parse::AtCommandResult::from_exchange(
-                command, response,
-            ))
-        })
+        crate::at::commands::queue_at(self, &tx_queue, path, command, options)
     }
 
     pub fn at_phases(
         &self,
         path: String,
         phases: Vec<AtPhase>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    ) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| self.at_phases_direct(path, phases))
-    }
-
-    fn at_phases_direct(
-        &self,
-        path: String,
-        phases: Vec<AtPhase>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
-        let tx_queue = self.get_tx_queue(&path)?;
-        let session = tx_queue.at_session();
-        let stop_on_error = session.stop_on_error();
-        let mut results = Vec::with_capacity(phases.len());
-        for (i, phase) in phases.iter().enumerate() {
-            #[cfg(target_os = "android")]
-            if i > 0 {
-                // CH340 resets if the next command lands while a large RX is still draining.
-                std::thread::sleep(std::time::Duration::from_millis(250));
-            }
-            let label = phase.command.clone().unwrap_or_else(|| match &phase.write {
-                AtPhaseWrite::Text(s) => s.clone(),
-                AtPhaseWrite::Binary(b) => format!("<binary {} bytes>", b.len()),
-            });
-            let rx_prepare = if i == 0 {
-                None
-            } else {
-                Some(crate::events::RxPrepareMode::None)
-            };
-            let mut exchange_opts = session.merge_phase(phase, &label);
-            if let Some(rp) = rx_prepare {
-                exchange_opts.rx_prepare = Some(rp);
-            }
-            let payload = match &phase.write {
-                AtPhaseWrite::Text(s) => normalize_at_command(s, session.append_cr()).into_bytes(),
-                AtPhaseWrite::Binary(b) => b.clone(),
-            };
-            let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
-                let response = self.exchange_bytes_direct(path.clone(), payload, exchange_opts)?;
-                check_expect_ok(
-                    &session,
-                    response.status,
-                    &String::from_utf8_lossy(&response.raw),
-                )?;
-                Ok(crate::at_parse::AtCommandResult::from_exchange(
-                    label.clone(),
-                    response,
-                ))
-            })();
-            match phase_result {
-                Ok(r) => results.push(r),
-                Err(e) => {
-                    if stop_on_error {
-                        return Err(e);
-                    }
-                    results.push(crate::at_parse::AtCommandResult::failed(
-                        label,
-                        e.to_string(),
-                    ));
-                }
-            }
-        }
-        Ok(results)
+        crate::at::commands::queue_at_phases(self, &tx_queue, path, phases)
     }
 
     pub fn send_sms_pdu(
@@ -626,39 +639,9 @@ impl<R: Runtime> SerialPort<R> {
         length: u32,
         pdu: Vec<u8>,
         options: Option<SendSmsPduOptions>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    ) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        let session = tx_queue.at_session();
-        let timeout_ms = options
-            .as_ref()
-            .and_then(|o| o.timeout_ms)
-            .or(session.default_timeout_ms);
-        let result_format = options
-            .as_ref()
-            .and_then(|o| o.result_format)
-            .or(session.result_format);
-        let cmd = format!("AT+CMGS={length}");
-        let mut payload = pdu;
-        payload.push(0x1a);
-        let phases = vec![
-            AtPhase {
-                write: AtPhaseWrite::Text(cmd.clone()),
-                completion_mode: Some(crate::events::ExchangeCompletionMode::AtIntermediate),
-                result_format,
-                timeout_ms,
-                command: Some(cmd),
-                rx_prepare: None,
-            },
-            AtPhase {
-                write: AtPhaseWrite::Binary(payload),
-                completion_mode: Some(crate::events::ExchangeCompletionMode::AtFinalLine),
-                result_format,
-                timeout_ms,
-                command: Some(String::new()),
-                rx_prepare: Some(crate::events::RxPrepareMode::None),
-            },
-        ];
-        tx_queue.run_serial(|| self.at_phases_direct(path, phases))
+        crate::at::commands::queue_send_sms_pdu(self, &tx_queue, path, length, pdu, options)
     }
 
     pub fn configure_at_session(
@@ -666,15 +649,8 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         session: AtSessionConfig,
     ) -> Result<(), Error> {
-        if let Ok(v) = self.virtual_ports.lock() {
-            if let Some(vp) = v.get(&path) {
-                vp.tx_queue.configure_at_session(session);
-                return Ok(());
-            }
-        }
-        let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.configure_at_session(session);
-        Ok(())
+        let tx_queue = self.get_tx_queue(&path).ok();
+        configure_at_session_shared(&self.virtual_ports, tx_queue, &path, session)
     }
 
     pub fn enable_mux(&self, path: String, command: String, timeout_ms: u64) -> Result<(), Error> {
@@ -689,7 +665,7 @@ impl<R: Runtime> SerialPort<R> {
         )?;
 
         self.with_connected_port(path.clone(), |cp| {
-            if cp.mux.lock().unwrap().is_some() {
+            if crate::sync_util::lock_or_recover(&cp.mux).is_some() {
                 return Err(Error::String("CMUX already enabled".into()));
             }
             let io = self.io.clone();
@@ -720,7 +696,7 @@ impl<R: Runtime> SerialPort<R> {
         };
         ensure_mobile_rx_hub(&self.with_connected_port(physical_path.clone(), |h| Ok(h))?)?;
         session.register_dlci(dlci, virtual_path.clone());
-        let vp = MobileVirtualPortRef {
+        let vp = VirtualPortRef {
             physical_path: physical_path.clone(),
             dlci,
             exchange_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -849,5 +825,16 @@ impl<R: Runtime> Clone for SerialPort<R> {
             ports: self.ports.clone(),
             virtual_ports: self.virtual_ports.clone(),
         }
+    }
+}
+
+impl<R: Runtime> crate::at::commands::ExchangeRunner for SerialPort<R> {
+    fn run_exchange_unqueued(
+        &self,
+        path: String,
+        payload: Vec<u8>,
+        options: ExchangeOptions,
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        SerialPort::run_exchange_unqueued(self, path, payload, options)
     }
 }

@@ -90,7 +90,7 @@ fn send_event(channel: &Channel<PortListEvent>, event: PortListEvent) {
 fn enumerate(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-    crate::port_list::enumerate_available_ports(single_port_per_device)
+    crate::port::list::enumerate_available_ports(single_port_per_device)
 }
 
 #[cfg(not(desktop))]

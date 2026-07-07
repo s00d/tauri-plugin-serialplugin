@@ -1,7 +1,7 @@
 //! JNI bridge: Kotlin SIOM → Rust RX hub.
 
 #[cfg(target_os = "android")]
-use crate::mobile_registry::{feed_rx, on_app_destroy, on_port_list_change, on_usb_error};
+use crate::android::registry::{feed_rx, on_app_destroy, on_port_list_change, on_usb_error};
 #[cfg(target_os = "android")]
 use jni::objects::{JByteArray, JClass, JString};
 #[cfg(target_os = "android")]

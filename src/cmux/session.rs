@@ -3,7 +3,7 @@
 use crate::cmux::frame::{encode_uih, DecodedFrame, Deframer};
 use crate::cmux::io::CmuxPhysicalIo;
 use crate::events::SerialEvent;
-use crate::port_rx_hub::ExchangeWaiter;
+use crate::hub::ExchangeWaiter;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -71,7 +71,7 @@ impl DlciChannel {
             let size = buf.len();
             let data = std::mem::take(&mut *buf);
             let path = self.path.clone();
-            crate::watch_registry::send_event(
+            crate::port::watch_registry::send_event(
                 &slot.channel,
                 SerialEvent::Data { path, data, size },
             );
@@ -137,6 +137,15 @@ impl CmuxSession {
         }
     }
 
+    /// Fail the in-flight exchange waiter on `dlci` (used by `cancel_exchange`).
+    pub fn cancel_active_exchange(&self, dlci: u8) {
+        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
+            if let Some(waiter) = crate::sync_util::lock_or_recover(&ch.exchange_waiter).as_ref() {
+                waiter.fail_with_reason("exchange cancelled".into());
+            }
+        }
+    }
+
     pub fn send_uih(&self, dlci: u8, payload: &[u8]) -> Result<usize, String> {
         let frame = encode_uih(dlci, payload);
         self.io.write_all(&frame)?;
@@ -167,12 +176,12 @@ impl CmuxSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, desktop))]
 mod tests {
     use super::*;
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
-    use crate::exchange_read::ResolvedExchangeOptions;
-    use crate::port_rx_hub::ExchangeWaiter;
+    use crate::exchange::options::ResolvedExchangeOptions;
+    use crate::hub::ExchangeWaiter;
     use std::sync::atomic::AtomicBool;
 
     fn test_options() -> ResolvedExchangeOptions {
@@ -195,9 +204,9 @@ mod tests {
     #[test]
     fn feed_physical_rx_routes_to_exchange_waiter() {
         use crate::cmux::SerialPortIo;
+        use crate::sync_util::pty_pair_locked;
         use serialport::SerialPort;
-        use serialport::TTYPort;
-        let (port, _) = TTYPort::pair().expect("pty");
+        let (_pty, port, _master) = pty_pair_locked();
         let session = CmuxSession::new(
             "pty".into(),
             Arc::new(SerialPortIo(Arc::new(Mutex::new(
@@ -213,6 +222,39 @@ mod tests {
         session.feed_physical_rx(&frame);
         let (raw, matched) = waiter.wait(1000).expect("complete");
         assert!(String::from_utf8_lossy(&raw).contains("OK"));
-        assert!(matches!(matched, crate::at_parse::ExchangeMatch::Ok));
+        assert!(matches!(matched, crate::at::parse::ExchangeMatch::Ok));
+    }
+
+    #[test]
+    fn cancel_active_exchange_fails_waiter_quickly() {
+        use crate::cmux::io::CmuxPhysicalIo;
+        struct NoopIo;
+        impl CmuxPhysicalIo for NoopIo {
+            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        let session = CmuxSession::new("mock".into(), Arc::new(NoopIo));
+        session.register_dlci(2, "mock#dlci=2".into());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let waiter = ExchangeWaiter::new(test_options(), cancel);
+        session.set_exchange_waiter(2, waiter.clone());
+        let waiter_bg = waiter.clone();
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let done_bg = done.clone();
+        std::thread::spawn(move || {
+            let _ = waiter_bg.wait(5000);
+            done_bg.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let start = std::time::Instant::now();
+        session.cancel_active_exchange(2);
+        while !done.load(std::sync::atomic::Ordering::SeqCst)
+            && start.elapsed() < std::time::Duration::from_millis(500)
+        {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(done.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(start.elapsed() < std::time::Duration::from_millis(500));
     }
 }

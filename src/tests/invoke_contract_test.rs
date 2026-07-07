@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use crate::api::desktop::SerialPort;
     use crate::commands::watch;
-    use crate::desktop_api::SerialPort;
     use crate::events::{SerialEvent, WatchOptions};
     use serde::Deserialize;
     use std::sync::{Arc, Mutex};
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn exchange_match_intermediate_serde_roundtrip() {
-        use crate::at_parse::ExchangeMatch;
+        use crate::at::parse::ExchangeMatch;
 
         let m = ExchangeMatch::Intermediate {
             line: ">".to_string(),
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn exchange_match_numeric_ok_serde_roundtrip() {
-        use crate::at_parse::ExchangeMatch;
+        use crate::at::parse::ExchangeMatch;
 
         let m = ExchangeMatch::Ok;
         let json = serde_json::to_value(&m).unwrap();

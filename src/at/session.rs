@@ -128,10 +128,10 @@ pub fn normalize_at_command(command: &str, append_cr: bool) -> String {
 
 pub fn check_expect_ok(
     session: &AtSessionConfig,
-    status: crate::at_parse::AtParseStatus,
+    status: crate::at::parse::AtParseStatus,
     response_preview: &str,
 ) -> Result<(), crate::error::Error> {
-    if session.expect_ok() && status != crate::at_parse::AtParseStatus::Ok {
+    if session.expect_ok() && status != crate::at::parse::AtParseStatus::Ok {
         return Err(crate::error::Error::String(format!(
             "AT command failed with status {:?}: {}",
             status, response_preview

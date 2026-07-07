@@ -1,9 +1,9 @@
 //! Global registry for JNI feedRx / USB error callbacks (path → hub + port handles).
 
-use crate::mobile_rx_hub::MobileRxHub;
-use crate::port_list_monitor;
+use crate::hub::RxHubHandle;
+use crate::port::list_monitor;
+use crate::port::watch_registry;
 use crate::state::MobileConnectedPortHandle;
-use crate::watch_registry;
 use crate::{log_error, log_warn};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -18,7 +18,7 @@ pub fn set_rust_state_fail(f: RustStateFailFn) {
 }
 
 struct PortEntry {
-    hub: Arc<MobileRxHub>,
+    hub: Arc<dyn RxHubHandle>,
     handle: MobileConnectedPortHandle,
 }
 
@@ -33,7 +33,7 @@ impl MobilePortRegistry {
         }
     }
 
-    pub fn register(&self, hub: Arc<MobileRxHub>, handle: MobileConnectedPortHandle) {
+    pub fn register(&self, hub: Arc<dyn RxHubHandle>, handle: MobileConnectedPortHandle) {
         let path = handle.path.clone();
         crate::sync_util::lock_or_recover(&self.ports).insert(path, PortEntry { hub, handle });
     }
@@ -44,7 +44,7 @@ impl MobilePortRegistry {
 
     pub fn feed_rx(&self, path: &str, chunk: &[u8]) {
         if let Some(entry) = crate::sync_util::lock_or_recover(&self.ports).get(path) {
-            entry.hub.feed(chunk);
+            entry.hub.feed_rx(chunk);
         }
     }
 
@@ -69,7 +69,7 @@ impl MobilePortRegistry {
             watch_registry::unregister(channel_id);
         }
 
-        hub.shutdown();
+        hub.shutdown_hub();
         self.unregister(path);
 
         if let Some(f) = RUST_STATE_FAIL.get() {
@@ -84,13 +84,13 @@ impl MobilePortRegistry {
     }
 
     pub fn close_all(&self) {
-        let entries: Vec<(String, Arc<MobileRxHub>)> =
+        let entries: Vec<(String, Arc<dyn RxHubHandle>)> =
             crate::sync_util::lock_or_recover(&self.ports)
                 .iter()
                 .map(|(path, entry)| (path.clone(), entry.hub.clone()))
                 .collect();
         for (path, hub) in entries {
-            hub.shutdown();
+            hub.shutdown_hub();
             self.unregister(&path);
         }
     }
@@ -118,19 +118,73 @@ pub fn on_usb_error(path: &str, reason: &str) {
 }
 
 pub fn on_port_list_change() {
-    port_list_monitor::request_refresh();
+    list_monitor::request_refresh();
 }
 
 pub fn on_app_destroy() {
     global_registry().close_all();
 }
 
+/// Debug-only helpers for Kotlin ↔ Rust JNI integration tests.
+#[cfg(all(debug_assertions, target_os = "android"))]
+pub mod test_harness {
+    use super::*;
+    use crate::hub::mobile::MobileRxHub;
+    use crate::port::tx_queue::PortTxQueue;
+    use crate::state::MobileConnectedPortHandle;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Mutex};
+
+    pub fn reset() {
+        global_registry().close_all();
+    }
+
+    pub fn register_port(path: &str) {
+        let hub = Arc::new(MobileRxHub::new(path.to_string()));
+        let handle = MobileConnectedPortHandle {
+            path: path.to_string(),
+            rx_hub: Arc::new(Mutex::new(Some(hub.clone()))),
+            mux: Arc::new(Mutex::new(None)),
+            exchange_cancel: Arc::new(AtomicBool::new(false)),
+            tx_queue: Arc::new(PortTxQueue::new()),
+        };
+        let hub_handle: Arc<dyn RxHubHandle> = hub;
+        global_registry().register(hub_handle, handle);
+    }
+
+    fn hub_for(path: &str) -> Option<Arc<dyn RxHubHandle>> {
+        let registry = global_registry();
+        let ports = crate::sync_util::lock_or_recover(&registry.ports);
+        ports.get(path).map(|e| e.hub.clone())
+    }
+
+    pub fn hub_buffered_len(path: &str) -> i64 {
+        hub_for(path)
+            .map(|hub| hub.shared().buffered_len() as i64)
+            .unwrap_or(-1)
+    }
+
+    pub fn hub_take_idle(path: &str) -> Vec<u8> {
+        hub_for(path)
+            .map(|hub| hub.shared().take_idle_bytes())
+            .unwrap_or_default()
+    }
+
+    pub fn registry_has_port(path: &str) -> bool {
+        global_registry().handle_for(path).is_some()
+    }
+
+    pub fn invoke_write(path: &str, data: &[u8]) -> Result<usize, crate::error::Error> {
+        crate::android::usb_jni::call_write(path, data)
+    }
+}
+
 #[cfg(all(test, target_os = "android"))]
 mod fail_port_tests {
     use super::*;
-    use crate::mobile_rx_hub::MobileRxHub;
-    use crate::port_rx_hub::ExchangeWaiter;
-    use crate::port_tx_queue::PortTxQueue;
+    use crate::hub::mobile::MobileRxHub;
+    use crate::hub::ExchangeWaiter;
+    use crate::port::tx_queue::PortTxQueue;
     use crate::state::MobileConnectedPortHandle;
     use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
     use std::sync::atomic::AtomicBool;
@@ -207,10 +261,11 @@ mod fail_port_tests {
 }
 
 #[cfg(test)]
+#[cfg(mobile)]
 mod hub_cancel_tests {
     use super::*;
-    use crate::mobile_rx_hub::MobileRxHub;
-    use crate::port_rx_hub::ExchangeWaiter;
+    use crate::hub::mobile::MobileRxHub;
+    use crate::hub::ExchangeWaiter;
     use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;

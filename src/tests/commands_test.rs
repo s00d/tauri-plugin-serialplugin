@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::desktop_api::SerialPort;
+    use crate::api::desktop::SerialPort;
     use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
     use crate::{
         available_ports, clear_buffer, close, managed_ports, open, read, set_baud_rate,

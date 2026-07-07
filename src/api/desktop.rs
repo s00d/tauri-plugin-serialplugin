@@ -1,11 +1,11 @@
-use crate::at_session::{
-    check_expect_ok, normalize_at_command, AtCommandOptions, AtPhase, AtPhaseWrite,
-    AtSessionConfig, SendSmsPduOptions,
+use crate::api::serial_port::{
+    configure_at_session as configure_at_session_shared, run_exchange_queued,
 };
+use crate::at::session::{AtCommandOptions, AtPhase, AtSessionConfig, SendSmsPduOptions};
 use crate::cmux::{mux_path, parse_mux_path, CmuxSession};
 use crate::error::Error;
 use crate::events::{ExchangeOptions, SerialEvent, WatchOptions};
-use crate::port_tx_queue::PortTxQueue;
+use crate::port::tx_queue::PortTxQueue;
 use crate::state::{
     ClearBuffer, ConnectedPort, ConnectedPortHandle, DataBits, FlowControl, Parity, PortState,
     SerialportInfo, StopBits,
@@ -74,7 +74,10 @@ fn finish_serialport_info(info: SerialportInfo) -> Result<(), Error> {
         PortState::Connected(cp) => {
             if let Ok(mut hub_guard) = cp.rx_hub.lock() {
                 if let Some(hub) = hub_guard.take() {
-                    hub.stop();
+                    match Arc::try_unwrap(hub) {
+                        Ok(hub) => hub.stop(),
+                        Err(hub) => hub.request_stop(),
+                    }
                 }
             }
             Ok(())
@@ -93,10 +96,10 @@ fn ensure_rx_hub_running(cp: &ConnectedPortHandle, path: &str) -> Result<(), Err
         Some(hub) => hub.is_finished(),
     };
     if needs_start {
-        *guard = Some(crate::port_rx_hub::PortRxHub::start(
+        *guard = Some(Arc::new(crate::hub::PortRxHub::start(
             cp.port.clone(),
             path.to_string(),
-        ));
+        )));
     }
     Ok(())
 }
@@ -158,7 +161,7 @@ impl<R: Runtime> SerialPort<R> {
         &self,
         single_port_per_device: bool,
     ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-        crate::port_list::enumerate_available_ports(single_port_per_device)
+        crate::port::list::enumerate_available_ports(single_port_per_device)
     }
 
     /// Subscribe to available-port attach/detach events via a Tauri channel.
@@ -168,13 +171,13 @@ impl<R: Runtime> SerialPort<R> {
         channel: tauri::ipc::Channel<crate::events::PortListEvent>,
     ) -> Result<u32, Error> {
         let channel_id = channel.id();
-        crate::port_list_monitor::subscribe(channel_id, channel, options)?;
+        crate::port::list_monitor::subscribe(channel_id, channel, options)?;
         Ok(channel_id)
     }
 
     /// Stop a port-list watch session.
     pub fn unwatch_ports(&self, channel_id: u32) -> Result<(), Error> {
-        crate::port_list_monitor::unsubscribe(channel_id);
+        crate::port::list_monitor::unsubscribe(channel_id);
         Ok(())
     }
 
@@ -209,7 +212,7 @@ impl<R: Runtime> SerialPort<R> {
     pub fn close(&self, path: String) -> Result<(), Error> {
         log_debug!("close {}", path);
 
-        for channel_id in crate::watch_registry::paths_for_port(&path) {
+        for channel_id in crate::port::watch_registry::paths_for_port(&path) {
             let _ = self.unwatch(channel_id);
         }
 
@@ -220,7 +223,7 @@ impl<R: Runtime> SerialPort<R> {
                 let dlci = vp.dlci;
                 drop(virtuals);
                 if let Ok(cp) = self.resolve_connected_port(&physical) {
-                    if let Some(session) = cp.mux.lock().unwrap().clone() {
+                    if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
                         session.unregister_dlci(dlci);
                     }
                 }
@@ -265,7 +268,7 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Force close a serial port
     pub fn force_close(&self, path: String) -> Result<(), Error> {
-        for channel_id in crate::watch_registry::paths_for_port(&path) {
+        for channel_id in crate::port::watch_registry::paths_for_port(&path) {
             let _ = self.unwatch(channel_id);
         }
 
@@ -376,7 +379,7 @@ impl<R: Runtime> SerialPort<R> {
         channel: Channel<SerialEvent>,
     ) -> Result<u32, Error> {
         let channel_id = channel.id();
-        crate::watch_registry::register(channel_id, path.clone())?;
+        crate::port::watch_registry::register(channel_id, path.clone())?;
         log_debug!("Starting watch on port: {} (channel {})", path, channel_id);
 
         let batch_timeout = options
@@ -432,7 +435,7 @@ impl<R: Runtime> SerialPort<R> {
             hub.attach_watch(channel, batch_timeout, read_size);
             Ok(())
         }) {
-            crate::watch_registry::unregister(channel_id);
+            crate::port::watch_registry::unregister(channel_id);
             return Err(e);
         }
 
@@ -440,7 +443,7 @@ impl<R: Runtime> SerialPort<R> {
     }
 
     pub fn unwatch(&self, channel_id: u32) -> Result<(), Error> {
-        let path = crate::watch_registry::unregister(channel_id)
+        let path = crate::port::watch_registry::unregister(channel_id)
             .ok_or_else(|| Error::new(format!("No active watch for channel {}", channel_id)))?;
         log_debug!("Stopping watch on port: {} (channel {})", path, channel_id);
         self.stop_watch_thread(&path)
@@ -451,7 +454,7 @@ impl<R: Runtime> SerialPort<R> {
             if let Some(vp) = virtuals.get(path).cloned() {
                 drop(virtuals);
                 if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
-                    if let Some(session) = cp.mux.lock().unwrap().clone() {
+                    if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
                         session.clear_watch(vp.dlci);
                     }
                 }
@@ -460,7 +463,7 @@ impl<R: Runtime> SerialPort<R> {
         }
         self.with_connected_port(path.to_string(), |cp| {
             if let Some(dlci) = cp.virtual_dlci {
-                if let Some(session) = cp.mux.lock().unwrap().clone() {
+                if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
                     session.clear_watch(dlci);
                 }
                 return Ok(());
@@ -658,7 +661,7 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         value: String,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         self.exchange_bytes(path, value.into_bytes(), options)
     }
 
@@ -668,7 +671,7 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         value: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         self.exchange_bytes(path, value, options)
     }
 
@@ -696,16 +699,24 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
-        if let Some((physical, dlci)) = parse_mux_path(path.as_str()) {
-            let physical_path = physical.to_string();
-            let tx_queue = self.get_tx_queue(path.as_str())?;
-            return tx_queue.run_serial(|| {
-                self.exchange_bytes_mux_direct(physical_path, dlci, path, payload, options)
-            });
-        }
-        let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| self.exchange_bytes_direct(path, payload, options))
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        run_exchange_queued(
+            path,
+            options,
+            |p| self.get_tx_queue(p),
+            |physical_path,
+             dlci,
+             virtual_path,
+             payload,
+             options|
+             -> Result<crate::at::parse::ExchangeResponse, Error> {
+                self.exchange_bytes_mux_direct(physical_path, dlci, virtual_path, payload, options)
+            },
+            |path, payload, options| -> Result<crate::at::parse::ExchangeResponse, Error> {
+                self.exchange_bytes_direct(path, payload, options)
+            },
+            payload,
+        )
     }
 
     fn exchange_bytes_direct(
@@ -713,125 +724,58 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         let command = options
             .command
             .clone()
             .unwrap_or_else(|| String::from_utf8_lossy(&payload).into_owned());
         let user_solicited = options.solicited_prefixes.clone().unwrap_or_default();
-        let mut opts = options;
-        if opts.command.is_none() {
-            opts.command = Some(command.clone());
-        }
-        let resolved = opts.resolve();
+        let resolved_timeout = options.resolve().timeout_ms;
+
         let cp = self.resolve_connected_port(&path)?;
-        cp.exchange_cancel.store(false, Ordering::SeqCst);
-        let cancel = cp.exchange_cancel.clone();
+        ensure_rx_hub(&cp, &path)?;
 
-        let result = (|| {
-            ensure_rx_hub(&cp, &path)?;
-
-            let hub_shared = {
-                let hub_guard = cp
-                    .rx_hub
-                    .lock()
-                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-                hub_guard
-                    .as_ref()
-                    .ok_or_else(|| Error::String("RX hub missing".into()))?
-                    .shared()
-            };
-
-            use crate::events::RxPrepareMode;
-            match resolved.rx_prepare {
-                RxPrepareMode::Purge => {
-                    hub_shared.purge_buffers();
-                    with_port_try_lock(
-                        &cp.port,
-                        Duration::from_millis(resolved.timeout_ms.min(5000)),
-                        |port| port.clear(ClearBuffer::Input.into()).map_err(Error::from),
-                    )?;
-                }
-                RxPrepareMode::Drain => {
-                    hub_shared
-                        .drain(
-                            resolved.drain_idle_ms,
-                            resolved.drain_max_ms,
-                            cancel.clone(),
-                            resolved.solicited_prefixes.clone(),
-                        )
-                        .map_err(Error::String)?;
-                }
-                RxPrepareMode::None => {}
+        struct DesktopExchangeIo<'a> {
+            port: &'a Arc<Mutex<Box<dyn serialport::SerialPort>>>,
+            timeout_ms: u64,
+        }
+        impl crate::exchange::io::ExchangeIo for DesktopExchangeIo<'_> {
+            fn purge_rx(&self) -> Result<(), Error> {
+                with_port_try_lock(
+                    self.port,
+                    Duration::from_millis(self.timeout_ms.min(5000)),
+                    |port| port.clear(ClearBuffer::Input.into()).map_err(Error::from),
+                )
             }
-
-            let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel.clone());
-            {
-                let hub_guard = cp
-                    .rx_hub
-                    .lock()
-                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-                hub_guard
-                    .as_ref()
-                    .ok_or_else(|| Error::String("RX hub missing".into()))?
-                    .set_exchange_waiter(waiter.clone());
+            fn write_payload(&self, payload: &[u8]) -> Result<(), Error> {
+                with_port_try_lock(
+                    self.port,
+                    Duration::from_millis(self.timeout_ms.min(5000)),
+                    |port| write_all_port(port, payload, "exchange write").map(|_| ()),
+                )
             }
+        }
 
-            if cancel.load(Ordering::SeqCst) {
-                let hub_guard = cp
-                    .rx_hub
-                    .lock()
-                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-                if let Some(h) = hub_guard.as_ref() {
-                    h.clear_exchange_waiter();
-                }
-                return Err(Error::String("exchange cancelled".into()));
-            }
+        let hub = {
+            let guard = crate::sync_util::lock_or_recover(&cp.rx_hub);
+            guard
+                .as_ref()
+                .ok_or_else(|| Error::String("RX hub missing".into()))?
+                .clone()
+        };
 
-            let write_result = with_port_try_lock(
-                &cp.port,
-                Duration::from_millis(resolved.timeout_ms.min(5000)),
-                |port| write_all_port(port, &payload, "exchange write"),
-            );
-            if let Err(e) = write_result {
-                let hub_guard = cp
-                    .rx_hub
-                    .lock()
-                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-                if let Some(h) = hub_guard.as_ref() {
-                    h.clear_exchange_waiter();
-                }
-                return Err(e);
-            }
-
-            let stale = hub_shared.take_idle_bytes();
-            if !stale.is_empty() {
-                waiter.push_bytes(&stale);
-            }
-
-            let wait_result = waiter.wait(resolved.timeout_ms);
-            {
-                let hub_guard = cp
-                    .rx_hub
-                    .lock()
-                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-                if let Some(h) = hub_guard.as_ref() {
-                    h.clear_exchange_waiter();
-                }
-            }
-            let (raw, matched) = wait_result.map_err(Error::String)?;
-            Ok(crate::exchange_read::ReadUntilOutcome { raw, matched })
-        })();
-
-        result.map(|outcome| {
-            crate::at_parse::ExchangeResponse::from_raw(
-                outcome.raw,
-                outcome.matched,
-                &command,
-                &user_solicited,
-                resolved.result_format,
-            )
-        })
+        crate::exchange::run::run_physical_exchange(
+            hub.as_ref(),
+            &DesktopExchangeIo {
+                port: &cp.port,
+                timeout_ms: resolved_timeout,
+            },
+            &command,
+            &user_solicited,
+            payload,
+            options,
+            cp.exchange_cancel.clone(),
+        )
     }
 
     fn exchange_bytes_mux_direct(
@@ -841,7 +785,7 @@ impl<R: Runtime> SerialPort<R> {
         virtual_path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         let vp = self
             .virtual_ports
             .lock()
@@ -858,18 +802,13 @@ impl<R: Runtime> SerialPort<R> {
         vp: &crate::state::VirtualPortRef,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         let dlci = vp.dlci;
         let command = options
             .command
             .clone()
             .unwrap_or_else(|| String::from_utf8_lossy(&payload).into_owned());
         let user_solicited = options.solicited_prefixes.clone().unwrap_or_default();
-        let mut opts = options;
-        if opts.command.is_none() {
-            opts.command = Some(command.clone());
-        }
-        let resolved = opts.resolve();
 
         let session = {
             let ports = self
@@ -890,24 +829,17 @@ impl<R: Runtime> SerialPort<R> {
             }
         };
 
-        vp.exchange_cancel.store(false, Ordering::SeqCst);
-        let cancel = vp.exchange_cancel.clone();
         ensure_rx_hub_on_physical(self, &physical_path)?;
 
-        let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel.clone());
-        session.set_exchange_waiter(dlci, waiter.clone());
-        session.send_uih(dlci, &payload).map_err(Error::String)?;
-
-        let wait_result = waiter.wait(resolved.timeout_ms);
-        session.clear_exchange_waiter(dlci);
-        let (raw, matched) = wait_result.map_err(Error::String)?;
-        Ok(crate::at_parse::ExchangeResponse::from_raw(
-            raw,
-            matched,
+        crate::exchange::run::run_mux_exchange(
+            &session,
+            dlci,
             &command,
             &user_solicited,
-            resolved.result_format,
-        ))
+            payload,
+            options,
+            vp.exchange_cancel.clone(),
+        )
     }
 
     fn run_exchange_unqueued(
@@ -915,7 +847,7 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         payload: Vec<u8>,
         options: ExchangeOptions,
-    ) -> Result<crate::at_parse::ExchangeResponse, Error> {
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         if let Some((physical, dlci)) = parse_mux_path(path.as_str()) {
             return self.exchange_bytes_mux_direct(
                 physical.to_string(),
@@ -928,32 +860,14 @@ impl<R: Runtime> SerialPort<R> {
         self.exchange_bytes_direct(path, payload, options)
     }
 
-    /// Send one AT command through the native transaction queue with session defaults.
     pub fn at(
         &self,
         path: String,
         command: String,
         options: Option<AtCommandOptions>,
-    ) -> Result<crate::at_parse::AtCommandResult, Error> {
+    ) -> Result<crate::at::parse::AtCommandResult, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| {
-            let session = tx_queue.at_session();
-            let append_cr = options
-                .as_ref()
-                .and_then(|o| o.append_cr)
-                .unwrap_or_else(|| session.append_cr());
-            let payload = normalize_at_command(&command, append_cr);
-            let exchange_opts = session.merge_exchange(&command, options.as_ref());
-            let response = self.run_exchange_unqueued(path, payload.into_bytes(), exchange_opts)?;
-            check_expect_ok(
-                &session,
-                response.status,
-                &String::from_utf8_lossy(&response.raw),
-            )?;
-            Ok(crate::at_parse::AtCommandResult::from_exchange(
-                command, response,
-            ))
-        })
+        crate::at::commands::queue_at(self, &tx_queue, path, command, options)
     }
 
     /// Multi-phase AT flow (e.g. CMGS) — phases run atomically without interleaving other jobs.
@@ -961,67 +875,9 @@ impl<R: Runtime> SerialPort<R> {
         &self,
         path: String,
         phases: Vec<AtPhase>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    ) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        tx_queue.run_serial(|| self.at_phases_direct(path, phases))
-    }
-
-    fn at_phases_direct(
-        &self,
-        path: String,
-        phases: Vec<AtPhase>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
-        let tx_queue = self.get_tx_queue(&path)?;
-        let session = tx_queue.at_session();
-        let stop_on_error = session.stop_on_error();
-        let mut results = Vec::with_capacity(phases.len());
-        for (i, phase) in phases.iter().enumerate() {
-            let label = phase.command.clone().unwrap_or_else(|| match &phase.write {
-                AtPhaseWrite::Text(s) => s.clone(),
-                AtPhaseWrite::Binary(b) => format!("<binary {} bytes>", b.len()),
-            });
-            let rx_prepare = if i == 0 {
-                None
-            } else {
-                Some(crate::events::RxPrepareMode::None)
-            };
-            let mut exchange_opts = session.merge_phase(phase, &label);
-            if let Some(rp) = rx_prepare {
-                exchange_opts.rx_prepare = Some(rp);
-            }
-            let payload = match &phase.write {
-                AtPhaseWrite::Text(s) => {
-                    let append_cr = session.append_cr();
-                    normalize_at_command(s, append_cr).into_bytes()
-                }
-                AtPhaseWrite::Binary(b) => b.clone(),
-            };
-            let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
-                let response = self.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
-                check_expect_ok(
-                    &session,
-                    response.status,
-                    &String::from_utf8_lossy(&response.raw),
-                )?;
-                Ok(crate::at_parse::AtCommandResult::from_exchange(
-                    label.clone(),
-                    response,
-                ))
-            })();
-            match phase_result {
-                Ok(r) => results.push(r),
-                Err(e) => {
-                    if stop_on_error {
-                        return Err(e);
-                    }
-                    results.push(crate::at_parse::AtCommandResult::failed(
-                        label,
-                        e.to_string(),
-                    ));
-                }
-            }
-        }
-        Ok(results)
+        crate::at::commands::queue_at_phases(self, &tx_queue, path, phases)
     }
 
     /// Built-in CMGS recipe: `AT+CMGS=n` → `>` → PDU + Ctrl+Z → final line.
@@ -1031,39 +887,9 @@ impl<R: Runtime> SerialPort<R> {
         length: u32,
         pdu: Vec<u8>,
         options: Option<SendSmsPduOptions>,
-    ) -> Result<Vec<crate::at_parse::AtCommandResult>, Error> {
+    ) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
         let tx_queue = self.get_tx_queue(&path)?;
-        let session = tx_queue.at_session();
-        let timeout_ms = options
-            .as_ref()
-            .and_then(|o| o.timeout_ms)
-            .or(session.default_timeout_ms);
-        let result_format = options
-            .as_ref()
-            .and_then(|o| o.result_format)
-            .or(session.result_format);
-        let cmd = format!("AT+CMGS={length}");
-        let mut payload = pdu;
-        payload.push(0x1a);
-        let phases = vec![
-            AtPhase {
-                write: AtPhaseWrite::Text(cmd.clone()),
-                completion_mode: Some(crate::events::ExchangeCompletionMode::AtIntermediate),
-                result_format,
-                timeout_ms,
-                command: Some(cmd),
-                rx_prepare: None,
-            },
-            AtPhase {
-                write: AtPhaseWrite::Binary(payload),
-                completion_mode: Some(crate::events::ExchangeCompletionMode::AtFinalLine),
-                result_format,
-                timeout_ms,
-                command: Some(String::new()),
-                rx_prepare: Some(crate::events::RxPrepareMode::None),
-            },
-        ];
-        tx_queue.run_serial(|| self.at_phases_direct(path, phases))
+        crate::at::commands::queue_send_sms_pdu(self, &tx_queue, path, length, pdu, options)
     }
 
     /// Configure AT session defaults for native `at` jobs on this port.
@@ -1072,15 +898,11 @@ impl<R: Runtime> SerialPort<R> {
         path: String,
         session: AtSessionConfig,
     ) -> Result<(), Error> {
-        if let Ok(mut virtuals) = self.virtual_ports.lock() {
-            if let Some(vp) = virtuals.get_mut(&path) {
-                vp.tx_queue.configure_at_session(session);
-                return Ok(());
-            }
-        }
-        let cp = self.resolve_connected_port(&path)?;
-        cp.tx_queue.configure_at_session(session);
-        Ok(())
+        let tx_queue = self
+            .resolve_connected_port(&path)
+            .map(|cp| cp.tx_queue.clone())
+            .ok();
+        configure_at_session_shared(&self.virtual_ports, tx_queue, &path, session)
     }
 
     /// Enter GSM 07.10 CMUX mode (`AT+CMUX=…` then attach deframer to the RX hub).
@@ -1099,7 +921,7 @@ impl<R: Runtime> SerialPort<R> {
         if cp.virtual_dlci.is_some() {
             return Err(Error::String("enable_mux on virtual port".into()));
         }
-        if cp.mux.lock().unwrap().is_some() {
+        if crate::sync_util::lock_or_recover(&cp.mux).is_some() {
             return Err(Error::String("CMUX already enabled".into()));
         }
         cp.port
@@ -1112,10 +934,10 @@ impl<R: Runtime> SerialPort<R> {
             Arc::new(crate::cmux::SerialPortIo(cp.port.clone())),
         );
         ensure_rx_hub(&cp, &path)?;
-        if let Some(hub) = cp.rx_hub.lock().unwrap().as_ref() {
+        if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
             hub.attach_cmux(session.clone());
         }
-        *cp.mux.lock().unwrap() = Some(session);
+        *crate::sync_util::lock_or_recover(&cp.mux) = Some(session);
         Ok(())
     }
 
@@ -1193,10 +1015,10 @@ impl<R: Runtime> SerialPort<R> {
             let _ = self.close(vp);
         }
         self.with_connected_port(path.clone(), |cp| {
-            if let Some(hub) = cp.rx_hub.lock().unwrap().as_ref() {
+            if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
                 hub.detach_cmux();
             }
-            *cp.mux.lock().unwrap() = None;
+            *crate::sync_util::lock_or_recover(&cp.mux) = None;
             Ok(())
         })
     }
@@ -1204,22 +1026,52 @@ impl<R: Runtime> SerialPort<R> {
     /// Cancel an in-flight exchange and reject queued waiters on `path`.
     pub fn cancel_exchange(&self, path: String) -> Result<(), Error> {
         if let Ok(virtuals) = self.virtual_ports.lock() {
-            if let Some(vp) = virtuals.get(&path) {
-                vp.exchange_cancel.store(true, Ordering::SeqCst);
-                vp.tx_queue.cancel_all();
-                vp.tx_queue.clear_halt();
+            if let Some(vp) = virtuals.get(&path).cloned() {
+                drop(virtuals);
+                let session = {
+                    let ports = self
+                        .serialports
+                        .lock()
+                        .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
+                    let info = ports.get(&vp.physical_path).ok_or_else(|| {
+                        Error::String(format!("Physical port '{}' not found", vp.physical_path))
+                    })?;
+                    match &info.state {
+                        PortState::Connected(cp) => cp
+                            .mux
+                            .lock()
+                            .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
+                            .clone(),
+                        other => return Err(Error::String(other.not_connected_reason())),
+                    }
+                };
+                if let Some(session) = session {
+                    crate::exchange::cancel::cancel_virtual_exchange(
+                        &vp.exchange_cancel,
+                        &vp.tx_queue,
+                        &session,
+                        vp.dlci,
+                    );
+                } else {
+                    vp.exchange_cancel.store(true, Ordering::SeqCst);
+                    vp.tx_queue.cancel_all();
+                    vp.tx_queue.clear_halt();
+                }
                 return Ok(());
             }
         }
         let cp = self.resolve_connected_port(&path)?;
-        cp.exchange_cancel.store(true, Ordering::SeqCst);
-        if let Ok(guard) = cp.rx_hub.lock() {
-            if let Some(hub) = guard.as_ref() {
-                hub.cancel_active_exchange();
-            }
-        }
-        cp.tx_queue.cancel_all();
-        cp.tx_queue.clear_halt();
+        crate::exchange::cancel::cancel_physical_exchange(
+            &cp.exchange_cancel,
+            &cp.tx_queue,
+            || {
+                if let Ok(guard) = cp.rx_hub.lock() {
+                    if let Some(hub) = guard.as_ref() {
+                        hub.cancel_active_exchange();
+                    }
+                }
+            },
+        );
         Ok(())
     }
 
@@ -1267,44 +1119,13 @@ impl<R: Runtime> SerialPort<R> {
     }
 }
 
-#[cfg(test)]
-mod disconnect_tests {
-    fn is_benign_read_error(err: &std::io::Error) -> bool {
-        matches!(
-            err.kind(),
-            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-        )
-    }
-
-    fn is_disconnect_read_error(err: &std::io::Error) -> bool {
-        matches!(
-            err.kind(),
-            std::io::ErrorKind::BrokenPipe
-                | std::io::ErrorKind::NotConnected
-                | std::io::ErrorKind::ConnectionAborted
-                | std::io::ErrorKind::ConnectionReset
-                | std::io::ErrorKind::UnexpectedEof
-        )
-    }
-
-    #[test]
-    fn read_timeout_is_benign_not_disconnect() {
-        let err = std::io::Error::new(std::io::ErrorKind::TimedOut, "timeout");
-        assert!(is_benign_read_error(&err));
-        assert!(!is_disconnect_read_error(&err));
-    }
-
-    #[test]
-    fn broken_pipe_is_disconnect() {
-        let err = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "hang-up");
-        assert!(!is_benign_read_error(&err));
-        assert!(is_disconnect_read_error(&err));
-    }
-
-    #[test]
-    fn permission_denied_is_neither_benign_nor_disconnect() {
-        let err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
-        assert!(!is_benign_read_error(&err));
-        assert!(!is_disconnect_read_error(&err));
+impl<R: Runtime> crate::at::commands::ExchangeRunner for SerialPort<R> {
+    fn run_exchange_unqueued(
+        &self,
+        path: String,
+        payload: Vec<u8>,
+        options: ExchangeOptions,
+    ) -> Result<crate::at::parse::ExchangeResponse, Error> {
+        SerialPort::run_exchange_unqueued(self, path, payload, options)
     }
 }

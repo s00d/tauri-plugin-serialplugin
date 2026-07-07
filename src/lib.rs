@@ -12,9 +12,9 @@ use tauri::{
 const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
 
 #[cfg(desktop)]
-use crate::desktop_api::SerialPort;
+use crate::api::desktop::SerialPort;
 #[cfg(target_os = "android")]
-use crate::mobile_api::SerialPort;
+use crate::api::mobile::SerialPort;
 #[cfg(desktop)]
 use std::collections::HashMap;
 #[cfg(desktop)]
@@ -35,7 +35,7 @@ use std::sync::{Arc, Mutex};
 /// #[tauri::command]
 /// async fn open_serial_port(
 ///     app: AppHandle<tauri::Wry>,
-///     serial: State<'_, tauri_plugin_serialplugin::desktop_api::SerialPort<tauri::Wry>>
+///     serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
 /// ) -> Result<(), String> {
 ///     commands::open(app, serial, "COM1".to_string(), 9600, None, None, None, None, None)
 ///         .map_err(|e| e.to_string())
@@ -50,136 +50,18 @@ pub mod commands;
 /// instead of direct println!/eprintln! calls.
 pub mod logger;
 
-pub mod at_parse;
-pub mod at_session;
+#[cfg(mobile)]
+pub mod android;
+pub mod api;
+pub mod at;
 pub mod cmux;
-pub mod events;
-pub mod exchange_read;
-#[cfg(mobile)]
-pub mod mobile_jni;
-#[cfg(mobile)]
-pub mod mobile_registry;
-#[cfg(mobile)]
-pub mod mobile_rx_hub;
-#[cfg(mobile)]
-pub mod mobile_usb_io;
-#[cfg(mobile)]
-pub mod mobile_usb_jni;
-pub mod port_list;
-pub mod port_list_monitor;
-pub mod port_rx_hub;
-pub mod port_tx_queue;
-pub mod sync_util;
-pub mod watch_registry;
-
-#[cfg(test)]
-mod tests {
-    #[cfg(desktop)]
-    mod available_ports_options_test;
-    #[cfg(desktop)]
-    mod commands_test;
-    #[cfg(desktop)]
-    mod desktop_api_test;
-    #[cfg(desktop)]
-    mod error_test;
-    #[cfg(desktop)]
-    mod invoke_contract_test;
-    #[cfg(desktop)]
-    mod mock_serial;
-    #[cfg(desktop)]
-    mod serial_test;
-    #[cfg(desktop)]
-    mod state_test;
-    #[cfg(desktop)]
-    mod watch_registry_test;
-}
-
-#[cfg(desktop)]
-/// Desktop API module providing serial port functionality for desktop platforms
-///
-/// This module contains the desktop-specific implementation of serial port
-/// operations. It provides a unified interface for managing serial ports
-/// across different desktop operating systems (Windows, macOS, Linux).
-///
-/// # Examples
-///
-/// ```rust
-/// use tauri_plugin_serialplugin::desktop_api::SerialPort;
-/// use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
-/// use tauri::AppHandle;
-/// use std::time::Duration;
-///
-/// // Note: In a real Tauri app, you would get the AppHandle from the command context
-/// // let serial = SerialPort::new(app_handle);
-/// // serial.open("COM1".to_string(), 9600, Some(DataBits::Eight),
-/// //             Some(FlowControl::None), Some(Parity::None),
-/// //             Some(StopBits::One), Some(1000))
-/// //             .expect("Failed to open port");
-/// ```
-pub mod desktop_api;
-/// Error types for serial port operations
-///
-/// This module defines the error types used throughout the serial plugin.
-/// It provides a unified error handling interface for both desktop and
-/// mobile platforms.
-///
-/// # Examples
-///
-/// ```rust
-/// use tauri_plugin_serialplugin::error::Error;
-///
-/// // Example of error handling
-/// fn handle_operation_result(result: Result<(), Error>) {
-///     match result {
-///         Ok(_) => println!("Operation successful"),
-///         Err(Error::Io(msg)) => println!("IO error: {}", msg),
-///         Err(Error::SerialPort(msg)) => println!("Serial port error: {}", msg),
-///         Err(Error::String(msg)) => println!("Error: {}", msg),
-///     }
-/// }
-/// ```
 pub mod error;
-#[cfg(mobile)]
-/// Mobile API module providing serial port functionality for mobile platforms
-///
-/// This module contains the mobile-specific implementation of serial port
-/// operations. It provides a unified interface for managing serial ports
-/// on Android devices.
-///
-/// # Examples
-///
-/// ```rust
-/// use tauri_plugin_serialplugin::mobile_api::SerialPort;
-/// use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
-/// use tauri::AppHandle;
-/// use std::time::Duration;
-///
-/// // Note: In a real Tauri app, you would get the AppHandle from the command context
-/// // let serial = SerialPort::new(app_handle);
-/// // serial.open("/dev/ttyUSB0".to_string(), 9600, Some(DataBits::Eight),
-/// //             Some(FlowControl::None), Some(Parity::None),
-/// //             Some(StopBits::One), Some(1000))
-/// //             .expect("Failed to open port");
-/// ```
-pub mod mobile_api;
-/// State types and enums for serial port configuration
-///
-/// This module defines the data structures and enums used for serial port
-/// configuration. It includes types for baud rates, data bits, flow control,
-/// parity, stop bits, and other serial port settings.
-///
-/// # Examples
-///
-/// ```rust
-/// use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
-///
-/// // Configure serial port settings
-/// let data_bits = DataBits::Eight;
-/// let flow_control = FlowControl::None;
-/// let parity = Parity::None;
-/// let stop_bits = StopBits::One;
-/// ```
+pub mod events;
+pub mod exchange;
+pub mod hub;
+pub mod port;
 pub mod state;
+pub mod sync_util;
 
 /// Initializes the serial plugin for Tauri
 ///
@@ -271,4 +153,26 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             Ok(())
         })
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(desktop)]
+    mod available_ports_options_test;
+    #[cfg(desktop)]
+    mod commands_test;
+    #[cfg(desktop)]
+    mod desktop_api_test;
+    #[cfg(desktop)]
+    mod error_test;
+    #[cfg(desktop)]
+    mod invoke_contract_test;
+    #[cfg(desktop)]
+    mod mock_serial;
+    #[cfg(desktop)]
+    mod serial_test;
+    #[cfg(desktop)]
+    mod state_test;
+    #[cfg(desktop)]
+    mod watch_registry_test;
 }

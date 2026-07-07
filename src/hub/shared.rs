@@ -1,28 +1,16 @@
-//! Unified RX dispatcher: one reader per port routes bytes to watch vs exchange.
+//! Shared RX hub state (desktop poll + Android push).
 
-use crate::at_parse::{
-    at_final_line_complete, at_intermediate_line_complete, classify_final_line, is_likely_urc,
-    ExchangeDemux, ExchangeMatch,
-};
+use crate::at::parse::{classify_final_line, is_likely_urc, ExchangeDemux, ExchangeMatch};
 use crate::cmux::CmuxSession;
-use crate::events::{ExchangeCompletionMode, SerialEvent};
-use crate::exchange_read::{default_terminators, matches_terminators, ResolvedExchangeOptions};
-#[cfg(desktop)]
-use serialport::SerialPort;
-#[cfg(desktop)]
-use std::io::Read;
+use crate::events::SerialEvent;
+use crate::exchange::completion::check_exchange_complete;
+use crate::exchange::options::ResolvedExchangeOptions;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(desktop)]
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex};
-#[cfg(desktop)]
-use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 
-#[cfg(desktop)]
-const POLL_READ_TIMEOUT_MS: u64 = 10;
-const IDLE_BUFFER_CAP: usize = 64 * 1024;
+pub(crate) const IDLE_BUFFER_CAP: usize = 64 * 1024;
 
 type ExchangeDone = Arc<(
     Mutex<Option<Result<(Vec<u8>, ExchangeMatch), String>>>,
@@ -30,39 +18,6 @@ type ExchangeDone = Arc<(
 )>;
 type DrainDone = Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)>;
 type ReadDone = Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)>;
-
-/// Read from the port without starving writers: short timed reads, retry after releasing the lock.
-#[cfg(desktop)]
-fn poll_read_port(
-    port: &Arc<Mutex<Box<dyn SerialPort>>>,
-    buf: &mut [u8],
-    stop_rx: &Receiver<()>,
-) -> std::io::Result<usize> {
-    loop {
-        if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Interrupted,
-                "rx hub stopped",
-            ));
-        }
-        let mut p = match port.try_lock() {
-            Ok(g) => g,
-            Err(_) => {
-                thread::sleep(Duration::from_millis(1));
-                continue;
-            }
-        };
-        let _ = p.set_timeout(Duration::from_millis(POLL_READ_TIMEOUT_MS));
-        match p.read(buf) {
-            Ok(n) => return Ok(n),
-            Err(e) if is_benign(&e) => {
-                drop(p);
-                thread::sleep(Duration::from_millis(1));
-            }
-            Err(e) => return Err(e),
-        }
-    }
-}
 
 /// Actions produced when routing incoming bytes in streaming mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,29 +100,6 @@ impl ExchangeWaiter {
     }
 }
 
-pub(crate) fn check_exchange_complete(
-    buf: &[u8],
-    options: &ResolvedExchangeOptions,
-) -> Option<ExchangeMatch> {
-    match options.completion_mode {
-        crate::events::ExchangeCompletionMode::AtFinalLine => {
-            at_final_line_complete(buf, options.result_format)
-        }
-        crate::events::ExchangeCompletionMode::AtIntermediate => {
-            at_intermediate_line_complete(buf, options.result_format)
-        }
-        ExchangeCompletionMode::Substring => {
-            if matches_terminators(buf, &options.terminators) {
-                Some(ExchangeMatch::Substring {
-                    term: String::from_utf8_lossy(default_terminators()[0].as_slice()).into_owned(),
-                })
-            } else {
-                None
-            }
-        }
-    }
-}
-
 /// Line-oriented router for streaming when no exchange is active.
 #[derive(Debug, Default)]
 pub struct LineRouter {
@@ -237,42 +169,42 @@ impl HubRoutingState {
     }
 }
 
-struct WatchSlot {
-    channel: Channel<SerialEvent>,
-    batch_timeout_ms: u64,
+pub(crate) struct WatchSlot {
+    pub(crate) channel: Channel<SerialEvent>,
+    pub(crate) batch_timeout_ms: u64,
     /// Poll read chunk size for the desktop hub thread only.
     #[cfg(desktop)]
-    read_size: usize,
+    pub(crate) read_size: usize,
 }
 
-struct DrainSlot {
-    idle_ms: u64,
-    cancel: Arc<AtomicBool>,
-    buffer: Vec<u8>,
-    last_byte_at: Option<Instant>,
-    started_at: Instant,
-    deadline: Instant,
-    solicited_prefixes: Vec<String>,
-    done: DrainDone,
+pub(crate) struct DrainSlot {
+    pub(crate) idle_ms: u64,
+    pub(crate) cancel: Arc<AtomicBool>,
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) last_byte_at: Option<Instant>,
+    pub(crate) started_at: Instant,
+    pub(crate) deadline: Instant,
+    pub(crate) solicited_prefixes: Vec<String>,
+    pub(crate) done: DrainDone,
 }
 
-struct ReadSlot {
-    max_bytes: usize,
-    fill: bool,
-    timeout_ms: u64,
-    buffer: Vec<u8>,
-    deadline: Instant,
-    done: ReadDone,
+pub(crate) struct ReadSlot {
+    pub(crate) max_bytes: usize,
+    pub(crate) fill: bool,
+    pub(crate) timeout_ms: u64,
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) deadline: Instant,
+    pub(crate) done: ReadDone,
 }
 
 /// Shared hub state between the RX thread and API handlers.
 pub struct RxHubShared {
-    exchange_waiter: Mutex<Option<Arc<ExchangeWaiter>>>,
-    watch: Mutex<Option<WatchSlot>>,
-    drain: Mutex<Option<DrainSlot>>,
-    read_slot: Mutex<Option<ReadSlot>>,
-    idle: Mutex<Vec<u8>>,
-    cmux: Mutex<Option<Arc<CmuxSession>>>,
+    pub(crate) exchange_waiter: Mutex<Option<Arc<ExchangeWaiter>>>,
+    pub(crate) watch: Mutex<Option<WatchSlot>>,
+    pub(crate) drain: Mutex<Option<DrainSlot>>,
+    pub(crate) read_slot: Mutex<Option<ReadSlot>>,
+    pub(crate) idle: Mutex<Vec<u8>>,
+    pub(crate) cmux: Mutex<Option<Arc<CmuxSession>>>,
 }
 
 impl Default for RxHubShared {
@@ -561,7 +493,7 @@ impl RxHubShared {
             .map(|watch| watch.channel.clone());
         if let Some(channel) = channel {
             for ev in events {
-                crate::watch_registry::send_event(&channel, ev);
+                crate::port::watch_registry::send_event(&channel, ev);
             }
         }
     }
@@ -604,229 +536,7 @@ impl RxHubShared {
         guard.take().unwrap()
     }
 }
-
-/// Single RX consumer on the main serial fd (desktop).
-#[cfg(desktop)]
-pub struct PortRxHub {
-    shared: Arc<RxHubShared>,
-    stop_tx: Sender<()>,
-    thread: Option<JoinHandle<()>>,
-}
-
-#[cfg(desktop)]
-impl PortRxHub {
-    pub fn start(port: Arc<Mutex<Box<dyn SerialPort>>>, path: String) -> Self {
-        let shared = Arc::new(RxHubShared::new());
-        let (stop_tx, stop_rx) = mpsc::channel();
-        let shared_clone = shared.clone();
-        let thread = thread::spawn(move || hub_loop(port, path, shared_clone, stop_rx));
-        Self {
-            shared,
-            stop_tx,
-            thread: Some(thread),
-        }
-    }
-
-    pub fn shared(&self) -> Arc<RxHubShared> {
-        self.shared.clone()
-    }
-
-    pub fn is_finished(&self) -> bool {
-        self.thread
-            .as_ref()
-            .map(JoinHandle::is_finished)
-            .unwrap_or(true)
-    }
-
-    pub fn attach_watch(
-        &self,
-        channel: Channel<SerialEvent>,
-        batch_timeout_ms: u64,
-        read_size: usize,
-    ) {
-        self.shared
-            .attach_watch(channel, batch_timeout_ms, read_size);
-    }
-
-    pub fn detach_watch(&self) {
-        self.shared.detach_watch();
-    }
-
-    pub fn set_exchange_waiter(&self, waiter: Arc<ExchangeWaiter>) {
-        self.shared.set_exchange_waiter(waiter);
-    }
-
-    pub fn clear_exchange_waiter(&self) {
-        self.shared.clear_exchange_waiter();
-    }
-
-    pub fn cancel_active_exchange(&self) {
-        self.shared.cancel_active_exchange();
-    }
-
-    pub fn attach_cmux(&self, session: Arc<CmuxSession>) {
-        self.shared.attach_cmux(session);
-    }
-
-    pub fn detach_cmux(&self) {
-        self.shared.detach_cmux();
-    }
-
-    /// Soft-drain via the hub thread (single reader); URC lines are emitted on the watch channel.
-    pub fn drain(
-        &self,
-        idle_ms: u64,
-        max_ms: u64,
-        cancel: Arc<AtomicBool>,
-        solicited_prefixes: Vec<String>,
-    ) -> Result<Vec<u8>, String> {
-        self.shared
-            .drain(idle_ms, max_ms, cancel, solicited_prefixes)
-    }
-
-    pub fn stop(mut self) {
-        let _ = self.stop_tx.send(());
-        if let Some(h) = self.thread.take() {
-            let _ = h.join();
-        }
-    }
-}
-
-#[cfg(desktop)]
-fn hub_loop(
-    port: Arc<Mutex<Box<dyn SerialPort>>>,
-    path: String,
-    shared: Arc<RxHubShared>,
-    stop_rx: Receiver<()>,
-) {
-    let mut routing = HubRoutingState::new(path.clone());
-    let mut batch_timeout_ms = 1000u64;
-    let mut read_size = 1024usize;
-    let mut last_error_emit = Instant::now() - Duration::from_secs(1);
-
-    loop {
-        if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
-            shared.fail_all_waiters("port closed");
-            shared.flush_watch_now(&mut routing);
-            shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-            break;
-        }
-
-        if crate::sync_util::lock_or_recover(&shared.drain).is_some() {
-            let early_finish = {
-                let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                let Some(drain) = guard.as_mut() else {
-                    continue;
-                };
-                if drain.cancel.load(Ordering::SeqCst) {
-                    Some(Err("exchange cancelled".into()))
-                } else if Instant::now() >= drain.deadline {
-                    Some(Ok(std::mem::take(&mut drain.buffer)))
-                } else {
-                    None
-                }
-            };
-            if let Some(result) = early_finish {
-                finish_drain(&shared, result);
-                continue;
-            }
-
-            let mut buf = vec![0u8; 1024];
-            let n = match poll_read_port(&port, &mut buf, &stop_rx) {
-                Ok(n) => n,
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
-                Err(e) if is_benign(&e) => 0,
-                Err(e) => {
-                    finish_drain(&shared, Err(format!("drain read failed: {}", e)));
-                    continue;
-                }
-            };
-
-            if n > 0 {
-                route_drain_chunk(&shared, &path, &buf[..n]);
-            } else {
-                let finish = {
-                    let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                    let Some(drain) = guard.as_mut() else {
-                        continue;
-                    };
-                    if drain.last_byte_at.is_none() {
-                        Some(Ok(Vec::new()))
-                    } else if drain
-                        .last_byte_at
-                        .is_some_and(|t| t.elapsed() >= Duration::from_millis(drain.idle_ms))
-                    {
-                        Some(Ok(std::mem::take(&mut drain.buffer)))
-                    } else {
-                        None
-                    }
-                };
-                if let Some(result) = finish {
-                    finish_drain(&shared, result);
-                }
-            }
-            continue;
-        }
-
-        if let Some(watch) = crate::sync_util::lock_or_recover(&shared.watch).as_ref() {
-            batch_timeout_ms = watch.batch_timeout_ms;
-            read_size = watch.read_size;
-        }
-
-        let mut buf = vec![0u8; read_size];
-        let read_result = poll_read_port(&port, &mut buf, &stop_rx);
-
-        match read_result {
-            Ok(n) if n > 0 => {
-                shared.feed_bytes(&buf[..n], &mut routing);
-                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-            }
-            Ok(_) => {
-                thread::sleep(Duration::from_millis(1));
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
-            Err(e) if is_benign(&e) => {
-                thread::sleep(Duration::from_millis(1));
-            }
-            Err(e) => {
-                shared.flush_watch_now(&mut routing);
-                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-                if is_disconnect(&e) {
-                    shared.fail_all_waiters(&format!("Serial port disconnected: {}", e));
-                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
-                        .as_ref()
-                        .map(|watch| watch.channel.clone());
-                    if let Some(channel) = channel {
-                        let _ = channel.send(SerialEvent::Disconnect {
-                            path: path.clone(),
-                            reason: format!("Serial port disconnected: {}", e),
-                        });
-                    }
-                    break;
-                }
-                if last_error_emit.elapsed() >= Duration::from_secs(1) {
-                    last_error_emit = Instant::now();
-                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
-                        .as_ref()
-                        .map(|watch| watch.channel.clone());
-                    if let Some(channel) = channel {
-                        let _ = channel.send(SerialEvent::Error {
-                            path: path.clone(),
-                            message: format!("Serial read error: {}", e),
-                        });
-                    }
-                }
-                thread::sleep(Duration::from_millis(50));
-            }
-        }
-
-        shared.tick(&path, &mut routing);
-        shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-        let _ = batch_timeout_ms;
-    }
-}
-
-fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
+pub(crate) fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
     let prefixes = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
         let Some(drain) = guard.as_mut() else {
@@ -839,7 +549,7 @@ fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
     emit_drain_urc_with_prefixes(shared, path, chunk, &prefixes);
 }
 
-fn route_exchange_chunk(
+pub(crate) fn route_exchange_chunk(
     shared: &RxHubShared,
     path: &str,
     chunk: &[u8],
@@ -863,7 +573,7 @@ fn route_exchange_chunk(
     waiter.push_bytes(chunk);
 }
 
-fn route_watch_chunk(path: &str, chunk: &[u8], state: &mut HubRoutingState) {
+pub(crate) fn route_watch_chunk(path: &str, chunk: &[u8], state: &mut HubRoutingState) {
     state.exchange_demux = None;
     for action in state.line_router.route_streaming(chunk, &[]) {
         match action {
@@ -880,7 +590,7 @@ fn route_watch_chunk(path: &str, chunk: &[u8], state: &mut HubRoutingState) {
     }
 }
 
-fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) {
+pub(crate) fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) {
     let finish = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.read_slot);
         let Some(slot) = guard.as_mut() else {
@@ -904,7 +614,7 @@ fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) {
     }
 }
 
-fn tick_read_slot(shared: &RxHubShared) {
+pub(crate) fn tick_read_slot(shared: &RxHubShared) {
     let early = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.read_slot);
         let Some(slot) = guard.as_mut() else {
@@ -928,7 +638,7 @@ fn tick_read_slot(shared: &RxHubShared) {
     }
 }
 
-fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
+pub(crate) fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
     if let Some(slot) = crate::sync_util::lock_or_recover(&shared.read_slot).take() {
         let (lock, cvar) = &*slot.done;
         *crate::sync_util::lock_or_recover(lock) = Some(result);
@@ -936,7 +646,7 @@ fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
     }
 }
 
-fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
+pub(crate) fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     let mut idle = crate::sync_util::lock_or_recover(&shared.idle);
     idle.extend_from_slice(chunk);
     if idle.len() > IDLE_BUFFER_CAP {
@@ -945,7 +655,7 @@ fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     }
 }
 
-fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
+pub(crate) fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
     if let Some(drain) = crate::sync_util::lock_or_recover(&shared.drain).take() {
         let (lock, cvar) = &*drain.done;
         *crate::sync_util::lock_or_recover(lock) = Some(result);
@@ -953,13 +663,13 @@ fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
     }
 }
 
-fn emit_drain_urc_with_prefixes(
+pub(crate) fn emit_drain_urc_with_prefixes(
     shared: &RxHubShared,
     path: &str,
     chunk: &[u8],
     prefixes: &[String],
 ) {
-    let lines = crate::at_parse::split_lines(&String::from_utf8_lossy(chunk));
+    let lines = crate::at::parse::split_lines(&String::from_utf8_lossy(chunk));
     let channel = shared
         .watch
         .lock()
@@ -975,7 +685,7 @@ fn emit_drain_urc_with_prefixes(
     }
 }
 
-fn flush_watch_data(
+pub(crate) fn flush_watch_data(
     shared: &RxHubShared,
     path: &str,
     combined_buffer: &mut Vec<u8>,
@@ -996,31 +706,11 @@ fn flush_watch_data(
         combined_buffer.clear();
     }
 }
-
-#[cfg(desktop)]
-fn is_benign(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-    )
-}
-
-#[cfg(desktop)]
-fn is_disconnect(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::BrokenPipe
-            | std::io::ErrorKind::NotConnected
-            | std::io::ErrorKind::ConnectionAborted
-            | std::io::ErrorKind::ConnectionReset
-            | std::io::ErrorKind::UnexpectedEof
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::{AtResultFormat, RxPrepareMode};
+    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
+    use std::thread;
 
     #[test]
     fn exchange_waiter_completes_on_final_ok_line() {

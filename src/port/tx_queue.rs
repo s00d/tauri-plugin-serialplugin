@@ -1,6 +1,6 @@
 //! FIFO turnstile for read-until transactions on one port (desktop).
 
-use crate::at_session::AtSessionConfig;
+use crate::at::session::AtSessionConfig;
 use crate::error::Error;
 use std::sync::{Condvar, Mutex};
 
@@ -40,23 +40,23 @@ impl PortTxQueue {
     }
 
     pub fn configure_at_session(&self, session: AtSessionConfig) {
-        *self.at_session.lock().unwrap() = session;
+        *crate::sync_util::lock_or_recover(&self.at_session) = session;
     }
 
     pub fn at_session(&self) -> AtSessionConfig {
-        self.at_session.lock().unwrap().clone()
+        crate::sync_util::lock_or_recover(&self.at_session).clone()
     }
 
     /// Cancel in-flight exchange (via port flag) and reject all queued waiters.
     pub fn cancel_all(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = crate::sync_util::lock_or_recover(&self.inner);
         inner.drain_waiters = true;
         inner.now_serving = inner.next_ticket;
         self.turn.notify_all();
     }
 
     pub fn clear_halt(&self) {
-        self.inner.lock().unwrap().drain_waiters = false;
+        crate::sync_util::lock_or_recover(&self.inner).drain_waiters = false;
     }
 
     /// Run `f` when this caller's turn arrives (FIFO).
@@ -65,7 +65,7 @@ impl PortTxQueue {
         F: FnOnce() -> Result<T, Error>,
     {
         let ticket = {
-            let mut inner = self.inner.lock().map_err(lock_err)?;
+            let mut inner = crate::sync_util::lock_or_recover(&self.inner);
             if inner.drain_waiters {
                 return Err(Error::String(CANCELLED_MSG.into()));
             }
@@ -74,7 +74,7 @@ impl PortTxQueue {
             t
         };
 
-        let mut inner = self.inner.lock().map_err(lock_err)?;
+        let mut inner = crate::sync_util::lock_or_recover(&self.inner);
         while inner.now_serving != ticket {
             if inner.drain_waiters {
                 return Err(Error::String(CANCELLED_MSG.into()));
@@ -89,7 +89,7 @@ impl PortTxQueue {
         let result = f();
 
         {
-            let mut inner = self.inner.lock().map_err(lock_err)?;
+            let mut inner = crate::sync_util::lock_or_recover(&self.inner);
             inner.now_serving += 1;
             if inner.drain_waiters {
                 inner.now_serving = inner.next_ticket;
@@ -100,10 +100,6 @@ impl PortTxQueue {
 
         result
     }
-}
-
-fn lock_err<T>(e: std::sync::PoisonError<T>) -> Error {
-    Error::String(format!("Mutex lock failed: {e}"))
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
-//! Write + read-until helpers for AT-style request/response exchange.
+//! Resolved exchange parameters and read-until completion helpers.
 
-use crate::at_parse::ExchangeMatch;
+use crate::at::parse::ExchangeMatch;
 use crate::events::{AtResultFormat, ExchangeCompletionMode, ExchangeOptions, RxPrepareMode};
 
 const DEFAULT_EXCHANGE_TIMEOUT_MS: u64 = 5000;
@@ -31,7 +31,7 @@ impl ExchangeOptions {
         let solicited_prefixes = self.solicited_prefixes.clone().unwrap_or_default();
         let merged = command
             .as_deref()
-            .map(|c| crate::at_parse::merge_solicited_prefixes(c, &solicited_prefixes))
+            .map(|c| crate::at::parse::merge_solicited_prefixes(c, &solicited_prefixes))
             .unwrap_or(solicited_prefixes);
         ResolvedExchangeOptions {
             timeout_ms: self.timeout_ms.unwrap_or(DEFAULT_EXCHANGE_TIMEOUT_MS),
@@ -84,7 +84,7 @@ pub struct ReadUntilOutcome {
 mod tests {
     use super::*;
     use crate::events::{AtResultFormat, ExchangeCompletionMode};
-    use crate::port_rx_hub::check_exchange_complete;
+    use crate::exchange::completion::check_exchange_complete;
 
     #[test]
     fn matches_ok_terminator_substring_mode() {

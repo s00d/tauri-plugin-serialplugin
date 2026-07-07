@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::watch_registry;
+    use crate::port::watch_registry;
 
     #[test]
     fn register_rejects_duplicate_path() {

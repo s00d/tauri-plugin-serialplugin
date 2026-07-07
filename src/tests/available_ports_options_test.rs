@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::api::desktop::SerialPort;
     use crate::commands::available_ports;
-    use crate::desktop_api::SerialPort;
-    use crate::port_list::apply_single_port_per_device;
+    use crate::port::list::apply_single_port_per_device;
     use std::collections::HashMap;
     use tauri::test::MockRuntime;
     use tauri::Manager;
