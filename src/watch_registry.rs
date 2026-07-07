@@ -1,6 +1,5 @@
 //! Tracks active desktop watch sessions keyed by channel id.
 
-use crate::error::Error;
 use crate::events::SerialEvent;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -12,12 +11,10 @@ fn registry() -> &'static Mutex<HashMap<u32, String>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub fn register(channel_id: u32, path: String) -> Result<(), Error> {
-    let mut map = registry()
-        .lock()
-        .map_err(|_| Error::new("watch registry lock poisoned"))?;
+pub fn register(channel_id: u32, path: String) -> Result<(), crate::error::Error> {
+    let mut map = crate::sync_util::lock_or_recover(registry());
     if map.values().any(|p| p == &path) {
-        return Err(Error::new(format!(
+        return Err(crate::error::Error::new(format!(
             "A watch is already active for port {}",
             path
         )));
@@ -27,23 +24,15 @@ pub fn register(channel_id: u32, path: String) -> Result<(), Error> {
 }
 
 pub fn unregister(channel_id: u32) -> Option<String> {
-    registry()
-        .lock()
-        .ok()
-        .and_then(|mut map| map.remove(&channel_id))
+    crate::sync_util::lock_or_recover(registry()).remove(&channel_id)
 }
 
 pub fn paths_for_port(path: &str) -> Vec<u32> {
-    registry()
-        .lock()
-        .ok()
-        .map(|map| {
-            map.iter()
-                .filter(|(_, p)| p.as_str() == path)
-                .map(|(id, _)| *id)
-                .collect()
-        })
-        .unwrap_or_default()
+    crate::sync_util::lock_or_recover(registry())
+        .iter()
+        .filter(|(_, p)| p.as_str() == path)
+        .map(|(id, _)| *id)
+        .collect()
 }
 
 pub fn send_event(channel: &Channel<SerialEvent>, event: SerialEvent) {

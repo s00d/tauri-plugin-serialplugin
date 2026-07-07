@@ -536,10 +536,7 @@ impl RxHubShared {
     }
 
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
-        let channel = self
-            .watch
-            .lock()
-            .unwrap()
+        let channel = crate::sync_util::lock_or_recover(&self.watch)
             .as_ref()
             .map(|watch| watch.channel.clone());
         if let Some(channel) = channel {
@@ -551,7 +548,7 @@ impl RxHubShared {
     }
 
     pub fn has_watch(&self) -> bool {
-        self.watch.lock().map(|g| g.is_some()).unwrap_or(false)
+        crate::sync_util::lock_or_recover(&self.watch).is_some()
     }
 
     /// Deliver events queued while holding the routing mutex (avoids channel.send under lock).
@@ -559,10 +556,7 @@ impl RxHubShared {
         if events.is_empty() {
             return;
         }
-        let channel = self
-            .watch
-            .lock()
-            .unwrap()
+        let channel = crate::sync_util::lock_or_recover(&self.watch)
             .as_ref()
             .map(|watch| watch.channel.clone());
         if let Some(channel) = channel {
@@ -799,10 +793,7 @@ fn hub_loop(
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
                 if is_disconnect(&e) {
                     shared.fail_all_waiters(&format!("Serial port disconnected: {}", e));
-                    let channel = shared
-                        .watch
-                        .lock()
-                        .unwrap()
+                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
                         .as_ref()
                         .map(|watch| watch.channel.clone());
                     if let Some(channel) = channel {
@@ -815,10 +806,7 @@ fn hub_loop(
                 }
                 if last_error_emit.elapsed() >= Duration::from_secs(1) {
                     last_error_emit = Instant::now();
-                    let channel = shared
-                        .watch
-                        .lock()
-                        .unwrap()
+                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
                         .as_ref()
                         .map(|watch| watch.channel.clone());
                     if let Some(channel) = channel {
@@ -1172,5 +1160,40 @@ mod tests {
         shared.feed_bytes(b"early", &mut HubRoutingState::new("p".into()));
         let stale = shared.take_idle_bytes();
         assert_eq!(stale, b"early");
+    }
+
+    #[test]
+    fn read_request_rejects_when_watch_active() {
+        use tauri::ipc::Channel;
+        let shared = Arc::new(RxHubShared::new());
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024);
+        let err = shared.read_request(64, 100, false).unwrap_err();
+        assert!(err.contains("watch"));
+    }
+
+    #[test]
+    fn read_request_times_out_without_bytes() {
+        let shared = Arc::new(RxHubShared::new());
+        let shared_bg = shared.clone();
+        let reader = thread::spawn(move || shared_bg.read_request(64, 50, false));
+        let result = reader.join().unwrap();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("no data") || err.contains("timed out") || err.contains("timeout"),
+            "unexpected: {err}"
+        );
+    }
+
+    #[test]
+    fn attach_watch_clears_idle() {
+        use tauri::ipc::Channel;
+        let shared = Arc::new(RxHubShared::new());
+        shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
+        assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024);
+        assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
     }
 }
