@@ -88,6 +88,18 @@ jobs:
       run: |
         pnpm install
 
+    - name: Rustfmt
+      run: cargo fmt --all -- --check
+
+    - name: Clippy
+      run: cargo clippy --all-targets -- -D warnings
+
+    - name: TypeScript check
+      run: pnpm check
+
+    - name: Build JS
+      run: pnpm build
+
     - name: Run Rust tests
       env:
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
