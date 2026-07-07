@@ -4,10 +4,10 @@
 use serialport::SerialPort;
 #[cfg(desktop)]
 use std::io::Write;
-#[cfg(desktop)]
-use std::sync::{Arc, Mutex};
 #[cfg(target_os = "android")]
 use std::sync::Arc;
+#[cfg(desktop)]
+use std::sync::{Arc, Mutex};
 
 /// Writes raw bytes to the physical CMUX bearer.
 pub trait CmuxPhysicalIo: Send + Sync {

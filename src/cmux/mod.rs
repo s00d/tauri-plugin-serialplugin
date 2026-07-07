@@ -7,9 +7,9 @@ mod session;
 
 pub use frame::{encode_uih, DecodedFrame, Deframer};
 pub use io::CmuxPhysicalIo;
-#[cfg(desktop)]
-pub use io::SerialPortIo;
 #[cfg(target_os = "android")]
 pub use io::MobileCmuxIo;
+#[cfg(desktop)]
+pub use io::SerialPortIo;
 pub use path::{mux_path, parse_mux_path};
 pub use session::{CmuxSession, DlciChannel};

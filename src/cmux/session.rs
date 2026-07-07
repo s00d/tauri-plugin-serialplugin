@@ -35,7 +35,7 @@ impl DlciChannel {
     }
 
     pub fn attach_watch(&self, channel: Channel<SerialEvent>, batch_timeout_ms: u64) {
-        *self.watch.lock().unwrap() = Some(DlciWatchSlot {
+        *crate::sync_util::lock_or_recover(&self.watch) = Some(DlciWatchSlot {
             channel,
             batch_timeout_ms,
             flush_at: Instant::now(),
@@ -43,16 +43,12 @@ impl DlciChannel {
     }
 
     pub fn detach_watch(&self) {
-        *self.watch.lock().unwrap() = None;
-        self.stream_buffer.lock().unwrap().clear();
-    }
-
-    pub fn has_watch(&self) -> bool {
-        self.watch.lock().unwrap().is_some()
+        *crate::sync_util::lock_or_recover(&self.watch) = None;
+        crate::sync_util::lock_or_recover(&self.stream_buffer).clear();
     }
 
     fn push_stream(&self, payload: &[u8]) {
-        let mut guard = self.watch.lock().unwrap();
+        let mut guard = crate::sync_util::lock_or_recover(&self.watch);
         let Some(slot) = guard.as_mut() else {
             return;
         };
@@ -67,11 +63,11 @@ impl DlciChannel {
     }
 
     fn flush_stream_buffer(&self) {
-        let mut buf = self.stream_buffer.lock().unwrap();
+        let mut buf = crate::sync_util::lock_or_recover(&self.stream_buffer);
         if buf.is_empty() {
             return;
         }
-        if let Some(slot) = self.watch.lock().unwrap().as_ref() {
+        if let Some(slot) = crate::sync_util::lock_or_recover(&self.watch).as_ref() {
             let size = buf.len();
             let data = std::mem::take(&mut *buf);
             let path = self.path.clone();
@@ -109,48 +105,35 @@ impl CmuxSession {
 
     pub fn register_dlci(&self, dlci: u8, virtual_path: String) -> Arc<DlciChannel> {
         let ch = Arc::new(DlciChannel::new(virtual_path));
-        self.channels.lock().unwrap().insert(dlci, ch.clone());
+        crate::sync_util::lock_or_recover(&self.channels).insert(dlci, ch.clone());
         ch
     }
 
     pub fn unregister_dlci(&self, dlci: u8) {
-        self.channels.lock().unwrap().remove(&dlci);
-    }
-
-    pub fn channel_for_path(&self, path: &str) -> Option<(u8, Arc<DlciChannel>)> {
-        self.channels
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|(_, ch)| ch.path == path)
-            .map(|(dlci, ch)| (*dlci, ch.clone()))
+        crate::sync_util::lock_or_recover(&self.channels).remove(&dlci);
     }
 
     pub fn set_watch(&self, dlci: u8, channel: Channel<SerialEvent>, batch_timeout_ms: u64) {
-        if let Some(ch) = self.channels.lock().unwrap().get(&dlci) {
+        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
             ch.attach_watch(channel, batch_timeout_ms);
         }
     }
 
     pub fn clear_watch(&self, dlci: u8) {
-        if let Some(ch) = self.channels.lock().unwrap().get(&dlci) {
+        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
             ch.detach_watch();
         }
     }
 
-    pub fn channel_for_dlci(&self, dlci: u8) -> Option<Arc<DlciChannel>> {
-        self.channels.lock().unwrap().get(&dlci).cloned()
-    }
-
     pub fn set_exchange_waiter(&self, dlci: u8, waiter: Arc<ExchangeWaiter>) {
-        if let Some(ch) = self.channels.lock().unwrap().get(&dlci) {
-            *ch.exchange_waiter.lock().unwrap() = Some(waiter);
+        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
+            *crate::sync_util::lock_or_recover(&ch.exchange_waiter) = Some(waiter);
         }
     }
 
     pub fn clear_exchange_waiter(&self, dlci: u8) {
-        if let Some(ch) = self.channels.lock().unwrap().get(&dlci) {
-            *ch.exchange_waiter.lock().unwrap() = None;
+        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
+            *crate::sync_util::lock_or_recover(&ch.exchange_waiter) = None;
         }
     }
 
@@ -162,27 +145,25 @@ impl CmuxSession {
 
     /// Feed raw bytes from the physical RX hub thread.
     pub fn feed_physical_rx(&self, chunk: &[u8]) {
-        let frames = self.deframer.lock().unwrap().feed(chunk);
+        let frames = crate::sync_util::lock_or_recover(&self.deframer).feed(chunk);
         for frame in frames {
             self.dispatch_frame(frame);
         }
     }
 
     fn dispatch_frame(&self, frame: DecodedFrame) {
-        let ch = self.channels.lock().unwrap().get(&frame.dlci).cloned();
+        let ch = crate::sync_util::lock_or_recover(&self.channels)
+            .get(&frame.dlci)
+            .cloned();
         let Some(ch) = ch else {
             return;
         };
-        let waiter = ch.exchange_waiter.lock().unwrap().clone();
+        let waiter = crate::sync_util::lock_or_recover(&ch.exchange_waiter).clone();
         if let Some(waiter) = waiter {
             waiter.push_bytes(&frame.payload);
             return;
         }
         ch.push_stream(&frame.payload);
-    }
-
-    pub fn registered_dlcis(&self) -> Vec<u8> {
-        self.channels.lock().unwrap().keys().copied().collect()
     }
 }
 
@@ -220,7 +201,7 @@ mod tests {
         let session = CmuxSession::new(
             "pty".into(),
             Arc::new(SerialPortIo(Arc::new(Mutex::new(
-                Box::new(port) as Box<dyn SerialPort>,
+                Box::new(port) as Box<dyn SerialPort>
             )))),
         );
         session.register_dlci(2, "pty#dlci=2".into());

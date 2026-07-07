@@ -13,8 +13,6 @@ use serialport::SerialPort;
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(desktop)]
-use std::sync::atomic::AtomicU32;
-#[cfg(desktop)]
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex};
 #[cfg(desktop)]
@@ -23,21 +21,30 @@ use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 
 #[cfg(desktop)]
-const POLL_READ_TIMEOUT_MS: u64 = 100;
+const POLL_READ_TIMEOUT_MS: u64 = 10;
+const IDLE_BUFFER_CAP: usize = 64 * 1024;
 
 type ExchangeDone = Arc<(
     Mutex<Option<Result<(Vec<u8>, ExchangeMatch), String>>>,
     Condvar,
 )>;
 type DrainDone = Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)>;
+type ReadDone = Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)>;
 
-/// Read from the port without starving writers: retry until the port mutex is free.
+/// Read from the port without starving writers: short timed reads, retry after releasing the lock.
 #[cfg(desktop)]
 fn poll_read_port(
     port: &Arc<Mutex<Box<dyn SerialPort>>>,
     buf: &mut [u8],
+    stop_rx: &Receiver<()>,
 ) -> std::io::Result<usize> {
     loop {
+        if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "rx hub stopped",
+            ));
+        }
         let mut p = match port.try_lock() {
             Ok(g) => g,
             Err(_) => {
@@ -46,7 +53,14 @@ fn poll_read_port(
             }
         };
         let _ = p.set_timeout(Duration::from_millis(POLL_READ_TIMEOUT_MS));
-        return p.read(buf);
+        match p.read(buf) {
+            Ok(n) => return Ok(n),
+            Err(e) if is_benign(&e) => {
+                drop(p);
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(e) => return Err(e),
+        }
     }
 }
 
@@ -76,7 +90,7 @@ impl ExchangeWaiter {
     }
 
     pub fn push_bytes(&self, chunk: &[u8]) {
-        let mut buffer = self.buffer.lock().unwrap();
+        let mut buffer = crate::sync_util::lock_or_recover(&self.buffer);
         buffer.extend_from_slice(chunk);
         if self.cancel.load(Ordering::SeqCst) {
             self.finish(Err("exchange cancelled".into()));
@@ -97,15 +111,18 @@ impl ExchangeWaiter {
 
     pub fn wait(self: &Arc<Self>, timeout_ms: u64) -> Result<(Vec<u8>, ExchangeMatch), String> {
         let (lock, cvar) = &*self.done;
-        let mut guard = lock.lock().unwrap();
+        let mut guard = crate::sync_util::lock_or_recover(lock);
         let deadline = Instant::now() + Duration::from_millis(timeout_ms);
         while guard.is_none() {
+            if self.cancel.load(Ordering::SeqCst) {
+                return Err("exchange cancelled".into());
+            }
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
                 return Err(format!("exchange timed out after {} ms", timeout_ms));
             }
             let (g, timeout) = cvar
-                .wait_timeout(guard, remaining)
+                .wait_timeout(guard, remaining.min(Duration::from_millis(50)))
                 .map_err(|e| e.to_string())?;
             guard = g;
             if guard.is_none() && timeout.timed_out() && Instant::now() >= deadline {
@@ -117,7 +134,7 @@ impl ExchangeWaiter {
 
     fn finish(&self, result: Result<(Vec<u8>, ExchangeMatch), String>) {
         let (lock, cvar) = &*self.done;
-        let mut guard = lock.lock().unwrap();
+        let mut guard = crate::sync_util::lock_or_recover(lock);
         *guard = Some(result);
         cvar.notify_all();
     }
@@ -128,7 +145,10 @@ impl ExchangeWaiter {
     }
 }
 
-fn check_exchange_complete(buf: &[u8], options: &ResolvedExchangeOptions) -> Option<ExchangeMatch> {
+pub(crate) fn check_exchange_complete(
+    buf: &[u8],
+    options: &ResolvedExchangeOptions,
+) -> Option<ExchangeMatch> {
     match options.completion_mode {
         crate::events::ExchangeCompletionMode::AtFinalLine => {
             at_final_line_complete(buf, options.result_format)
@@ -236,15 +256,29 @@ struct DrainSlot {
     done: DrainDone,
 }
 
+struct ReadSlot {
+    max_bytes: usize,
+    fill: bool,
+    timeout_ms: u64,
+    buffer: Vec<u8>,
+    deadline: Instant,
+    done: ReadDone,
+}
+
 /// Shared hub state between the RX thread and API handlers.
 pub struct RxHubShared {
     exchange_waiter: Mutex<Option<Arc<ExchangeWaiter>>>,
     watch: Mutex<Option<WatchSlot>>,
     drain: Mutex<Option<DrainSlot>>,
+    read_slot: Mutex<Option<ReadSlot>>,
+    idle: Mutex<Vec<u8>>,
     cmux: Mutex<Option<Arc<CmuxSession>>>,
-    /// When > 0, the desktop hub reader yields so exchange/write can take the port mutex.
-    #[cfg(desktop)]
-    port_io_yield: AtomicU32,
+}
+
+impl Default for RxHubShared {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RxHubShared {
@@ -253,9 +287,9 @@ impl RxHubShared {
             exchange_waiter: Mutex::new(None),
             watch: Mutex::new(None),
             drain: Mutex::new(None),
+            read_slot: Mutex::new(None),
+            idle: Mutex::new(Vec::new()),
             cmux: Mutex::new(None),
-            #[cfg(desktop)]
-            port_io_yield: AtomicU32::new(0),
         }
     }
 
@@ -265,7 +299,8 @@ impl RxHubShared {
         batch_timeout_ms: u64,
         #[cfg_attr(not(desktop), allow(unused_variables))] read_size: usize,
     ) {
-        *self.watch.lock().unwrap() = Some(WatchSlot {
+        crate::sync_util::lock_or_recover(&self.idle).clear();
+        *crate::sync_util::lock_or_recover(&self.watch) = Some(WatchSlot {
             channel,
             batch_timeout_ms,
             #[cfg(desktop)]
@@ -274,23 +309,30 @@ impl RxHubShared {
     }
 
     pub fn detach_watch(&self) {
-        *self.watch.lock().unwrap() = None;
+        *crate::sync_util::lock_or_recover(&self.watch) = None;
     }
 
     pub fn attach_cmux(&self, session: Arc<CmuxSession>) {
-        *self.cmux.lock().unwrap() = Some(session);
+        *crate::sync_util::lock_or_recover(&self.cmux) = Some(session);
     }
 
     pub fn detach_cmux(&self) {
-        *self.cmux.lock().unwrap() = None;
+        *crate::sync_util::lock_or_recover(&self.cmux) = None;
     }
 
     pub fn set_exchange_waiter(&self, waiter: Arc<ExchangeWaiter>) {
-        *self.exchange_waiter.lock().unwrap() = Some(waiter);
+        *crate::sync_util::lock_or_recover(&self.exchange_waiter) = Some(waiter);
     }
 
     pub fn clear_exchange_waiter(&self) {
-        *self.exchange_waiter.lock().unwrap() = None;
+        *crate::sync_util::lock_or_recover(&self.exchange_waiter) = None;
+    }
+
+    /// Wake an in-flight exchange waiter when [`cancel_exchange`] is invoked.
+    pub fn cancel_active_exchange(&self) {
+        if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).as_ref() {
+            waiter.fail_with_reason("exchange cancelled".into());
+        }
     }
 
     /// Push-model entry: route incoming bytes (Android JNI / tests).
@@ -299,18 +341,35 @@ impl RxHubShared {
             return;
         }
         let path = state.path.clone();
-        if self.drain.lock().unwrap().is_some() {
+        if let Some(session) = crate::sync_util::lock_or_recover(&self.cmux).clone() {
+            session.feed_physical_rx(chunk);
+            return;
+        }
+        if crate::sync_util::lock_or_recover(&self.drain).is_some() {
             route_drain_chunk(self, &path, chunk);
             return;
         }
-        route_incoming_chunk(self, &path, chunk, state);
+        if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).clone() {
+            route_exchange_chunk(self, &path, chunk, state, waiter);
+            return;
+        }
+        if crate::sync_util::lock_or_recover(&self.read_slot).is_some() {
+            route_read_slot_chunk(self, chunk);
+            return;
+        }
+        if self.has_watch() {
+            route_watch_chunk(&path, chunk, state);
+            return;
+        }
+        push_idle(self, chunk);
     }
 
-    /// Idle timers for push model: drain completion + watch batch flush.
+    /// Idle timers for push model: drain completion + watch batch flush + read deadlines.
     pub fn tick(&self, path: &str, state: &mut HubRoutingState) {
-        if self.drain.lock().unwrap().is_some() {
+        tick_read_slot(self);
+        if crate::sync_util::lock_or_recover(&self.drain).is_some() {
             let early = {
-                let mut guard = self.drain.lock().unwrap();
+                let mut guard = crate::sync_util::lock_or_recover(&self.drain);
                 let Some(drain) = guard.as_mut() else {
                     return;
                 };
@@ -344,16 +403,123 @@ impl RxHubShared {
             .unwrap_or(1000);
         if state.flush_at.elapsed() >= Duration::from_millis(batch_timeout_ms) {
             state.flush_at = Instant::now();
-            flush_watch_data(self, path, &mut state.combined_buffer, &mut state.pending_events);
+            flush_watch_data(
+                self,
+                path,
+                &mut state.combined_buffer,
+                &mut state.pending_events,
+            );
         }
     }
 
-    /// Immediately fail exchange waiters and active drain (USB error teardown).
+    /// Immediately fail exchange waiters, active drain, and pending read (USB error teardown).
     pub fn fail_all_waiters(&self, reason: &str) {
-        if let Some(waiter) = self.exchange_waiter.lock().unwrap().take() {
+        if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).take() {
             waiter.fail_with_reason(reason.to_string());
         }
         finish_drain(self, Err(reason.to_string()));
+        finish_read_slot(self, Err(reason.to_string()));
+    }
+
+    pub fn buffered_len(&self) -> usize {
+        let idle_len = crate::sync_util::lock_or_recover(&self.idle).len();
+        let read_len = self
+            .read_slot
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|slot| slot.buffer.len())
+            .unwrap_or(0);
+        idle_len + read_len
+    }
+
+    pub fn purge_buffers(&self) {
+        crate::sync_util::lock_or_recover(&self.idle).clear();
+    }
+
+    /// Take any bytes buffered without an active consumer (e.g. early RX before exchange waiter).
+    pub fn take_idle_bytes(&self) -> Vec<u8> {
+        std::mem::take(&mut *crate::sync_util::lock_or_recover(&self.idle))
+    }
+
+    pub fn cancel_pending_read(&self) {
+        finish_read_slot(self, Err("read cancelled".into()));
+    }
+
+    /// Blocking poll-read via the hub (raw bytes, bypasses [`LineRouter`]).
+    pub fn read_request(
+        &self,
+        max_bytes: usize,
+        timeout_ms: u64,
+        fill: bool,
+    ) -> Result<Vec<u8>, String> {
+        if self.has_watch() {
+            return Err("Cannot read while watch is active; use watch or exchange".into());
+        }
+        if crate::sync_util::lock_or_recover(&self.read_slot).is_some() {
+            return Err("read already in progress".into());
+        }
+
+        let max_bytes = max_bytes.max(1);
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+
+        let mut initial = Vec::new();
+        {
+            let mut idle = crate::sync_util::lock_or_recover(&self.idle);
+            if !idle.is_empty() {
+                if fill {
+                    let n = max_bytes.min(idle.len());
+                    initial.extend(idle.drain(..n));
+                    if initial.len() >= max_bytes {
+                        return Ok(initial);
+                    }
+                } else {
+                    let n = idle.len().min(max_bytes);
+                    return Ok(idle.drain(..n).collect());
+                }
+            }
+        }
+
+        let done = Arc::new((Mutex::new(None), Condvar::new()));
+        {
+            *crate::sync_util::lock_or_recover(&self.read_slot) = Some(ReadSlot {
+                max_bytes,
+                fill,
+                timeout_ms,
+                buffer: initial,
+                deadline,
+                done: done.clone(),
+            });
+        }
+
+        let (lock, cvar) = &*done;
+        let mut guard = crate::sync_util::lock_or_recover(lock);
+        while guard.is_none() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                if let Some(slot) = crate::sync_util::lock_or_recover(&self.read_slot).take() {
+                    if slot.buffer.is_empty() {
+                        return Err(format!("no data received within {} ms", timeout_ms));
+                    }
+                    return Ok(slot.buffer);
+                }
+                return Err(format!("no data received within {} ms", timeout_ms));
+            }
+            let (g, timeout_result) = cvar
+                .wait_timeout(guard, remaining)
+                .map_err(|e| e.to_string())?;
+            guard = g;
+            if guard.is_none() && timeout_result.timed_out() && Instant::now() >= deadline {
+                if let Some(slot) = crate::sync_util::lock_or_recover(&self.read_slot).take() {
+                    if slot.buffer.is_empty() {
+                        return Err(format!("no data received within {} ms", timeout_ms));
+                    }
+                    return Ok(slot.buffer);
+                }
+                return Err(format!("no data received within {} ms", timeout_ms));
+            }
+        }
+        guard.take().unwrap()
     }
 
     pub fn pending_watch_bytes(&self, state: &HubRoutingState) -> usize {
@@ -361,32 +527,27 @@ impl RxHubShared {
     }
 
     pub fn flush_watch_now(&self, state: &mut HubRoutingState) {
-        flush_watch_data(self, &state.path, &mut state.combined_buffer, &mut state.pending_events);
+        flush_watch_data(
+            self,
+            &state.path,
+            &mut state.combined_buffer,
+            &mut state.pending_events,
+        );
     }
 
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
-        if let Some(watch) = self.watch.lock().unwrap().as_ref() {
-            let _ = watch.channel.send(SerialEvent::Disconnect {
+        let channel = self
+            .watch
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|watch| watch.channel.clone());
+        if let Some(channel) = channel {
+            let _ = channel.send(SerialEvent::Disconnect {
                 path: path.to_string(),
                 reason: reason.to_string(),
             });
         }
-    }
-
-    /// Ask the desktop hub reader to back off while another thread needs the port mutex.
-    #[cfg(desktop)]
-    pub fn begin_port_io(&self) {
-        self.port_io_yield.fetch_add(1, Ordering::SeqCst);
-    }
-
-    #[cfg(desktop)]
-    pub fn end_port_io(&self) {
-        self.port_io_yield.fetch_sub(1, Ordering::SeqCst);
-    }
-
-    #[cfg(desktop)]
-    fn should_yield_port_io(&self) -> bool {
-        self.port_io_yield.load(Ordering::SeqCst) > 0
     }
 
     pub fn has_watch(&self) -> bool {
@@ -398,9 +559,15 @@ impl RxHubShared {
         if events.is_empty() {
             return;
         }
-        if let Some(watch) = self.watch.lock().unwrap().as_ref() {
+        let channel = self
+            .watch
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|watch| watch.channel.clone());
+        if let Some(channel) = channel {
             for ev in events {
-                crate::watch_registry::send_event(&watch.channel, ev);
+                crate::watch_registry::send_event(&channel, ev);
             }
         }
     }
@@ -415,7 +582,7 @@ impl RxHubShared {
     ) -> Result<Vec<u8>, String> {
         let done = Arc::new((Mutex::new(None), Condvar::new()));
         {
-            *self.drain.lock().unwrap() = Some(DrainSlot {
+            *crate::sync_util::lock_or_recover(&self.drain) = Some(DrainSlot {
                 idle_ms,
                 cancel,
                 buffer: Vec::new(),
@@ -427,12 +594,12 @@ impl RxHubShared {
             });
         }
         let (lock, cvar) = &*done;
-        let mut guard = lock.lock().unwrap();
+        let mut guard = crate::sync_util::lock_or_recover(lock);
         let deadline = Instant::now() + Duration::from_millis(max_ms + 500);
         while guard.is_none() {
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                *self.drain.lock().unwrap() = None;
+                *crate::sync_util::lock_or_recover(&self.drain) = None;
                 return Err("drain timed out waiting for hub".into());
             }
             let (g, _) = cvar
@@ -441,27 +608,6 @@ impl RxHubShared {
             guard = g;
         }
         guard.take().unwrap()
-    }
-}
-
-/// Clears [`RxHubShared::begin_port_io`] on drop (desktop poll hub only).
-#[cfg(desktop)]
-pub struct PortIoYieldGuard {
-    shared: Arc<RxHubShared>,
-}
-
-#[cfg(desktop)]
-impl PortIoYieldGuard {
-    pub fn new(shared: Arc<RxHubShared>) -> Self {
-        shared.begin_port_io();
-        Self { shared }
-    }
-}
-
-#[cfg(desktop)]
-impl Drop for PortIoYieldGuard {
-    fn drop(&mut self) {
-        self.shared.end_port_io();
     }
 }
 
@@ -491,6 +637,13 @@ impl PortRxHub {
         self.shared.clone()
     }
 
+    pub fn is_finished(&self) -> bool {
+        self.thread
+            .as_ref()
+            .map(JoinHandle::is_finished)
+            .unwrap_or(true)
+    }
+
     pub fn attach_watch(
         &self,
         channel: Channel<SerialEvent>,
@@ -513,6 +666,10 @@ impl PortRxHub {
         self.shared.clear_exchange_waiter();
     }
 
+    pub fn cancel_active_exchange(&self) {
+        self.shared.cancel_active_exchange();
+    }
+
     pub fn attach_cmux(&self, session: Arc<CmuxSession>) {
         self.shared.attach_cmux(session);
     }
@@ -529,7 +686,8 @@ impl PortRxHub {
         cancel: Arc<AtomicBool>,
         solicited_prefixes: Vec<String>,
     ) -> Result<Vec<u8>, String> {
-        self.shared.drain(idle_ms, max_ms, cancel, solicited_prefixes)
+        self.shared
+            .drain(idle_ms, max_ms, cancel, solicited_prefixes)
     }
 
     pub fn stop(mut self) {
@@ -550,18 +708,19 @@ fn hub_loop(
     let mut routing = HubRoutingState::new(path.clone());
     let mut batch_timeout_ms = 1000u64;
     let mut read_size = 1024usize;
-    let mut consecutive_errors = 0u32;
+    let mut last_error_emit = Instant::now() - Duration::from_secs(1);
 
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
+            shared.fail_all_waiters("port closed");
             shared.flush_watch_now(&mut routing);
             shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
             break;
         }
 
-        if shared.drain.lock().unwrap().is_some() {
+        if crate::sync_util::lock_or_recover(&shared.drain).is_some() {
             let early_finish = {
-                let mut guard = shared.drain.lock().unwrap();
+                let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
                 let Some(drain) = guard.as_mut() else {
                     continue;
                 };
@@ -579,8 +738,9 @@ fn hub_loop(
             }
 
             let mut buf = vec![0u8; 1024];
-            let n = match poll_read_port(&port, &mut buf) {
+            let n = match poll_read_port(&port, &mut buf, &stop_rx) {
                 Ok(n) => n,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
                 Err(e) if is_benign(&e) => 0,
                 Err(e) => {
                     finish_drain(&shared, Err(format!("drain read failed: {}", e)));
@@ -592,7 +752,7 @@ fn hub_loop(
                 route_drain_chunk(&shared, &path, &buf[..n]);
             } else {
                 let finish = {
-                    let mut guard = shared.drain.lock().unwrap();
+                    let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
                     let Some(drain) = guard.as_mut() else {
                         continue;
                     };
@@ -614,48 +774,59 @@ fn hub_loop(
             continue;
         }
 
-        if let Some(watch) = shared.watch.lock().unwrap().as_ref() {
+        if let Some(watch) = crate::sync_util::lock_or_recover(&shared.watch).as_ref() {
             batch_timeout_ms = watch.batch_timeout_ms;
             read_size = watch.read_size;
         }
 
-        if shared.should_yield_port_io() {
-            thread::sleep(Duration::from_millis(1));
-            continue;
-        }
-
         let mut buf = vec![0u8; read_size];
-        let read_result = poll_read_port(&port, &mut buf);
+        let read_result = poll_read_port(&port, &mut buf, &stop_rx);
 
         match read_result {
             Ok(n) if n > 0 => {
-                consecutive_errors = 0;
                 shared.feed_bytes(&buf[..n], &mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
             }
-            Ok(_) => {}
-            Err(e) if is_benign(&e) => {}
+            Ok(_) => {
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
+            Err(e) if is_benign(&e) => {
+                thread::sleep(Duration::from_millis(1));
+            }
             Err(e) => {
                 shared.flush_watch_now(&mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
                 if is_disconnect(&e) {
-                    if let Some(watch) = shared.watch.lock().unwrap().as_ref() {
-                        let _ = watch.channel.send(SerialEvent::Disconnect {
+                    shared.fail_all_waiters(&format!("Serial port disconnected: {}", e));
+                    let channel = shared
+                        .watch
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|watch| watch.channel.clone());
+                    if let Some(channel) = channel {
+                        let _ = channel.send(SerialEvent::Disconnect {
                             path: path.clone(),
                             reason: format!("Serial port disconnected: {}", e),
                         });
                     }
                     break;
                 }
-                consecutive_errors += 1;
-                if let Some(watch) = shared.watch.lock().unwrap().as_ref() {
-                    let _ = watch.channel.send(SerialEvent::Error {
-                        path: path.clone(),
-                        message: format!("Serial read error: {}", e),
-                    });
-                }
-                if consecutive_errors >= 3 {
-                    break;
+                if last_error_emit.elapsed() >= Duration::from_secs(1) {
+                    last_error_emit = Instant::now();
+                    let channel = shared
+                        .watch
+                        .lock()
+                        .unwrap()
+                        .as_ref()
+                        .map(|watch| watch.channel.clone());
+                    if let Some(channel) = channel {
+                        let _ = channel.send(SerialEvent::Error {
+                            path: path.clone(),
+                            message: format!("Serial read error: {}", e),
+                        });
+                    }
                 }
                 thread::sleep(Duration::from_millis(50));
             }
@@ -669,7 +840,7 @@ fn hub_loop(
 
 fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
     let prefixes = {
-        let mut guard = shared.drain.lock().unwrap();
+        let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
         let Some(drain) = guard.as_mut() else {
             return;
         };
@@ -680,64 +851,116 @@ fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
     emit_drain_urc_with_prefixes(shared, path, chunk, &prefixes);
 }
 
-fn route_incoming_chunk(
+fn route_exchange_chunk(
     shared: &RxHubShared,
     path: &str,
     chunk: &[u8],
     state: &mut HubRoutingState,
+    waiter: Arc<ExchangeWaiter>,
 ) {
-    if let Some(session) = shared.cmux.lock().unwrap().clone() {
-        session.feed_physical_rx(chunk);
-        return;
+    if state.exchange_demux.is_none() {
+        let cmd = waiter.options.command.clone().unwrap_or_default();
+        state.exchange_demux = Some(ExchangeDemux::new(&cmd, &waiter.options.solicited_prefixes));
     }
-    if let Some(waiter) = shared.exchange_waiter.lock().unwrap().clone() {
-        if state.exchange_demux.is_none() {
-            let cmd = waiter.options.command.clone().unwrap_or_default();
-            state.exchange_demux =
-                Some(ExchangeDemux::new(&cmd, &waiter.options.solicited_prefixes));
-        }
-        if let Some(demux) = state.exchange_demux.as_mut() {
-            for line in demux.process_chunk(chunk) {
-                if shared.has_watch() {
-                    state.pending_events.push(SerialEvent::Urc {
-                        path: path.to_string(),
-                        line,
-                    });
-                }
+    if let Some(demux) = state.exchange_demux.as_mut() {
+        for line in demux.process_chunk(chunk) {
+            if shared.has_watch() {
+                state.pending_events.push(SerialEvent::Urc {
+                    path: path.to_string(),
+                    line,
+                });
             }
         }
-        waiter.push_bytes(chunk);
-    } else {
-        state.exchange_demux = None;
-        let prefixes: Vec<String> = shared
-            .watch
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|_| Vec::new())
-            .unwrap_or_default();
-        for action in state.line_router.route_streaming(chunk, &prefixes) {
-            match action {
-                RxRouteAction::UrcLine(line) => {
-                    if shared.has_watch() {
-                        state.pending_events.push(SerialEvent::Urc {
-                            path: path.to_string(),
-                            line,
-                        });
-                    }
-                }
-                RxRouteAction::StreamData(bytes) => {
-                    state.combined_buffer.extend_from_slice(&bytes);
-                }
+    }
+    waiter.push_bytes(chunk);
+}
+
+fn route_watch_chunk(path: &str, chunk: &[u8], state: &mut HubRoutingState) {
+    state.exchange_demux = None;
+    for action in state.line_router.route_streaming(chunk, &[]) {
+        match action {
+            RxRouteAction::UrcLine(line) => {
+                state.pending_events.push(SerialEvent::Urc {
+                    path: path.to_string(),
+                    line,
+                });
+            }
+            RxRouteAction::StreamData(bytes) => {
+                state.combined_buffer.extend_from_slice(&bytes);
             }
         }
     }
 }
 
+fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) {
+    let finish = {
+        let mut guard = crate::sync_util::lock_or_recover(&shared.read_slot);
+        let Some(slot) = guard.as_mut() else {
+            return;
+        };
+        let remaining = slot.max_bytes.saturating_sub(slot.buffer.len());
+        if remaining == 0 {
+            Some(Ok(std::mem::take(&mut slot.buffer)))
+        } else {
+            let take = chunk.len().min(remaining);
+            slot.buffer.extend_from_slice(&chunk[..take]);
+            if !slot.fill || slot.buffer.len() >= slot.max_bytes {
+                Some(Ok(std::mem::take(&mut slot.buffer)))
+            } else {
+                None
+            }
+        }
+    };
+    if let Some(result) = finish {
+        finish_read_slot(shared, result);
+    }
+}
+
+fn tick_read_slot(shared: &RxHubShared) {
+    let early = {
+        let mut guard = crate::sync_util::lock_or_recover(&shared.read_slot);
+        let Some(slot) = guard.as_mut() else {
+            return;
+        };
+        if Instant::now() >= slot.deadline {
+            if slot.buffer.is_empty() {
+                Some(Err(format!(
+                    "no data received within {} ms",
+                    slot.timeout_ms
+                )))
+            } else {
+                Some(Ok(std::mem::take(&mut slot.buffer)))
+            }
+        } else {
+            None
+        }
+    };
+    if let Some(result) = early {
+        finish_read_slot(shared, result);
+    }
+}
+
+fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
+    if let Some(slot) = crate::sync_util::lock_or_recover(&shared.read_slot).take() {
+        let (lock, cvar) = &*slot.done;
+        *crate::sync_util::lock_or_recover(lock) = Some(result);
+        cvar.notify_all();
+    }
+}
+
+fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
+    let mut idle = crate::sync_util::lock_or_recover(&shared.idle);
+    idle.extend_from_slice(chunk);
+    if idle.len() > IDLE_BUFFER_CAP {
+        let excess = idle.len() - IDLE_BUFFER_CAP;
+        idle.drain(..excess);
+    }
+}
+
 fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
-    if let Some(drain) = shared.drain.lock().unwrap().take() {
+    if let Some(drain) = crate::sync_util::lock_or_recover(&shared.drain).take() {
         let (lock, cvar) = &*drain.done;
-        *lock.lock().unwrap() = Some(result);
+        *crate::sync_util::lock_or_recover(lock) = Some(result);
         cvar.notify_all();
     }
 }
@@ -749,16 +972,27 @@ fn emit_drain_urc_with_prefixes(
     prefixes: &[String],
 ) {
     let lines = crate::at_parse::split_lines(&String::from_utf8_lossy(chunk));
-    if let Some(watch) = shared.watch.lock().unwrap().as_ref() {
+    let channel = shared
+        .watch
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|watch| watch.channel.clone());
+    if let Some(channel) = channel {
         for line in lines {
             if is_likely_urc(&line, prefixes) {
-                emit_urc(&watch.channel, path, &line);
+                emit_urc(&channel, path, &line);
             }
         }
     }
 }
 
-fn flush_watch_data(shared: &RxHubShared, path: &str, combined_buffer: &mut Vec<u8>, pending: &mut Vec<SerialEvent>) {
+fn flush_watch_data(
+    shared: &RxHubShared,
+    path: &str,
+    combined_buffer: &mut Vec<u8>,
+    pending: &mut Vec<SerialEvent>,
+) {
     if combined_buffer.is_empty() {
         return;
     }
@@ -870,5 +1104,73 @@ mod tests {
         let result = drain_handle.join().unwrap();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), b"AT\r\n");
+    }
+
+    #[test]
+    fn read_request_returns_idle_bytes_without_watch() {
+        let shared = Arc::new(RxHubShared::new());
+        crate::sync_util::lock_or_recover(&shared.idle).extend_from_slice(b"hello");
+        let result = shared.read_request(64, 100, false).expect("read");
+        assert_eq!(result, b"hello");
+    }
+
+    #[test]
+    fn read_request_fill_accumulates_until_max() {
+        let shared = Arc::new(RxHubShared::new());
+        let shared_bg = shared.clone();
+        let reader = thread::spawn(move || shared_bg.read_request(6, 500, true));
+        thread::sleep(Duration::from_millis(5));
+        shared.feed_bytes(b"abc", &mut HubRoutingState::new("p".into()));
+        shared.feed_bytes(b"def", &mut HubRoutingState::new("p".into()));
+        let result = reader.join().unwrap().expect("fill read");
+        assert_eq!(result, b"abcdef");
+    }
+
+    #[test]
+    fn read_request_rejects_second_concurrent_slot() {
+        let shared = Arc::new(RxHubShared::new());
+        let shared_bg = shared.clone();
+        let reader = thread::spawn(move || shared_bg.read_request(64, 5000, false));
+        thread::sleep(Duration::from_millis(5));
+        let err = shared.read_request(64, 100, false).unwrap_err();
+        assert!(err.contains("already in progress"));
+        shared.fail_all_waiters("cleanup");
+        let _ = reader.join();
+    }
+
+    #[test]
+    fn purge_buffers_clears_idle() {
+        let shared = Arc::new(RxHubShared::new());
+        crate::sync_util::lock_or_recover(&shared.idle).extend_from_slice(b"stale");
+        shared.purge_buffers();
+        assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
+    }
+
+    #[test]
+    fn idle_buffer_drops_oldest_beyond_cap() {
+        let shared = Arc::new(RxHubShared::new());
+        let huge = vec![0u8; IDLE_BUFFER_CAP + 1024];
+        shared.feed_bytes(&huge, &mut HubRoutingState::new("p".into()));
+        assert!(crate::sync_util::lock_or_recover(&shared.idle).len() <= IDLE_BUFFER_CAP);
+    }
+
+    #[test]
+    fn fail_all_waiters_completes_read_slot() {
+        let shared = Arc::new(RxHubShared::new());
+        let shared_bg = shared.clone();
+        let reader = thread::spawn(move || shared_bg.read_request(64, 5000, false));
+        thread::sleep(Duration::from_millis(5));
+        shared.fail_all_waiters("usb error");
+        let result = reader.join().unwrap();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("usb error"));
+    }
+
+    #[test]
+    fn take_idle_bytes_returns_early_rx_before_waiter() {
+        let shared = Arc::new(RxHubShared::new());
+        shared.feed_bytes(b"early", &mut HubRoutingState::new("p".into()));
+        let stale = shared.take_idle_bytes();
+        assert_eq!(stale, b"early");
     }
 }

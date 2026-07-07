@@ -17,30 +17,26 @@ mod tests {
     #[test]
     fn test_desktop_api_init() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         assert!(serial_port.available_ports(false).is_ok());
     }
 
     #[test]
     fn test_desktop_api_port_list() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let ports = serial_port.available_ports(false).unwrap();
         // In CI/CD environment, there might be no USB devices connected
         // So we just check that the function returns successfully
         // The ports list can be empty in CI/CD
         println!("Desktop API available ports: {:?}", ports);
-        // Assert that we got a valid result (even if empty)
-        assert!(
-            ports.is_empty() || !ports.is_empty(),
-            "Ports list should be valid"
-        );
+        let _ = ports.len();
     }
 
     #[test]
     fn test_desktop_api_port_operations() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when opening non-existent port
         let result = serial_port.open(
@@ -58,7 +54,7 @@ mod tests {
     #[test]
     fn test_desktop_api_port_settings() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when setting settings for non-existent port
         let result = serial_port.set_baud_rate("NONEXISTENT".to_string(), 115200);
@@ -72,7 +68,7 @@ mod tests {
     #[test]
     fn test_write_rejects_closed_port_state() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let path = "COM_STATE_CLOSED".to_string();
         serial_port.serialports.lock().unwrap().insert(
             path.clone(),
@@ -95,7 +91,7 @@ mod tests {
     #[test]
     fn test_desktop_api_error_handling() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test working with non-existent port
         let result = serial_port.write("NONEXISTENT".to_string(), "Test".to_string());
@@ -122,7 +118,7 @@ mod tests {
     #[test]
     fn test_desktop_api_control_signals() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when setting control signals for non-existent port
         let result = serial_port.write_request_to_send("NONEXISTENT".to_string(), true);
@@ -138,7 +134,7 @@ mod tests {
     #[test]
     fn test_available_ports() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let result = serial_port.available_ports(false);
         assert!(result.is_ok());
         let ports = result.unwrap();
@@ -156,7 +152,7 @@ mod tests {
     #[test]
     fn test_managed_ports() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let result = serial_port.managed_ports();
         assert!(result.is_ok());
         let ports = result.unwrap();
@@ -166,7 +162,7 @@ mod tests {
     #[test]
     fn test_open_port() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when opening non-existent port
         let result = serial_port.open(
@@ -184,7 +180,7 @@ mod tests {
     #[test]
     fn test_close_port() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when closing non-existent port
         let result = serial_port.close("NONEXISTENT".to_string());
@@ -194,7 +190,7 @@ mod tests {
     #[test]
     fn test_write_and_read() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when writing to non-existent port
         let result = serial_port.write("NONEXISTENT".to_string(), "Test data".to_string());
@@ -208,7 +204,7 @@ mod tests {
     #[test]
     fn test_port_settings() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when setting settings for non-existent port
         let result = serial_port.set_baud_rate("NONEXISTENT".to_string(), 115200);
@@ -221,7 +217,7 @@ mod tests {
     #[test]
     fn test_control_signals() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when setting control signals for non-existent port
         let result = serial_port.write_request_to_send("NONEXISTENT".to_string(), true);
@@ -234,7 +230,7 @@ mod tests {
     #[test]
     fn test_buffer_operations() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when performing buffer operations on non-existent port
         let result =
@@ -245,7 +241,7 @@ mod tests {
     #[test]
     fn test_break_control() {
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         // Test should expect error when setting break on non-existent port
         let result = serial_port.set_break("NONEXISTENT".to_string());
@@ -264,7 +260,7 @@ mod tests {
         use tauri::ipc::InvokeResponseBody;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
         let path = "pty-close-all-test".to_string();
@@ -317,7 +313,7 @@ mod tests {
         use tauri::ipc::InvokeResponseBody;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (master, slave) = serialport::TTYPort::pair().expect("pty pair");
         let path = "pty-disconnect-test".to_string();
@@ -379,7 +375,7 @@ mod tests {
         use std::time::Duration;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
         master
@@ -487,7 +483,10 @@ mod tests {
         );
 
         cancel_thread.join().expect("cancel thread join");
-        let elapsed = cancel_elapsed.lock().unwrap().expect("cancel timing recorded");
+        let elapsed = cancel_elapsed
+            .lock()
+            .unwrap()
+            .expect("cancel timing recorded");
         assert!(
             elapsed < Duration::from_millis(500),
             "cancel_exchange took too long: {elapsed:?}"
@@ -535,24 +534,25 @@ mod tests {
             },
         );
 
-        let (exchange_done_tx, exchange_done_rx) = std::sync::mpsc::channel();
         let responder = thread::spawn(move || {
             let mut buf = [0u8; 256];
             let deadline = Instant::now() + Duration::from_secs(5);
             while Instant::now() < deadline {
+                master
+                    .set_timeout(Duration::from_millis(50))
+                    .expect("master timeout");
                 match master.read(&mut buf) {
-                    Ok(0) => continue,
+                    Ok(0) => thread::sleep(Duration::from_millis(10)),
                     Ok(_) => {
                         thread::sleep(Duration::from_millis(300));
-                        master.write_all(b"\r\nOK\r\n").expect("write OK response");
-                        master.flush().ok();
-                        break;
+                        let _ = master.write_all(b"\r\nOK\r\n");
+                        let _ = master.flush();
+                        return;
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
-                    Err(e) => panic!("master read failed: {e}"),
+                    Err(_) => return,
                 }
             }
-            let _ = exchange_done_rx.recv_timeout(Duration::from_secs(5));
         });
 
         let io_elapsed = Arc::new(Mutex::new(None::<(Duration, Duration)>));
@@ -571,6 +571,9 @@ mod tests {
             *io_elapsed_bg.lock().unwrap() = Some((bytes_elapsed, write_start.elapsed()));
         });
 
+        // Let the PTY responder enter its read loop before the exchange writes.
+        thread::sleep(Duration::from_millis(20));
+
         let exchange_result = sp.exchange(
             path.clone(),
             "AT\r".to_string(),
@@ -581,9 +584,8 @@ mod tests {
             },
         );
 
-        exchange_done_tx.send(()).ok();
         io_thread.join().expect("io thread join");
-        responder.join().expect("responder join");
+        drop(responder);
 
         let (bytes_elapsed, write_elapsed) = io_elapsed.lock().unwrap().expect("io timing");
         assert!(
@@ -812,7 +814,7 @@ mod tests {
         use tauri::ipc::InvokeResponseBody;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
         master
@@ -924,7 +926,7 @@ mod tests {
         use std::time::Duration;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
         master.set_timeout(Duration::from_millis(50)).unwrap();
@@ -987,7 +989,7 @@ mod tests {
         use std::time::Duration;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
         master.set_timeout(Duration::from_millis(50)).unwrap();
@@ -1119,7 +1121,7 @@ mod tests {
         use std::time::Duration;
 
         let app = create_test_app();
-        let serial_port = app.state::<SerialPort<MockRuntime>>();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
         let (mut master, slave) = serialport::TTYPort::pair().expect("pty pair");
         master.set_timeout(Duration::from_millis(50)).unwrap();
@@ -1191,5 +1193,108 @@ mod tests {
         assert_eq!(response.status, crate::at_parse::AtParseStatus::Ok);
         let _ = serial_port.close(virtual_path);
         let _ = serial_port.close(path);
+    }
+
+    /// B3: finished RX hub is restarted on the next read.
+    #[test]
+    fn ensure_rx_hub_running_restarts_finished_hub() {
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use crate::tests::mock_serial::MockSerialPort;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "mock-hub-restart".to_string();
+
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(MockSerialPort::new()))),
+            },
+        );
+
+        let mut ports_guard = serial_port.serialports.lock().unwrap();
+        let cp = ports_guard
+            .get_mut(&path)
+            .expect("port")
+            .connected_port_mut()
+            .expect("connected");
+        {
+            let mut hub_guard = cp.rx_hub.lock().unwrap();
+            let hub = crate::port_rx_hub::PortRxHub::start(cp.port.clone(), path.clone());
+            *hub_guard = Some(hub);
+        }
+        {
+            let mut hub_guard = cp.rx_hub.lock().unwrap();
+            if let Some(hub) = hub_guard.take() {
+                hub.stop();
+            }
+            assert!(hub_guard.is_none());
+        }
+        drop(ports_guard);
+
+        let err = serial_port.read(path.clone(), Some(50), Some(8));
+        assert!(err.is_err());
+        let hub_running = {
+            let ports = serial_port.serialports.lock().unwrap();
+            ports.get(&path).and_then(|info| match &info.state {
+                PortState::Connected(cp) => cp
+                    .rx_hub
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.as_ref().map(|h| !h.is_finished())),
+                _ => None,
+            })
+        }
+        .unwrap_or(false);
+        assert!(hub_running, "hub should have been restarted");
+    }
+    #[test]
+    fn close_virtual_while_managed_ports_does_not_deadlock() {
+        use crate::state::{ConnectedPort, PortState, SerialportInfo, VirtualPortRef};
+        use crate::tests::mock_serial::MockSerialPort;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let physical = "mock-physical-b2".to_string();
+        let virtual_path = format!("{physical}#dlci=2");
+
+        serial_port.serialports.lock().unwrap().insert(
+            physical.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(MockSerialPort::new()))),
+            },
+        );
+        serial_port.virtual_ports.lock().unwrap().insert(
+            virtual_path.clone(),
+            VirtualPortRef {
+                physical_path: physical.clone(),
+                dlci: 2,
+                exchange_cancel: Arc::new(AtomicBool::new(false)),
+                tx_queue: Arc::new(crate::port_tx_queue::PortTxQueue::new()),
+            },
+        );
+
+        let done = Arc::new(AtomicBool::new(false));
+        let done_bg = done.clone();
+        let sp = serial_port.clone();
+        let vp = virtual_path.clone();
+        let closer = std::thread::spawn(move || {
+            let _ = sp.close(vp);
+            done_bg.store(true, Ordering::SeqCst);
+        });
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while std::time::Instant::now() < deadline {
+            let _ = serial_port.managed_ports();
+            if done.load(Ordering::SeqCst) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        closer.join().expect("close join");
+        assert!(done.load(Ordering::SeqCst));
     }
 }

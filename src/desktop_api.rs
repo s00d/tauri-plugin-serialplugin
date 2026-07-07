@@ -83,18 +83,26 @@ fn finish_serialport_info(info: SerialportInfo) -> Result<(), Error> {
     }
 }
 
-fn ensure_rx_hub(cp: &ConnectedPortHandle, path: &str) -> Result<(), Error> {
+fn ensure_rx_hub_running(cp: &ConnectedPortHandle, path: &str) -> Result<(), Error> {
     let mut guard = cp
         .rx_hub
         .lock()
         .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-    if guard.is_none() {
+    let needs_start = match guard.as_ref() {
+        None => true,
+        Some(hub) => hub.is_finished(),
+    };
+    if needs_start {
         *guard = Some(crate::port_rx_hub::PortRxHub::start(
             cp.port.clone(),
             path.to_string(),
         ));
     }
     Ok(())
+}
+
+fn ensure_rx_hub(cp: &ConnectedPortHandle, path: &str) -> Result<(), Error> {
+    ensure_rx_hub_running(cp, path)
 }
 
 fn ensure_rx_hub_on_physical<R: Runtime>(
@@ -186,12 +194,12 @@ impl<R: Runtime> SerialPort<R> {
         Ok(port_list)
     }
 
-    /// Cancel an in-flight poll [`read`] or active [`watch`].
+    /// Cancel an in-flight poll [`read`] (does not stop an active [`watch`]).
     pub fn cancel_read(&self, path: String) -> Result<(), Error> {
         let cp = self.resolve_connected_port(&path)?;
         if let Ok(guard) = cp.rx_hub.lock() {
             if let Some(hub) = guard.as_ref() {
-                hub.detach_watch();
+                hub.shared().cancel_pending_read();
             }
         }
         Ok(())
@@ -283,7 +291,7 @@ impl<R: Runtime> SerialPort<R> {
         parity: Option<Parity>,
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
-    ) -> Result<(), Error> {
+    ) -> Result<String, Error> {
         let stale = {
             let mut serialports = self
                 .serialports
@@ -346,7 +354,7 @@ impl<R: Runtime> SerialPort<R> {
                     )));
                 }
                 entry.state = PortState::Connected(cp);
-                Ok(())
+                Ok(path)
             }
             Err(e) => {
                 if matches!(
@@ -466,46 +474,14 @@ impl<R: Runtime> SerialPort<R> {
         })
     }
 
-    /// Read data from the serial port
     pub fn read(
         &self,
         path: String,
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<String, Error> {
-        self.with_connected_port(path.clone(), |cp| {
-            let has_watch = cp
-                .rx_hub
-                .lock()
-                .ok()
-                .and_then(|g| g.as_ref().map(|h| h.shared().has_watch()))
-                .unwrap_or(false);
-            if has_watch {
-                return Err(Error::String(
-                    "Cannot read while watch is active; use watch or exchange".to_string(),
-                ));
-            }
-            Ok(())
-        })?;
-        self.get_serialport(path, |port| {
-            let timeout = timeout.unwrap_or(1000);
-
-            let mut buffer = vec![0; size.unwrap_or(1024)];
-            port.set_timeout(Duration::from_millis(timeout))
-                .map_err(|e| Error::String(format!("Failed to set timeout: {}", e)))?;
-
-            match port.read(&mut buffer) {
-                Ok(n) => {
-                    let data = String::from_utf8_lossy(&buffer[..n]).to_string();
-                    Ok(data)
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::TimedOut => Err(Error::String(format!(
-                    "no data received within {} ms",
-                    timeout
-                ))),
-                Err(e) => Err(Error::String(format!("Failed to read data: {}", e))),
-            }
-        })
+        let bytes = self.read_via_hub(path, timeout, size, false)?;
+        Ok(String::from_utf8_lossy(&bytes).to_string())
     }
 
     pub fn read_binary(
@@ -514,35 +490,31 @@ impl<R: Runtime> SerialPort<R> {
         timeout: Option<u64>,
         size: Option<usize>,
     ) -> Result<Vec<u8>, Error> {
-        self.get_serialport(path.clone(), |port| {
-            let target_size = size.unwrap_or(1024);
-            let timeout = timeout.unwrap_or(1000);
-            let mut buffer = Vec::with_capacity(target_size);
-            let start = std::time::Instant::now();
+        self.read_via_hub(path, timeout, size, true)
+    }
 
-            while buffer.len() < target_size && start.elapsed() < Duration::from_millis(timeout) {
-                let mut temp_buf = vec![0; target_size - buffer.len()];
-                match port.read(&mut temp_buf) {
-                    Ok(n) if n > 0 => {
-                        buffer.extend_from_slice(&temp_buf[..n]);
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                        if buffer.is_empty() {
-                            return Err(Error::String(format!(
-                                "no data received within {} ms",
-                                timeout
-                            )));
-                        } else {
-                            break;
-                        }
-                    }
-                    Err(e) => return Err(Error::String(format!("Failed to read data: {}", e))),
-                    _ => break,
-                }
-            }
-
-            Ok(buffer)
-        })
+    fn read_via_hub(
+        &self,
+        path: String,
+        timeout: Option<u64>,
+        size: Option<usize>,
+        fill: bool,
+    ) -> Result<Vec<u8>, Error> {
+        let cp = self.resolve_connected_port(&path)?;
+        ensure_rx_hub_running(&cp, &path)?;
+        let hub_shared = {
+            let guard = cp
+                .rx_hub
+                .lock()
+                .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
+            guard
+                .as_ref()
+                .ok_or_else(|| Error::String("RX hub missing".into()))?
+                .shared()
+        };
+        hub_shared
+            .read_request(size.unwrap_or(1024), timeout.unwrap_or(1000), fill)
+            .map_err(Error::String)
     }
 
     /// Write data to the serial port
@@ -637,7 +609,25 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Get the number of bytes available to read
     pub fn bytes_to_read(&self, path: String) -> Result<u32, Error> {
-        self.get_serialport(path, |port| port.bytes_to_read().map_err(Error::from))
+        let hub_buffered = if let Ok(cp) = self.resolve_connected_port(&path) {
+            cp.rx_hub
+                .lock()
+                .ok()
+                .and_then(|guard| guard.as_ref().map(|hub| hub.shared().buffered_len() as u32))
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        let port_buffered = if let Ok(cp) = self.resolve_connected_port(&path) {
+            cp.port
+                .try_lock()
+                .ok()
+                .and_then(|port| port.bytes_to_read().ok())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        Ok(hub_buffered.saturating_add(port_buffered))
     }
 
     /// Get the number of bytes waiting to be written
@@ -755,7 +745,7 @@ impl<R: Runtime> SerialPort<R> {
             use crate::events::RxPrepareMode;
             match resolved.rx_prepare {
                 RxPrepareMode::Purge => {
-                    let _yield_guard = crate::port_rx_hub::PortIoYieldGuard::new(hub_shared.clone());
+                    hub_shared.purge_buffers();
                     with_port_try_lock(
                         &cp.port,
                         Duration::from_millis(resolved.timeout_ms.min(5000)),
@@ -775,15 +765,6 @@ impl<R: Runtime> SerialPort<R> {
                 RxPrepareMode::None => {}
             }
 
-            {
-                let _yield_guard = crate::port_rx_hub::PortIoYieldGuard::new(hub_shared);
-                with_port_try_lock(
-                    &cp.port,
-                    Duration::from_millis(resolved.timeout_ms.min(5000)),
-                    |port| write_all_port(port, &payload, "exchange write"),
-                )?;
-            }
-
             let waiter = crate::port_rx_hub::ExchangeWaiter::new(resolved.clone(), cancel.clone());
             {
                 let hub_guard = cp
@@ -795,6 +776,39 @@ impl<R: Runtime> SerialPort<R> {
                     .ok_or_else(|| Error::String("RX hub missing".into()))?
                     .set_exchange_waiter(waiter.clone());
             }
+
+            if cancel.load(Ordering::SeqCst) {
+                let hub_guard = cp
+                    .rx_hub
+                    .lock()
+                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
+                if let Some(h) = hub_guard.as_ref() {
+                    h.clear_exchange_waiter();
+                }
+                return Err(Error::String("exchange cancelled".into()));
+            }
+
+            let write_result = with_port_try_lock(
+                &cp.port,
+                Duration::from_millis(resolved.timeout_ms.min(5000)),
+                |port| write_all_port(port, &payload, "exchange write"),
+            );
+            if let Err(e) = write_result {
+                let hub_guard = cp
+                    .rx_hub
+                    .lock()
+                    .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
+                if let Some(h) = hub_guard.as_ref() {
+                    h.clear_exchange_waiter();
+                }
+                return Err(e);
+            }
+
+            let stale = hub_shared.take_idle_bytes();
+            if !stale.is_empty() {
+                waiter.push_bytes(&stale);
+            }
+
             let wait_result = waiter.wait(resolved.timeout_ms);
             {
                 let hub_guard = cp
@@ -983,8 +997,7 @@ impl<R: Runtime> SerialPort<R> {
                 AtPhaseWrite::Binary(b) => b.clone(),
             };
             let phase_result = (|| -> Result<crate::at_parse::AtCommandResult, Error> {
-                let response =
-                    self.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
+                let response = self.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
                 check_expect_ok(
                     &session,
                     response.status,
@@ -1001,7 +1014,10 @@ impl<R: Runtime> SerialPort<R> {
                     if stop_on_error {
                         return Err(e);
                     }
-                    results.push(crate::at_parse::AtCommandResult::failed(label, e.to_string()));
+                    results.push(crate::at_parse::AtCommandResult::failed(
+                        label,
+                        e.to_string(),
+                    ));
                 }
             }
         }
@@ -1197,6 +1213,11 @@ impl<R: Runtime> SerialPort<R> {
         }
         let cp = self.resolve_connected_port(&path)?;
         cp.exchange_cancel.store(true, Ordering::SeqCst);
+        if let Ok(guard) = cp.rx_hub.lock() {
+            if let Some(hub) = guard.as_ref() {
+                hub.cancel_active_exchange();
+            }
+        }
         cp.tx_queue.cancel_all();
         cp.tx_queue.clear_halt();
         Ok(())
@@ -1242,16 +1263,7 @@ impl<R: Runtime> SerialPort<R> {
         F: FnOnce(&mut Box<dyn serialport::SerialPort>) -> Result<T, Error>,
     {
         let cp = self.resolve_connected_port(&path)?;
-        let _yield_guard = cp.rx_hub.lock().ok().and_then(|guard| {
-            guard
-                .as_ref()
-                .map(|hub| crate::port_rx_hub::PortIoYieldGuard::new(hub.shared()))
-        });
-        with_port_try_lock(
-            &cp.port,
-            Duration::from_millis(PORT_LOCK_TIMEOUT_MS),
-            f,
-        )
+        with_port_try_lock(&cp.port, Duration::from_millis(PORT_LOCK_TIMEOUT_MS), f)
     }
 }
 
