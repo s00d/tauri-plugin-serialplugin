@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check": "vue-tsc --noEmit",
     "clean:vite": "rm -rf node_modules/.vite",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "android:integration-test": "pnpm tauri android build --debug && ../../scripts/sync-android-integration-tests.sh && cd src-tauri/gen/android && JAVA_HOME=\"${JAVA_HOME:-$(/usr/libexec/java_home -v 17)}\" ./gradlew connectedUniversalDebugAndroidTest"
   },
   "dependencies": {
     "tauri-plugin-serialplugin-api": "file:../../",
