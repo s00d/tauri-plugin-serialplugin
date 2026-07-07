@@ -188,7 +188,6 @@ pub struct MobileConnectedPort {
     pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
     pub exchange_cancel: Arc<AtomicBool>,
     pub tx_queue: Arc<PortTxQueue>,
-    pub listening: Arc<AtomicBool>,
 }
 
 #[cfg(target_os = "android")]
@@ -200,7 +199,6 @@ impl MobileConnectedPort {
             mux: Arc::new(Mutex::new(None)),
             exchange_cancel: Arc::new(AtomicBool::new(false)),
             tx_queue: Arc::new(PortTxQueue::new()),
-            listening: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -211,7 +209,6 @@ impl MobileConnectedPort {
             mux: self.mux.clone(),
             exchange_cancel: self.exchange_cancel.clone(),
             tx_queue: self.tx_queue.clone(),
-            listening: self.listening.clone(),
         }
     }
 }
@@ -224,7 +221,6 @@ pub struct MobileConnectedPortHandle {
     pub mux: Arc<Mutex<Option<Arc<CmuxSession>>>>,
     pub exchange_cancel: Arc<AtomicBool>,
     pub tx_queue: Arc<PortTxQueue>,
-    pub listening: Arc<AtomicBool>,
 }
 
 #[cfg(target_os = "android")]

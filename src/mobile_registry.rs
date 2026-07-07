@@ -144,7 +144,6 @@ mod fail_port_tests {
             mux: Arc::new(Mutex::new(None)),
             exchange_cancel: Arc::new(AtomicBool::new(false)),
             tx_queue: Arc::new(PortTxQueue::new()),
-            listening: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -204,5 +203,51 @@ mod fail_port_tests {
         registry.fail_port("dev2", "reset");
         let result = handle.tx_queue.run_serial(|| Ok(7));
         assert_eq!(result.unwrap(), 7);
+    }
+}
+
+#[cfg(test)]
+mod hub_cancel_tests {
+    use super::*;
+    use crate::mobile_rx_hub::MobileRxHub;
+    use crate::port_rx_hub::ExchangeWaiter;
+    use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn cancel_active_exchange_wakes_waiter_quickly() {
+        let hub = Arc::new(MobileRxHub::new("dev-cancel".into()));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let options = ResolvedExchangeOptions {
+            timeout_ms: 5000,
+            max_bytes: 4096,
+            terminators: vec![],
+            idle_ms: None,
+            rx_prepare: RxPrepareMode::None,
+            drain_idle_ms: 50,
+            drain_max_ms: 200,
+            completion_mode: ExchangeCompletionMode::AtFinalLine,
+            result_format: AtResultFormat::Verbose,
+            command: Some("AT".into()),
+            solicited_prefixes: vec![],
+        };
+        let waiter = ExchangeWaiter::new(options, cancel.clone());
+        hub.set_exchange_waiter(waiter.clone());
+
+        cancel.store(true, std::sync::atomic::Ordering::SeqCst);
+        hub.cancel_active_exchange();
+
+        let start = Instant::now();
+        let result = waiter.wait(5000);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("cancel"), "expected cancel error, got {err}");
+        assert!(
+            start.elapsed() < Duration::from_millis(500),
+            "cancel took too long: {:?}",
+            start.elapsed()
+        );
     }
 }

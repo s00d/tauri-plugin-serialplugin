@@ -96,6 +96,10 @@ impl MobileRxHub {
         self.shared.clear_exchange_waiter();
     }
 
+    pub fn cancel_active_exchange(&self) {
+        self.shared.cancel_active_exchange();
+    }
+
     pub fn drain(
         &self,
         idle_ms: u64,

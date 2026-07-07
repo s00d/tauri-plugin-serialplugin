@@ -513,6 +513,11 @@ impl<R: Runtime> SerialPort<R> {
     pub fn cancel_exchange(&self, path: String) -> Result<(), Error> {
         self.with_connected_port(path.clone(), |cp| {
             cp.exchange_cancel.store(true, Ordering::SeqCst);
+            if let Ok(guard) = cp.rx_hub.lock() {
+                if let Some(hub) = guard.as_ref() {
+                    hub.cancel_active_exchange();
+                }
+            }
             cp.tx_queue.cancel_all();
             cp.tx_queue.clear_halt();
             Ok(())
@@ -844,13 +849,5 @@ impl<R: Runtime> Clone for SerialPort<R> {
             ports: self.ports.clone(),
             virtual_ports: self.virtual_ports.clone(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn mobile_api_module_compiles() {
-        assert!(true);
     }
 }

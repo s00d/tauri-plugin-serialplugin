@@ -111,11 +111,7 @@ impl MobileUsbIo {
         }
     }
 
-    /// Rust tracks managed ports; Kotlin enumeration-only layer has no managed list.
-    pub fn managed_ports(&self) -> Result<Vec<String>, Error> {
-        Ok(Vec::new())
-    }
-
+    /// Kotlin enumeration-only layer; managed ports are tracked in Rust (`mobile_api`).
     #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
