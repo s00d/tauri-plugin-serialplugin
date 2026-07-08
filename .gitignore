@@ -3,5 +3,7 @@ node_modules
 dist-js
 dist
 .idea
+.DS_Store
 coverage
 test-results
+.gradle
