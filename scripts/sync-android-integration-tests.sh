@@ -25,9 +25,13 @@ APP_GRADLE="$ROOT/examples/serialport-test/src-tauri/gen/android/app/build.gradl
 GRADLE_MARKER='testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"'
 if [[ -f "$APP_GRADLE" ]] && ! grep -q "$GRADLE_MARKER" "$APP_GRADLE"; then
   echo "Patching testInstrumentationRunner in app/build.gradle.kts"
-  sed -i '' '/versionName = tauriProperties/a\
+  if [[ "$(uname)" == "Darwin" ]]; then
+    sed -i '' '/versionName = tauriProperties/a\
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 ' "$APP_GRADLE"
+  else
+    sed -i '/versionName = tauriProperties/a\        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"' "$APP_GRADLE"
+  fi
 fi
 
 echo "Done."

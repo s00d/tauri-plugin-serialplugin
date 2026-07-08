@@ -67,6 +67,7 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+        targets: aarch64-linux-android
 
     - name: Install cargo-nextest
       run: cargo install cargo-nextest --locked --force
@@ -139,8 +140,10 @@ jobs:
         if-no-files-found: warn
 
   android-integration:
-    runs-on: macos-latest
-    timeout-minutes: 60
+    # macos-latest (Apple Silicon) cannot boot nested Android emulators (HVF HV_UNSUPPORTED).
+    # Use Linux KVM + x86_64 AVD; JNI tests use FakeTransport (no real USB).
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
     - uses: actions/checkout@v4
@@ -164,10 +167,22 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        targets: aarch64-linux-android,x86_64-linux-android
+        targets: x86_64-linux-android
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+
+    - name: Install Android SDK packages
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager \
+          "platform-tools" \
+          "platforms;android-34" \
+          "build-tools;34.0.0" \
+          "ndk;27.2.12479018"
+
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk --locked
 
     - name: Install dependencies
       run: pnpm install
@@ -175,15 +190,23 @@ jobs:
     - name: Build JS
       run: pnpm build
 
+    - name: Prebuild Android integration artifacts
+      env:
+        ANDROID_INTEGRATION_NDK_ARCH: x86_64
+        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+      run: chmod +x scripts/android-integration-ci.sh && ./scripts/android-integration-ci.sh prebuild
+
     - name: Android integration tests (emulator)
       uses: reactivecircus/android-emulator-runner@v2
       with:
-        api-level: 34
+        api-level: 30
         arch: x86_64
+        target: google_apis
         profile: pixel_6
-        script: |
-          cd examples/serialport-test
-          pnpm android:integration-test
+        disable-animations: true
+        emulator-options: -no-window -gpu swiftshader_indirect -no-audio -no-boot-anim -camera-back none
+        script: ./scripts/android-integration-ci.sh test
 
     - name: Upload androidTest results
       if: always()
