@@ -257,6 +257,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn close_all_closes_ports_and_clears_registry() {
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use std::sync::{Arc, Mutex};
@@ -1150,6 +1151,7 @@ mod tests {
 
     /// CMUX session routes UIH payload to a registered DLCI exchange waiter.
     #[test]
+    #[cfg(unix)]
     fn cmux_session_routes_uih_to_virtual_exchange() {
         use crate::cmux::{encode_uih, CmuxSession};
         use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
