@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm --dir ../.. run build && vue-tsc --noEmit && vite build",
+    "build": "pnpm --dir ../.. run build && pnpm --dir ../.. install && vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "check": "vue-tsc --noEmit",
     "clean:vite": "rm -rf node_modules/.vite",

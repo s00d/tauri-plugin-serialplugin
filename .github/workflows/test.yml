@@ -190,6 +190,10 @@ jobs:
     - name: Build JS
       run: pnpm build
 
+    # file: link is snapshotted at install; refresh hardlinks after dist-js appears
+    - name: Relink workspace packages
+      run: pnpm install
+
     - name: Prebuild Android integration artifacts
       env:
         ANDROID_INTEGRATION_NDK_ARCH: x86_64
