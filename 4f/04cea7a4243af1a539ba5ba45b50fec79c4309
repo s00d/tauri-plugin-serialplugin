@@ -1,0 +1,23 @@
+.gitignore
+  s_c01253b1f96ab7::t_e8e2faaa0e13f8 10-13
+Cargo.toml
+  s_c01253b1f96ab7::t_ea28b12ca6e6ee 19-25
+examples/usb-driver-tester/.gitignore
+  s_c01253b1f96ab7::t_d6a99c2e26c5c9 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "4f04cea7a4243af1a539ba5ba45b50fec79c4309",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
