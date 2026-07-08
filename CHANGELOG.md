@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-For **Android/USB-focused** details (behavior, limits, testing), see also [`android/README.md`](android/README.md).
+## [2.24.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.1...v2.24.0) (2026-07-08)
+
+
+### Features
+
+* **android:** buffered emit, USB serial hardening, Gradle tests ([efa35ec](https://github.com/s00d/tauri-plugin-serialplugin/commit/efa35ecd0527f8c1b1e241c920b8880ec1e13761))
+* **js:** open/close guards, mocks; update Jest tests ([2e56cad](https://github.com/s00d/tauri-plugin-serialplugin/commit/2e56cad0c169ee7df4d60dc3dab10ef51240f542))
+
+
+### Bug Fixes
+
+* **android:** run port IO commands off the main thread ([#34](https://github.com/s00d/tauri-plugin-serialplugin/issues/34)) ([bcd1aa2](https://github.com/s00d/tauri-plugin-serialplugin/commit/bcd1aa20d55a57463c818968a9b2c388dc931d17))
+* **desktop:** write_all, timeout, Android serialport split ([f33ea91](https://github.com/s00d/tauri-plugin-serialplugin/commit/f33ea91289ab1a6dc11d1ccda46ddf5e7671be13))
 
 ## [2.23.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.22.0...v2.23.0) (2026-07-02)
 
