@@ -15,10 +15,28 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 
 ## Migrating to v3
 
+In v2 you attached stream callbacks separately (`startListening` / `listen` / `disconnected`).
+In v3 one call — **`watch()`** — registers all of them; stop with the returned handle.
+
+```ts
+// v2
+await port.startListening();
+await port.listen((data) => console.log(data));
+await port.disconnected((reason) => console.log("gone", reason));
+await port.cancelListen();
+
+// v3 — same thing in one watch()
+const handle = await port.watch({
+  onData: (data) => console.log(data),
+  onDisconnect: (reason) => console.log("gone", reason), // replaces disconnected(fn)
+});
+await handle.unwatch();
+```
+
 | v2 | v3 |
 |----|-----|
 | `startListening()` + `listen(fn)` | `const handle = await port.watch({ onData: fn })` |
-| `disconnected(fn)` | `watch({ onDisconnect: fn })` |
+| `disconnected(fn)` | pass `onDisconnect: fn` into the same `watch({ ... })` |
 | `cancelListen()` / `stopListening()` | `await handle.unwatch()` |
 
 Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (`serialData`, `serialError`) are **no longer part of the public API**.

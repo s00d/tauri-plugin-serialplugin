@@ -26,7 +26,7 @@ Major v3 release: Channel-based **`watch()`** API, native AT **`exchange`** / FI
 | v2 | v3 |
 |----|-----|
 | `startListening()` + `listen(fn)` | `watch({ onData: fn })` |
-| `disconnected(fn)` | `watch({ onDisconnect: fn })` |
+| `disconnected(fn)` | pass `onDisconnect: fn` into the same `watch({ ... })` |
 | `cancelListen()` / `stopListening()` | `handle.unwatch()` |
 | `port.at.enable()` / `enqueue()` | `sendAt()` / `sendAtPhases()` |
 | Kotlin `UsbBridge` + Java drivers | `UsbFdBridge` fd → Rust `driver_host` |
