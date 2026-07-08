@@ -1,0 +1,21 @@
+scripts/android-integration-ci.sh
+  s_c01253b1f96ab7::t_2723145bf70c94 9
+.github/workflows/test.yml
+  s_c01253b1f96ab7::t_6651253b638097 138-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "474cffb733ea6911854be4e02431330a88dd95ce",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
