@@ -6,7 +6,7 @@
 #   ./scripts/android-integration-ci.sh test       # gradlew connectedDebugAndroidTest only
 #   ./scripts/android-integration-ci.sh all        # prebuild + test (local)
 #
-# CI (ubuntu + x86_64 emulator):
+# CI runs prebuild only (no emulator). Local device/emulator tests:
 #   ANDROID_INTEGRATION_NDK_ARCH=x86_64 ./scripts/android-integration-ci.sh prebuild
 #   ./scripts/android-integration-ci.sh test
 
