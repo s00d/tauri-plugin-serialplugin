@@ -1,0 +1,149 @@
+{
+  "source": "java",
+  "driver": "ch34x",
+  "scenario": "set_baud_19200",
+  "vendorId": 6790,
+  "productId": 29987,
+  "portIndex": 0,
+  "deviceStub": "ch340",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 130,
+      "bulkOut": 3,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 192,
+      "request": 95,
+      "value": 0,
+      "index": 0,
+      "data": "AAA\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 161,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 4882,
+      "index": 45698,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 3884,
+      "index": 12,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 149,
+      "value": 9496,
+      "index": 0,
+      "data": "AAA\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 9496,
+      "index": 195,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 149,
+      "value": 1798,
+      "index": 0,
+      "data": "AAA\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 161,
+      "value": 20511,
+      "index": 55562,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 4882,
+      "index": 45698,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 3884,
+      "index": 12,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 164,
+      "value": -1,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 149,
+      "value": 1798,
+      "index": 0,
+      "data": "AAA\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 4882,
+      "index": 45698,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 3884,
+      "index": 12,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 4882,
+      "index": 55682,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 3884,
+      "index": 6,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 9496,
+      "index": 195,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

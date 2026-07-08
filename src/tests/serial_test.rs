@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use crate::state::{DataBits, FlowControl, Parity, StopBits, SerialportInfo};
+    use crate::api::SerialPort;
     use crate::error::Error;
-    use crate::desktop_api::SerialPort;
+    use crate::state::{DataBits, FlowControl, Parity, SerialportInfo, StopBits};
     use serialport::SerialPort as SerialPortTrait;
-    use std::sync::{Arc, Mutex};
     use std::collections::HashMap;
-    use std::time::Duration;
     use std::io::{Read, Write};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use tauri::test::MockRuntime;
-    use tauri::Runtime;
-    use tauri::Manager;
     use tauri::App;
+    use tauri::Manager;
+    use tauri::Runtime;
 
     // Mock for testing
     struct MockSerialPort {
@@ -44,10 +44,16 @@ mod tests {
     impl Read for MockSerialPort {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
             if !self.is_open {
-                return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "Port is not open"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotConnected,
+                    "Port is not open",
+                ));
             }
             if self.buffer.is_empty() {
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "No data available"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "No data available",
+                ));
             }
             let n = std::cmp::min(buf.len(), self.buffer.len());
             buf[..n].copy_from_slice(&self.buffer[..n]);
@@ -59,7 +65,10 @@ mod tests {
     impl Write for MockSerialPort {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             if !self.is_open {
-                return Err(std::io::Error::new(std::io::ErrorKind::NotConnected, "Port is not open"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotConnected,
+                    "Port is not open",
+                ));
             }
             self.buffer.extend_from_slice(buf);
             Ok(buf.len())
@@ -112,7 +121,10 @@ mod tests {
             Ok(())
         }
 
-        fn set_flow_control(&mut self, flow_control: serialport::FlowControl) -> serialport::Result<()> {
+        fn set_flow_control(
+            &mut self,
+            flow_control: serialport::FlowControl,
+        ) -> serialport::Result<()> {
             self.flow_control = flow_control;
             Ok(())
         }
@@ -255,7 +267,9 @@ mod tests {
             _stop_bits: Option<StopBits>,
             _timeout: Option<u64>,
         ) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             let mut mock_port = MockSerialPort::new();
@@ -267,25 +281,42 @@ mod tests {
 
         // Implement remaining methods, delegating them to SerialPort
         fn write(&self, path: String, value: String) -> Result<usize, Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.write(value.as_bytes())
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .write(value.as_bytes())
                     .map_err(|e| Error::String(format!("Failed to write data: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
             }
         }
 
-        fn read(&self, path: String, _timeout: Option<u64>, size: Option<usize>) -> Result<String, Error> {
-            let mut ports = self.serialports.lock()
+        fn read(
+            &self,
+            path: String,
+            _timeout: Option<u64>,
+            size: Option<usize>,
+        ) -> Result<String, Error> {
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
                 let target_size = size.unwrap_or(1024);
                 let mut buffer = vec![0; target_size];
-                let n = port_info.connected_port_mut().unwrap().port.read(&mut buffer)
+                let n = port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .read(&mut buffer)
                     .map_err(|e| Error::String(format!("Failed to read data: {}", e)))?;
 
                 String::from_utf8(buffer[..n].to_vec())
@@ -296,7 +327,9 @@ mod tests {
         }
 
         fn close(&self, path: String) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if ports.remove(&path).is_some() {
@@ -306,16 +339,25 @@ mod tests {
             }
         }
 
-        fn available_ports(&self) -> Result<HashMap<String, HashMap<String, String>>, Error> {
+        fn available_ports(
+            &self,
+            _single_port_per_device: bool,
+        ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
             Ok(HashMap::new()) // In test environment return empty list
         }
 
         fn set_baud_rate(&self, path: String, baud_rate: u32) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.set_baud_rate(baud_rate)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_baud_rate(baud_rate)
                     .map_err(|e| Error::String(format!("Failed to set baud rate: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -323,7 +365,9 @@ mod tests {
         }
 
         fn set_data_bits(&self, path: String, data_bits: DataBits) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
@@ -333,7 +377,11 @@ mod tests {
                     DataBits::Seven => serialport::DataBits::Seven,
                     DataBits::Eight => serialport::DataBits::Eight,
                 };
-                port_info.connected_port_mut().unwrap().port.set_data_bits(bits)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_data_bits(bits)
                     .map_err(|e| Error::String(format!("Failed to set data bits: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -341,7 +389,9 @@ mod tests {
         }
 
         fn set_flow_control(&self, path: String, flow_control: FlowControl) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
@@ -350,7 +400,11 @@ mod tests {
                     FlowControl::Software => serialport::FlowControl::Software,
                     FlowControl::Hardware => serialport::FlowControl::Hardware,
                 };
-                port_info.connected_port_mut().unwrap().port.set_flow_control(flow)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_flow_control(flow)
                     .map_err(|e| Error::String(format!("Failed to set flow control: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -358,7 +412,9 @@ mod tests {
         }
 
         fn set_parity(&self, path: String, parity: Parity) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
@@ -367,7 +423,11 @@ mod tests {
                     Parity::Odd => serialport::Parity::Odd,
                     Parity::Even => serialport::Parity::Even,
                 };
-                port_info.connected_port_mut().unwrap().port.set_parity(par)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_parity(par)
                     .map_err(|e| Error::String(format!("Failed to set parity: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -375,7 +435,9 @@ mod tests {
         }
 
         fn set_stop_bits(&self, path: String, stop_bits: StopBits) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
@@ -383,7 +445,11 @@ mod tests {
                     StopBits::One => serialport::StopBits::One,
                     StopBits::Two => serialport::StopBits::Two,
                 };
-                port_info.connected_port_mut().unwrap().port.set_stop_bits(bits)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_stop_bits(bits)
                     .map_err(|e| Error::String(format!("Failed to set stop bits: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -391,11 +457,17 @@ mod tests {
         }
 
         fn write_request_to_send(&self, path: String, level: bool) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.write_request_to_send(level)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .write_request_to_send(level)
                     .map_err(|e| Error::String(format!("Failed to set RTS: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -403,11 +475,17 @@ mod tests {
         }
 
         fn write_data_terminal_ready(&self, path: String, level: bool) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.write_data_terminal_ready(level)
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .write_data_terminal_ready(level)
                     .map_err(|e| Error::String(format!("Failed to set DTR: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -415,11 +493,17 @@ mod tests {
         }
 
         fn read_clear_to_send(&self, path: String) -> Result<bool, Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.read_clear_to_send()
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .read_clear_to_send()
                     .map_err(|e| Error::String(format!("Failed to read CTS: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -427,11 +511,17 @@ mod tests {
         }
 
         fn read_data_set_ready(&self, path: String) -> Result<bool, Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.read_data_set_ready()
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .read_data_set_ready()
                     .map_err(|e| Error::String(format!("Failed to read DSR: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -439,11 +529,17 @@ mod tests {
         }
 
         fn set_break(&self, path: String) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.set_break()
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_break()
                     .map_err(|e| Error::String(format!("Failed to set break: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -451,11 +547,17 @@ mod tests {
         }
 
         fn clear_break(&self, path: String) -> Result<(), Error> {
-            let mut ports = self.serialports.lock()
+            let mut ports = self
+                .serialports
+                .lock()
                 .map_err(|e| Error::String(format!("Failed to acquire lock: {}", e)))?;
 
             if let Some(port_info) = ports.get_mut(&path) {
-                port_info.connected_port_mut().unwrap().port.clear_break()
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .clear_break()
                     .map_err(|e| Error::String(format!("Failed to clear break: {}", e)))
             } else {
                 Err(Error::String(format!("Port '{}' not found", path)))
@@ -496,15 +598,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Write data
         let write_result = serial.write("COM1".to_string(), "Hello".to_string());
@@ -522,15 +626,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test baud rate change
         let result = serial.set_baud_rate("COM1".to_string(), 115200);
@@ -558,15 +664,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test RTS
         let result = serial.write_request_to_send("COM1".to_string(), true);
@@ -592,15 +700,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Close port
         let result = serial.close("COM1".to_string());
@@ -614,7 +724,7 @@ mod tests {
     #[test]
     fn test_available_ports() {
         let serial = create_test_serial_port();
-        let result = serial.available_ports();
+        let result = serial.available_ports(false);
         assert!(result.is_ok());
         let ports = result.unwrap();
         assert!(ports.is_empty()); // No ports in test environment
@@ -635,7 +745,10 @@ mod tests {
             Some(1000),
         );
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No such file or directory"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No such file or directory"));
     }
 
     #[test]
@@ -659,22 +772,27 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(100), // Set small timeout
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(100), // Set small timeout
+            )
+            .unwrap();
 
         // Try to read data when none available
         let result = serial.read("COM1".to_string(), Some(100), Some(1024));
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("No data available") || err.to_string().contains("TimedOut"),
-                "Expected error to contain 'No data available' or 'TimedOut', got: {}", err);
+        assert!(
+            err.to_string().contains("No data available") || err.to_string().contains("TimedOut"),
+            "Expected error to contain 'No data available' or 'TimedOut', got: {}",
+            err
+        );
     }
 
     #[test]
@@ -723,10 +841,34 @@ mod tests {
 
         // Test various setting combinations
         let test_cases = vec![
-            (9600, DataBits::Eight, FlowControl::None, Parity::None, StopBits::One),
-            (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
-            (57600, DataBits::Six, FlowControl::Software, Parity::Odd, StopBits::One),
-            (38400, DataBits::Five, FlowControl::None, Parity::Even, StopBits::Two),
+            (
+                9600,
+                DataBits::Eight,
+                FlowControl::None,
+                Parity::None,
+                StopBits::One,
+            ),
+            (
+                115200,
+                DataBits::Seven,
+                FlowControl::Hardware,
+                Parity::Even,
+                StopBits::Two,
+            ),
+            (
+                57600,
+                DataBits::Six,
+                FlowControl::Software,
+                Parity::Odd,
+                StopBits::One,
+            ),
+            (
+                38400,
+                DataBits::Five,
+                FlowControl::None,
+                Parity::Even,
+                StopBits::Two,
+            ),
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in test_cases {
@@ -743,7 +885,10 @@ mod tests {
             assert!(result.is_ok());
 
             // Check write and read
-            let test_data = format!("Test {} {} {} {} {}", baud_rate, data_bits as u8, flow_control as u8, parity as u8, stop_bits as u8);
+            let test_data = format!(
+                "Test {} {} {} {} {}",
+                baud_rate, data_bits as u8, flow_control as u8, parity as u8, stop_bits as u8
+            );
             let write_result = serial.write(port.clone(), test_data.clone());
             assert!(write_result.is_ok());
 
@@ -762,27 +907,31 @@ mod tests {
         let port = "COM1".to_string();
 
         // Open port
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test concurrent write operations (should not interfere with each other)
-        let write_handles: Vec<_> = (0..3).map(|i| {
-            let serial = serial.clone();
-            let port = port.clone();
-            std::thread::spawn(move || {
-                let data = format!("WriteThread {}", i);
-                let write_result = serial.write(port, data.clone());
-                assert!(write_result.is_ok());
-                assert_eq!(write_result.unwrap(), data.len());
+        let write_handles: Vec<_> = (0..3)
+            .map(|i| {
+                let serial = serial.clone();
+                let port = port.clone();
+                std::thread::spawn(move || {
+                    let data = format!("WriteThread {}", i);
+                    let write_result = serial.write(port, data.clone());
+                    assert!(write_result.is_ok());
+                    assert_eq!(write_result.unwrap(), data.len());
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for write threads to complete
         for handle in write_handles {
@@ -790,17 +939,22 @@ mod tests {
         }
 
         // Test concurrent read operations (should work with available data)
-        let read_handles: Vec<_> = (0..2).map(|_| {
-            let serial = serial.clone();
-            let port = port.clone();
-            std::thread::spawn(move || {
-                let read_result = serial.read(port, Some(1000), Some(1024));
-                // Read might succeed or timeout, both are valid in concurrent scenario
-                if let Ok(data) = read_result {
-                    assert!(!data.is_empty(), "Read data should not be empty if successful");
-                }
+        let read_handles: Vec<_> = (0..2)
+            .map(|_| {
+                let serial = serial.clone();
+                let port = port.clone();
+                std::thread::spawn(move || {
+                    let read_result = serial.read(port, Some(1000), Some(1024));
+                    // Read might succeed or timeout, both are valid in concurrent scenario
+                    if let Ok(data) = read_result {
+                        assert!(
+                            !data.is_empty(),
+                            "Read data should not be empty if successful"
+                        );
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for read threads to complete
         for handle in read_handles {
@@ -817,7 +971,7 @@ mod tests {
         let info = SerialportInfo::new(mock_port);
         match &info.state {
             crate::state::PortState::Connected(cp) => {
-                assert_eq!(cp.port.name().unwrap(), "COM1");
+                assert_eq!(cp.test_port_mut().name().unwrap(), "COM1");
             }
             _ => panic!("expected Connected"),
         }
@@ -843,10 +997,10 @@ mod tests {
         let result = serial.open(
             "COM1".to_string(),
             9600,
-            Some(DataBits::Five), // 5 data bits
+            Some(DataBits::Five),        // 5 data bits
             Some(FlowControl::Hardware), // Hardware flow control
-            Some(Parity::None), // No parity
-            Some(StopBits::Two), // 2 stop bits
+            Some(Parity::None),          // No parity
+            Some(StopBits::Two),         // 2 stop bits
             Some(1000),
         );
         assert!(result.is_ok()); // In test environment all combinations are valid
@@ -857,15 +1011,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test writing large data
         let large_data = "X".repeat(10000);
@@ -885,7 +1041,9 @@ mod tests {
         assert_eq!(total_read, large_data);
 
         // Test reading with different buffer sizes
-        serial.write("COM1".to_string(), "Test".to_string()).unwrap();
+        serial
+            .write("COM1".to_string(), "Test".to_string())
+            .unwrap();
         let read_result = serial.read("COM1".to_string(), Some(1000), Some(2));
         assert!(read_result.is_ok());
         assert_eq!(read_result.unwrap(), "Te");
@@ -900,15 +1058,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Test error when opening already open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         let result = serial.open(
             "COM1".to_string(),
@@ -1004,22 +1164,42 @@ mod tests {
 
         // Test port settings persistence
         let settings = vec![
-            (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
-            (57600, DataBits::Six, FlowControl::Software, Parity::Odd, StopBits::One),
-            (38400, DataBits::Five, FlowControl::None, Parity::Even, StopBits::Two),
+            (
+                115200,
+                DataBits::Seven,
+                FlowControl::Hardware,
+                Parity::Even,
+                StopBits::Two,
+            ),
+            (
+                57600,
+                DataBits::Six,
+                FlowControl::Software,
+                Parity::Odd,
+                StopBits::One,
+            ),
+            (
+                38400,
+                DataBits::Five,
+                FlowControl::None,
+                Parity::Even,
+                StopBits::Two,
+            ),
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in settings {
             // Open port with new settings
-            serial.open(
-                port.clone(),
-                baud_rate,
-                Some(data_bits),
-                Some(flow_control),
-                Some(parity),
-                Some(stop_bits),
-                Some(1000),
-            ).unwrap();
+            serial
+                .open(
+                    port.clone(),
+                    baud_rate,
+                    Some(data_bits),
+                    Some(flow_control),
+                    Some(parity),
+                    Some(stop_bits),
+                    Some(1000),
+                )
+                .unwrap();
 
             // Check that settings were applied
             let write_result = serial.write(port.clone(), "Test".to_string());
@@ -1041,33 +1221,38 @@ mod tests {
 
         // Open multiple ports
         for port in &ports {
-            serial.open(
-                port.to_string(),
-                9600,
-                Some(DataBits::Eight),
-                Some(FlowControl::None),
-                Some(Parity::None),
-                Some(StopBits::One),
-                Some(1000),
-            ).unwrap();
+            serial
+                .open(
+                    port.to_string(),
+                    9600,
+                    Some(DataBits::Eight),
+                    Some(FlowControl::None),
+                    Some(Parity::None),
+                    Some(StopBits::One),
+                    Some(1000),
+                )
+                .unwrap();
         }
 
         // Create threads for concurrent work with different ports
-        let handles: Vec<_> = ports.iter().map(|port| {
-            let serial = serial.clone();
-            let port = port.to_string();
-            std::thread::spawn(move || {
-                for i in 0..10 {
-                    let data = format!("Port {} - Test {}", port, i);
-                    let write_result = serial.write(port.clone(), data.clone());
-                    assert!(write_result.is_ok());
+        let handles: Vec<_> = ports
+            .iter()
+            .map(|port| {
+                let serial = serial.clone();
+                let port = port.to_string();
+                std::thread::spawn(move || {
+                    for i in 0..10 {
+                        let data = format!("Port {} - Test {}", port, i);
+                        let write_result = serial.write(port.clone(), data.clone());
+                        assert!(write_result.is_ok());
 
-                    let read_result = serial.read(port.clone(), Some(1000), Some(1024));
-                    assert!(read_result.is_ok());
-                    assert_eq!(read_result.unwrap(), data);
-                }
+                        let read_result = serial.read(port.clone(), Some(1000), Some(1024));
+                        assert!(read_result.is_ok());
+                        assert_eq!(read_result.unwrap(), data);
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads to complete
         for handle in handles {
@@ -1086,15 +1271,17 @@ mod tests {
         let port = "COM1".to_string();
 
         // Open port
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Write data
         serial.write(port.clone(), "Test".to_string()).unwrap();
@@ -1131,8 +1318,8 @@ mod tests {
 
         // Test boundary values of baud rate
         let baud_rates = vec![
-            110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200,
-            128000, 256000, 460800, 921600, 1500000, 2000000, 3000000
+            110, 300, 600, 1200, 2400, 4800, 9600, 14400, 19200, 38400, 57600, 115200, 128000,
+            256000, 460800, 921600, 1500000, 2000000, 3000000,
         ];
 
         for baud_rate in baud_rates {
@@ -1145,12 +1332,21 @@ mod tests {
                 Some(StopBits::One),
                 Some(1000),
             );
-            assert!(result.is_ok(), "Failed to open port with baud rate {}", baud_rate);
+            assert!(
+                result.is_ok(),
+                "Failed to open port with baud rate {}",
+                baud_rate
+            );
             serial.close(port.clone()).unwrap();
         }
 
         // Test all possible data bits combinations
-        for data_bits in &[DataBits::Five, DataBits::Six, DataBits::Seven, DataBits::Eight] {
+        for data_bits in &[
+            DataBits::Five,
+            DataBits::Six,
+            DataBits::Seven,
+            DataBits::Eight,
+        ] {
             let result = serial.open(
                 port.clone(),
                 9600,
@@ -1160,7 +1356,11 @@ mod tests {
                 Some(StopBits::One),
                 Some(1000),
             );
-            assert!(result.is_ok(), "Failed to open port with data bits {:?}", data_bits);
+            assert!(
+                result.is_ok(),
+                "Failed to open port with data bits {:?}",
+                data_bits
+            );
             serial.close(port.clone()).unwrap();
         }
     }
@@ -1175,31 +1375,46 @@ mod tests {
 
         for timeout in timeouts {
             // Open port with new timeout
-            serial.open(
-                port.clone(),
-                9600,
-                Some(DataBits::Eight),
-                Some(FlowControl::None),
-                Some(Parity::None),
-                Some(StopBits::One),
-                Some(timeout),
-            ).unwrap();
+            serial
+                .open(
+                    port.clone(),
+                    9600,
+                    Some(DataBits::Eight),
+                    Some(FlowControl::None),
+                    Some(Parity::None),
+                    Some(StopBits::One),
+                    Some(timeout),
+                )
+                .unwrap();
 
             // Set timeout for port
             let mut ports = serial.serialports.lock().unwrap();
             if let Some(port_info) = ports.get_mut(&port) {
-                port_info.connected_port_mut().unwrap().port.set_timeout(Duration::from_millis(timeout)).unwrap();
+                port_info
+                    .connected_port_mut()
+                    .unwrap()
+                    .test_port_mut()
+                    .set_timeout(Duration::from_millis(timeout))
+                    .unwrap();
             }
             drop(ports);
 
             // Check reading with empty buffer (should cause timeout)
             let result = serial.read(port.clone(), Some(timeout), Some(1024));
-            assert!(result.is_err(), "Expected timeout error for timeout {}", timeout);
+            assert!(
+                result.is_err(),
+                "Expected timeout error for timeout {}",
+                timeout
+            );
 
             // Check that error is timeout
             let err = result.unwrap_err();
-            assert!(err.to_string().contains("No data available") || err.to_string().contains("TimedOut"),
-                    "Expected timeout error, got: {}", err);
+            assert!(
+                err.to_string().contains("No data available")
+                    || err.to_string().contains("TimedOut"),
+                "Expected timeout error, got: {}",
+                err
+            );
 
             // Check that port still works after timeout
             let test_data = format!("Test after {}ms timeout", timeout);
@@ -1219,15 +1434,17 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Write data exceeding the buffer size
         let large_data = "X".repeat(100000);
@@ -1249,7 +1466,10 @@ mod tests {
         }
 
         assert_eq!(total_read, large_data, "Buffer overflow test failed");
-        assert!(iterations < max_iterations, "Buffer overflow test took too many iterations");
+        assert!(
+            iterations < max_iterations,
+            "Buffer overflow test took too many iterations"
+        );
     }
 
     #[test]
@@ -1280,22 +1500,48 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test changing settings on the fly
         let settings_changes = vec![
-            (115200, DataBits::Seven, FlowControl::Hardware, Parity::Even, StopBits::Two),
-            (57600, DataBits::Six, FlowControl::Software, Parity::Odd, StopBits::One),
-            (38400, DataBits::Five, FlowControl::None, Parity::Even, StopBits::Two),
-            (9600, DataBits::Eight, FlowControl::None, Parity::None, StopBits::One),
+            (
+                115200,
+                DataBits::Seven,
+                FlowControl::Hardware,
+                Parity::Even,
+                StopBits::Two,
+            ),
+            (
+                57600,
+                DataBits::Six,
+                FlowControl::Software,
+                Parity::Odd,
+                StopBits::One,
+            ),
+            (
+                38400,
+                DataBits::Five,
+                FlowControl::None,
+                Parity::Even,
+                StopBits::Two,
+            ),
+            (
+                9600,
+                DataBits::Eight,
+                FlowControl::None,
+                Parity::None,
+                StopBits::One,
+            ),
         ];
 
         for (baud_rate, data_bits, flow_control, parity, stop_bits) in settings_changes {
@@ -1322,15 +1568,17 @@ mod tests {
         let serial = create_test_serial_port();
         let port = "COM1".to_string();
 
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test control signal sequence
         let signal_sequence = vec![
@@ -1361,57 +1609,65 @@ mod tests {
         let port = "COM1".to_string();
         let mutex = Arc::new(Mutex::new(()));
 
-        serial.open(
-            port.clone(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                port.clone(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Create threads for sequential setting changes
-        let handles: Vec<_> = (0..5).map(|i| {
-            let serial = serial.clone();
-            let port = port.clone();
-            let mutex = Arc::clone(&mutex);
-            std::thread::spawn(move || {
-                for _ in 0..10 {
-                    // Locking a mutex to synchronize access to a port
-                    let _lock = mutex.lock().unwrap();
+        let handles: Vec<_> = (0..5)
+            .map(|i| {
+                let serial = serial.clone();
+                let port = port.clone();
+                let mutex = Arc::clone(&mutex);
+                std::thread::spawn(move || {
+                    for _ in 0..10 {
+                        // Locking a mutex to synchronize access to a port
+                        let _lock = mutex.lock().unwrap();
 
-                    // Change baud rate
-                    serial.set_baud_rate(port.clone(), 9600 + (i * 1000)).unwrap();
+                        // Change baud rate
+                        serial
+                            .set_baud_rate(port.clone(), 9600 + (i * 1000))
+                            .unwrap();
 
-                    // Change data bits
-                    let data_bits = match i % 4 {
-                        0 => DataBits::Five,
-                        1 => DataBits::Six,
-                        2 => DataBits::Seven,
-                        _ => DataBits::Eight,
-                    };
-                    serial.set_data_bits(port.clone(), data_bits).unwrap();
+                        // Change data bits
+                        let data_bits = match i % 4 {
+                            0 => DataBits::Five,
+                            1 => DataBits::Six,
+                            2 => DataBits::Seven,
+                            _ => DataBits::Eight,
+                        };
+                        serial.set_data_bits(port.clone(), data_bits).unwrap();
 
-                    // Check that port still works
-                    let test_data = format!("Test from thread {}", i);
-                    let write_result = serial.write(port.clone(), test_data.clone());
-                    assert!(write_result.is_ok());
+                        // Check that port still works
+                        let test_data = format!("Test from thread {}", i);
+                        let write_result = serial.write(port.clone(), test_data.clone());
+                        assert!(write_result.is_ok());
 
-                    // Read data immediately after writing
-                    let read_result = serial.read(port.clone(), Some(1000), Some(1024));
-                    assert!(read_result.is_ok());
-                    let read_data = read_result.unwrap();
-                    assert_eq!(read_data, test_data,
-                               "Data mismatch in thread {}: expected '{}', got '{}'",
-                               i, test_data, read_data);
+                        // Read data immediately after writing
+                        let read_result = serial.read(port.clone(), Some(1000), Some(1024));
+                        assert!(read_result.is_ok());
+                        let read_data = read_result.unwrap();
+                        assert_eq!(
+                            read_data, test_data,
+                            "Data mismatch in thread {}: expected '{}', got '{}'",
+                            i, test_data, read_data
+                        );
 
-                    // A small delay for stability
-                    // Small delay for stability
-                    std::thread::sleep(std::time::Duration::from_millis(10));
-                }
+                        // A small delay for stability
+                        // Small delay for stability
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                })
             })
-        }).collect();
+            .collect();
 
         // Wait for all threads to complete
         for handle in handles {
@@ -1424,15 +1680,17 @@ mod tests {
         let serial = create_test_serial_port();
 
         // Open port
-        serial.open(
-            "COM1".to_string(),
-            9600,
-            Some(DataBits::Eight),
-            Some(FlowControl::None),
-            Some(Parity::None),
-            Some(StopBits::One),
-            Some(1000),
-        ).unwrap();
+        serial
+            .open(
+                "COM1".to_string(),
+                9600,
+                Some(DataBits::Eight),
+                Some(FlowControl::None),
+                Some(Parity::None),
+                Some(StopBits::One),
+                Some(1000),
+            )
+            .unwrap();
 
         // Test installation and reset break
         let result = serial.set_break("COM1".to_string());
@@ -1441,4 +1699,4 @@ mod tests {
         let result = serial.clear_break("COM1".to_string());
         assert!(result.is_ok());
     }
-} 
+}

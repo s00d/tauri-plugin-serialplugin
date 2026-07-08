@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-enable-mux"
+description = "Enables the enable_mux command without any pre-configured scope."
+commands.allow = ["enable_mux"]
+
+[[permission]]
+identifier = "deny-enable-mux"
+description = "Denies the enable_mux command without any pre-configured scope."
+commands.deny = ["enable_mux"]

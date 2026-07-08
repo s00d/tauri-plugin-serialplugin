@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-exchange-binary"
+description = "Enables the exchange_binary command without any pre-configured scope."
+commands.allow = ["exchange_binary"]
+
+[[permission]]
+identifier = "deny-exchange-binary"
+description = "Denies the exchange_binary command without any pre-configured scope."
+commands.deny = ["exchange_binary"]

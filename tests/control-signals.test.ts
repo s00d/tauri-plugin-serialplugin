@@ -80,7 +80,7 @@ describe('SerialPort Control Signals', () => {
 
       it('should throw error if port is not open', async () => {
         serialPort.isOpen = false;
-        await expect(serialPort.writeRequestToSend(true)).resolves.toBeUndefined();
+        await expect(serialPort.writeRequestToSend(true)).rejects.toThrow('Port is not open');
       });
     });
 
@@ -108,7 +108,7 @@ describe('SerialPort Control Signals', () => {
 
       it('should throw error if port is not open', async () => {
         serialPort.isOpen = false;
-        await expect(serialPort.writeDataTerminalReady(true)).resolves.toBeUndefined();
+        await expect(serialPort.writeDataTerminalReady(true)).rejects.toThrow('Port is not open');
       });
     });
   });

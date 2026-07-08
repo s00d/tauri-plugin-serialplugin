@@ -1,20 +1,24 @@
 // Setup file for Jest tests
-// This file runs before each test file
 
-// Mock Tauri API modules
+class MockChannel<T> {
+  static lastInstance: MockChannel<unknown> | null = null;
+  onmessage: ((message: T) => void) | null = null;
+  id = 1;
+
+  constructor() {
+    MockChannel.lastInstance = this as MockChannel<unknown>;
+  }
+
+  static reset() {
+    MockChannel.lastInstance = null;
+  }
+}
+
 jest.mock('@tauri-apps/api/core', () => ({
   invoke: jest.fn(),
-  addPluginListener: jest.fn().mockResolvedValue({
-    unregister: jest.fn().mockResolvedValue(undefined),
-  }),
+  Channel: MockChannel,
 }));
 
-jest.mock('@tauri-apps/api/event', () => ({
-  listen: jest.fn(),
-  once: jest.fn(),
-}));
-
-// Mock window.__TAURI_EVENT_PLUGIN_INTERNALS__ for Tauri API
 Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', {
   value: {
     unregisterListener: jest.fn(),
@@ -23,7 +27,6 @@ Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', {
   writable: true,
 });
 
-// Mock window.__TAURI__ for Tauri API
 Object.defineProperty(window, '__TAURI__', {
   value: {
     invoke: jest.fn(),
@@ -31,23 +34,25 @@ Object.defineProperty(window, '__TAURI__', {
   writable: true,
 });
 
-// Mock TextDecoder and TextEncoder for encoding tests
 global.TextDecoder = class TextDecoder {
-  constructor(encoding?: string) {}
+  constructor(_encoding?: string) {}
   decode(input?: Uint8Array | ArrayBuffer | null): string {
     return String.fromCharCode(...(input as Uint8Array));
   }
-} as any;
+} as typeof TextDecoder;
 
 global.TextEncoder = class TextEncoder {
   encode(input?: string): Uint8Array {
-    return new Uint8Array(input?.split('').map(c => c.charCodeAt(0)) || []);
+    return new Uint8Array(input?.split('').map((c) => c.charCodeAt(0)) || []);
   }
-} as any;
+} as typeof TextEncoder;
 
-// Mock console methods to avoid noise in tests
-const originalConsole = { ...console };
+import { resetCapabilitiesCacheForTests } from '../guest-js/serial-port';
+
 beforeEach(() => {
+  jest.clearAllMocks();
+  MockChannel.reset();
+  resetCapabilitiesCacheForTests();
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -55,3 +60,5 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
 });
+
+export { MockChannel };

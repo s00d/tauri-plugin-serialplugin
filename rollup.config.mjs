@@ -5,11 +5,16 @@ import typescript from '@rollup/plugin-typescript'
 
 const pkg = JSON.parse(readFileSync(join(cwd(), 'package.json'), 'utf8'))
 
+const esmOut =
+    typeof pkg.exports.import === 'string'
+        ? pkg.exports.import
+        : pkg.exports.import.default
+
 export default {
     input: 'guest-js/index.ts',
     output: [
         {
-            file: pkg.exports.import,
+            file: esmOut,
             format: 'esm'
         },
         {
@@ -20,7 +25,7 @@ export default {
     plugins: [
         typescript({
             declaration: true,
-            declarationDir: dirname(pkg.exports.import)
+            declarationDir: dirname(esmOut)
         })
     ],
     external: [

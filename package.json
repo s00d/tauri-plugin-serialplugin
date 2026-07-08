@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin-api",
-  "version": "2.24.1",
+  "version": "3.0.0",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -12,16 +12,18 @@
   },
   "exports": {
     "types": "./dist-js/index.d.ts",
-    "import": "./dist-js/index.js",
+    "import": {
+      "development": "./guest-js/index.ts",
+      "default": "./dist-js/index.js"
+    },
     "require": "./dist-js/index.cjs"
   },
   "scripts": {
     "build": "rollup -c",
     "tauri": "tauri",
-    "dev": "vite dev",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "check:watch": "tsc --noEmit -p tsconfig.json --watch",
+    "check:demo": "pnpm --dir examples/serialport-test run build",
     "release": "standard-version",
     "release:publish": "pnpm publish && cargo publish",
     "playground": "pnpm --dir examples/serialport-test run tauri dev",
@@ -31,7 +33,9 @@
   "files": [
     "dist-js",
     "README.md",
-    "LICENSE"
+    "LICENSE_MIT",
+    "LICENSE_APACHE-2.0",
+    "LICENSE.spdx"
   ],
   "dependencies": {
     "@tauri-apps/api": ">=2.0.0-beta.6"

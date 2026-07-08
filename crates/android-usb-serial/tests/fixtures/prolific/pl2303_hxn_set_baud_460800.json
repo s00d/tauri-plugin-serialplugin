@@ -1,0 +1,66 @@
+{
+  "source": "java",
+  "driver": "prolific",
+  "scenario": "pl2303_hxn_set_baud_460800",
+  "vendorId": 1659,
+  "productId": 8963,
+  "portIndex": 0,
+  "deviceStub": "pl2303_hxn",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 131,
+      "bulkOut": 2,
+      "interruptIn": 129,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 64,
+      "request": 128,
+      "value": 7,
+      "index": 3,
+      "data": ""
+    },
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 128,
+      "value": 10,
+      "index": 255,
+      "data": ""
+    },
+    {
+      "requestType": 33,
+      "request": 32,
+      "value": 0,
+      "index": 0,
+      "data": "AAgHAAAACA\u003d\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 128,
+      "value": 7,
+      "index": 3,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 128,
+      "value": 7,
+      "index": 3,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

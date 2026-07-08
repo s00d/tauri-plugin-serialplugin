@@ -67,31 +67,59 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
+        targets: aarch64-linux-android
 
     - name: Install cargo-nextest
       run: cargo install cargo-nextest --locked --force
 
+    # Before host golden/nextest: linux serialport/nusb need -ludev (and GTK for tauri later).
     - name: Install system dependencies (Ubuntu)
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y pkg-config libglib2.0-dev libudev-dev libgtk-3-dev libgdk-pixbuf2.0-dev libwebkit2gtk-4.1-dev
+        sudo apt-get install -y openjdk-17-jdk pkg-config libglib2.0-dev libudev-dev libgtk-3-dev libgdk-pixbuf2.0-dev libwebkit2gtk-4.1-dev
 
     - name: Install system dependencies (macOS)
       if: matrix.os == 'macos-latest'
       run: |
         brew install pkg-config
 
+    - name: Check android-usb-serial (Android target)
+      run: cargo check -p android-usb-serial --target aarch64-linux-android
 
+    - name: Check plugin (Android target)
+      run: cargo check -p tauri-plugin-serialplugin --target aarch64-linux-android
+
+    - name: Golden parity (host)
+      run: cargo test -p android-usb-serial --features fake-transport
+
+    - name: Clippy android-usb-serial (Android target)
+      run: cargo clippy -p android-usb-serial --target aarch64-linux-android -- -D warnings
+
+    - name: Robolectric (Android module)
+      if: matrix.os == 'ubuntu-latest'
+      run: cd android && ./gradlew test
 
     - name: Install dependencies
       run: |
         pnpm install
 
+    - name: Rustfmt
+      run: cargo fmt --all -- --check
+
+    - name: Clippy
+      run: cargo clippy --workspace --all-targets -- -D warnings
+
+    - name: TypeScript check
+      run: pnpm check
+
+    - name: Build JS
+      run: pnpm build
+
     - name: Run Rust tests
       env:
         NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
-      run: cargo nextest run --message-format=libtest-json-plus > test-results.jsonx
+      run: cargo nextest run --workspace --message-format=libtest-json-plus > test-results.jsonx
 
     - name: Run JavaScript tests
       run: pnpm test
@@ -106,3 +134,99 @@ jobs:
           test-results/
           test-results.jsonx
         if-no-files-found: warn
+
+  android-integration:
+    # Build/sync JNI integration harness only — no emulator (device tests stay local).
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9.15.4
+
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-linux-android
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android SDK packages
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager \
+          "platform-tools" \
+          "platforms;android-34" \
+          "build-tools;34.0.0" \
+          "ndk;27.2.12479018"
+
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk --locked
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build JS
+      run: pnpm build
+
+    # file: link is snapshotted at install; refresh hardlinks after dist-js appears
+    - name: Relink workspace packages
+      run: pnpm install
+
+    - name: Prebuild Android integration artifacts
+      env:
+        ANDROID_INTEGRATION_NDK_ARCH: x86_64
+        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+      run: chmod +x scripts/android-integration-ci.sh && ./scripts/android-integration-ci.sh prebuild
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Rustfmt
+      run: cargo fmt --all -- --check
+
+    - name: Clippy (Windows target)
+      run: cargo clippy --all-targets -- -D warnings
+
+    - name: Cargo check Windows
+      run: cargo check --target x86_64-pc-windows-msvc
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9.15.4
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: TypeScript check
+      run: pnpm check
+
+    - name: Run JavaScript tests
+      run: pnpm test

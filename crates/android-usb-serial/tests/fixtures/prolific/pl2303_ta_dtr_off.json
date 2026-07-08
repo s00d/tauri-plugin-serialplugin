@@ -1,0 +1,157 @@
+{
+  "source": "java",
+  "driver": "prolific",
+  "scenario": "pl2303_ta_dtr_off",
+  "vendorId": 1659,
+  "productId": 8963,
+  "portIndex": 0,
+  "deviceStub": "pl2303_ta",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 131,
+      "bulkOut": 2,
+      "interruptIn": 129,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 32896,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 8,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 9,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33924,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 1028,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33924,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33667,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33924,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 1028,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33924,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 192,
+      "request": 1,
+      "value": 33667,
+      "index": 0,
+      "data": "AA\u003d\u003d"
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 1,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 2,
+      "index": 68,
+      "data": ""
+    },
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 8,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 9,
+      "index": 0,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

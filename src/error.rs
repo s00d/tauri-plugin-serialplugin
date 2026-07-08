@@ -56,7 +56,6 @@ impl From<io::Error> for Error {
     }
 }
 
-#[cfg(desktop)]
 impl From<serialport::Error> for Error {
     fn from(err: serialport::Error) -> Self {
         Error::SerialPort(err.to_string())
@@ -78,9 +77,9 @@ impl From<String> for Error {
 impl From<Error> for io::Error {
     fn from(error: Error) -> io::Error {
         match error {
-            Error::Io(e) => io::Error::new(io::ErrorKind::Other, e),
-            Error::String(s) => io::Error::new(io::ErrorKind::Other, s),
-            Error::SerialPort(e) => io::Error::new(io::ErrorKind::Other, e),
+            Error::Io(e) => io::Error::other(e),
+            Error::String(s) => io::Error::other(s),
+            Error::SerialPort(e) => io::Error::other(e),
         }
     }
 }
@@ -100,7 +99,3 @@ impl From<PluginInvokeError> for Error {
         Error::String(error.to_string())
     }
 }
-
-// Implementing Send and Sync for Error
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}

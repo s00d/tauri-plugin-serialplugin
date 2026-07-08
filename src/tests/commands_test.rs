@@ -1,22 +1,13 @@
 #[cfg(test)]
 mod tests {
+    use crate::api::SerialPort;
+    use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
     use crate::{
-        available_ports,
-        managed_ports,
-        open,
-        close,
-        write,
-        read,
-        write_request_to_send,
-        write_data_terminal_ready,
-        set_baud_rate,
-        set_data_bits,
-        clear_buffer,
+        available_ports, clear_buffer, close, managed_ports, open, read, set_baud_rate,
+        set_data_bits, write, write_data_terminal_ready, write_request_to_send,
     };
-    use crate::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
-    use tauri::{App, Manager};
-    use crate::desktop_api::SerialPort;
     use tauri::test::MockRuntime;
+    use tauri::{App, Manager};
 
     fn create_test_app() -> App<MockRuntime> {
         let app = tauri::test::mock_app();
@@ -31,7 +22,11 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        let result = available_ports(app.handle().clone(), app.state::<SerialPort<MockRuntime>>());
+        let result = available_ports(
+            app.handle().clone(),
+            app.state::<SerialPort<MockRuntime>>(),
+            None,
+        );
         assert!(result.is_ok());
     }
 
@@ -49,7 +44,7 @@ mod tests {
     #[test]
     fn test_open_close() {
         let app = create_test_app();
-        
+
         // Test should expect error when opening non-existent port
         let result = open(
             app.handle().clone(),
@@ -76,7 +71,7 @@ mod tests {
     #[test]
     fn test_write_read() {
         let app = create_test_app();
-        
+
         // Test should expect error when writing to non-existent port
         let result = write(
             app.handle().clone(),
@@ -100,7 +95,7 @@ mod tests {
     #[test]
     fn test_port_settings() {
         let app = create_test_app();
-        
+
         // Test should expect error when setting settings for non-existent port
         let result = set_baud_rate(
             app.handle().clone(),
@@ -122,7 +117,7 @@ mod tests {
     #[test]
     fn test_control_signals() {
         let app = create_test_app();
-        
+
         // Test should expect error when setting control signals for non-existent port
         let result = write_request_to_send(
             app.handle().clone(),
@@ -144,7 +139,7 @@ mod tests {
     #[test]
     fn test_buffer_operations() {
         let app = create_test_app();
-        
+
         // Test should expect error when operating on buffer of non-existent port
         let result = clear_buffer(
             app.handle().clone(),
@@ -154,4 +149,4 @@ mod tests {
         );
         assert!(result.is_err());
     }
-} 
+}

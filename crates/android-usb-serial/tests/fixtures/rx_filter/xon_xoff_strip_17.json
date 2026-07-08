@@ -1,0 +1,6 @@
+{
+  "source": "rust",
+  "filter": "xon_xoff",
+  "input": "41421143",
+  "output": "414243"
+}

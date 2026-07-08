@@ -1,13 +1,24 @@
+[workspace]
+members = ["crates/android-usb-serial"]
+exclude = [
+    "examples/serialport-test/src-tauri",
+    "examples/usb-driver-tester/rust",
+]
+resolver = "2"
+
 [package]
 name = "tauri-plugin-serialplugin"
-version = "2.24.1"
-description = "Access the current process of your Tauri application."
+version = "3.0.0"
+description = "Tauri plugin for serial port access (desktop and Android)."
 edition = "2021"
 authors = ["Tauri Programme within The Commons Conservancy"]
 license = "Apache-2.0 OR MIT"
-rust-version = "1.70"
+rust-version = "1.79"
 links = "tauri-plugin-serialplugin"
 repository = "https://github.com/s00d/tauri-plugin-serialplugin"
+
+[features]
+android-test-harness = ["android-usb-serial/fake-transport"]
 
 [package.metadata.docs.rs]
 rustc-args = [ "--cfg", "docsrs" ]
@@ -26,14 +37,18 @@ tauri-plugin = { version = "2.3.0", features = [ "build" ] }
 [dependencies]
 tauri = { version = "2.6.2", features = ["test"] }
 serde = { version = "1.0.219", features = ["derive"] }
-thiserror = "2.0.12"
 serde_json = "1.0.140"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+android-usb-serial = { path = "crates/android-usb-serial", version = "0.1.0" }
+serialport = "4.9.0"
+log = { version = "0.4", features = ["std"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 serialport = "4.9.0"
 
 [profile.release]
-panic = "abort"
 codegen-units = 1
 lto = true
 incremental = false

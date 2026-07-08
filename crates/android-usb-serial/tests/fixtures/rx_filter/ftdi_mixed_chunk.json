@@ -1,0 +1,6 @@
+{
+  "source": "rust",
+  "filter": "ftdi_header",
+  "input": "00004100000042",
+  "output": "4100000042"
+}

@@ -1,0 +1,141 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.serialport.usbtester"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-feature
+11-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:4:5-86
+12        android:name="android.hardware.usb.host"
+12-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:4:19-59
+13        android:required="true" />
+13-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:4:60-83
+14
+15    <permission
+15-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+16        android:name="com.serialport.usbtester.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+16-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+17        android:protectionLevel="signature" />
+17-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+18
+19    <uses-permission android:name="com.serialport.usbtester.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+19-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+19-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+20
+21    <application
+21-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:6:5-25:19
+22        android:allowBackup="true"
+22-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:7:9-35
+23        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+23-->[androidx.core:core:1.12.0] /Users/s00d/.gradle/caches/9.6.1/transforms/d38cbf5370b973cb5981c8cb67228de4/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+24        android:debuggable="true"
+25        android:extractNativeLibs="false"
+26        android:label="USB Driver Tester"
+26-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:8:9-42
+27        android:supportsRtl="true"
+27-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:9:9-35
+28        android:theme="@style/Theme.AppCompat.Light.DarkActionBar" >
+28-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:10:9-67
+29        <activity
+29-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:11:9-24:20
+30            android:name="com.serialport.usbtester.MainActivity"
+30-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:12:13-41
+31            android:exported="true" >
+31-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:13:13-36
+32            <intent-filter>
+32-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:14:13-17:29
+33                <action android:name="android.intent.action.MAIN" />
+33-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:15:17-69
+33-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:15:25-66
+34
+35                <category android:name="android.intent.category.LAUNCHER" />
+35-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:16:17-77
+35-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:16:27-74
+36            </intent-filter>
+37            <intent-filter>
+37-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:18:13-20:29
+38                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+38-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:19:17-90
+38-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:19:25-87
+39            </intent-filter>
+40
+41            <meta-data
+41-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:21:13-23:57
+42                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+42-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:22:17-79
+43                android:resource="@xml/device_filter" />
+43-->/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/src/main/AndroidManifest.xml:23:17-54
+44        </activity>
+45
+46        <provider
+46-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+47            android:name="androidx.startup.InitializationProvider"
+47-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
+48            android:authorities="com.serialport.usbtester.androidx-startup"
+48-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
+49            android:exported="false" >
+49-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
+50            <meta-data
+50-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+51                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+51-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
+52                android:value="androidx.startup" />
+52-->[androidx.emoji2:emoji2:1.2.0] /Users/s00d/.gradle/caches/9.6.1/transforms/43c7f0bb682535379e98d4bb9bddfc32/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
+53            <meta-data
+53-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/s00d/.gradle/caches/9.6.1/transforms/21806e5647e8b66c333eb5eb2a46d209/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:29:13-31:52
+54                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+54-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/s00d/.gradle/caches/9.6.1/transforms/21806e5647e8b66c333eb5eb2a46d209/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:30:17-78
+55                android:value="androidx.startup" />
+55-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/s00d/.gradle/caches/9.6.1/transforms/21806e5647e8b66c333eb5eb2a46d209/transformed/jetified-lifecycle-process-2.6.1/AndroidManifest.xml:31:17-49
+56            <meta-data
+56-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+57                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+57-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+58                android:value="androidx.startup" />
+58-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+59        </provider>
+60
+61        <receiver
+61-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+62            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+62-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+63            android:directBootAware="false"
+63-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+64            android:enabled="true"
+64-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+65            android:exported="true"
+65-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+66            android:permission="android.permission.DUMP" >
+66-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+67            <intent-filter>
+67-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+68                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+68-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+68-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+69            </intent-filter>
+70            <intent-filter>
+70-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+71                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+71-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+71-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+72            </intent-filter>
+73            <intent-filter>
+73-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+74                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+74-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+74-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+75            </intent-filter>
+76            <intent-filter>
+76-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+77                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+77-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+77-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/s00d/.gradle/caches/9.6.1/transforms/8c37a0f9e150951870218c65b8eec057/transformed/jetified-profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+78            </intent-filter>
+79        </receiver>
+80    </application>
+81
+82</manifest>

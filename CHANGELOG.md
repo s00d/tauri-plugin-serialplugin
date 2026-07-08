@@ -2,6 +2,85 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+
+## [3.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.24.1...v3.0.0) (2026-07-08)
+
+Major v3 release: Channel-based **`watch()`** API, native AT **`exchange`** / FIFO queue, unified **RX hub** on desktop and Android, and a **hard cut** from vendored Java `usb-serial-for-android` to the pure-Rust **`android-usb-serial`** crate (nusb).
+
+### Breaking Changes
+
+* **Streaming API:** `startListening()` / `listen()` / `disconnected()` / `cancelListen()` removed. Use **`watch({ onData, onDisconnect?, onError?, onUrc? })`** → `SerialEvent` over Tauri [`Channel`](https://v2.tauri.app/develop/calling-frontend/) (desktop + Android).
+* **Capabilities:** `SerialPort.getCapabilities()` (`transport`, `platform`, `version`); commands `capabilities`, `watch`, `unwatch` replace `start_listening` / `stop_listening`.
+* **Removed:** `available_ports_direct` — use `available_ports()`.
+* **Removed `AtCommandQueue` / `port.at`:** Use **`sendAt()`**, **`sendAtPhases()`**, **`sendSmsPdu()`**, **`cancelAt()`**, **`configureAtSession()`**.
+* **`onUrc` removed from `AtSessionOptions`:** Use **`watch({ onUrc })`** for live URC lines.
+* **`exchange()`** returns **`ExchangeResponse`**, not `Uint8Array`. Use `.raw` for bytes.
+* **`clearRx: true`** maps to **`purge`**; default is now **`drain`** when unset.
+* **Android USB stack:** Vendored `android/usbserial` Java tree **removed**. Kotlin no longer runs serial I/O commands on the main thread — only **`UsbFdBridge`** (enumerate, permission, fd). All drivers and bulk I/O live in Rust (`android-usb-serial` + nusb).
+* **Rust module layout:** Removed compat top-level modules (`desktop_api`, `mobile_api`, `port_rx_hub`, `exchange_runtime`, …). Use `api::serial`, `hub`, `exchange`, `port`, `state`, `android`.
+* **guest-js:** `AtCommandResult.raw` / `ExchangeResponse.raw` are `Uint8Array`; `timedOut` is a native `boolean`.
+* **`rust-version`:** **1.79** minimum.
+
+### Migration (v2 → v3)
+
+| v2 | v3 |
+|----|-----|
+| `startListening()` + `listen(fn)` | `watch({ onData: fn })` |
+| `disconnected(fn)` | `watch({ onDisconnect: fn })` |
+| `cancelListen()` / `stopListening()` | `handle.unwatch()` |
+| `port.at.enable()` / `enqueue()` | `sendAt()` / `sendAtPhases()` |
+| Kotlin `UsbBridge` + Java drivers | `UsbFdBridge` fd → Rust `driver_host` |
+
+**Android app requirements:** `uses-feature android.hardware.usb.host`, `device_filter.xml`, runtime USB permission before `openDevice()`. Do **not** `claimInterface()` in Kotlin before handing fd to Rust. See [`crates/android-usb-serial/README.md`](crates/android-usb-serial/README.md).
+
+### Features
+
+* **`android-usb-serial` crate:** Pure Rust USB serial on Android via nusb; **567** golden parity fixtures; drivers for FTDI, CP21xx, CH34x, PL2303, CDC-ACM, GSM modem, Chrome CCD ([20b54c0](https://github.com/s00d/tauri-plugin-serialplugin/commit/20b54c0bbc17227465da71728333cf93d88103aa)).
+* **`UsbFdBridge`:** Kotlin provides USB fd only; Rust `driver_host` owns probe, claim, drivers, RX reader, and I/O.
+* **Unified `api::serial`:** Single `serialport::SerialPort` facade on desktop and Android; `PortRxHub` poll-loop on both platforms ([4071ff6](https://github.com/s00d/tauri-plugin-serialplugin/commit/4071ff6)).
+* **Rust-first Android JNI** ([29faa29](https://github.com/s00d/tauri-plugin-serialplugin/commit/29faa29)): bulk-IN reader thread, chunked write, CMUX virtual paths through Rust session.
+* **Unified RX hub (desktop + Android):** Single consumer per port; `watch`, `exchange`, `read`, and drain share one hub ([7024fc0](https://github.com/s00d/tauri-plugin-serialplugin/commit/7024fc0), [caa5700](https://github.com/s00d/tauri-plugin-serialplugin/commit/caa5700)).
+* **`take_idle_bytes`:** Stale RX in the hub idle buffer is replayed into the next `exchange` after write.
+* **Native FIFO queue (Rust + Android):** All `exchange` / AT jobs on one port serialize in FIFO order; parallel invokes **wait** instead of `"Exchange already in progress"` ([e1eb63f](https://github.com/s00d/tauri-plugin-serialplugin/commit/e1eb63f)).
+* **Native `exchange` / `cancel_exchange`:** Write + read-until terminators, idle silence, wall timeout, max response size; structured `ExchangeResponse` (`status`, `lines`, `solicitedBody`, `urcLines`, `raw`).
+* **Line-framed AT completion:** Final line `OK` / `ERROR` / `+CME ERROR` / `+CMS ERROR`; `completionMode: 'substring'` for legacy/binary.
+* **`rxPrepare`:** Default **`drain`**; **`purge`** opt-in; **`none`** unchanged.
+* **`watchAvailablePorts()` / `watch_ports`:** Hotplug via Channel — `snapshot`, then `added` / `removed` (desktop poll; Android USB attach/detach).
+* **`open()` canonical path:** Returns session key (Android device path / `device#N` for multi-port).
+* **CMUX virtual `exchange`:** Paths `physical#dlci=N` routed through Rust CMUX session like desktop.
+* **`usb-driver-tester`:** Standalone hardware self-test app under `examples/usb-driver-tester/`.
+* **guest-js:** Modular v3 SDK; auto-reconnect restores **`open()` + `watch()`** after disconnect.
+* **macOS:** `available_ports({ singlePortPerDevice: true })` — one path per device (prefers `/dev/cu.*`).
+* **Extended AT grammar:** Vendor prefixes, V.250 finals, `derive_solicited_prefixes(command)`; `ExchangeDemux` for live URC before echo.
+* **`pauseWatch` default `false`** — watch stays on during AT; pass `pauseWatch: true` for legacy behavior.
+
+### Bug Fixes
+
+* **Android CH340 / weak OTG:** Bulk IN reader starts after line/DTR setup; in-flight URBs reduced to 2; clearer detach reason in logs.
+* **Android enumerate:** Kotlin exports `interfaces[]`; Rust expands multi-port paths (`device#N`) via `ProbeTable` without opening fd.
+* **Android write after listen:** `EndpointPair::write` no longer re-opens bulk IN owned by `SerialReader` (`endpoint already in use`).
+* **Android Kotlin fd bridge:** Removed pre-`claimInterface` (fixes `io interface is busy` with nusb `detach_and_claim`).
+* **Android logcat:** Rust plugin logs use tag `SerialPlugin` via `__android_log_write`.
+* **Android:** USB permission `PendingIntent` uses `FLAG_MUTABLE` on API 31+; detach + IO errors → `SerialEvent::Disconnect` on Channel ([#27](https://github.com/s00d/tauri-plugin-serialplugin/issues/27)).
+* **Android:** `cancel_exchange` wakes hub waiter; CMUX virtual cancel clears DLCI TX queue ([c6c94dd](https://github.com/s00d/tauri-plugin-serialplugin/commit/c6c94dd)).
+* **Android:** JNI exceptions, session path re-key, teardown leaks ([e9fc307](https://github.com/s00d/tauri-plugin-serialplugin/commit/e9fc307)).
+* **Android:** Serialize fail/shutdown on dedicated usb-io thread ([cd74b84](https://github.com/s00d/tauri-plugin-serialplugin/commit/cd74b84)).
+* **desktop:** `write` / `write_binary` flush via `write_all` ([#29](https://github.com/s00d/tauri-plugin-serialplugin/issues/29)).
+* **desktop:** Unblock hub drain when watch is active ([55f1cb3](https://github.com/s00d/tauri-plugin-serialplugin/commit/55f1cb3)).
+* **desktop:** Lock order, Opening-state open, async `enable_mux` ([3a4bd88](https://github.com/s00d/tauri-plugin-serialplugin/commit/3a4bd88)).
+* **desktop (Windows):** Enrich truncated USB `serial_number` from WMI ([#23](https://github.com/s00d/tauri-plugin-serialplugin/issues/23)).
+* **Hub / watch:** `lock_or_recover` in watch_registry and hub channel paths ([2071e15](https://github.com/s00d/tauri-plugin-serialplugin/commit/2071e15)); panic/poison hardening ([8672de9](https://github.com/s00d/tauri-plugin-serialplugin/commit/8672de9)).
+* **TX queue:** Errors no longer halt the port queue until reopen ([e1eb63f](https://github.com/s00d/tauri-plugin-serialplugin/commit/e1eb63f)).
+* **guest-js:** `readBinary` requires open port; watch-preserving `change()` ([9b22af7](https://github.com/s00d/tauri-plugin-serialplugin/commit/9b22af7)).
+
+### Build / CI / Docs
+
+* **CI:** `cargo fmt`, `clippy`, `pnpm check` / `build`, Windows `cargo check`, Android integration emulator job ([1aa1682](https://github.com/s00d/tauri-plugin-serialplugin/commit/1aa1682), [2e70ecf](https://github.com/s00d/tauri-plugin-serialplugin/commit/2e70ecf)).
+* **Tests:** Kotlin↔JNI↔Rust instrumented integration tests with `FakeTransport` ([412b4a5](https://github.com/s00d/tauri-plugin-serialplugin/commit/412b4a5), [be77e2a](https://github.com/s00d/tauri-plugin-serialplugin/commit/be77e2a)); Jest v3 lifecycle + Rust contract tests.
+* **Docs:** v3 migration guide, Android bridge docs, [`examples/serialport-test/ANDROID.md`](examples/serialport-test/ANDROID.md), [`android-usb-serial` Android usage](crates/android-usb-serial/README.md#using-on-android) ([c2d1e23](https://github.com/s00d/tauri-plugin-serialplugin/commit/c2d1e23), [b3cc7d2](https://github.com/s00d/tauri-plugin-serialplugin/commit/b3cc7d2)).
+* **Workspace:** `android-test-harness` feature wires `FakeTransport` for instrumented tests.
+
+
 ### [2.24.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.24.0...v2.24.1) (2026-07-08)
 
 ## [2.24.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.21.1...v2.24.0) (2026-07-08)
@@ -41,7 +120,7 @@ All notable changes to this project will be documented in this file. See [standa
 * **Lifecycle:** `SerialPlugin` registers `Application.ActivityLifecycleCallbacks` and runs `SerialPortManager.cleanup()` when the host `Activity` is destroyed (close USB ports, unregister permission receiver, shut down IO executor).
 * **Listening:** Incoming data is coalesced in `BufferedEmitter` / `SerialByteAccumulator` before `serialData` events; flush interval via `serialDataFlushIntervalMs` (native clamp typically 10–2000 ms).
 * **USB serial (usb-serial-for-android):** Read/write use configured timeouts; `clearBuffer` maps to `purgeHwBuffers` when supported; `setFlowControl` (RTS/CTS, XON/XOFF); `SerialInputOutputManager` errors trigger `serialError` and port cleanup.
-* **`bytesToRead` / `bytesToWrite` (Android):** `bytesToRead` returns bytes buffered **in the plugin** only while `startListening` is active (not the kernel queue — not exposed by `UsbSerialPort`). `bytesToWrite` is `0` (writes complete synchronously from the app’s perspective). Documented in JSDoc on the JS API.
+* **`bytesToRead` / `bytesToWrite` (Android):** With active **`watch`**, `bytesToRead` is the plugin-side buffer before the next Channel flush; `bytesToWrite` is typically `0`.
 * **Tooling:** Gradle wrapper and `android/` settings for local `./gradlew test`; JVM unit tests use a real `org.json` artifact (Android JSON stubs break `JSONObject.put` in tests). Kotlin tests cover models, JSON helpers, emit pipeline, `BufferedEmitter`.
 
 ### Features

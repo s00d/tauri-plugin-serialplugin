@@ -2085,22 +2085,28 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-write`\n- `allow-write-binary`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-cancel-read`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-managed-ports`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-read-carrier-detect`\n- `allow-read-cd`\n- `allow-read-clear-to-send`\n- `allow-read-cts`\n- `allow-read-data-set-ready`\n- `allow-read-dsr`\n- `allow-read-dtr`\n- `allow-read-ri`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-write`\n- `allow-write-binary`\n- `allow-write-data-terminal-ready`\n- `allow-write-dtr`\n- `allow-write-request-to-send`\n- `allow-write-rts`\n- `allow-set-log-level`\n- `allow-get-log-level`",
+          "description": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`",
           "type": "string",
           "const": "serialplugin:default",
-          "markdownDescription": "# Tauri `serialport` default permissions\n\nThis configuration file defines the default permissions granted\nto the serialport.\n\n### Granted Permissions\n\nThis default permission set enables all read-related commands and\nallows access to the `$APP` folder and sub directories created in it.\nThe location of the `$APP` folder depends on the operating system,\nwhere the application is run.\n\nIn general the `$APP` folder needs to be manually created\nby the application at runtime, before accessing files or folders\nin it is possible.\n\n### Denied Permissions\n\nThis default permission set prevents access to critical components\nof the Tauri application by default.\nOn Windows the webview data folder access is denied.\n\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-write`\n- `allow-write-binary`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-available-ports`\n- `allow-available-ports-direct`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-cancel-read`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-managed-ports`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-read-carrier-detect`\n- `allow-read-cd`\n- `allow-read-clear-to-send`\n- `allow-read-cts`\n- `allow-read-data-set-ready`\n- `allow-read-dsr`\n- `allow-read-dtr`\n- `allow-read-ri`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-write`\n- `allow-write-binary`\n- `allow-write-data-terminal-ready`\n- `allow-write-dtr`\n- `allow-write-request-to-send`\n- `allow-write-rts`\n- `allow-set-log-level`\n- `allow-get-log-level`"
+          "markdownDescription": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`"
+        },
+        {
+          "description": "Enables the at command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-at",
+          "markdownDescription": "Enables the at command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the at_phases command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-at-phases",
+          "markdownDescription": "Enables the at_phases command without any pre-configured scope."
         },
         {
           "description": "Enables the available_ports command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-available-ports",
           "markdownDescription": "Enables the available_ports command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the available_ports_direct command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-available-ports-direct",
-          "markdownDescription": "Enables the available_ports_direct command without any pre-configured scope."
         },
         {
           "description": "Enables the bytes_to_read command without any pre-configured scope.",
@@ -2115,10 +2121,22 @@
           "markdownDescription": "Enables the bytes_to_write command without any pre-configured scope."
         },
         {
+          "description": "Enables the cancel_exchange command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-cancel-exchange",
+          "markdownDescription": "Enables the cancel_exchange command without any pre-configured scope."
+        },
+        {
           "description": "Enables the cancel_read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-cancel-read",
           "markdownDescription": "Enables the cancel_read command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the capabilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-capabilities",
+          "markdownDescription": "Enables the capabilities command without any pre-configured scope."
         },
         {
           "description": "Enables the clear_break command without any pre-configured scope.",
@@ -2145,6 +2163,36 @@
           "markdownDescription": "Enables the close_all command without any pre-configured scope."
         },
         {
+          "description": "Enables the configure_at_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-configure-at-session",
+          "markdownDescription": "Enables the configure_at_session command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the disable_mux command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-disable-mux",
+          "markdownDescription": "Enables the disable_mux command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the enable_mux command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-enable-mux",
+          "markdownDescription": "Enables the enable_mux command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the exchange command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-exchange",
+          "markdownDescription": "Enables the exchange command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the exchange_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-exchange-binary",
+          "markdownDescription": "Enables the exchange_binary command without any pre-configured scope."
+        },
+        {
           "description": "Enables the force_close command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-force-close",
@@ -2169,6 +2217,12 @@
           "markdownDescription": "Enables the open command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_mux_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-open-mux-channel",
+          "markdownDescription": "Enables the open_mux_channel command without any pre-configured scope."
+        },
+        {
           "description": "Enables the read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-read",
@@ -2187,22 +2241,10 @@
           "markdownDescription": "Enables the read_carrier_detect command without any pre-configured scope."
         },
         {
-          "description": "Enables the read_cd command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-read-cd",
-          "markdownDescription": "Enables the read_cd command without any pre-configured scope."
-        },
-        {
           "description": "Enables the read_clear_to_send command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-read-clear-to-send",
           "markdownDescription": "Enables the read_clear_to_send command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the read_cts command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-read-cts",
-          "markdownDescription": "Enables the read_cts command without any pre-configured scope."
         },
         {
           "description": "Enables the read_data_set_ready command without any pre-configured scope.",
@@ -2211,28 +2253,16 @@
           "markdownDescription": "Enables the read_data_set_ready command without any pre-configured scope."
         },
         {
-          "description": "Enables the read_dsr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-read-dsr",
-          "markdownDescription": "Enables the read_dsr command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the read_dtr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-read-dtr",
-          "markdownDescription": "Enables the read_dtr command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the read_ri command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-read-ri",
-          "markdownDescription": "Enables the read_ri command without any pre-configured scope."
-        },
-        {
           "description": "Enables the read_ring_indicator command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-read-ring-indicator",
           "markdownDescription": "Enables the read_ring_indicator command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the send_sms_pdu command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-send-sms-pdu",
+          "markdownDescription": "Enables the send_sms_pdu command without any pre-configured scope."
         },
         {
           "description": "Enables the set_baud_rate command without any pre-configured scope.",
@@ -2283,16 +2313,28 @@
           "markdownDescription": "Enables the set_timeout command without any pre-configured scope."
         },
         {
-          "description": "Enables the start_listening command without any pre-configured scope.",
+          "description": "Enables the unwatch command without any pre-configured scope.",
           "type": "string",
-          "const": "serialplugin:allow-start-listening",
-          "markdownDescription": "Enables the start_listening command without any pre-configured scope."
+          "const": "serialplugin:allow-unwatch",
+          "markdownDescription": "Enables the unwatch command without any pre-configured scope."
         },
         {
-          "description": "Enables the stop_listening command without any pre-configured scope.",
+          "description": "Enables the unwatch_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "serialplugin:allow-stop-listening",
-          "markdownDescription": "Enables the stop_listening command without any pre-configured scope."
+          "const": "serialplugin:allow-unwatch-ports",
+          "markdownDescription": "Enables the unwatch_ports command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the watch command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-watch",
+          "markdownDescription": "Enables the watch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the watch_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-watch-ports",
+          "markdownDescription": "Enables the watch_ports command without any pre-configured scope."
         },
         {
           "description": "Enables the write command without any pre-configured scope.",
@@ -2313,34 +2355,28 @@
           "markdownDescription": "Enables the write_data_terminal_ready command without any pre-configured scope."
         },
         {
-          "description": "Enables the write_dtr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:allow-write-dtr",
-          "markdownDescription": "Enables the write_dtr command without any pre-configured scope."
-        },
-        {
           "description": "Enables the write_request_to_send command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:allow-write-request-to-send",
           "markdownDescription": "Enables the write_request_to_send command without any pre-configured scope."
         },
         {
-          "description": "Enables the write_rts command without any pre-configured scope.",
+          "description": "Denies the at command without any pre-configured scope.",
           "type": "string",
-          "const": "serialplugin:allow-write-rts",
-          "markdownDescription": "Enables the write_rts command without any pre-configured scope."
+          "const": "serialplugin:deny-at",
+          "markdownDescription": "Denies the at command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the at_phases command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-at-phases",
+          "markdownDescription": "Denies the at_phases command without any pre-configured scope."
         },
         {
           "description": "Denies the available_ports command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-available-ports",
           "markdownDescription": "Denies the available_ports command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the available_ports_direct command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-available-ports-direct",
-          "markdownDescription": "Denies the available_ports_direct command without any pre-configured scope."
         },
         {
           "description": "Denies the bytes_to_read command without any pre-configured scope.",
@@ -2355,10 +2391,22 @@
           "markdownDescription": "Denies the bytes_to_write command without any pre-configured scope."
         },
         {
+          "description": "Denies the cancel_exchange command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-cancel-exchange",
+          "markdownDescription": "Denies the cancel_exchange command without any pre-configured scope."
+        },
+        {
           "description": "Denies the cancel_read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-cancel-read",
           "markdownDescription": "Denies the cancel_read command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the capabilities command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-capabilities",
+          "markdownDescription": "Denies the capabilities command without any pre-configured scope."
         },
         {
           "description": "Denies the clear_break command without any pre-configured scope.",
@@ -2385,6 +2433,36 @@
           "markdownDescription": "Denies the close_all command without any pre-configured scope."
         },
         {
+          "description": "Denies the configure_at_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-configure-at-session",
+          "markdownDescription": "Denies the configure_at_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the disable_mux command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-disable-mux",
+          "markdownDescription": "Denies the disable_mux command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the enable_mux command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-enable-mux",
+          "markdownDescription": "Denies the enable_mux command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the exchange command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-exchange",
+          "markdownDescription": "Denies the exchange command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the exchange_binary command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-exchange-binary",
+          "markdownDescription": "Denies the exchange_binary command without any pre-configured scope."
+        },
+        {
           "description": "Denies the force_close command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-force-close",
@@ -2409,6 +2487,12 @@
           "markdownDescription": "Denies the open command without any pre-configured scope."
         },
         {
+          "description": "Denies the open_mux_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-open-mux-channel",
+          "markdownDescription": "Denies the open_mux_channel command without any pre-configured scope."
+        },
+        {
           "description": "Denies the read command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-read",
@@ -2427,22 +2511,10 @@
           "markdownDescription": "Denies the read_carrier_detect command without any pre-configured scope."
         },
         {
-          "description": "Denies the read_cd command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-read-cd",
-          "markdownDescription": "Denies the read_cd command without any pre-configured scope."
-        },
-        {
           "description": "Denies the read_clear_to_send command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-read-clear-to-send",
           "markdownDescription": "Denies the read_clear_to_send command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the read_cts command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-read-cts",
-          "markdownDescription": "Denies the read_cts command without any pre-configured scope."
         },
         {
           "description": "Denies the read_data_set_ready command without any pre-configured scope.",
@@ -2451,28 +2523,16 @@
           "markdownDescription": "Denies the read_data_set_ready command without any pre-configured scope."
         },
         {
-          "description": "Denies the read_dsr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-read-dsr",
-          "markdownDescription": "Denies the read_dsr command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the read_dtr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-read-dtr",
-          "markdownDescription": "Denies the read_dtr command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the read_ri command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-read-ri",
-          "markdownDescription": "Denies the read_ri command without any pre-configured scope."
-        },
-        {
           "description": "Denies the read_ring_indicator command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-read-ring-indicator",
           "markdownDescription": "Denies the read_ring_indicator command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the send_sms_pdu command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-send-sms-pdu",
+          "markdownDescription": "Denies the send_sms_pdu command without any pre-configured scope."
         },
         {
           "description": "Denies the set_baud_rate command without any pre-configured scope.",
@@ -2523,16 +2583,28 @@
           "markdownDescription": "Denies the set_timeout command without any pre-configured scope."
         },
         {
-          "description": "Denies the start_listening command without any pre-configured scope.",
+          "description": "Denies the unwatch command without any pre-configured scope.",
           "type": "string",
-          "const": "serialplugin:deny-start-listening",
-          "markdownDescription": "Denies the start_listening command without any pre-configured scope."
+          "const": "serialplugin:deny-unwatch",
+          "markdownDescription": "Denies the unwatch command without any pre-configured scope."
         },
         {
-          "description": "Denies the stop_listening command without any pre-configured scope.",
+          "description": "Denies the unwatch_ports command without any pre-configured scope.",
           "type": "string",
-          "const": "serialplugin:deny-stop-listening",
-          "markdownDescription": "Denies the stop_listening command without any pre-configured scope."
+          "const": "serialplugin:deny-unwatch-ports",
+          "markdownDescription": "Denies the unwatch_ports command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the watch command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-watch",
+          "markdownDescription": "Denies the watch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the watch_ports command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-watch-ports",
+          "markdownDescription": "Denies the watch_ports command without any pre-configured scope."
         },
         {
           "description": "Denies the write command without any pre-configured scope.",
@@ -2553,22 +2625,10 @@
           "markdownDescription": "Denies the write_data_terminal_ready command without any pre-configured scope."
         },
         {
-          "description": "Denies the write_dtr command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-write-dtr",
-          "markdownDescription": "Denies the write_dtr command without any pre-configured scope."
-        },
-        {
           "description": "Denies the write_request_to_send command without any pre-configured scope.",
           "type": "string",
           "const": "serialplugin:deny-write-request-to-send",
           "markdownDescription": "Denies the write_request_to_send command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the write_rts command without any pre-configured scope.",
-          "type": "string",
-          "const": "serialplugin:deny-write-rts",
-          "markdownDescription": "Denies the write_rts command without any pre-configured scope."
         }
       ]
     },

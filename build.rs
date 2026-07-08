@@ -4,7 +4,6 @@
 
 const COMMANDS: &[&str] = &[
     "available_ports",
-    "available_ports_direct",
     "managed_ports",
     "cancel_read",
     "close",
@@ -13,8 +12,11 @@ const COMMANDS: &[&str] = &[
     "open",
     "read",
     "read_binary",
-    "start_listening",
-    "stop_listening",
+    "capabilities",
+    "watch",
+    "unwatch",
+    "watch_ports",
+    "unwatch_ports",
     "write",
     "write_binary",
     "set_baud_rate",
@@ -34,17 +36,26 @@ const COMMANDS: &[&str] = &[
     "clear_buffer",
     "set_break",
     "clear_break",
-    "write_rts",
-    "write_dtr",
-    "read_cts",
-    "read_dsr",
-    "read_ri",
-    "read_cd",
     "set_log_level",
     "get_log_level",
+    "exchange",
+    "exchange_binary",
+    "cancel_exchange",
+    "at",
+    "at_phases",
+    "send_sms_pdu",
+    "configure_at_session",
+    "enable_mux",
+    "open_mux_channel",
+    "disable_mux",
 ];
 
 fn main() {
+    let target = std::env::var("TARGET").unwrap_or_default();
+    if target.contains("android") {
+        println!("cargo:rustc-link-lib=log");
+    }
+
     let result = tauri_plugin::Builder::new(COMMANDS)
         .android_path("android")
         .try_build();

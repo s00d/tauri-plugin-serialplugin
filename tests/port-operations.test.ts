@@ -82,7 +82,7 @@ describe('SerialPort Operations', () => {
     });
 
     it('should throw error if port is not open', async () => {
-      await expect(serialPort.write('Hello')).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
+      await expect(serialPort.write('Hello')).rejects.toThrow('Port is not open');
     });
   });
 
@@ -118,7 +118,7 @@ describe('SerialPort Operations', () => {
     });
 
     it('should throw error if port is not open', async () => {
-      await expect(serialPort.read()).rejects.toEqual('Port is not open');
+      await expect(serialPort.read()).rejects.toThrow('Port is not open');
     });
   });
 
@@ -188,40 +188,44 @@ describe('SerialPort Operations', () => {
 
     it('should handle invalid input type', async () => {
       serialPort.isOpen = true;
-      await expect(serialPort.writeBinary('invalid' as any)).rejects.toEqual(
-        'value Argument type error! Expected type: string, Uint8Array, number[]'
+      await expect(serialPort.writeBinary('invalid' as any)).rejects.toThrow(
+        'value argument type error: expected Uint8Array or number[]'
       );
     });
 
     it('should throw error if port is not open', async () => {
       const data = new Uint8Array([1, 2, 3]);
-      await expect(serialPort.writeBinary(data)).rejects.toEqual(`serial port ${serialPort.options.path} not opened!`);
+      await expect(serialPort.writeBinary(data)).rejects.toThrow('Port is not open');
     });
   });
 
-  describe('startListening and stopListening', () => {
+  describe('watch', () => {
     beforeEach(() => {
       serialPort.isOpen = true;
     });
 
-    it('should start listening successfully', async () => {
-      mockInvoke.mockResolvedValueOnce('started');
+    it('should start watch successfully', async () => {
+      mockInvoke.mockResolvedValueOnce(9);
 
-      await serialPort.startListening();
-      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|start_listening', {
-        path: '/dev/tty.usbserial',
-        size: 1024,
-        timeout: 1000
-      });
+      const handle = await serialPort.watch({ onData: jest.fn() });
+      expect(handle.channelId).toBe(9);
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'plugin:serialplugin|watch',
+        expect.objectContaining({
+          path: '/dev/tty.usbserial',
+        }),
+      );
     });
 
-    it('should stop listening successfully', async () => {
-      mockInvoke.mockResolvedValueOnce('stopped');
-
-      await serialPort.stopListening();
-      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|stop_listening', {
-        path: '/dev/tty.usbserial'
+    it('should unwatch via handle', async () => {
+      mockInvoke.mockResolvedValueOnce(2);
+      const handle = await serialPort.watch({ onData: jest.fn() });
+      mockInvoke.mockResolvedValueOnce(undefined);
+      await handle.unwatch();
+      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|unwatch', {
+        channelId: 2,
       });
     });
   });
-}); 
+});
+

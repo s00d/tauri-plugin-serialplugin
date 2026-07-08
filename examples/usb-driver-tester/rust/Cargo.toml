@@ -1,0 +1,16 @@
+[package]
+name = "usb-driver-tester"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "usb_driver_tester"
+crate-type = ["cdylib"]
+
+[dependencies]
+android-usb-serial = { path = "../../../crates/android-usb-serial", features = ["fake-transport"] }
+log = "0.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"

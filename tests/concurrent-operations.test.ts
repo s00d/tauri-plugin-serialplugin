@@ -106,11 +106,11 @@ describe('SerialPort Concurrent Operations', () => {
       const operations = [
         async () => {
           mockInvoke.mockResolvedValueOnce(undefined);
-          return await serialPort.setRequestToSend(true);
+          return await serialPort.writeRequestToSend(true);
         },
         async () => {
           mockInvoke.mockResolvedValueOnce(undefined);
-          return await serialPort.setDataTerminalReady(false);
+          return await serialPort.writeDataTerminalReady(false);
         },
         async () => {
           mockInvoke.mockResolvedValueOnce(true);

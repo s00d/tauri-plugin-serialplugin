@@ -1,0 +1,40 @@
+{
+  "source": "java",
+  "driver": "chrome_ccd",
+  "scenario": "cr50_port2_open_default",
+  "vendorId": 6353,
+  "productId": 20500,
+  "portIndex": 2,
+  "deviceStub": "cr50",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 131,
+      "bulkOut": 4,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 2,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 133,
+      "bulkOut": 6,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [],
+  "bulkOut": []
+}

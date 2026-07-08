@@ -1,10 +1,18 @@
 // Centralized logger for the serial plugin
 // Avoids circular dependencies and code duplication
 
-export type LogLevel = "None" | "Error" | "Warn" | "Info" | "Debug";
+export const LogLevel = {
+  None: 'None',
+  Error: 'Error',
+  Warn: 'Warn',
+  Info: 'Info',
+  Debug: 'Debug',
+} as const;
+
+export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel];
 
 // Global log level state
-let currentLogLevel: LogLevel = "Info";
+let currentLogLevel: LogLevel = LogLevel.Info;
 
 /**
  * Sets the global log level
@@ -24,7 +32,13 @@ export function getLogLevel(): LogLevel {
  * Checks if a message should be logged based on current log level
  */
 function shouldLog(level: LogLevel): boolean {
-  const levels: LogLevel[] = ["None", "Error", "Warn", "Info", "Debug"];
+  const levels: LogLevel[] = [
+    LogLevel.None,
+    LogLevel.Error,
+    LogLevel.Warn,
+    LogLevel.Info,
+    LogLevel.Debug,
+  ];
   const currentIndex = levels.indexOf(currentLogLevel);
   const requestedIndex = levels.indexOf(level);
   return requestedIndex <= currentIndex && currentIndex > 0;
@@ -34,7 +48,7 @@ function shouldLog(level: LogLevel): boolean {
  * Logs an error message
  */
 export function logError(...args: any[]): void {
-  if (shouldLog("Error")) {
+  if (shouldLog(LogLevel.Error)) {
     console.error(...args);
   }
 }
@@ -43,7 +57,7 @@ export function logError(...args: any[]): void {
  * Logs a warning message
  */
 export function logWarn(...args: any[]): void {
-  if (shouldLog("Warn")) {
+  if (shouldLog(LogLevel.Warn)) {
     console.warn(...args);
   }
 }
@@ -52,7 +66,7 @@ export function logWarn(...args: any[]): void {
  * Logs an info message
  */
 export function logInfo(...args: any[]): void {
-  if (shouldLog("Info")) {
+  if (shouldLog(LogLevel.Info)) {
     console.log(...args);
   }
 }
@@ -61,7 +75,7 @@ export function logInfo(...args: any[]): void {
  * Logs a debug message
  */
 export function logDebug(...args: any[]): void {
-  if (shouldLog("Debug")) {
+  if (shouldLog(LogLevel.Debug)) {
     console.log(...args);
   }
 }
