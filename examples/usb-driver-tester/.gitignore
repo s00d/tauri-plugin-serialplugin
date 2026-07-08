@@ -1,0 +1,10 @@
+# Gradle / Android build outputs (must not ship in git or crates.io)
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+app/src/main/jniLibs/
+*.apk
+*.aab
+*.so

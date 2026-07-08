@@ -7,3 +7,7 @@ dist
 coverage
 test-results
 .gradle
+**/build/
+*.apk
+*.aab
+local.properties
