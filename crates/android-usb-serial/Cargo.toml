@@ -20,7 +20,7 @@ exclude = [
 
 [package.metadata.docs.rs]
 all-features = false
-features = ["serialport-compat"]
+features = ["serialport-compat", "fake-transport"]
 targets = ["x86_64-unknown-linux-gnu", "x86_64-linux-android"]
 rustdoc-args = ["--cfg", "docsrs"]
 

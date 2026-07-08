@@ -1,4 +1,7 @@
 //! nusb-backed transport (Linux / Android).
+//!
+//! Obtain an [`nusb::Device`] with [`from_raw_fd`] (Android `UsbDeviceConnection` fd) or open
+//! via nusb on Linux, then wrap it in [`NusbTransport`].
 
 use crate::error::{ReadOutcome, Result, TransferError, UsbSerialError};
 use crate::transport::{
@@ -21,6 +24,9 @@ use std::time::Duration;
 const IN_FLIGHT_TRANSFERS: usize = 2;
 
 /// Duplicate an Android `UsbDeviceConnection` fd and open via nusb.
+///
+/// Calls `libc::dup` so Java/Kotlin may keep owning the original connection. Do **not**
+/// claim interfaces on the Kotlin side before this — nusb uses `detach_and_claim`.
 pub fn from_raw_fd(fd: RawFd) -> Result<Device> {
     let dup_fd = unsafe { libc::dup(fd) };
     if dup_fd < 0 {
@@ -35,6 +41,7 @@ pub fn from_raw_fd(fd: RawFd) -> Result<Device> {
         .map_err(|e| UsbSerialError::Io(e.to_string()))
 }
 
+/// [`crate::Transport`] over a live [`nusb::Device`] (claim, control, bulk endpoints).
 pub struct NusbTransport {
     device: Device,
     claimed: Mutex<HashMap<u8, Interface>>,
@@ -45,6 +52,7 @@ pub struct NusbTransport {
 }
 
 impl NusbTransport {
+    /// Build a transport from an already-opened nusb device (parses config descriptors).
     pub fn from_device(device: Device) -> Result<Self> {
         let config = device
             .active_configuration()

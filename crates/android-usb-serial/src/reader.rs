@@ -1,4 +1,7 @@
 //! Background bulk-IN reader (2–4 in-flight transfers + RX filter chain).
+//!
+//! Started via [`crate::SerialPortHandle::start_reader`]. Owns the driver's bulk IN endpoint
+//! for the lifetime of the reader; [`SerialPortHandle::write`] must not reopen that IN.
 
 use crate::error::{ReadOutcome, Result, TransferError, UsbSerialError};
 use crate::rx_filter::{apply_filters, RxFilter};
@@ -10,6 +13,7 @@ use std::time::Duration;
 
 const STOP_JOIN_TIMEOUT: Duration = Duration::from_secs(1);
 
+/// Thread that continuously reads bulk IN and pushes filtered chunks into a channel.
 pub struct SerialReader {
     rx: Receiver<Vec<u8>>,
     stop_tx: Option<Sender<()>>,
@@ -18,6 +22,7 @@ pub struct SerialReader {
 }
 
 impl SerialReader {
+    /// Spawn the reader thread over `bulk_in` with optional RX filters (FTDI header, XON/XOFF).
     pub fn start(
         bulk_in: Box<dyn BulkIn>,
         max_packet_size: u16,
@@ -48,6 +53,7 @@ impl SerialReader {
         }
     }
 
+    /// Non-blocking: copy one queued chunk into `buf`, or `Ok(0)` if empty.
     pub fn try_read(&mut self, buf: &mut [u8]) -> Result<usize> {
         if let Some(err) = self.error.lock().unwrap().take() {
             return Err(err);
@@ -68,6 +74,7 @@ impl SerialReader {
         }
     }
 
+    /// Signal stop and join the reader (best-effort within a short timeout).
     pub fn stop(&mut self) {
         if let Some(tx) = self.stop_tx.take() {
             let _ = tx.send(());

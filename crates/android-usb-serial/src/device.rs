@@ -1,26 +1,35 @@
 //! Device discovery and port enumeration.
+//!
+//! Use [`describe_device`] after the transport is ready (interfaces readable) to learn
+//! how many serial ports the chip exposes, then [`open_port`] with a zero-based index.
 
 use crate::drivers::create_driver;
 use crate::error::{Result, UsbSerialError};
 use crate::probe::{DriverType, ProbeTable};
 use crate::transport::SharedTransport;
 
+/// One logical serial port exposed by a USB composite / multi-interface device.
 #[derive(Debug, Clone)]
 pub struct PortDescriptor {
+    /// Zero-based index passed to [`open_port`].
     pub port_index: usize,
+    /// Driver selected by [`ProbeTable`] for this product.
     pub driver: DriverType,
     pub vendor_id: u16,
     pub product_id: u16,
 }
 
+/// USB device identify + probed driver and ports.
 #[derive(Debug, Clone)]
 pub struct DeviceDescriptor {
     pub vendor_id: u16,
     pub product_id: u16,
     pub driver: DriverType,
+    /// One entry per openable port (`port_index` 0..n).
     pub ports: Vec<PortDescriptor>,
 }
 
+/// Probe VID/PID + interface layout without opening a driver session.
 pub fn describe_device(transport: &SharedTransport) -> Result<DeviceDescriptor> {
     let desc = transport.raw_device_descriptor();
     let vendor_id = u16::from_le_bytes([desc[8], desc[9]]);
@@ -45,6 +54,10 @@ pub fn describe_device(transport: &SharedTransport) -> Result<DeviceDescriptor> 
     })
 }
 
+/// Open port `port_index` (0 for single-port chips like CH340).
+///
+/// Claims / initializes the matching vendor driver on `transport`. The reader is **not**
+/// started here — call [`crate::SerialPortHandle::start_reader`] after line config / DTR.
 pub fn open_port(
     transport: SharedTransport,
     port_index: usize,

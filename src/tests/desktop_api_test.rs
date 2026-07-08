@@ -545,29 +545,41 @@ mod tests {
         let _ = sp.read(path.clone(), Some(50), Some(8));
 
         let (cmd_rx_tx, cmd_rx_rx) = std::sync::mpsc::sync_channel::<()>(1);
+        // Keep master open until exchange finishes (Linux: early Drop → Broken pipe on slave).
+        // Drain continuously: never sleep without reading — a concurrent slave write can
+        // otherwise fill the PTY, block holding the port mutex, and starve the RX hub.
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
         let responder = thread::spawn(move || {
             let mut buf = [0u8; 256];
             let deadline = Instant::now() + Duration::from_secs(5);
+            let mut ok_due: Option<Instant> = None;
+            let mut ok_sent = false;
             while Instant::now() < deadline {
+                if done_rx.try_recv().is_ok() {
+                    break;
+                }
                 master
-                    .set_timeout(Duration::from_millis(50))
+                    .set_timeout(Duration::from_millis(20))
                     .expect("master timeout");
                 match master.read(&mut buf) {
-                    Ok(0) => thread::sleep(Duration::from_millis(10)),
-                    Ok(_) => {
+                    Ok(n) if n > 0 && ok_due.is_none() => {
                         let _ = cmd_rx_tx.send(());
-                        thread::sleep(Duration::from_millis(300));
-                        let _ = master.write_all(b"\r\nOK\r\n");
-                        let _ = master.flush();
-                        return;
+                        // Delay OK so concurrent I/O can run while exchange is waiting.
+                        ok_due = Some(Instant::now() + Duration::from_millis(300));
                     }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
-                    Err(_) => {
-                        thread::sleep(Duration::from_millis(10));
-                        continue;
+                    _ => {}
+                }
+                if !ok_sent {
+                    if let Some(due) = ok_due {
+                        if Instant::now() >= due {
+                            let _ = master.write_all(b"\r\nOK\r\n");
+                            let _ = master.flush();
+                            ok_sent = true;
+                        }
                     }
                 }
             }
+            let _ = master;
         });
 
         let io_elapsed = Arc::new(Mutex::new(None::<(Duration, Duration)>));
@@ -584,7 +596,9 @@ mod tests {
                 .expect("bytes_to_read while exchange waiting");
             let bytes_elapsed = io_start.elapsed();
             let write_start = Instant::now();
-            let _write_result = sp_io.write(path_io, "PING".to_string());
+            sp_io
+                .write(path_io, "PING".to_string())
+                .expect("write while exchange waiting");
             *io_elapsed_bg.lock().unwrap() = Some((bytes_elapsed, write_start.elapsed()));
         });
 
@@ -598,8 +612,10 @@ mod tests {
             },
         );
 
+        // Join I/O before releasing master — responder must keep draining PTY while write runs.
         io_thread.join().expect("io thread join");
-        drop(responder);
+        let _ = done_tx.send(());
+        responder.join().expect("responder join");
 
         let (bytes_elapsed, write_elapsed) = io_elapsed.lock().unwrap().expect("io timing");
         assert!(

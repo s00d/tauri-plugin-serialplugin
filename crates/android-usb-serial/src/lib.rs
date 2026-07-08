@@ -1,14 +1,48 @@
 //! Pure Rust USB serial drivers for Android (and Linux), built on [nusb](https://docs.rs/nusb).
 //!
+//! Protocol logic is ported from
+//! [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) and checked against
+//! golden USB control-transfer fixtures under `tests/fixtures/`.
+//!
 //! ## Overview
 //!
-//! Android apps obtain a `UsbDeviceConnection` file descriptor from
-//! `UsbManager` / Kotlin, then pass it into this crate via [`from_raw_fd`].
-//! Drivers (FTDI, CP21xx, CH34x, Prolific, CDC-ACM, …) speak vendor USB
-//! protocols over that transport.
+//! This crate does **not** talk to Android `UsbManager`. The host app (typically Kotlin) owns
+//! USB permission, opens a `UsbDeviceConnection`, and passes its raw file descriptor into Rust.
+//! The crate then:
+//!
+//! 1. [`from_raw_fd`] — `dup`s the fd so Java can keep the connection alive.
+//! 2. [`NusbTransport`] — claims interfaces via nusb (`detach_and_claim`).
+//! 3. [`ProbeTable`] / [`open_port`] — selects a vendor driver and returns a [`SerialPortHandle`].
+//!
+//! ```text
+//! UsbManager (Kotlin) → permission → UsbDeviceConnection → fd (unclaimed)
+//!         ↓
+//!    from_raw_fd / NusbTransport
+//!         ↓
+//!    ProbeTable → Ftdi / Cp21xx / Ch34x / … drivers
+//!         ↓
+//!    SerialPortHandle (write / reader / modem / purge)
+//! ```
+//!
+//! ## Android usage
+//!
+//! - Declare `android.hardware.usb.host` and a `device_filter.xml` in the app.
+//! - Request runtime USB permission before `UsbManager.openDevice()`.
+//! - **Do not** call `UsbDeviceConnection.claimInterface()` in Kotlin — nusb claims after
+//!   [`from_raw_fd`]. Pre-claim causes `io interface is busy`.
+//! - Keep the `UsbDeviceConnection` open for the whole session; close it only after Rust
+//!   [`SerialPortHandle::close`].
+//! - Prefer [`SerialPortHandle::start_reader`] **after** line config and DTR/RTS (important for
+//!   weak OTG / CH340).
+//! - Multi-port chips: pass `port_index` to [`open_port`] (`0`, `1`, …). App-level enumerate
+//!   often exposes paths as `deviceName` / `deviceName#N`.
+//!
+//! Full Kotlin/permission walkthrough: crate README (*Using on Android*) in the repository.
+//!
+//! ## Quick start (real USB fd)
 //!
 //! ```ignore
-//! // Android / Linux: fd from UsbDeviceConnection.fileDescriptor (already dup'd internally)
+//! // fd from UsbDeviceConnection.fileDescriptor (dup'd inside from_raw_fd)
 //! use android_usb_serial::{from_raw_fd, open_port, NusbTransport, Transport};
 //! use std::sync::Arc;
 //!
@@ -18,20 +52,34 @@
 //! port.write(b"AT\r\n")?;
 //! ```
 //!
-//! Host-side tests can use the optional [`fake::FakeTransport`] behind the
-//! `fake-transport` feature.
+//! ## Quick start (`fake-transport`)
+//!
+//! ```
+//! # #[cfg(feature = "fake-transport")]
+//! # {
+//! use android_usb_serial::{open_port, FakeTransport, Transport};
+//! use std::sync::Arc;
+//!
+//! let fake = FakeTransport::cdc_single_iface();
+//! let transport: Arc<dyn Transport> = Arc::new(fake.clone());
+//! let mut port = open_port(transport, 0).unwrap();
+//! port.write(b"PING").unwrap();
+//! assert_eq!(fake.take_tx(), b"PING");
+//! # }
+//! ```
 //!
 //! ## Features
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
-//! | `serialport-compat` | yes | `serialport::SerialPort` adapter |
-//! | `fake-transport` | no | In-memory transport + `golden_record` binary |
+//! | `serialport-compat` | yes | [`serialport::SerialPort`] adapter ([`serialport_compat`]) |
+//! | `fake-transport` | no | [`FakeTransport`] + `golden_record` binary |
 //!
 //! ## Platform notes
 //!
-//! - **Android / Linux:** full USB path via `nusb` (`from_raw_fd`, [`NusbTransport`]).
-//! - **Other hosts:** compile drivers + [`fake`](crate::fake) for tests; no real USB until you supply a [`Transport`].
+//! - **Android / Linux:** real USB via nusb ([`from_raw_fd`], [`NusbTransport`]).
+//! - **Other hosts:** drivers + [`fake`] for tests; supply your own [`Transport`]
+//!   for hardware.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

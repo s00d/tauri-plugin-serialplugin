@@ -1,10 +1,14 @@
 //! In-memory transport for golden parity and on-device harness.
+//!
+//! Enable with Cargo feature `fake-transport`. Script control/bulk responses, then open a port
+//! with [`crate::open_port`] exactly as on hardware.
 
 use crate::error::{ReadOutcome, Result, UsbSerialError};
 use crate::transport::{BulkIn, BulkOut, ControlRequest, EndpointInfo, InterfaceInfo, Transport};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+/// Captured control transfer (for golden parity assertions).
 #[derive(Debug, Clone)]
 pub struct RecordedControl {
     pub request_type: u8,
@@ -14,6 +18,7 @@ pub struct RecordedControl {
     pub data: Vec<u8>,
 }
 
+/// Captured bulk OUT payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordedBulkOut {
     pub endpoint: u8,
@@ -38,7 +43,7 @@ struct FakeState {
     open_endpoints: Vec<u8>,
 }
 
-/// Thread-safe fake USB device for tests.
+/// Thread-safe fake USB device for tests ([`crate::Transport`] implementor).
 #[derive(Debug, Clone)]
 pub struct FakeTransport {
     inner: Arc<Mutex<FakeState>>,
@@ -51,10 +56,12 @@ impl Default for FakeTransport {
 }
 
 impl FakeTransport {
+    /// Same as [`Self::cdc_single_iface`].
     pub fn new() -> Self {
         Self::cdc_single_iface()
     }
 
+    /// Single CDC ACM interface with bulk IN/OUT endpoints (castrated single-iface layout).
     pub fn cdc_single_iface() -> Self {
         let t = Self {
             inner: Arc::new(Mutex::new(FakeState::default())),
@@ -95,6 +102,7 @@ impl FakeTransport {
         t
     }
 
+    /// FT232R-shaped single-interface layout (`0403:6001`).
     pub fn ftdi_ft232r() -> Self {
         let t = Self::cdc_single_iface();
         t.set_vendor_product(0x0403, 0x6001);
@@ -549,11 +557,13 @@ impl FakeTransport {
         s.interrupt_in_queue.extend(data);
     }
 
+    /// Drain and return bytes written to bulk OUT (test asserts).
     pub fn take_tx(&self) -> Vec<u8> {
         let mut s = self.inner.lock().unwrap();
         std::mem::take(&mut s.tx_log)
     }
 
+    /// Snapshot recorded control transfers.
     pub fn recorded_controls(&self) -> Vec<RecordedControl> {
         self.inner.lock().unwrap().recorded.clone()
     }
@@ -568,6 +578,7 @@ impl FakeTransport {
         self.inner.lock().unwrap().claimed.clone()
     }
 
+    /// Queue the next `control_in` response payload (FIFO).
     pub fn script_control_in_response(&self, data: Vec<u8>) {
         self.inner.lock().unwrap().control_in_responses.push(data);
     }

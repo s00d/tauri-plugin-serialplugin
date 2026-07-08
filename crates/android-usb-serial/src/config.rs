@@ -1,8 +1,11 @@
 //! Line configuration types (no plugin dependency).
 
+/// ASCII XON (DC1).
 pub const CHAR_XON: u8 = 17;
+/// ASCII XOFF (DC3).
 pub const CHAR_XOFF: u8 = 19;
 
+/// Number of data bits in the serial frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataBits {
     Five,
@@ -11,6 +14,7 @@ pub enum DataBits {
     Eight,
 }
 
+/// Parity bit mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Parity {
     None,
@@ -20,6 +24,7 @@ pub enum Parity {
     Space,
 }
 
+/// Stop bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StopBits {
     One,
@@ -27,6 +32,7 @@ pub enum StopBits {
     Two,
 }
 
+/// Hardware / software flow control.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlowControl {
     None,
@@ -38,6 +44,7 @@ pub enum FlowControl {
     XonXoffInline,
 }
 
+/// Which UART buffers to purge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PurgeKind {
     Rx,
@@ -45,6 +52,7 @@ pub enum PurgeKind {
     Both,
 }
 
+/// Baud rate and framing for [`crate::SerialPortHandle::set_line_config`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineConfig {
     pub baud_rate: u32,

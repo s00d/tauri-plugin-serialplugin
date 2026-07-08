@@ -1,4 +1,8 @@
 //! USB serial driver implementations.
+//!
+//! Each chip family implements the [`Driver`](crate::drivers::Driver) trait. Prefer
+//! [`crate::open_port`], which calls [`create_driver`](crate::drivers::create_driver)
+//! after [`crate::ProbeTable`] selection.
 
 mod cdc_acm;
 mod ch34x;
@@ -24,8 +28,10 @@ use crate::reader::SerialReader;
 use crate::rx_filter::RxFilter;
 use crate::transport::{BulkIn, BulkOut, SharedTransport};
 
+/// Default bulk OUT timeout used by drivers.
 pub const WRITE_TIMEOUT_MS: u32 = 5000;
 
+/// Modem status lines reported by chips that support them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ModemStatus {
     pub cts: bool,
@@ -34,6 +40,7 @@ pub struct ModemStatus {
     pub cd: bool,
 }
 
+/// Chip-specific USB serial protocol (control transfers + bulk endpoints).
 pub trait Driver: Send {
     fn open(&mut self, transport: &SharedTransport) -> Result<()>;
     fn close(&mut self) -> Result<()>;
@@ -64,6 +71,7 @@ pub trait Driver: Send {
     }
 }
 
+/// Construct an uninitialized driver for `driver_type` / `port_index`.
 pub fn create_driver(driver_type: DriverType, port_index: usize) -> Box<dyn Driver> {
     match driver_type {
         DriverType::CdcAcm => Box::new(CdcAcmDriver::new(port_index)),

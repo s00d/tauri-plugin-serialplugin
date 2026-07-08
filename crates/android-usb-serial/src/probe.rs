@@ -1,7 +1,11 @@
 //! Driver probing (ported from ProbeTable.java / UsbId.java).
+//!
+//! [`ProbeTable::default_table`] lists known VID/PID pairs. Unknown CDC composites fall
+//! back to [`DriverType::CdcAcm`] when communication/data interfaces are present.
 
 use crate::transport::InterfaceInfo;
 
+/// Vendor driver family selected for a USB product.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DriverType {
     CdcAcm,
@@ -13,6 +17,7 @@ pub enum DriverType {
     ChromeCcd,
 }
 
+/// One VID/PID → driver binding.
 #[derive(Debug, Clone)]
 pub struct ProbeEntry {
     pub vendor_id: u16,
@@ -20,12 +25,14 @@ pub struct ProbeEntry {
     pub driver: DriverType,
 }
 
+/// Lookup table used by [`crate::describe_device`] / [`crate::open_port`].
 #[derive(Debug, Clone, Default)]
 pub struct ProbeTable {
     entries: Vec<ProbeEntry>,
 }
 
 impl ProbeTable {
+    /// Built-in VID/PID map aligned with usb-serial-for-android defaults.
     pub fn default_table() -> Self {
         let mut table = Self::default();
         // Order matches Java getDefaultProbeTable driver registration for probe-fn fallback.
@@ -52,6 +59,7 @@ impl ProbeTable {
         table
     }
 
+    /// Register a product binding (last write wins on duplicates).
     pub fn add_product(&mut self, vendor_id: u16, product_id: u16, driver: DriverType) {
         self.entries.push(ProbeEntry {
             vendor_id,
@@ -60,6 +68,7 @@ impl ProbeTable {
         });
     }
 
+    /// Resolve driver for `(vid, pid)`; falls back to CDC-ACM when interfaces look CDC.
     pub fn find(
         &self,
         vendor_id: u16,
@@ -79,6 +88,7 @@ impl ProbeTable {
         DriverType::CdcAcm // unreachable for unknown; caller checks port_count
     }
 
+    /// How many serial ports this driver + interface layout exposes.
     pub fn port_count(&self, driver: DriverType, interfaces: &[InterfaceInfo]) -> usize {
         match driver {
             DriverType::CdcAcm => cdc_acm_port_count(interfaces),
@@ -107,11 +117,13 @@ impl ProbeTable {
         }
     }
 
+    /// Immutable view of registered bindings.
     pub fn entries(&self) -> &[ProbeEntry] {
         &self.entries
     }
 }
 
+/// Count CDC ACM data/comm interface pairs.
 pub fn cdc_acm_port_count(interfaces: &[InterfaceInfo]) -> usize {
     let comm = interfaces
         .iter()

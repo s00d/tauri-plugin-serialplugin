@@ -1,4 +1,8 @@
 //! `serialport` crate compatibility layer — full [`serialport::SerialPort`] on Android USB.
+//!
+//! Enable with Cargo feature `serialport-compat` (default). Wrap a [`crate::SerialPortHandle`]
+//! in [`SerialPortAdapter`](crate::serialport_compat::SerialPortAdapter) after
+//! [`crate::open_port`].
 
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};
 use crate::error::UsbSerialError;
@@ -131,6 +135,7 @@ pub struct SerialPortAdapter {
 }
 
 impl SerialPortAdapter {
+    /// Wrap an open [`SerialPortHandle`]. Call [`Self::start_reader`] after line/DTR setup.
     pub fn new(
         handle: SerialPortHandle,
         name: impl Into<String>,
