@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::api::desktop::SerialPort;
+    use crate::api::SerialPort;
     use crate::commands::watch;
     use crate::events::{SerialEvent, WatchOptions};
     use serde::Deserialize;

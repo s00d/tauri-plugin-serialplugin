@@ -10,7 +10,7 @@
     "check": "vue-tsc --noEmit",
     "clean:vite": "rm -rf node_modules/.vite",
     "tauri": "tauri",
-    "android:integration-test": "pnpm tauri android build --debug && ../../scripts/sync-android-integration-tests.sh && cd src-tauri/gen/android && JAVA_HOME=\"${JAVA_HOME:-$(/usr/libexec/java_home -v 17)}\" ./gradlew connectedUniversalDebugAndroidTest"
+    "android:integration-test": "pnpm tauri android build --debug --features android-test-harness && cd src-tauri && cargo ndk -t arm64-v8a -o gen/android/app/src/main/jniLibs build --package serialport-test --features android-test-harness --lib && cd .. && ../../scripts/sync-android-integration-tests.sh && cd src-tauri/gen/android && JAVA_HOME=\"${JAVA_HOME:-$(/usr/libexec/java_home -v 17)}\" ./gradlew connectedArm64DebugAndroidTest -x rustBuildArm64Debug -x rustBuildUniversalDebug -x rustBuildArmDebug -x rustBuildX86Debug -x rustBuildX86_64Debug"
   },
   "dependencies": {
     "tauri-plugin-serialplugin-api": "file:../../",

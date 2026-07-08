@@ -37,6 +37,8 @@ const entries = computed<PortListEntry[]>(() => {
 });
 
 function applySnapshot(ports: Record<string, PortInfo>) {
+  const keys = Object.keys(ports);
+  console.info('[PortPicker] applySnapshot', keys.length, keys);
   available.value = Object.fromEntries(
     Object.entries(ports).map(([path, info]) => [path, { type: info.type ?? 'Unknown' }]),
   );
@@ -49,10 +51,11 @@ async function refresh() {
       SerialPort.available_ports({ singlePortPerDevice: true }),
       SerialPort.managed_ports(),
     ]);
+    console.info('[PortPicker] refresh available=', Object.keys(ports), 'managed=', open);
     applySnapshot(ports);
     managed.value = open;
   } catch (e) {
-    console.error(e);
+    console.error('[PortPicker] refresh failed', e);
   } finally {
     loading.value = false;
   }
@@ -64,10 +67,12 @@ async function startPortWatch() {
     portsWatch = await SerialPort.watchAvailablePorts(
       {
         onSnapshot: (ports) => {
+          console.info('[PortPicker] onSnapshot', Object.keys(ports));
           applySnapshot(ports);
           lastEvent.value = `snapshot (${Object.keys(ports).length} ports)`;
         },
         onAdded: (path, info) => {
+          console.info('[PortPicker] onAdded', path, info);
           available.value = {
             ...available.value,
             [path]: { type: info.type ?? 'Unknown' },
@@ -75,6 +80,7 @@ async function startPortWatch() {
           lastEvent.value = `+ ${path}`;
         },
         onRemoved: (path) => {
+          console.info('[PortPicker] onRemoved', path);
           const next = { ...available.value };
           delete next[path];
           available.value = next;
@@ -85,7 +91,7 @@ async function startPortWatch() {
     );
     watching.value = true;
   } catch (e) {
-    console.error('port watch failed', e);
+    console.error('[PortPicker] port watch failed', e);
     watching.value = false;
   }
 }

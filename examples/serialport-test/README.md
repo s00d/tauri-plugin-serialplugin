@@ -35,3 +35,7 @@ In dev, Vite resolves `tauri-plugin-serialplugin-api` to **`guest-js/`**. Clear 
 pnpm run clean:vite
 pnpm tauri dev
 ```
+
+## Android
+
+→ [`ANDROID.md`](ANDROID.md) — wireless ADB, build/install, logcat.

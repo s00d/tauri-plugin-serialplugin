@@ -110,9 +110,11 @@ fn enumerate(
 }
 
 #[cfg(target_os = "android")]
-static ANDROID_ENUM: OnceLock<
-    Box<dyn Fn(bool) -> Result<HashMap<String, HashMap<String, String>>, Error> + Send + Sync>,
-> = OnceLock::new();
+type AndroidEnumerator =
+    Box<dyn Fn(bool) -> Result<HashMap<String, HashMap<String, String>>, Error> + Send + Sync>;
+
+#[cfg(target_os = "android")]
+static ANDROID_ENUM: OnceLock<AndroidEnumerator> = OnceLock::new();
 
 #[cfg(target_os = "android")]
 pub fn set_android_enumerator<F>(f: F)
@@ -123,10 +125,22 @@ where
 }
 
 fn poll_subscriber(sub: &mut Subscriber) {
-    let Ok(current) = enumerate(sub.single_port_per_device) else {
-        return;
+    let current = match enumerate(sub.single_port_per_device) {
+        Ok(v) => v,
+        Err(e) => {
+            crate::log_warn!("[SerialEnumerate] poll failed: {}", e);
+            return;
+        }
     };
     let (added, removed) = diff_ports(&sub.last, &current);
+    if !added.is_empty() || !removed.is_empty() {
+        crate::log_info!(
+            "[SerialEnumerate] poll delta +{} -{} total={}",
+            added.len(),
+            removed.len(),
+            current.len()
+        );
+    }
     for (path, info) in added {
         send_event(&sub.channel, PortListEvent::Added { path, info });
     }
@@ -194,7 +208,15 @@ pub fn subscribe(
 ) -> Result<(), Error> {
     let single = options.single_port_per_device.unwrap_or(false);
     let poll_ms = clamp_poll_ms(options.poll_interval_ms.unwrap_or(DEFAULT_POLL_MS));
-    let snapshot = enumerate(single)?;
+    let snapshot = enumerate(single).map_err(|e| {
+        crate::log_error!("[SerialEnumerate] watch snapshot failed: {}", e);
+        e
+    })?;
+    crate::log_info!(
+        "[SerialEnumerate] watch snapshot {} port(s) single={}",
+        snapshot.len(),
+        single
+    );
     send_event(
         &channel,
         PortListEvent::Snapshot {

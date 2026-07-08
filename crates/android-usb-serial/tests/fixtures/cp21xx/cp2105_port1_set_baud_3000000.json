@@ -1,0 +1,74 @@
+{
+  "source": "java",
+  "driver": "cp21xx",
+  "scenario": "cp2105_port1_set_baud_3000000",
+  "vendorId": 4292,
+  "productId": 60016,
+  "portIndex": 1,
+  "deviceStub": "cp2105",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 131,
+      "bulkOut": 4,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 65,
+      "request": 0,
+      "value": 1,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 7,
+      "value": 768,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 19,
+      "value": 0,
+      "index": 1,
+      "data": "AAAAAAAAAAAAAAAAAAAAAA\u003d\u003d"
+    },
+    {
+      "requestType": 65,
+      "request": 30,
+      "value": 0,
+      "index": 1,
+      "data": "wMYtAA\u003d\u003d"
+    },
+    {
+      "requestType": 65,
+      "request": 3,
+      "value": 2048,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 0,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

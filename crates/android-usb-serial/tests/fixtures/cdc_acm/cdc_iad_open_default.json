@@ -1,0 +1,52 @@
+{
+  "source": "java",
+  "driver": "cdc_acm",
+  "scenario": "cdc_iad_open_default",
+  "vendorId": 9025,
+  "productId": 67,
+  "portIndex": 0,
+  "deviceStub": "cdc_iad",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 2,
+      "subclass": 2,
+      "protocol": 0,
+      "interruptIn": 131,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 10,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 33,
+      "request": 32,
+      "value": 0,
+      "index": 0,
+      "data": "AMIBAAAACA\u003d\u003d"
+    },
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 1,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 3,
+      "index": 0,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

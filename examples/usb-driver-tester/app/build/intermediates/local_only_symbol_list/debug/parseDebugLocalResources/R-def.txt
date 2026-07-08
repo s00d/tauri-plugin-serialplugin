@@ -1,0 +1,9 @@
+R_DEF: Internal format may change without notice
+local
+id deviceList
+id logView
+id refreshBtn
+id shareBtn
+id testBtn
+layout activity_main
+xml device_filter

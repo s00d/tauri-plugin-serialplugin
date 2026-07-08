@@ -20,6 +20,5 @@ dependencyResolutionManagement {
 
 rootProject.name = 'tauri-plugin-serialplugin-android'
 
-include ':usbserial'
 include ':tauri-android'
 project(':tauri-android').projectDir = new File('./.tauri/tauri-api')

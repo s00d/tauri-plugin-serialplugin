@@ -4,9 +4,22 @@ All notable changes to this project will be documented in this file. See [standa
 
 For **Android/USB-focused** details (behavior, limits, testing), see also [`android/README.md`](android/README.md).
 
-## [Unreleased]
+### Fixed
 
-### Breaking / migration (Rust module layout)
+* **Android CH340 / weak OTG:** bulk IN reader starts after line/DTR setup; in-flight URBs reduced to 2; clearer detach reason in logs.
+* **Android enumerate:** Kotlin exports `interfaces[]`; Rust expands multi-port paths (`device#N`) via `ProbeTable` without opening fd.
+* **Android write after listen:** `EndpointPair::write` no longer re-opens bulk IN owned by `SerialReader` (`endpoint already in use`).
+* **Android Kotlin fd bridge:** removed pre-`claimInterface` (fixes `io interface is busy` with nusb `detach_and_claim`).
+* **Android logcat:** Rust plugin logs use tag `SerialPlugin` via `__android_log_write`.
+
+### Features (nusb Android stack)
+
+* **`android-usb-serial` crate:** Pure Rust USB serial on Android via nusb; 567 golden parity fixtures (560 Java-sourced); drivers for FTDI, CP21xx, CH34x, PL2303, CDC-ACM, GSM modem, Chrome CCD.
+* **`UsbFdBridge`:** Kotlin provides USB fd only; Rust `driver_host` owns drivers, RX reader, and I/O.
+* **Unified `api::serial`:** Single `serialport::SerialPort` facade on desktop and Android; `PortRxHub` poll-loop on both platforms.
+* **Workspace:** `rust-version = 1.79`, `android-test-harness` feature wires `FakeTransport` for instrumented tests.
+* **`usb-driver-tester`:** Standalone hardware self-test app under `examples/usb-driver-tester/`.
+
 
 * **Removed compat top-level modules:** `desktop_api`, `mobile_api`, `port_rx_hub`, `exchange_runtime`, `cancel_exchange`, `at_runtime`, `exchange_read`, `port_backend`, `rx_hub_handle`, `io_errors`, and `mobile_*` JNI stubs. Use `api::desktop` / `api::mobile`, `hub`, `api::backend`, and `android` instead.
 * **`at/` module:** `at_parse` → `at::parse`, `at_session` → `at::session`, `runtime::at` → `at::commands`.
@@ -34,7 +47,7 @@ For **Android/USB-focused** details (behavior, limits, testing), see also [`andr
 * **Guest-js v3 types:** `AtCommandResult.raw` / `ExchangeResponse.raw` are `Uint8Array`; `timedOut` is a real `boolean` from native timeouts.
 * **`open()` canonical path:** Returns the session key (Android `UsbPath.sessionKey`; desktop echoes the input path).
 * **TX queue:** Failed jobs no longer halt the port queue until reopen; `stopOnError` only affects remaining phases in one `sendAtPhases` batch.
-* **Android USB watch + TX:** bulkTransfer SIOM read (`readTimeout=200`, `queue=0`); direct `port.write` with short `synchronized(port)` on TX only (no lock across blocking read — fixes deadlock with `LockedUsbSerialPort`).
+* **Android USB I/O:** Rust bulk-IN reader thread + `PortRxHub`; chunked write via `driver_host`.
 * **Desktop `PortTxQueue`:** Ticket turnstile per port; `stop_on_error` drains waiters; `cancel_exchange` flushes queue.
 * **Android `PortTxQueue`:** Mirror FIFO + AT session merge in Kotlin.
 * **CMUX `VirtualPortRef`:** Virtual channels no longer duplicate RX hub entries; hub uses `try_lock` read to avoid writer starvation.

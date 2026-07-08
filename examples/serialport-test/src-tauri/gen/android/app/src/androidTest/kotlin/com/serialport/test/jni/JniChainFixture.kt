@@ -2,21 +2,15 @@ package com.serialport.test.jni
 
 import app.tauri.serialplugin.MobileBridge
 import app.tauri.serialplugin.UsbNative
-import app.tauri.serialplugin.manager.FakeUsbSerialPort
-import app.tauri.serialplugin.manager.UsbBridge
-import app.tauri.serialplugin.models.DataBits
-import app.tauri.serialplugin.models.FlowControl
-import app.tauri.serialplugin.models.Parity
-import app.tauri.serialplugin.models.SerialPortConfig
-import app.tauri.serialplugin.models.StopBits
+import app.tauri.serialplugin.manager.UsbFdBridge
 
-/** Sets up FakeUsb + production JNI sink + Rust test harness for one port. */
+/** Sets up FakeTransport CDC + production fd bridge + Rust test harness for one port. */
 object JniChainFixture {
-    const val PATH: String = "/dev/bus/usb/001/099"
+    const val DEVICE_NAME: String = "/dev/bus/usb/001/099"
 
-    lateinit var bridge: UsbBridge
+    lateinit var bridge: UsbFdBridge
         private set
-    lateinit var fake: FakeUsbSerialPort
+    lateinit var sessionPath: String
         private set
 
     private var libraryLoaded = false
@@ -24,28 +18,15 @@ object JniChainFixture {
     fun setUp() {
         loadNativeLibrary()
         MobileBridge.testHarnessReset()
-        bridge = UsbBridge.forIntegrationTest(immediateCoalesce = true)
+        bridge = UsbFdBridge.forIntegrationTest()
         UsbNative.bind(bridge)
-        fake = FakeUsbSerialPort(PATH)
-        fake.openForTest()
-        bridge.adoptFakePortForTest(
-            fake,
-            SerialPortConfig(
-                path = PATH,
-                baudRate = 115200,
-                dataBits = DataBits.EIGHT,
-                flowControl = FlowControl.NONE,
-                parity = Parity.NONE,
-                stopBits = StopBits.ONE,
-                timeout = 1000,
-            ),
-        )
-        MobileBridge.testRegisterPort(PATH)
+        sessionPath = MobileBridge.testOpenFakePort(DEVICE_NAME)
+        check(!sessionPath.startsWith("ERR:")) { "testOpenFakePort: $sessionPath" }
     }
 
     fun tearDown() {
         if (::bridge.isInitialized) {
-            runCatching { bridge.close(PATH) }
+            runCatching { bridge.closeDeviceFd(DEVICE_NAME) }
         }
         MobileBridge.testHarnessReset()
         MobileBridge.onAppDestroy()
@@ -57,13 +38,13 @@ object JniChainFixture {
         libraryLoaded = true
     }
 
-    fun waitForHubBytes(minLen: Long = 1, timeoutMs: Long = 3000): Long {
+    fun waitForHubBytes(minLen: Long = 1, timeoutMs: Long = 10000): Long {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
-            val len = MobileBridge.testHubBufferedLen(PATH)
+            val len = MobileBridge.testHubBufferedLen(sessionPath)
             if (len >= minLen) return len
             Thread.sleep(10)
         }
-        return MobileBridge.testHubBufferedLen(PATH)
+        return MobileBridge.testHubBufferedLen(sessionPath)
     }
 }

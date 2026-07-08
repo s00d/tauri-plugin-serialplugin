@@ -1,0 +1,50 @@
+[
+  {
+    "vendorId": 1027,
+    "productId": 24577,
+    "driver": "ftdi",
+    "portCount": 1
+  },
+  {
+    "vendorId": 1027,
+    "productId": 24592,
+    "driver": "ftdi",
+    "portCount": 2
+  },
+  {
+    "vendorId": 4292,
+    "productId": 60000,
+    "driver": "cp21xx",
+    "portCount": 1
+  },
+  {
+    "vendorId": 4292,
+    "productId": 60016,
+    "driver": "cp21xx",
+    "portCount": 2
+  },
+  {
+    "vendorId": 1659,
+    "productId": 8963,
+    "driver": "prolific",
+    "portCount": 1
+  },
+  {
+    "vendorId": 6790,
+    "productId": 29987,
+    "driver": "ch34x",
+    "portCount": 1
+  },
+  {
+    "vendorId": 6353,
+    "productId": 20500,
+    "driver": "chrome_ccd",
+    "portCount": 3
+  },
+  {
+    "vendorId": 6018,
+    "productId": 19728,
+    "driver": "gsm_modem",
+    "portCount": 1
+  }
+]

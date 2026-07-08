@@ -172,8 +172,7 @@ impl HubRoutingState {
 pub(crate) struct WatchSlot {
     pub(crate) channel: Channel<SerialEvent>,
     pub(crate) batch_timeout_ms: u64,
-    /// Poll read chunk size for the desktop hub thread only.
-    #[cfg(desktop)]
+    /// Poll read chunk size for the hub thread.
     pub(crate) read_size: usize,
 }
 
@@ -229,13 +228,12 @@ impl RxHubShared {
         &self,
         channel: Channel<SerialEvent>,
         batch_timeout_ms: u64,
-        #[cfg_attr(not(desktop), allow(unused_variables))] read_size: usize,
+        read_size: usize,
     ) {
         crate::sync_util::lock_or_recover(&self.idle).clear();
         *crate::sync_util::lock_or_recover(&self.watch) = Some(WatchSlot {
             channel,
             batch_timeout_ms,
-            #[cfg(desktop)]
             read_size,
         });
     }

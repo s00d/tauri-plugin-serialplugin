@@ -1,0 +1,10 @@
+#Wed Jul 08 15:31:05 YEKT 2026
+base.2=/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/build/intermediates/dex/debug/mergeProjectDexDebug/11/classes.dex
+path.2=11/classes.dex
+base.1=/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+path.1=0/classes.dex
+base.0=/Users/s00d/packeges/tauri-plugin-serialplugin/examples/usb-driver-tester/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
+renamed.2=classes3.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=classes.dex

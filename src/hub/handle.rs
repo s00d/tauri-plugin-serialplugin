@@ -1,4 +1,4 @@
-//! Shared RX hub facade (desktop poll hub + Android push hub).
+//! Shared RX hub facade (poll hub on desktop and Android).
 
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
@@ -16,8 +16,6 @@ pub trait RxHubHandle: Send + Sync {
     fn detach_watch(&self);
     fn attach_cmux(&self, session: Arc<CmuxSession>);
     fn detach_cmux(&self);
-    /// Push RX bytes (Android JNI); no-op on desktop poll hub.
-    fn feed_rx(&self, _chunk: &[u8]) {}
     /// Stop background RX processing.
     fn shutdown_hub(&self) {}
 }

@@ -1,9 +1,10 @@
-//! Global registry for JNI feedRx / USB error callbacks (path → hub + port handles).
+//! Global registry for USB failure callbacks (path → hub + port handles).
+//! RX bytes reach the hub via Rust reader polling, not a legacy Kotlin push path.
 
 use crate::hub::RxHubHandle;
 use crate::port::list_monitor;
 use crate::port::watch_registry;
-use crate::state::MobileConnectedPortHandle;
+use crate::state::ConnectedPortHandle;
 use crate::{log_error, log_warn};
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
@@ -19,7 +20,7 @@ pub fn set_rust_state_fail(f: RustStateFailFn) {
 
 struct PortEntry {
     hub: Arc<dyn RxHubHandle>,
-    handle: MobileConnectedPortHandle,
+    handle: ConnectedPortHandle,
 }
 
 pub struct MobilePortRegistry {
@@ -33,19 +34,13 @@ impl MobilePortRegistry {
         }
     }
 
-    pub fn register(&self, hub: Arc<dyn RxHubHandle>, handle: MobileConnectedPortHandle) {
-        let path = handle.path.clone();
-        crate::sync_util::lock_or_recover(&self.ports).insert(path, PortEntry { hub, handle });
+    pub fn register(&self, path: &str, hub: Arc<dyn RxHubHandle>, handle: ConnectedPortHandle) {
+        crate::sync_util::lock_or_recover(&self.ports)
+            .insert(path.to_string(), PortEntry { hub, handle });
     }
 
     pub fn unregister(&self, path: &str) {
         crate::sync_util::lock_or_recover(&self.ports).remove(path);
-    }
-
-    pub fn feed_rx(&self, path: &str, chunk: &[u8]) {
-        if let Some(entry) = crate::sync_util::lock_or_recover(&self.ports).get(path) {
-            entry.hub.feed_rx(chunk);
-        }
     }
 
     pub fn fail_port(&self, path: &str, reason: &str) {
@@ -77,7 +72,7 @@ impl MobilePortRegistry {
         }
     }
 
-    pub fn handle_for(&self, path: &str) -> Option<MobileConnectedPortHandle> {
+    pub fn handle_for(&self, path: &str) -> Option<ConnectedPortHandle> {
         crate::sync_util::lock_or_recover(&self.ports)
             .get(path)
             .map(|e| e.handle.clone())
@@ -108,11 +103,7 @@ pub fn global_registry() -> Arc<MobilePortRegistry> {
     init_registry()
 }
 
-pub fn feed_rx(path: &str, chunk: &[u8]) {
-    global_registry().feed_rx(path, chunk);
-}
-
-/// JNI / Kotlin: Rust-side teardown only. Kotlin USB close runs on main thread separately.
+/// Hub teardown after USB/driver failure.
 pub fn on_usb_error(path: &str, reason: &str) {
     global_registry().fail_port(path, reason);
 }
@@ -121,35 +112,38 @@ pub fn on_port_list_change() {
     list_monitor::request_refresh();
 }
 
+pub fn on_device_detached(device_name: &str) {
+    let _ = device_name;
+    list_monitor::request_refresh();
+}
+
 pub fn on_app_destroy() {
     global_registry().close_all();
+    let _ = crate::android::driver_host::global_host().close(None);
 }
 
 /// Debug-only helpers for Kotlin ↔ Rust JNI integration tests.
 #[cfg(all(debug_assertions, target_os = "android"))]
 pub mod test_harness {
     use super::*;
-    use crate::hub::mobile::MobileRxHub;
-    use crate::port::tx_queue::PortTxQueue;
-    use crate::state::MobileConnectedPortHandle;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::{Arc, Mutex};
+    use crate::hub::PortRxHub;
+    use crate::mock_serial::MockSerialPort;
+    use crate::state::ConnectedPort;
+    use serialport::SerialPort;
+    use std::sync::Arc;
 
     pub fn reset() {
+        let _ = crate::android::driver_host::global_host().close(None);
         global_registry().close_all();
     }
 
     pub fn register_port(path: &str) {
-        let hub = Arc::new(MobileRxHub::new(path.to_string()));
-        let handle = MobileConnectedPortHandle {
-            path: path.to_string(),
-            rx_hub: Arc::new(Mutex::new(Some(hub.clone()))),
-            mux: Arc::new(Mutex::new(None)),
-            exchange_cancel: Arc::new(AtomicBool::new(false)),
-            tx_queue: Arc::new(PortTxQueue::new()),
-        };
+        let port: Box<dyn SerialPort> = Box::new(MockSerialPort::new());
+        let cp = ConnectedPort::new(port);
+        let hub = Arc::new(PortRxHub::start(cp.port.clone(), path.to_string()));
+        *cp.rx_hub.lock().unwrap() = Some(hub.clone());
         let hub_handle: Arc<dyn RxHubHandle> = hub;
-        global_registry().register(hub_handle, handle);
+        global_registry().register(path, hub_handle, cp.handle());
     }
 
     fn hub_for(path: &str) -> Option<Arc<dyn RxHubHandle>> {
@@ -175,27 +169,118 @@ pub mod test_harness {
     }
 
     pub fn invoke_write(path: &str, data: &[u8]) -> Result<usize, crate::error::Error> {
-        crate::android::usb_jni::call_write(path, data)
+        crate::android::driver_host::global_host().write(path, data)
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    fn cdc_dual_iface_fake() -> android_usb_serial::FakeTransport {
+        use android_usb_serial::transport::{EndpointInfo, InterfaceInfo};
+        let fake = android_usb_serial::FakeTransport::cdc_single_iface();
+        fake.set_interfaces(vec![
+            InterfaceInfo {
+                id: 0,
+                class: 2,
+                subclass: 2,
+                protocol: 0,
+            },
+            InterfaceInfo {
+                id: 1,
+                class: 10,
+                subclass: 0,
+                protocol: 0,
+            },
+        ]);
+        fake.configure_endpoints(&[(
+            1,
+            vec![
+                EndpointInfo {
+                    address: 0x81,
+                    attributes: 2,
+                    max_packet_size: 64,
+                    interval: 0,
+                },
+                EndpointInfo {
+                    address: 0x02,
+                    attributes: 2,
+                    max_packet_size: 64,
+                    interval: 0,
+                },
+            ],
+        )]);
+        fake
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    pub fn open_fake_port(device_name: &str) -> Result<String, crate::error::Error> {
+        use crate::state::{DataBits, FlowControl, Parity, StopBits};
+        use std::sync::Arc;
+
+        let fake = Arc::new(cdc_dual_iface_fake());
+        crate::android::driver_host::global_host().inject_fake_device(device_name, fake);
+        let (session, _port) = crate::android::driver_host::global_host().open(
+            device_name,
+            115_200,
+            DataBits::Eight,
+            FlowControl::None,
+            Parity::None,
+            StopBits::One,
+        )?;
+        register_port(&session);
+        Ok(session)
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    pub fn fake_inject_rx(device_name: &str, data: &[u8]) -> bool {
+        crate::android::driver_host::global_host()
+            .fake_transport(device_name)
+            .map(|f| {
+                f.push_rx(data);
+                true
+            })
+            .unwrap_or(false)
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    pub fn fake_take_tx(device_name: &str) -> Vec<u8> {
+        crate::android::driver_host::global_host()
+            .fake_transport(device_name)
+            .map(|f| f.take_tx())
+            .unwrap_or_default()
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    pub fn fake_inject_error(device_name: &str, reason: &str) -> bool {
+        crate::android::driver_host::global_host()
+            .fake_transport(device_name)
+            .map(|f| {
+                f.inject_bulk_read_error(reason);
+                true
+            })
+            .unwrap_or(false)
     }
 }
 
 #[cfg(all(test, target_os = "android"))]
 mod fail_port_tests {
     use super::*;
-    use crate::hub::mobile::MobileRxHub;
     use crate::hub::ExchangeWaiter;
+    use crate::hub::PortRxHub;
+    use crate::mock_serial::MockSerialPort;
     use crate::port::tx_queue::PortTxQueue;
-    use crate::state::MobileConnectedPortHandle;
+    use crate::state::{ConnectedPort, ConnectedPortHandle};
     use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
+    use serialport::SerialPort;
     use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    fn test_handle(path: &str) -> MobileConnectedPortHandle {
-        MobileConnectedPortHandle {
-            path: path.to_string(),
+    fn test_handle(path: &str, port: Arc<Mutex<Box<dyn SerialPort>>>) -> ConnectedPortHandle {
+        ConnectedPortHandle {
+            port,
             rx_hub: Arc::new(Mutex::new(None)),
             mux: Arc::new(Mutex::new(None)),
+            virtual_dlci: None,
+            physical_path: None,
             exchange_cancel: Arc::new(AtomicBool::new(false)),
             tx_queue: Arc::new(PortTxQueue::new()),
         }
@@ -204,9 +289,11 @@ mod fail_port_tests {
     #[test]
     fn fail_port_releases_exchange_waiter_quickly() {
         let registry = MobilePortRegistry::new();
-        let hub = Arc::new(MobileRxHub::new("dev".into()));
-        let handle = test_handle("dev");
-        registry.register(hub.clone(), handle.clone());
+        let port: Arc<Mutex<Box<dyn SerialPort>>> =
+            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
+        let hub = Arc::new(PortRxHub::start(port.clone(), "dev".into()));
+        let handle = test_handle("dev", port);
+        registry.register("dev", hub.clone(), handle.clone());
 
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ResolvedExchangeOptions {
@@ -251,9 +338,11 @@ mod fail_port_tests {
     #[test]
     fn fail_port_clear_halt_allows_next_tx_job() {
         let registry = MobilePortRegistry::new();
-        let hub = Arc::new(MobileRxHub::new("dev2".into()));
-        let handle = test_handle("dev2");
-        registry.register(hub, handle.clone());
+        let port: Arc<Mutex<Box<dyn SerialPort>>> =
+            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
+        let hub = Arc::new(PortRxHub::start(port.clone(), "dev2".into()));
+        let handle = test_handle("dev2", port);
+        registry.register("dev2", hub, handle.clone());
         registry.fail_port("dev2", "reset");
         let result = handle.tx_queue.run_serial(|| Ok(7));
         assert_eq!(result.unwrap(), 7);
@@ -264,16 +353,20 @@ mod fail_port_tests {
 #[cfg(mobile)]
 mod hub_cancel_tests {
     use super::*;
-    use crate::hub::mobile::MobileRxHub;
     use crate::hub::ExchangeWaiter;
+    use crate::hub::PortRxHub;
+    use crate::mock_serial::MockSerialPort;
     use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
+    use serialport::SerialPort;
     use std::sync::atomic::AtomicBool;
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
     #[test]
     fn cancel_active_exchange_wakes_waiter_quickly() {
-        let hub = Arc::new(MobileRxHub::new("dev-cancel".into()));
+        let port: Arc<Mutex<Box<dyn SerialPort>>> =
+            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
+        let hub = Arc::new(PortRxHub::start(port, "dev-cancel".into()));
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ResolvedExchangeOptions {
             timeout_ms: 5000,

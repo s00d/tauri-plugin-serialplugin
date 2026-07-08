@@ -1,0 +1,38 @@
+{
+  "source": "java",
+  "driver": "cdc_acm",
+  "scenario": "cdc_iad_rts_on",
+  "vendorId": 9025,
+  "productId": 67,
+  "portIndex": 0,
+  "deviceStub": "cdc_iad",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 2,
+      "subclass": 2,
+      "protocol": 0,
+      "interruptIn": 131,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 10,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 2,
+      "index": 0,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

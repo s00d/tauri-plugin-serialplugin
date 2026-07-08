@@ -1,0 +1,30 @@
+{
+  "source": "java",
+  "driver": "gsm_modem",
+  "scenario": "open_default",
+  "vendorId": 6018,
+  "productId": 19728,
+  "portIndex": 0,
+  "deviceStub": "gsm_fibocom",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 1,
+      "index": 0,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

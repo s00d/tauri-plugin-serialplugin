@@ -1,7 +1,6 @@
 //! Serial port configuration enums, constants, and global log level.
 
 use serde::{Deserialize, Serialize};
-#[cfg(desktop)]
 use serialport::{
     ClearBuffer as SerialClearBuffer, DataBits as SerialDataBits, FlowControl as SerialFlowControl,
     Parity as SerialParity, StopBits as SerialStopBits,
@@ -59,7 +58,6 @@ pub enum DataBits {
     Eight,
 }
 
-#[cfg(desktop)]
 impl From<DataBits> for SerialDataBits {
     fn from(bits: DataBits) -> Self {
         match bits {
@@ -120,7 +118,6 @@ pub enum FlowControl {
     Hardware,
 }
 
-#[cfg(desktop)]
 impl From<FlowControl> for SerialFlowControl {
     fn from(flow: FlowControl) -> Self {
         match flow {
@@ -179,7 +176,6 @@ pub enum Parity {
     Even,
 }
 
-#[cfg(desktop)]
 impl From<Parity> for SerialParity {
     fn from(parity: Parity) -> Self {
         match parity {
@@ -236,7 +232,6 @@ pub enum StopBits {
     Two,
 }
 
-#[cfg(desktop)]
 impl From<StopBits> for SerialStopBits {
     fn from(bits: StopBits) -> Self {
         match bits {
@@ -293,7 +288,6 @@ pub enum ClearBuffer {
     All,
 }
 
-#[cfg(desktop)]
 impl From<ClearBuffer> for SerialClearBuffer {
     fn from(buffer: ClearBuffer) -> Self {
         match buffer {

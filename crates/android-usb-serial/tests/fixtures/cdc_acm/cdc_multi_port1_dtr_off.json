@@ -1,0 +1,55 @@
+{
+  "source": "java",
+  "driver": "cdc_acm",
+  "scenario": "cdc_multi_port1_dtr_off",
+  "vendorId": 9025,
+  "productId": 68,
+  "portIndex": 1,
+  "deviceStub": "cdc_multi",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 2,
+      "subclass": 2,
+      "protocol": 0,
+      "interruptIn": 131,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 10,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 2,
+      "classId": 2,
+      "subclass": 2,
+      "protocol": 0,
+      "interruptIn": 132,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 3,
+      "classId": 10,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 130,
+      "bulkOut": 3,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 33,
+      "request": 34,
+      "value": 0,
+      "index": 2,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

@@ -1,0 +1,58 @@
+{
+  "source": "java",
+  "driver": "ftdi",
+  "scenario": "ftdi_ft232r_set_line_7O1",
+  "vendorId": 1027,
+  "productId": 24577,
+  "portIndex": 0,
+  "deviceStub": "ftdi_ft232r",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 64,
+      "request": 0,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 768,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 2,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 3,
+      "value": 26,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 4,
+      "value": 263,
+      "index": 1,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

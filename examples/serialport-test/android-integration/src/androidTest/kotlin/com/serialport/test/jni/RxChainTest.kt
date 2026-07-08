@@ -19,30 +19,26 @@ class RxChainTest {
     fun tearDown() = JniChainFixture.tearDown()
 
     @Test
-    fun feedRx_direct_reaches_hub() {
-        val payload = "RING\r\n".toByteArray()
-        MobileBridge.feedRx(JniChainFixture.PATH, payload)
-        assertTrue(MobileBridge.testHubBufferedLen(JniChainFixture.PATH) >= payload.size)
-    }
-
-    @Test
-    fun siom_full_chain_reaches_hub() {
-        JniChainFixture.fake.enqueueRx("AT\r\r\nOK\r\n".toByteArray())
+    fun reader_full_chain_reaches_hub() {
+        MobileBridge.testFakeInjectRx(
+            JniChainFixture.DEVICE_NAME,
+            "AT\r\r\nOK\r\n".toByteArray(),
+        )
         val len = JniChainFixture.waitForHubBytes(minLen = 2)
         assertTrue("expected bytes in Rust hub, got len=$len", len >= 2)
-        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.PATH)
+        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.sessionPath)
         val text = String(idle, Charsets.US_ASCII)
         assertTrue("expected OK in hub idle buffer: $text", text.contains("OK"))
     }
 
     @Test
-    fun coalescing_then_jni() {
-        JniChainFixture.fake.enqueueRx("A".toByteArray())
-        JniChainFixture.fake.enqueueRx("B".toByteArray())
-        JniChainFixture.fake.enqueueRx("C".toByteArray())
+    fun batched_rx_reaches_hub() {
+        MobileBridge.testFakeInjectRx(JniChainFixture.DEVICE_NAME, "A".toByteArray())
+        MobileBridge.testFakeInjectRx(JniChainFixture.DEVICE_NAME, "B".toByteArray())
+        MobileBridge.testFakeInjectRx(JniChainFixture.DEVICE_NAME, "C".toByteArray())
         val len = JniChainFixture.waitForHubBytes(minLen = 3)
         assertTrue(len >= 3)
-        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.PATH)
+        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.sessionPath)
         assertArrayEquals("ABC".toByteArray(), idle)
     }
 }

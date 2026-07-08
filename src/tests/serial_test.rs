@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::api::desktop::SerialPort;
+    use crate::api::SerialPort;
     use crate::error::Error;
     use crate::state::{DataBits, FlowControl, Parity, SerialportInfo, StopBits};
     use serialport::SerialPort as SerialPortTrait;

@@ -20,23 +20,23 @@ class TxChainTest {
     fun tearDown() = JniChainFixture.tearDown()
 
     @Test
-    fun rust_write_hits_fake_port() {
+    fun rust_write_hits_fake_transport() {
         val payload = "AT\r".toByteArray()
-        val n = MobileBridge.testInvokeWrite(JniChainFixture.PATH, payload)
+        val n = MobileBridge.testInvokeWrite(JniChainFixture.sessionPath, payload)
         assertEquals(payload.size.toLong(), n)
-        assertArrayEquals(payload, JniChainFixture.fake.writtenBytes())
+        assertArrayEquals(payload, MobileBridge.testFakeTakeTx(JniChainFixture.DEVICE_NAME))
     }
 
     @Test
-    fun roundtrip_at_echo_reaches_hub() {
-        JniChainFixture.fake.clearWritten()
+    fun roundtrip_write_then_inject_rx_reaches_hub() {
         val payload = "AT\r".toByteArray()
-        val n = MobileBridge.testInvokeWrite(JniChainFixture.PATH, payload)
+        val n = MobileBridge.testInvokeWrite(JniChainFixture.sessionPath, payload)
         assertEquals(payload.size.toLong(), n)
+        MobileBridge.testFakeInjectRx(JniChainFixture.DEVICE_NAME, "OK\r\n".toByteArray())
         val len = JniChainFixture.waitForHubBytes(minLen = 2, timeoutMs = 5000)
-        assertTrue("expected AT echo in hub, len=$len", len >= 2)
-        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.PATH)
+        assertTrue("expected OK in hub, len=$len", len >= 2)
+        val idle = MobileBridge.testHubTakeIdle(JniChainFixture.sessionPath)
         val text = String(idle, Charsets.US_ASCII)
-        assertTrue("expected OK from auto echo: $text", text.contains("OK"))
+        assertTrue("expected OK from injected RX: $text", text.contains("OK"))
     }
 }

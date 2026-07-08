@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::api::desktop::SerialPort;
+    use crate::api::SerialPort;
     use crate::state::{DataBits, FlowControl, Parity, PortState, SerialportInfo, StopBits};
     use tauri::test::MockRuntime;
     use tauri::App;
@@ -801,9 +801,7 @@ mod tests {
                     Ok(n) => {
                         let cmd = String::from_utf8_lossy(&buf[..n]);
                         if cmd.contains("AT") {
-                            master
-                                .write_all(b"\r\nOK\r\n")
-                                .expect("write OK");
+                            master.write_all(b"\r\nOK\r\n").expect("write OK");
                             master.flush().ok();
                         }
                     }
@@ -831,10 +829,7 @@ mod tests {
             "AT with active watch should complete (not drain-timeout): {:?}",
             result.err()
         );
-        assert_eq!(
-            result.unwrap().status,
-            crate::at::parse::AtParseStatus::Ok
-        );
+        assert_eq!(result.unwrap().status, crate::at::parse::AtParseStatus::Ok);
 
         let _ = sp.close(path);
     }

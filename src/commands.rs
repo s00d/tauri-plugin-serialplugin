@@ -1,9 +1,6 @@
 //! Tauri command handlers for serial port I/O. See README and docs.rs.
 
-#[cfg(desktop)]
-use crate::api::desktop::SerialPort;
-#[cfg(mobile)]
-use crate::api::mobile::SerialPort;
+use crate::api::SerialPort;
 use crate::error::Error;
 use crate::events::{Capabilities, ExchangeOptions, SerialEvent, WatchOptions};
 use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};

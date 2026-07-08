@@ -1,9 +1,12 @@
-//! JNI bridge: Kotlin SIOM → Rust RX hub.
+//! JNI bridge: Kotlin lifecycle/USB events → Rust hub.
+//! RX path: Rust USB bulk-IN reader → [`serialport::SerialPort`] ring → [`PortRxHub`] poll.
 
 #[cfg(target_os = "android")]
-use crate::android::registry::{feed_rx, on_app_destroy, on_port_list_change, on_usb_error};
+use crate::android::registry::{
+    on_app_destroy, on_device_detached, on_port_list_change, on_usb_error,
+};
 #[cfg(target_os = "android")]
-use jni::objects::{JByteArray, JClass, JString};
+use jni::objects::{JClass, JString};
 #[cfg(target_os = "android")]
 use jni::JNIEnv;
 
@@ -14,19 +17,27 @@ fn jstring_to_rust(env: &mut JNIEnv, s: &JString) -> Option<String> {
 
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_feedRx(
+pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_onDeviceDetached(
     mut env: JNIEnv,
     _class: JClass,
-    path: JString,
-    data: JByteArray,
+    device_name: JString,
 ) {
-    let Some(path) = jstring_to_rust(&mut env, &path) else {
+    let Some(name) = jstring_to_rust(&mut env, &device_name) else {
         return;
     };
-    let Ok(chunk) = env.convert_byte_array(&data) else {
-        return;
-    };
-    feed_rx(&path, &chunk);
+    crate::android::driver_host::global_host().on_device_detached(&name);
+    on_device_detached(&name);
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_app_tauri_serialplugin_UsbNative_nativeInit(
+    env: JNIEnv,
+    _class: JClass,
+) {
+    if let Ok(vm) = env.get_java_vm() {
+        crate::android::fd_bridge::init_java_vm(vm);
+    }
 }
 
 #[cfg(target_os = "android")]

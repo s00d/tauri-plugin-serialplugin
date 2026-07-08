@@ -1,0 +1,65 @@
+{
+  "source": "java",
+  "driver": "cp21xx",
+  "scenario": "cp2102_close",
+  "vendorId": 4292,
+  "productId": 60000,
+  "portIndex": 0,
+  "deviceStub": "cp2102",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 65,
+      "request": 0,
+      "value": 1,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 7,
+      "value": 768,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 19,
+      "value": 0,
+      "index": 0,
+      "data": "AAAAAAAAAAAAAAAAAAAAAA\u003d\u003d"
+    },
+    {
+      "requestType": 65,
+      "request": 30,
+      "value": 0,
+      "index": 0,
+      "data": "AMIBAA\u003d\u003d"
+    },
+    {
+      "requestType": 65,
+      "request": 3,
+      "value": 2048,
+      "index": 0,
+      "data": ""
+    },
+    {
+      "requestType": 65,
+      "request": 0,
+      "value": 0,
+      "index": 0,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

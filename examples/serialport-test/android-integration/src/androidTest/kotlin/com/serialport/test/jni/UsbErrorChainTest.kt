@@ -19,13 +19,13 @@ class UsbErrorChainTest {
     fun tearDown() = JniChainFixture.tearDown()
 
     @Test
-    fun onUsbError_clears_registry() {
-        assertTrue(MobileBridge.testRegistryHasPort(JniChainFixture.PATH))
-        JniChainFixture.fake.failNextRead = "device exploded"
-        Thread.sleep(800)
+    fun fake_read_error_clears_registry() {
+        assertTrue(MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath))
+        MobileBridge.testFakeInjectError(JniChainFixture.DEVICE_NAME, "device exploded")
+        Thread.sleep(1500)
         assertFalse(
-            "registry should drop port after SIOM error → onUsbError",
-            MobileBridge.testRegistryHasPort(JniChainFixture.PATH),
+            "registry should drop port after reader error → onUsbError",
+            MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath),
         )
     }
 }

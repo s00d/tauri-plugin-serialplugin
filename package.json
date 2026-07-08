@@ -28,10 +28,7 @@
     "release:publish": "pnpm publish && cargo publish",
     "playground": "pnpm --dir examples/serialport-test run tauri dev",
     "test": "jest --config jest.config.js",
-    "test:watch": "jest --config jest.config.js --watch",
-    "vendor:usbserial": "scripts/vendor-usbserial.sh vendor",
-    "vendor:usbserial:check": "scripts/vendor-usbserial.sh check",
-    "vendor:usbserial:latest": "scripts/vendor-usbserial.sh latest"
+    "test:watch": "jest --config jest.config.js --watch"
   },
   "files": [
     "dist-js",

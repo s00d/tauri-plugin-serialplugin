@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::api::desktop::SerialPort;
+    use crate::api::SerialPort;
     use crate::commands::available_ports;
     use crate::port::list::apply_single_port_per_device;
     use std::collections::HashMap;

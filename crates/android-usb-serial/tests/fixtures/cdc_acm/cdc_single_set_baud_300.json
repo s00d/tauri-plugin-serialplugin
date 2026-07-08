@@ -1,0 +1,31 @@
+{
+  "source": "java",
+  "driver": "cdc_acm",
+  "scenario": "cdc_single_set_baud_300",
+  "vendorId": 4660,
+  "productId": 1,
+  "portIndex": 0,
+  "deviceStub": "cdc_single",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 2,
+      "subclass": 2,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "interruptIn": 131,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 33,
+      "request": 32,
+      "value": 0,
+      "index": 0,
+      "data": "LAEAAAAACA\u003d\u003d"
+    }
+  ],
+  "bulkOut": []
+}

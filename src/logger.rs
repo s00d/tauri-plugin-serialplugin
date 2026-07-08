@@ -2,13 +2,23 @@
 //!
 //! This module provides a unified logging interface with configurable log levels.
 //! All logging in the plugin should use these macros to respect the global log level setting.
+//!
+//! On Android, messages go to logcat under tag `SerialPlugin` (see `android_log`).
+//! Elsewhere they use stdout/stderr.
 
 /// Logs an error message if the current log level permits
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
         if $crate::state::get_log_level().should_log_error() {
-            eprintln!($($arg)*);
+            #[cfg(target_os = "android")]
+            {
+                ::log::error!($($arg)*);
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                eprintln!($($arg)*);
+            }
         }
     };
 }
@@ -18,7 +28,14 @@ macro_rules! log_error {
 macro_rules! log_warn {
     ($($arg:tt)*) => {
         if $crate::state::get_log_level().should_log_warn() {
-            println!($($arg)*);
+            #[cfg(target_os = "android")]
+            {
+                ::log::warn!($($arg)*);
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                println!($($arg)*);
+            }
         }
     };
 }
@@ -28,7 +45,14 @@ macro_rules! log_warn {
 macro_rules! log_info {
     ($($arg:tt)*) => {
         if $crate::state::get_log_level().should_log_info() {
-            println!($($arg)*);
+            #[cfg(target_os = "android")]
+            {
+                ::log::info!($($arg)*);
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                println!($($arg)*);
+            }
         }
     };
 }
@@ -38,7 +62,14 @@ macro_rules! log_info {
 macro_rules! log_debug {
     ($($arg:tt)*) => {
         if $crate::state::get_log_level().should_log_debug() {
-            println!($($arg)*);
+            #[cfg(target_os = "android")]
+            {
+                ::log::debug!($($arg)*);
+            }
+            #[cfg(not(target_os = "android"))]
+            {
+                println!($($arg)*);
+            }
         }
     };
 }

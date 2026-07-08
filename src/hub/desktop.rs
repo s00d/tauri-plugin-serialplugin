@@ -211,6 +211,9 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
     fn detach_cmux(&self) {
         self.detach_cmux();
     }
+    fn shutdown_hub(&self) {
+        self.request_stop();
+    }
 }
 
 fn hub_loop(

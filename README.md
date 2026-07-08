@@ -137,7 +137,7 @@ pnpm add tauri-plugin-serialplugin-api
 
 ### Android
 
-USB serial support uses [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) **v3.10.0**, vendored inside the plugin (`android/usbserial/`). **No JitPack or extra Maven repositories** are required — standard `google()` + `mavenCentral()` is enough.
+USB serial on Android uses pure Rust drivers in [`crates/android-usb-serial`](crates/android-usb-serial/) (nusb). Kotlin provides USB permission, enumeration, and a dup'd fd; **no** vendored Java stack or JitPack dependency.
 
 ---
 
@@ -1626,7 +1626,7 @@ For modems and AT devices, use **`sendAt()`** / **`sendAtPhases()`** / **`sendSm
 | `AtCommandResult` | Structured result: `command`, `response`, `status`, `lines`, `solicitedBody`, `urcLines`, `raw` |
 | Native queue | Parallel `exchange()` / `sendAt()` **wait in FIFO** (no `"Exchange already in progress"`) |
 | `configureAtSession()` | Session defaults: `expectOk`, `stopOnError`, `appendCr`, timeouts, `resultFormat` |
-| Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery. On **Android**, drain uses the same hub `drain()` path as desktop (push-model hub via JNI `feedRx`). |
+| Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery. On **Android**, drain uses the same hub `drain()` path as desktop (Rust reader → `PortRxHub`). |
 | `expectOk`, `solicitedPrefixes` | Per-command control via session + `AtCommandOptions` |
 | Watch during AT | Watch stays active; live **`SerialEvent::Urc`** via `watch({ onUrc })` |
 | Vendor grammar | Auto **`solicitedPrefixes`** from command (`^`, `#`, `$`, `%`, `*`) |
@@ -1667,11 +1667,11 @@ Low-level **`exchange`** / **`exchangeBinary`** return **`ExchangeResponse`** (a
 
 ## Android Setup
 
-The plugin vendors [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) **3.10.0** in `android/usbserial/`. You do **not** need JitPack in your app's `build.gradle.kts` — only the usual Android repositories (`google()`, `mavenCentral()`).
+Android USB serial runs in Rust (`android-usb-serial` + nusb). Kotlin holds the `UsbDeviceConnection` fd; the plugin duplicates it and claims interfaces in native code. Add a `device_filter.xml` in your app for your VID/PID and grant USB permission at runtime.
 
-If you previously added `maven { url = uri("https://jitpack.io") }` only for this plugin, you can remove it.
+If you previously added `maven { url = uri("https://jitpack.io") }` only for usb-serial-for-android, you can remove it.
 
-See [`android/README.md`](android/README.md) for module details and maintainer notes (`scripts/vendor-usbserial.sh` to refresh upstream sources).
+See [`android/README.md`](android/README.md) and [`android/BUILD_INSTRUCTIONS.md`](android/BUILD_INSTRUCTIONS.md).
 
 ---
 
@@ -1697,6 +1697,7 @@ pnpm run playground
 Run the full suite locally:
 
 ```bash
+./scripts/verify-android-usb-migration.sh   # full Android USB migration gate
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test
@@ -1720,7 +1721,7 @@ Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the pe
 
 - **Rust:** `src/tests/mock_serial.rs` — scripted RX/TX mock used by `cargo test`
 - **JS:** `tests/*.test.ts` — Jest mocks for `invoke` / `Channel`
-- **Android:** `android/src/test/...` — Robolectric + `FakeUsbSerialPort` (no `pollRead`; SIOM feeds the Rust RX hub)
+- **Android:** `android/src/test/...` — Robolectric for `UsbFdBridge`; Rust driver tests in `crates/android-usb-serial` (`fake-transport`)
 
 > **Note:** `bytesToWrite()` returns **0 on Android** (writes are synchronous over JNI). Desktop returns the driver queue depth when available.
 

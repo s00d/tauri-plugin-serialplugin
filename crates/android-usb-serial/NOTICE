@@ -1,0 +1,9 @@
+android-usb-serial
+Copyright (c) s00d and contributors
+
+Portions of driver logic are derived from usb-serial-for-android
+(https://github.com/mik3y/usb-serial-for-android), Copyright (c) Mike Wakerly
+and contributors, licensed under the MIT License.
+
+The MIT License above and the dual Apache-2.0 OR MIT license of this crate
+apply to those derived portions as described in LICENSE-MIT and LICENSE-APACHE.

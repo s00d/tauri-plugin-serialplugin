@@ -160,8 +160,11 @@ mod parity_tests {
     mod mobile_hub {
         use super::*;
         use crate::hub::handle::RxHubHandle;
-        use crate::hub::mobile::MobileRxHub;
         use crate::hub::HubRoutingState;
+        use crate::hub::PortRxHub;
+        use crate::mock_serial::MockSerialPort;
+        use serialport::SerialPort;
+        use std::sync::{Arc, Mutex};
         use std::time::Instant;
 
         struct MockExchangeIo {
@@ -181,13 +184,15 @@ mod parity_tests {
             }
         }
 
-        fn mobile_hub(path: &str) -> Arc<MobileRxHub> {
-            Arc::new(MobileRxHub::new(path.into()))
+        fn poll_hub(path: &str) -> Arc<PortRxHub> {
+            let port: Arc<Mutex<Box<dyn SerialPort>>> =
+                Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
+            Arc::new(PortRxHub::start(port, path.into()))
         }
 
         #[test]
         fn mobile_take_idle_bytes_replayed_after_write() {
-            let hub = mobile_hub("dev-idle");
+            let hub = poll_hub("dev-idle");
             let path = "dev-idle".to_string();
             hub.shared()
                 .feed_bytes(b"\r\nOK\r\n", &mut HubRoutingState::new(path));
@@ -217,7 +222,7 @@ mod parity_tests {
 
         #[test]
         fn mobile_exchange_fails_fast_on_disconnect() {
-            let hub = mobile_hub("dev-disc");
+            let hub = poll_hub("dev-disc");
             let cancel = Arc::new(AtomicBool::new(false));
             let options = ExchangeOptions {
                 timeout_ms: Some(5000),

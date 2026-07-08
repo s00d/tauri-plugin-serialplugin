@@ -4,12 +4,7 @@
           android:hardwareAccelerated="true">
     
     <!-- USB permissions -->
-    <uses-feature android:name="android.hardware.usb.host" android:required="true" />
-    <uses-permission android:name="android.permission.USB_PERMISSION" />
-    
-    <!-- Storage permissions for older Android versions -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application>
         <!-- USB device filter for automatic detection -->

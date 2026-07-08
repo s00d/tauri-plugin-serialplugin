@@ -5,8 +5,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 INTEGRATION="$ROOT/examples/serialport-test/android-integration"
 DEST="$ROOT/examples/serialport-test/src-tauri/gen/android/app/src/androidTest"
-APP_GRADLE="$ROOT/examples/serialport-test/src-tauri/gen/android/app/build.gradle.kts"
-GRADLE_MARKER="JNI integration test deps (sync-android-integration-tests.sh)"
 
 if [[ ! -d "$INTEGRATION/src/androidTest" ]]; then
   echo "error: missing $INTEGRATION/src/androidTest" >&2
@@ -18,19 +16,18 @@ if [[ ! -d "$(dirname "$DEST")" ]]; then
   exit 1
 fi
 
-echo "Syncing androidTest sources → $DEST"
+echo "Syncing androidTest sources → $DEST (no Kotlin USB fakes; Rust FakeTransport harness only)"
 rm -rf "$DEST"
 mkdir -p "$DEST/kotlin"
 cp -R "$INTEGRATION/src/androidTest/"* "$DEST/"
 
-echo "Syncing instrumented fake (FakeUsbSerialPort from android-integration/fakes)"
-mkdir -p "$DEST/kotlin/app/tauri/serialplugin/manager"
-cp "$INTEGRATION/fakes/FakeUsbSerialPort.kt" \
-  "$DEST/kotlin/app/tauri/serialplugin/manager/"
-
-# Gradle patch is optional legacy; FakeUsb no longer needs mockito / JVM 11 for androidTest.
+APP_GRADLE="$ROOT/examples/serialport-test/src-tauri/gen/android/app/build.gradle.kts"
+GRADLE_MARKER='testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"'
 if [[ -f "$APP_GRADLE" ]] && ! grep -q "$GRADLE_MARKER" "$APP_GRADLE"; then
-  echo "Note: no Gradle patch required (FakeUsb uses Parcel stubs, JVM 1.8 compatible)"
+  echo "Patching testInstrumentationRunner in app/build.gradle.kts"
+  sed -i '' '/versionName = tauriProperties/a\
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+' "$APP_GRADLE"
 fi
 
 echo "Done."

@@ -11,10 +11,13 @@ use tauri::{
 #[cfg(target_os = "android")]
 const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
 
-#[cfg(desktop)]
-use crate::api::desktop::SerialPort;
 #[cfg(target_os = "android")]
-use crate::api::mobile::SerialPort;
+mod android_log;
+
+#[cfg(desktop)]
+use crate::api::SerialPort;
+#[cfg(target_os = "android")]
+use crate::api::SerialPort;
 #[cfg(desktop)]
 use std::collections::HashMap;
 #[cfg(desktop)]
@@ -35,8 +38,8 @@ use std::sync::{Arc, Mutex};
 /// #[tauri::command]
 /// async fn open_serial_port(
 ///     app: AppHandle<tauri::Wry>,
-///     serial: State<'_, tauri_plugin_serialplugin::api::desktop::SerialPort<tauri::Wry>>
-/// ) -> Result<(), String> {
+///     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
+/// ) -> Result<String, String> {
 ///     commands::open(app, serial, "COM1".to_string(), 9600, None, None, None, None, None)
 ///         .map_err(|e| e.to_string())
 /// }
@@ -62,6 +65,9 @@ pub mod hub;
 pub mod port;
 pub mod state;
 pub mod sync_util;
+
+#[cfg(any(desktop, all(debug_assertions, target_os = "android")))]
+pub mod mock_serial;
 
 /// Initializes the serial plugin for Tauri
 ///
@@ -137,19 +143,22 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .setup(|app, _api| {
             #[cfg(target_os = "android")]
             {
+                android_log::init();
                 let _handle = _api.register_android_plugin(PLUGIN_IDENTIFIER, "SerialPlugin")?;
                 let serialplugin = SerialPort::<R>::new();
                 serialplugin.setup_teardown();
                 app.manage(serialplugin);
+                crate::log_info!("serial plugin setup complete");
             }
             #[cfg(desktop)]
-            let serialplugin = SerialPort {
-                app: app.clone(),
-                serialports: Arc::new(Mutex::new(HashMap::new())),
-                virtual_ports: Arc::new(Mutex::new(HashMap::new())),
-            };
-            #[cfg(desktop)]
-            app.manage(serialplugin);
+            {
+                let serialplugin = SerialPort {
+                    app: app.clone(),
+                    serialports: Arc::new(Mutex::new(HashMap::new())),
+                    virtual_ports: Arc::new(Mutex::new(HashMap::new())),
+                };
+                app.manage(serialplugin);
+            }
             Ok(())
         })
         .build()

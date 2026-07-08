@@ -1,0 +1,60 @@
+{
+  "source": "java",
+  "driver": "ftdi",
+  "scenario": "ftdi_ft2232h_port0_rts_on",
+  "vendorId": 1027,
+  "productId": 24592,
+  "portIndex": 0,
+  "deviceStub": "ftdi_ft2232h",
+  "interfaces": [
+    {
+      "id": 0,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 129,
+      "bulkOut": 2,
+      "maxPacketSize": 64
+    },
+    {
+      "id": 1,
+      "classId": 255,
+      "subclass": 0,
+      "protocol": 0,
+      "bulkIn": 131,
+      "bulkOut": 4,
+      "maxPacketSize": 64
+    }
+  ],
+  "controls": [
+    {
+      "requestType": 64,
+      "request": 0,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 768,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 2,
+      "value": 0,
+      "index": 1,
+      "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 1,
+      "value": 514,
+      "index": 1,
+      "data": ""
+    }
+  ],
+  "bulkOut": []
+}

@@ -2,113 +2,67 @@
 
 ## Prerequisites
 
-1. **Android Studio** (latest version)
-2. **Android SDK** (API 24+)
-3. **Kotlin** (1.8+)
-4. **Gradle** (7.0+)
-5. **Tauri CLI** (`npm install -g @tauri-apps/cli`)
+1. **Android Studio** (latest)
+2. **Android SDK** (API 24+, compile 34)
+3. **Kotlin** 1.9+
+4. **Gradle** 8.5+
+5. **Rust** 1.79+ with Android targets (`aarch64-linux-android`, etc.)
+6. **Tauri CLI** 2.x
 
-## Building the Plugin
-
-### 1. Environment Setup
+## Building the library module
 
 ```bash
-# Make sure you have all dependencies installed
 cd android
-./gradlew clean
-```
-
-### 2. Building the Library
-
-```bash
-# Build AAR file
-./gradlew assembleRelease
-
-# Or for debugging
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)  # macOS
 ./gradlew assembleDebug
 ```
 
-### 3. Build Verification
+Outputs: `build/outputs/aar/`
 
-Built files will be located in:
-- `build/outputs/aar/` - AAR library
-- `build/intermediates/aar_main_jar/` - JAR files
+## Rust Android check
 
-## Testing
+```bash
+rustup target add aarch64-linux-android
+cargo check -p android-usb-serial --target aarch64-linux-android
+cargo check -p tauri-plugin-serialplugin --target aarch64-linux-android
+```
 
-### 1. Running the Example Application
+## Example app (Tauri)
 
 ```bash
 cd examples/serialport-test
-npm install
-npm run tauri android dev
+pnpm install
+pnpm tauri android dev
 ```
 
-### 2. Connecting USB Device
+## USB on device
 
-1. Connect USB Serial device to Android device
-2. Allow USB access in the application
-3. Device should appear in the list of available ports
+1. Add `device_filter.xml` entries for your VID/PID in the **app** manifest.
+2. Grant USB permission when prompted.
+3. Port paths look like `/dev/bus/usb/001/002` (multi-interface FTDI: `#1`, `#2`, …).
 
-### 3. Checking Logs
+## Logs
 
 ```bash
-# Plugin + Rust only (без шума WebView SSL/DNS):
-adb logcat -v time -s UsbBridge UsbPortSession SerialPlugin RustStdoutStderr
-
-# Только отвалы / снимки состояния порта:
-adb logcat -v time -s UsbBridge:W UsbBridge:E
-
-# SIOM подробно (debug APK):
-adb logcat -v time SerialInputOutputManager UsbBridge
-
-# Перед отвалом ищите detach / USB error lines в UsbBridge
-
-# Сохранить сессию в файл:
-adb logcat -v time -s UsbBridge SerialPlugin RustStdoutStderr > /tmp/serial-usb.log
+adb logcat -v time -s UsbFdBridge SerialPlugin RustStdoutStderr
 ```
 
-## Troubleshooting
+## Project structure
 
-### Build Issues
-
-1. **Gradle Error**: Check Gradle and Android Gradle Plugin versions
-2. **Kotlin Error**: Make sure Kotlin version is 1.8+
-3. **Dependency Error**: Check repository availability
-
-### Runtime Issues
-
-1. **USB permissions not requested**: Check AndroidManifest.xml
-2. **Device not detected**: Check device_filter.xml
-3. **Connection errors**: Check logs and USB drivers
-
-### Debugging
-
-1. **Enable detailed logging** in SerialPortManager
-2. **Check USB permissions** in Android settings
-3. **Test with different devices** (FTDI, CH340, CP210x)
-
-## Project Structure
-
-```
+```text
 android/
-├── src/main/kotlin/
-│   ├── SerialPlugin.kt          # Main plugin
-│   ├── SerialPortManager.kt     # USB port manager
-│   └── models/                  # Data models
-├── src/main/AndroidManifest.xml # Application manifest
-├── src/main/res/xml/
-│   └── device_filter.xml        # USB device filter
-├── build.gradle                 # Build configuration
-└── README.md                    # Documentation
+├── src/main/kotlin/app/tauri/serialplugin/
+│   ├── SerialPlugin.kt
+│   ├── UsbNative.kt
+│   ├── MobileBridge.kt
+│   └── manager/UsbFdBridge.kt
+├── src/main/res/xml/device_filter.xml
+└── build.gradle
+
+crates/android-usb-serial/   # published-quality driver crate (nusb)
+src/android/                 # fd_bridge, driver_host, registry JNI
 ```
 
-## Dependencies
+## Attribution
 
-- **usb-serial-for-android**: Library for USB Serial operations
-- **tauri-android**: Tauri Android runtime
-- **AndroidX**: Modern Android libraries
-
-## License
-
-MIT License - see LICENSE file in the project root.
+Driver logic is ported from [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) into Rust (`android-usb-serial`). See `crates/android-usb-serial/NOTICE`.
