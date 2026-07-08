@@ -1,0 +1,26 @@
+scripts/sync-android-integration-tests.sh
+  s_c01253b1f96ab7::t_e83dac98b3da8e 28-29,32-34
+scripts/android-integration-ci.sh
+  s_c01253b1f96ab7::t_dd03dcf3b4f8de 61
+  s_c01253b1f96ab7::t_a5145b5852f412 1-20,29-60,62-75
+  s_c01253b1f96ab7::t_2076402a92cea8 21-28
+.github/workflows/test.yml
+  s_c01253b1f96ab7::t_2d7936a37bac6a 70
+  s_c01253b1f96ab7::t_36263873381c8a 143-146,170,175-186,193-199,203,205,207-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "58cb8e583e060e08def43e09ddf01eaa59cb8134",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
