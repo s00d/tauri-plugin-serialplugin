@@ -1,0 +1,19 @@
+Cargo.lock
+  s_c5ec39d47c58d1::t_1d57a91a1c75f0 2992,2994,3351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0de03befa9cdfc5247f23facdf1861d8c4c185fd",
+  "prompts": {},
+  "sessions": {
+    "s_c5ec39d47c58d1": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5cdaafef-24d3-4897-bbc1-084f5993ee81",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
