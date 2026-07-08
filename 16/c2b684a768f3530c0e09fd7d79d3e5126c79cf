@@ -1,0 +1,68 @@
+crates/android-usb-serial/src/reader.rs
+  s_c01253b1f96ab7::t_97e7956d5f4dd0 77
+  s_c01253b1f96ab7::t_e8b8fe113dacda 56
+  s_c01253b1f96ab7::t_8a1bf7c5ee253d 2-4
+  s_c01253b1f96ab7::t_ba7b7170eab6d6 16,25
+crates/android-usb-serial/src/error.rs
+  s_c01253b1f96ab7::t_f3cb61086fc0f0 5,8,10,12,14,16,18,37,40,65
+crates/android-usb-serial/src/serialport_compat.rs
+  s_c01253b1f96ab7::t_37f3ac9ee8daec 4-5
+  s_c01253b1f96ab7::t_597b17b464379a 2-3
+  s_c01253b1f96ab7::t_cdea58f51134ac 138
+crates/android-usb-serial/src/fake.rs
+  s_c01253b1f96ab7::t_f02501073c40d6 64
+  s_c01253b1f96ab7::t_92d9b71143eb5f 11,21
+  s_c01253b1f96ab7::t_efcd81f0db5dca 560,566,581
+  s_c01253b1f96ab7::t_d6670d3b66e3d1 105
+  s_c01253b1f96ab7::t_b08824937b34d7 2-4
+  s_c01253b1f96ab7::t_f42c46ba0e1d45 46,59
+crates/android-usb-serial/src/transport.rs
+  s_c01253b1f96ab7::t_c5b71baecaadcc 2-4,9,11,13,15,17,20,29,39,57,69,81,93,105,118,125,131,147,157,162
+crates/android-usb-serial/src/config.rs
+  s_c01253b1f96ab7::t_fd823e2cd2f3e3 3,5,8,17,27,35,47,55
+src/tests/desktop_api_test.rs
+  s_c01253b1f96ab7::t_2d2805e72c50a1 578,599-601,618
+  s_c01253b1f96ab7::t_e2c7fe6def7cab 582
+  s_c01253b1f96ab7::t_b234826231f5cf 565,567-568
+  s_c01253b1f96ab7::t_3f941e2dfbf7fa 549-550,555-556,558-560,562,570-577
+  s_c01253b1f96ab7::t_3991a09ffa1d40 548,551
+  s_c01253b1f96ab7::t_1b574cc40ef073 615,617
+crates/android-usb-serial/src/device.rs
+  s_c01253b1f96ab7::t_02a728a8cb97f2 2-4,11,14,16,22,28,32,57-60
+crates/android-usb-serial/Cargo.toml
+  s_c01253b1f96ab7::t_db3c59c7af2ae0 23
+crates/android-usb-serial/src/nusb_transport.rs
+  s_c01253b1f96ab7::t_596e5813d7da74 44,55
+  s_c01253b1f96ab7::t_d541e77b78ce96 2-4
+  s_c01253b1f96ab7::t_9fab6d4cf50ecd 27-29
+crates/android-usb-serial/src/probe.rs
+  s_c01253b1f96ab7::t_693e18ea84b85e 120,126
+  s_c01253b1f96ab7::t_804942a114fda3 62,71
+  s_c01253b1f96ab7::t_49c326a17b3971 2-4,8,20,28,35
+  s_c01253b1f96ab7::t_a647252998b021 91
+crates/android-usb-serial/src/port.rs
+  s_c01253b1f96ab7::t_91fb7f7d5900c6 1-4,12,30,35,40,71,86-88,98,106,113
+crates/android-usb-serial/src/drivers/mod.rs
+  s_c01253b1f96ab7::t_4ef401564ff7ef 3-5
+  s_c01253b1f96ab7::t_67022e5c4c44f2 2,31,34,43,74
+crates/android-usb-serial/src/lib.rs
+  s_c01253b1f96ab7::t_cec746e2c0c81b 58-59
+  s_c01253b1f96ab7::t_207389d891ccf0 81
+  s_c01253b1f96ab7::t_713719445b3e9f 3-6,9-42,45,55-57,60-69,75-76,80,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "16c2b684a768f3530c0e09fd7d79d3e5126c79cf",
+  "prompts": {},
+  "sessions": {
+    "s_c01253b1f96ab7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1ab89aac-613d-49e9-bd1b-c930035dd8f3",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
