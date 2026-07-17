@@ -1,0 +1,19 @@
+src/api/serial.rs
+  s_194cea1fc7af14::t_4436117f34928b 411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "f15973f1c123f9288492da04a8e745dfd9174ccd",
+  "prompts": {},
+  "sessions": {
+    "s_194cea1fc7af14": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "796b928e-bf77-4a11-9813-095ae1042faf",
+        "model": "default"
+      },
+      "human_author": "Pavel Kuzmin <Virus191288@gmail.com>"
+    }
+  }
+}
