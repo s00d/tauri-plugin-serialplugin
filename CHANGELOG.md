@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
 
+## [3.0.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.0...v3.0.1) (2026-07-17)
+
+### Bug Fixes
+
+* include `guest-js` in the published npm package so Vite can resolve the `development` export ([#36](https://github.com/s00d/tauri-plugin-serialplugin/issues/36))
+
 ## [3.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v2.24.1...v3.0.0) (2026-07-08)
 
 Major v3 release: Channel-based **`watch()`** API, native AT **`exchange`** / FIFO queue, unified **RX hub** on desktop and Android, and a **hard cut** from vendored Java `usb-serial-for-android` to the pure-Rust **`android-usb-serial`** crate (nusb).

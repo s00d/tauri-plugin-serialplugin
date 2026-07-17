@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin-api",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "license": "MIT or APACHE-2.0",
   "type": "module",
   "types": "./dist-js/index.d.ts",
@@ -32,6 +32,7 @@
   },
   "files": [
     "dist-js",
+    "guest-js",
     "README.md",
     "LICENSE_MIT",
     "LICENSE_APACHE-2.0",
