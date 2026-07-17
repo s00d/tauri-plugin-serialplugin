@@ -408,7 +408,7 @@ impl<R: Runtime> SerialPort<R> {
             log_debug!("end {}", path);
             Ok(())
         } else {
-            Err(Error::String(format!("Serial port {} is not open!", &path)))
+            Err(Error::String(format!("Serial port {} is not open!", path)))
         }
     }
 
