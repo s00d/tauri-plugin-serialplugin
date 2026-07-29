@@ -8,6 +8,7 @@ use android_usb_serial::drivers::line_coding_bytes;
 use android_usb_serial::fake::{FakeTransport, RecordedControl};
 use android_usb_serial::transport::{EndpointInfo, InterfaceInfo, Transport};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 fn open_on(fake: &FakeTransport, port_index: usize) -> android_usb_serial::port::SerialPortHandle {
     let transport: Arc<dyn Transport> = Arc::new(fake.clone());
@@ -110,12 +111,115 @@ fn set_line_coding_7e1_bulk_out() {
 }
 
 #[test]
-fn unsupported_modem_status_returns_ok_false() {
-    let fake = FakeTransport::cdc_iad();
+fn modem_status_defaults_false_without_notification_endpoint() {
+    let fake = FakeTransport::cdc_single_iface();
     let mut port = open_on(&fake, 0);
     let status = port.modem_status().expect("modem");
     assert!(!status.cts);
     assert!(!status.dsr);
     assert!(!status.ri);
     assert!(!status.cd);
+}
+
+#[test]
+fn notification_endpoint_open_failure_releases_interfaces_for_retry() {
+    let fake = FakeTransport::cdc_iad();
+    let interrupt_in = fake
+        .open_interrupt_in(0x81, 64)
+        .expect("reserve interrupt endpoint");
+    let transport: Arc<dyn Transport> = Arc::new(fake.clone());
+
+    assert!(open_port(transport.clone(), 0).is_err());
+    assert!(fake.claimed_interfaces().is_empty());
+
+    drop(interrupt_in);
+    let port = open_port(transport, 0).expect("retry after initialization failure");
+    drop(port);
+    assert!(fake.claimed_interfaces().is_empty());
+}
+
+#[test]
+fn failure_after_notification_reader_starts_cleans_up() {
+    let fake = FakeTransport::cdc_iad();
+    fake.configure_endpoints(&[
+        (
+            0,
+            vec![EndpointInfo {
+                address: 0x81,
+                attributes: 3,
+                max_packet_size: 64,
+                interval: 1,
+            }],
+        ),
+        (
+            1,
+            vec![EndpointInfo {
+                address: 0x82,
+                attributes: 2,
+                max_packet_size: 64,
+                interval: 0,
+            }],
+        ),
+    ]);
+    let transport: Arc<dyn Transport> = Arc::new(fake.clone());
+
+    assert!(open_port(transport, 0).is_err());
+    assert!(fake.claimed_interfaces().is_empty());
+    fake.open_interrupt_in(0x81, 64)
+        .expect("notification endpoint released after initialization failure");
+}
+
+#[test]
+fn serial_state_notifications_update_modem_status_and_release_endpoint() {
+    let fake = FakeTransport::cdc_iad();
+    fake.push_interrupt_in(&[0xa1, 0x20, 0, 0, 0, 0, 2, 0, 0x0b, 0]);
+
+    let mut port = open_on(&fake, 0);
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let status = loop {
+        let status = port.modem_status().expect("modem");
+        if status.cd && status.dsr && status.ri {
+            break status;
+        }
+        assert!(Instant::now() < deadline, "serial state was not updated");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert!(!status.cts);
+
+    fake.push_interrupt_in(&[0xa1, 0x20, 0, 0, 0, 0, 2, 0, 0, 0]);
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        let status = port.modem_status().expect("modem");
+        if !status.cd && !status.dsr && !status.ri {
+            break;
+        }
+        assert!(Instant::now() < deadline, "serial state was not cleared");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    drop(port);
+    fake.open_interrupt_in(0x81, 64)
+        .expect("interrupt endpoint released when the port closes");
+}
+
+#[test]
+fn malformed_serial_state_notification_is_reported() {
+    let fake = FakeTransport::cdc_iad();
+    fake.push_interrupt_in(&[0xa1, 0x20, 0, 0, 0, 0, 2, 0, 1]);
+
+    let mut port = open_on(&fake, 0);
+    let deadline = Instant::now() + Duration::from_secs(1);
+    let error = loop {
+        match port.modem_status() {
+            Ok(_) => {
+                assert!(
+                    Instant::now() < deadline,
+                    "malformed notification was not reported"
+                );
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => break error,
+        }
+    };
+    assert!(error.to_string().contains("expected 10 bytes, got 9"));
 }
