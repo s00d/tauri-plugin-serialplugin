@@ -53,11 +53,11 @@ use io_errors::{is_benign_read_error, is_disconnect_read_error};
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::hub::shared::{
-    finish_drain, route_drain_chunk, ExchangeWaiter, HubRoutingState, RxHubShared,
+    finish_drain, route_drain_chunk, wake_done, ExchangeWaiter, HubRoutingState, RxHubShared,
 };
 use serialport::SerialPort;
 use std::io::Read;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -238,19 +238,29 @@ fn hub_loop(
         if crate::sync_util::lock_or_recover(&shared.drain).is_some() {
             let early_finish = {
                 let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                let Some(drain) = guard.as_mut() else {
-                    continue;
-                };
-                if drain.cancel.load(Ordering::SeqCst) {
-                    Some(Err("exchange cancelled".into()))
-                } else if Instant::now() >= drain.deadline {
-                    Some(Ok(std::mem::take(&mut drain.buffer)))
-                } else {
-                    None
+                #[derive(Clone, Copy)]
+                enum Kind {
+                    Cancel,
+                    Buffer,
                 }
+                let kind = match guard.as_ref() {
+                    None => None,
+                    Some(d) if d.cancel.load(std::sync::atomic::Ordering::SeqCst) => {
+                        Some(Kind::Cancel)
+                    }
+                    Some(d) if Instant::now() >= d.deadline => Some(Kind::Buffer),
+                    _ => None,
+                };
+                kind.map(|k| {
+                    let d = guard.take().unwrap();
+                    match k {
+                        Kind::Cancel => (d.done, Err("exchange cancelled".into())),
+                        Kind::Buffer => (d.done, Ok(d.buffer)),
+                    }
+                })
             };
-            if let Some(result) = early_finish {
-                finish_drain(&shared, result);
+            if let Some((done, result)) = early_finish {
+                wake_done(&done, result);
                 continue;
             }
 
@@ -270,22 +280,33 @@ fn hub_loop(
             }
             let finish = {
                 let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                let Some(drain) = guard.as_mut() else {
-                    continue;
-                };
-                if drain.last_byte_at.is_none() {
-                    Some(Ok(Vec::new()))
-                } else if drain
-                    .last_byte_at
-                    .is_some_and(|t| t.elapsed() >= Duration::from_millis(drain.idle_ms))
-                {
-                    Some(Ok(std::mem::take(&mut drain.buffer)))
-                } else {
-                    None
+                #[derive(Clone, Copy)]
+                enum Kind {
+                    Empty,
+                    Buffer,
                 }
+                let kind = match guard.as_ref() {
+                    None => None,
+                    Some(d) if d.last_byte_at.is_none() => Some(Kind::Empty),
+                    Some(d)
+                        if d.last_byte_at.is_some_and(|t| {
+                            t.elapsed() >= Duration::from_millis(d.idle_ms)
+                        }) =>
+                    {
+                        Some(Kind::Buffer)
+                    }
+                    _ => None,
+                };
+                kind.map(|k| {
+                    let d = guard.take().unwrap();
+                    match k {
+                        Kind::Empty => (d.done, Ok(Vec::new())),
+                        Kind::Buffer => (d.done, Ok(d.buffer)),
+                    }
+                })
             };
-            if let Some(result) = finish {
-                finish_drain(&shared, result);
+            if let Some((done, result)) = finish {
+                wake_done(&done, result);
             }
             continue;
         }
