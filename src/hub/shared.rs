@@ -617,7 +617,10 @@ impl RxHubShared {
                 }
                 return match Self::recover_or_timeout(lock, cvar, 0) {
                     Ok(buf) => Ok(buf),
-                    Err(_) => Err("drain timed out waiting for hub".into()),
+                    Err(e) if e.contains("no data received") => {
+                        Err("drain timed out waiting for hub".into())
+                    }
+                    Err(e) => Err(e),
                 };
             }
             let (g, _) = cvar
@@ -720,10 +723,7 @@ pub(crate) fn tick_read_slot(shared: &RxHubShared) {
         }
         let slot = guard.take().unwrap();
         let result = if slot.buffer.is_empty() {
-            Err(format!(
-                "no data received within {} ms",
-                slot.timeout_ms
-            ))
+            Err(format!("no data received within {} ms", slot.timeout_ms))
         } else {
             Ok(slot.buffer)
         };
@@ -734,10 +734,7 @@ pub(crate) fn tick_read_slot(shared: &RxHubShared) {
     }
 }
 
-pub(crate) fn wake_done(
-    done: &Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)>,
-    result: Result<Vec<u8>, String>,
-) {
+pub(crate) fn wake_done(done: &ReadDone, result: Result<Vec<u8>, String>) {
     let (lock, cvar) = &**done;
     *crate::sync_util::lock_or_recover(lock) = Some(result);
     cvar.notify_all();
@@ -1001,8 +998,7 @@ mod tests {
 
     #[test]
     fn recover_or_timeout_returns_result_posted_during_recovery_window() {
-        let done: Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)> =
-            Arc::new((Mutex::new(None), Condvar::new()));
+        let done: ReadDone = Arc::new((Mutex::new(None), Condvar::new()));
         let done_bg = done.clone();
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(10));
@@ -1018,12 +1014,10 @@ mod tests {
     #[test]
     fn recover_or_timeout_survives_spurious_wakeups() {
         // Fires several notify_all()s with `done` still None before the
-        // real result lands — simulates the condvar spurious-wakeup case
-        // review finding #3 flagged. A single-`wait_timeout` version (the
-        // pre-fix code) returns a false timeout on the very first one;
-        // the fixed loop keeps waiting out the recovery window instead.
-        let done: Arc<(Mutex<Option<Result<Vec<u8>, String>>>, Condvar)> =
-            Arc::new((Mutex::new(None), Condvar::new()));
+        // real result lands — simulates the condvar spurious-wakeup case.
+        // A single-`wait_timeout` version returns a false timeout on the
+        // first one; the fixed loop keeps waiting out the recovery window.
+        let done: ReadDone = Arc::new((Mutex::new(None), Condvar::new()));
         let done_bg = done.clone();
         thread::spawn(move || {
             for _ in 0..3 {
@@ -1042,8 +1036,7 @@ mod tests {
 
     #[test]
     fn recover_or_timeout_falls_back_to_timeout_error_when_nothing_arrives() {
-        let done: (Mutex<Option<Result<Vec<u8>, String>>>, Condvar) =
-            (Mutex::new(None), Condvar::new());
+        let done: ReadDone = Arc::new((Mutex::new(None), Condvar::new()));
         let start = Instant::now();
         let result = RxHubShared::recover_or_timeout(&done.0, &done.1, 5);
         let err = result.expect_err("no result ever posted");
@@ -1117,24 +1110,57 @@ mod tests {
 
     #[test]
     fn drain_timeout_recovers_result_already_posted_to_done() {
-        // Mirrors read_request reclaim: after finish_drain posts, recover finds it.
-        let shared = RxHubShared::new();
-        let done: DrainDone = Arc::new((Mutex::new(None), Condvar::new()));
-        *crate::sync_util::lock_or_recover(&shared.drain) = Some(DrainSlot {
-            idle_ms: 50,
-            cancel: Arc::new(AtomicBool::new(false)),
-            buffer: Vec::new(),
-            last_byte_at: None,
-            started_at: Instant::now(),
-            deadline: Instant::now() + Duration::from_secs(5),
-            solicited_prefixes: vec![],
-            done: done.clone(),
-        });
+        // finish_drain posts before the wait loop's hard deadline; reclaim
+        // must return that Ok rather than a synthetic timeout.
+        let shared = Arc::new(RxHubShared::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let shared_bg = shared.clone();
+        let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
+        thread::sleep(Duration::from_millis(5));
         finish_drain(&shared, Ok(b"drained".to_vec()));
-        assert!(crate::sync_util::lock_or_recover(&shared.drain).is_none());
-        let (lock, cvar) = &*done;
-        let recovered =
-            RxHubShared::recover_or_timeout_within(lock, cvar, 0, Duration::from_secs(1));
-        assert_eq!(recovered.expect("posted done"), b"drained");
+        assert_eq!(handle.join().unwrap().expect("recovered"), b"drained");
+    }
+
+    #[test]
+    fn drain_timeout_reclaim_returns_buffer_left_in_slot() {
+        // max_ms=0 → wait loop hard deadline is ~500ms; inject bytes into the
+        // live slot without completing via tick so reclaim's take() path runs.
+        let shared = Arc::new(RxHubShared::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let shared_bg = shared.clone();
+        let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
+        thread::sleep(Duration::from_millis(5));
+        {
+            let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
+            let slot = guard.as_mut().expect("drain slot still live");
+            slot.buffer.extend_from_slice(b"kept");
+            slot.last_byte_at = Some(Instant::now());
+        }
+        assert_eq!(handle.join().unwrap().expect("slot buffer"), b"kept");
+    }
+
+    #[test]
+    fn drain_timeout_reclaim_empty_slot_is_timeout_error() {
+        let shared = Arc::new(RxHubShared::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let err = shared
+            .drain(10_000, 0, cancel, vec![])
+            .expect_err("empty reclaim");
+        assert!(err.contains("drain timed out"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn drain_timeout_preserves_finish_drain_error() {
+        let shared = Arc::new(RxHubShared::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let shared_bg = shared.clone();
+        let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
+        thread::sleep(Duration::from_millis(5));
+        finish_drain(&shared, Err("drain read failed: boom".into()));
+        let err = handle.join().unwrap().expect_err("posted Err");
+        assert!(
+            err.contains("drain read failed"),
+            "must not rewrite to generic timeout, got: {err}"
+        );
     }
 }

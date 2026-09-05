@@ -263,6 +263,11 @@ fn hub_loop(
                 wake_done(&done, result);
                 continue;
             }
+            // Slot may have been reclaimed/finished between the outer is_some()
+            // check and early_finish — don't stay in the drain branch and eat RX.
+            if crate::sync_util::lock_or_recover(&shared.drain).is_none() {
+                continue;
+            }
 
             let mut buf = vec![0u8; 1024];
             let n = match poll_read_port(&port, &mut buf, &stop_rx) {
@@ -289,9 +294,8 @@ fn hub_loop(
                     None => None,
                     Some(d) if d.last_byte_at.is_none() => Some(Kind::Empty),
                     Some(d)
-                        if d.last_byte_at.is_some_and(|t| {
-                            t.elapsed() >= Duration::from_millis(d.idle_ms)
-                        }) =>
+                        if d.last_byte_at
+                            .is_some_and(|t| t.elapsed() >= Duration::from_millis(d.idle_ms)) =>
                     {
                         Some(Kind::Buffer)
                     }
