@@ -287,8 +287,9 @@ impl RxHubShared {
             session.feed_physical_rx(chunk);
             return;
         }
-        if crate::sync_util::lock_or_recover(&self.drain).is_some() {
-            route_drain_chunk(self, &path, chunk);
+        // Try drain without a separate is_some() check — that races with reclaim
+        // and route_drain_chunk used to drop bytes when the slot disappeared.
+        if route_drain_chunk(self, &path, chunk) {
             return;
         }
         if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).clone() {
@@ -631,17 +632,20 @@ impl RxHubShared {
         guard.take().unwrap()
     }
 }
-pub(crate) fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) {
+/// Append RX into the active drain slot. Returns `false` if there is no slot
+/// (caller must route elsewhere — never silently drop the chunk).
+pub(crate) fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) -> bool {
     let prefixes = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
         let Some(drain) = guard.as_mut() else {
-            return;
+            return false;
         };
         drain.buffer.extend_from_slice(chunk);
         drain.last_byte_at = Some(Instant::now());
         drain.solicited_prefixes.clone()
     };
     emit_drain_urc_with_prefixes(shared, path, chunk, &prefixes);
+    true
 }
 
 pub(crate) fn route_exchange_chunk(
@@ -1108,6 +1112,33 @@ mod tests {
         assert_eq!(guard.as_ref().unwrap().as_ref().unwrap(), b"buf");
     }
 
+    fn wait_until_drain_slot(shared: &RxHubShared) {
+        let start = Instant::now();
+        while crate::sync_util::lock_or_recover(&shared.drain).is_none() {
+            assert!(
+                start.elapsed() < Duration::from_secs(2),
+                "drain worker never installed slot"
+            );
+            thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn route_drain_chunk_returns_false_when_no_slot() {
+        let shared = RxHubShared::new();
+        assert!(!route_drain_chunk(&shared, "p", b"x"));
+    }
+
+    #[test]
+    fn feed_bytes_without_drain_goes_to_idle() {
+        let shared = RxHubShared::new();
+        shared.feed_bytes(b"saved", &mut HubRoutingState::new("p".into()));
+        assert_eq!(
+            &crate::sync_util::lock_or_recover(&shared.idle)[..],
+            b"saved"
+        );
+    }
+
     #[test]
     fn drain_timeout_recovers_result_already_posted_to_done() {
         // finish_drain posts before the wait loop's hard deadline; reclaim
@@ -1116,7 +1147,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(false));
         let shared_bg = shared.clone();
         let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
-        thread::sleep(Duration::from_millis(5));
+        wait_until_drain_slot(&shared);
         finish_drain(&shared, Ok(b"drained".to_vec()));
         assert_eq!(handle.join().unwrap().expect("recovered"), b"drained");
     }
@@ -1129,7 +1160,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(false));
         let shared_bg = shared.clone();
         let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
-        thread::sleep(Duration::from_millis(5));
+        wait_until_drain_slot(&shared);
         {
             let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
             let slot = guard.as_mut().expect("drain slot still live");
@@ -1155,7 +1186,7 @@ mod tests {
         let cancel = Arc::new(AtomicBool::new(false));
         let shared_bg = shared.clone();
         let handle = thread::spawn(move || shared_bg.drain(10_000, 0, cancel, vec![]));
-        thread::sleep(Duration::from_millis(5));
+        wait_until_drain_slot(&shared);
         finish_drain(&shared, Err("drain read failed: boom".into()));
         let err = handle.join().unwrap().expect_err("posted Err");
         assert!(

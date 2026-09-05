@@ -52,9 +52,7 @@ use io_errors::{is_benign_read_error, is_disconnect_read_error};
 
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
-use crate::hub::shared::{
-    finish_drain, route_drain_chunk, wake_done, ExchangeWaiter, HubRoutingState, RxHubShared,
-};
+use crate::hub::shared::{finish_drain, wake_done, ExchangeWaiter, HubRoutingState, RxHubShared};
 use serialport::SerialPort;
 use std::io::Read;
 use std::sync::atomic::AtomicBool;
@@ -281,7 +279,10 @@ fn hub_loop(
             };
 
             if n > 0 {
-                route_drain_chunk(&shared, &path, &buf[..n]);
+                // feed_bytes retries drain then falls through to exchange/watch/idle
+                // if reclaim won during poll_read_port — never drop the chunk.
+                shared.feed_bytes(&buf[..n], &mut routing);
+                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
             }
             let finish = {
                 let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
