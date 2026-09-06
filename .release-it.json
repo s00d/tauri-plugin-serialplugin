@@ -20,6 +20,6 @@
   },
   "hooks": {
     "after:bump": "node scripts/sync-cargo-version.cjs ${version} && git add Cargo.toml CHANGELOG.md package.json",
-    "after:release": "echo \"Tagged v${version}. Next: pnpm release:publish\""
+    "after:release": "echo \"Tagged v${version}. Next: npm login (if needed) && pnpm release:publish\""
   }
 }

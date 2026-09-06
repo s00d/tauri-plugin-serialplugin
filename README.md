@@ -1756,6 +1756,10 @@ Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the pe
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for build, test, and PR guidelines.
 
+## Publishing
+
+See [PUBLISHING.md](./PUBLISHING.md) for the release checklist (`pnpm release` → `pnpm release:publish`).
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md) to report vulnerabilities privately.

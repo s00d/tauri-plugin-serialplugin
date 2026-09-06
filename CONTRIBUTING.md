@@ -60,6 +60,8 @@ Deprecated Rust items (e.g. `PortBackend`) stay until the next major.
 
 ## Publishing (maintainers)
 
+See **[PUBLISHING.md](./PUBLISHING.md)** for the short checklist.
+
 Bump + changelog + git tag + GitHub Release (does **not** publish registries):
 
 ```bash
@@ -72,11 +74,13 @@ pnpm release:major
 Uses [release-it](https://github.com/release-it/release-it) + conventional changelog.
 `scripts/sync-cargo-version.cjs` keeps root `Cargo.toml` version in sync with `package.json`.
 
-Then publish crates.io **first**, then npm:
+Auth (npm often forces re-login) then publish — **npm first**, then crates.io:
 
 ```bash
+npm login             # or: pnpm login
+cargo login           # if credentials missing
 pnpm release:publish
-# or dry-run:
+# dry-run:
 ./scripts/publish.sh --dry-run
 ```
 
@@ -87,10 +91,11 @@ Surface check only: `pnpm publish:check`
 | Tool | Role here |
 |------|-----------|
 | **release-it** | bump, CHANGELOG, tag, GitHub release |
-| **scripts/publish.sh** | ordered `cargo publish` → `npm publish` |
+| **scripts/publish.sh** | auth checks → `npm publish` → `cargo publish` |
 | release-plz / pubm | optional later for fully automated CI publish — not required |
 
 Do **not** add a second publish workflow unless secrets + automation are intentionally enabled.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md). Do not file public issues for vulnerabilities.
