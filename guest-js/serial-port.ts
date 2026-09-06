@@ -514,7 +514,7 @@ export class SerialPort {
     }
   }
 
-  async open(): Promise<void> {
+  async open(): Promise<string> {
     if (!this.options.path) {
       throw new Error('path cannot be empty');
     }
@@ -522,7 +522,7 @@ export class SerialPort {
       throw new Error('baudRate cannot be empty');
     }
     if (this.isOpen) {
-      return;
+      return this.options.path;
     }
     if (this.isProcessingOpenClose) {
       throw new Error('Serial port open/close already in progress');
@@ -545,6 +545,7 @@ export class SerialPort {
       if (this.atSessionOptions) {
         await this.configureAtSession(this.atSessionOptions);
       }
+      return this.options.path;
     } finally {
       this.isProcessingOpenClose = false;
     }

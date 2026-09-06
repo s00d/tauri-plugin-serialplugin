@@ -146,7 +146,7 @@ describe('SerialPort API error matrix', () => {
       expect(callCount).toBe(0); // invoke is not called because port is closed
       expect(serialPort.isOpen).toBe(false);
       
-      await expect(serialPort.open()).resolves.toBeUndefined();
+      await expect(serialPort.open()).resolves.toBe('/dev/tty.usbserial');
       expect(callCount).toBe(1);
       expect(serialPort.isOpen).toBe(true);
       
@@ -159,7 +159,7 @@ describe('SerialPort API error matrix', () => {
       expect(callCount).toBe(2); // invoke is not called because port is closed
       expect(serialPort.isOpen).toBe(false);
       
-      await expect(serialPort.open()).resolves.toBeUndefined();
+      await expect(serialPort.open()).resolves.toBe('/dev/tty.usbserial');
       expect(callCount).toBe(3);
       expect(serialPort.isOpen).toBe(true);
 
@@ -178,7 +178,7 @@ describe('SerialPort API error matrix', () => {
 
       // Multiple open/write cycles
       for (let i = 0; i < 3; i++) {
-        await expect(serialPort.open()).resolves.toBeUndefined();
+        await expect(serialPort.open()).resolves.toBe('/dev/tty.usbserial');
         await expect(serialPort.write('test')).resolves.toBe(5);
         serialPort.isOpen = false; // Simulate port closure
       }

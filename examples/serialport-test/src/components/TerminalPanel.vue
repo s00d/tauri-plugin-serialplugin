@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, watch } from 'vue';
+import { buildQuickAtSend, canSendQuickAt } from '../quickAt';
 import type { LineEnding, SendMode, TerminalLine } from '../types';
 
 const props = defineProps<{
@@ -58,13 +59,8 @@ function send() {
 }
 
 function sendQuickAt(cmd: string) {
-  if (!props.connected || props.atBusy) return;
-  emit('send', {
-    text: cmd,
-    mode: 'at',
-    lineEnding: lineEnding.value,
-    localEcho: localEcho.value,
-  });
+  if (!canSendQuickAt(props.connected, props.atBusy)) return;
+  emit('send', buildQuickAtSend(cmd, lineEnding.value, localEcho.value));
 }
 
 function scrollToBottom() {
@@ -143,8 +139,8 @@ onMounted(scrollToBottom);
         </select>
       </div>
 
-      <div class="quick-at" aria-label="Quick AT commands">
-        <span class="quick-label">AT</span>
+      <div class="quick-at" role="group" aria-label="Quick AT commands">
+        <span class="quick-label">Quick AT</span>
         <button
           v-for="cmd in quickAtCommands"
           :key="cmd"

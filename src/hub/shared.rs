@@ -401,10 +401,11 @@ impl RxHubShared {
                         Ok(slot.buffer)
                     }
                 } else {
-                    // Completer won the race — result is already in flight / sent.
-                    rx.try_recv().unwrap_or_else(|_| {
-                        Err(format!("no data received within {} ms", timeout_ms))
-                    })
+                    // Completer took the slot then sends — brief wait covers that gap.
+                    rx.recv_timeout(Duration::from_millis(50))
+                        .unwrap_or_else(|_| {
+                            Err(format!("no data received within {} ms", timeout_ms))
+                        })
                 }
             }
             Err(RecvTimeoutError::Disconnected) => {
@@ -494,7 +495,8 @@ impl RxHubShared {
                         Ok(slot.buffer)
                     }
                 } else {
-                    rx.try_recv()
+                    // Completer took the slot then sends — brief wait covers that gap.
+                    rx.recv_timeout(Duration::from_millis(50))
                         .unwrap_or_else(|_| Err("drain timed out waiting for hub".into()))
                 }
             }

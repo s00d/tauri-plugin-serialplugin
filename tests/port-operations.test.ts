@@ -17,9 +17,10 @@ describe('SerialPort Operations', () => {
 
   describe('open', () => {
     it('should open port successfully', async () => {
-      mockInvoke.mockResolvedValueOnce(undefined);
+      mockInvoke.mockResolvedValueOnce('/dev/tty.usbserial');
 
-      await serialPort.open();
+      const canonical = await serialPort.open();
+      expect(canonical).toBe('/dev/tty.usbserial');
       expect(serialPort.isOpen).toBe(true);
       expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|open', {
         path: '/dev/tty.usbserial',
@@ -30,6 +31,14 @@ describe('SerialPort Operations', () => {
         stopBits: StopBits.One,
         timeout: 1000
       });
+    });
+
+    it('should return remapped canonical path from open', async () => {
+      mockInvoke.mockResolvedValueOnce('/dev/tty.usbserial#session');
+
+      const canonical = await serialPort.open();
+      expect(canonical).toBe('/dev/tty.usbserial#session');
+      expect(serialPort.options.path).toBe('/dev/tty.usbserial#session');
     });
 
     it('should handle open errors', async () => {

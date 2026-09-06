@@ -49,17 +49,6 @@ mod tests {
         );
     }
 
-    /// Document the contract: a capability that omits allow-open (and does not
-    /// pull in serialplugin:default) must not list open as allowed.
-    #[test]
-    fn capability_without_allow_open_has_no_open_grant() {
-        // Minimal capability body an app would use when intentionally denying open.
-        let capability_permissions: &[&str] = &["serialplugin:allow-available-ports"];
-        assert!(!capability_permissions
-            .iter()
-            .any(|p| *p == "serialplugin:allow-open" || *p == "serialplugin:default"));
-    }
-
     #[test]
     fn example_app_capability_grants_serialplugin_default_or_allow_open() {
         let json = fs::read_to_string(

@@ -111,10 +111,11 @@ mod tests {
             .expect("permissions/default.toml");
         for cmd in HANDLER_COMMANDS {
             let allow = format!("allow-{}", cmd.replace('_', "-"));
-            assert!(
-                default.contains(&allow),
-                "default.toml missing {allow} for command {cmd}"
-            );
+            let present = default.lines().any(|line| {
+                let trimmed = line.trim().trim_end_matches(',');
+                trimmed == format!("\"{allow}\"")
+            });
+            assert!(present, "default.toml missing {allow} for command {cmd}");
         }
     }
 }
