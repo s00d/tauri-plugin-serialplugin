@@ -5,7 +5,7 @@
 | Layer | What it proves | Where | CI job |
 |-------|----------------|-------|--------|
 | Jest | JS wrapper → `invoke` payload/shape | `tests/*.test.ts` | `test` (Ubuntu/macOS), `windows` |
-| nextest desktop | PTY / hub / exchange / watch | `src/tests/*` | `test` (Ubuntu/macOS nextest); Windows: `cargo test --workspace --lib` (PTY `cfg(unix)` skipped; nextest avoided — Windows exe list fails with `0xc0000139`) |
+| nextest desktop | PTY / hub / exchange / watch | `src/tests/*` | `test` (Ubuntu/macOS nextest); Windows: `cargo test --workspace` (PTY `cfg(unix)` skipped; nextest avoided — Windows exe list fails with `0xc0000139`) |
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
 | Robolectric | Android fd / permission glue | `android/` | `test` Ubuntu only — **requires JDK 17** (`JAVA_HOME`) |
 | JNI prebuild | NDK + sync androidTest sources | `android-integration-ci.sh prebuild` | `android-integration` |

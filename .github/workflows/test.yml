@@ -265,8 +265,9 @@ jobs:
       run: pnpm check
 
     # nextest --list hits 0xc0000139 on this crate's Windows test exe; cargo test is reliable.
+    # Full workspace (integration targets included); PTY suites are cfg(unix) and skip here.
     - name: Run Rust tests (no PTY — unix-only cfg)
-      run: cargo test --workspace --lib
+      run: cargo test --workspace
 
     - name: Run JavaScript tests
       run: pnpm test

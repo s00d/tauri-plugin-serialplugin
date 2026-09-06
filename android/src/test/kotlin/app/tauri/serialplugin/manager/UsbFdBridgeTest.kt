@@ -294,6 +294,7 @@ class UsbFdBridgeTest {
     @Test
     fun openDeviceFd_shutdownDuringPermissionWait() {
         val harness = usbHarness()
+        harness.bridge.setPermissionWaitMsForTest(30_000)
         val device = mockDevice()
         stubDeviceList(harness.usbManager, device)
         whenever(harness.usbManager.hasPermission(device)).thenReturn(false)
@@ -314,10 +315,20 @@ class UsbFdBridgeTest {
         }
         t.start()
         assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS))
+        val t0 = System.nanoTime()
         harness.bridge.shutdown()
         t.join(3000)
+        val elapsedMs = (System.nanoTime() - t0) / 1_000_000
         assertTrue("worker should finish from shutdown alone", !t.isAlive)
+        assertTrue(
+            "shutdown should unblock well under the 30s permission wait (took ${elapsedMs}ms)",
+            elapsedMs < 2000,
+        )
         assertTrue(err.get() is IOException)
-        assertTrue(err.get()!!.message!!.contains("permission denied"))
+        val msg = err.get()!!.message!!
+        assertTrue(
+            "expected shutdown or permission denial, got: $msg",
+            msg.contains("permission denied") || msg.contains("shut down"),
+        )
     }
 }
