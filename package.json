@@ -1,15 +1,29 @@
 {
   "name": "tauri-plugin-serialplugin-api",
   "version": "3.0.4",
-  "license": "MIT or APACHE-2.0",
+  "description": "Tauri plugin API for serial ports (desktop and Android).",
+  "license": "Apache-2.0 OR MIT",
+  "author": "s00d",
   "type": "module",
   "types": "./dist-js/index.d.ts",
   "main": "./dist-js/index.cjs",
   "module": "./dist-js/index.js",
+  "homepage": "https://github.com/s00d/tauri-plugin-serialplugin#readme",
+  "bugs": {
+    "url": "https://github.com/s00d/tauri-plugin-serialplugin/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/s00d/tauri-plugin-serialplugin.git"
   },
+  "keywords": [
+    "tauri",
+    "tauri-plugin",
+    "serial",
+    "serialport",
+    "usb",
+    "android"
+  ],
   "exports": {
     "types": "./dist-js/index.d.ts",
     "import": {
@@ -25,7 +39,8 @@
     "check:watch": "tsc --noEmit -p tsconfig.json --watch",
     "check:demo": "pnpm --dir examples/serialport-test run build",
     "release": "standard-version",
-    "release:publish": "pnpm publish && cargo publish",
+    "release:publish": "bash scripts/publish.sh",
+    "publish:check": "bash scripts/check-publish-surface.sh",
     "playground": "pnpm --dir examples/serialport-test run tauri dev",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch"
@@ -34,10 +49,14 @@
     "dist-js",
     "guest-js",
     "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
     "LICENSE_MIT",
     "LICENSE_APACHE-2.0",
     "LICENSE.spdx"
   ],
+  "sideEffects": false,
   "dependencies": {
     "@tauri-apps/api": ">=2.0.0-beta.6"
   },

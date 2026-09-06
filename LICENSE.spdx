@@ -1,20 +1,17 @@
 SPDXVersion: SPDX-2.1
 DataLicense: CC0-1.0
-PackageName: tauri
+PackageName: tauri-plugin-serialplugin
 DataFormat: SPDXRef-1
-PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
-PackageHomePage: https://tauri.app
+PackageSupplier: Person: s00d
+PackageHomePage: https://github.com/s00d/tauri-plugin-serialplugin
 PackageLicenseDeclared: Apache-2.0
 PackageLicenseDeclared: MIT
-PackageCopyrightText: 2019-2022, The Tauri Programme in the Commons Conservancy
-PackageSummary: <text>Tauri is a rust project that enables developers to make secure
-and small desktop applications using a web frontend.
+PackageCopyrightText: 2024-2026, s00d and contributors
+PackageSummary: <text>Tauri plugin for serial port access on desktop and Android.
                 </text>
-PackageComment: <text>The package includes the following libraries; see
-Relationship information.
+PackageComment: <text>Dual-licensed Apache-2.0 OR MIT. Derived from Tauri plugin
+patterns; see LICENSE_MIT and LICENSE_APACHE-2.0.
                 </text>
-Created: 2019-05-20T09:00:00Z
-PackageDownloadLocation: git://github.com/tauri-apps/tauri
-PackageDownloadLocation: git+https://github.com/tauri-apps/tauri.git
-PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
-Creator: Person: Daniel Thompson-Yvetot
+Created: 2024-02-04T00:00:00Z
+PackageDownloadLocation: git+https://github.com/s00d/tauri-plugin-serialplugin.git
+Creator: Person: s00d

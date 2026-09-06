@@ -11,17 +11,35 @@ name = "tauri-plugin-serialplugin"
 version = "3.0.4"
 description = "Tauri plugin for serial port access (desktop and Android)."
 edition = "2021"
-authors = ["Tauri Programme within The Commons Conservancy"]
+authors = ["s00d"]
 license = "Apache-2.0 OR MIT"
 rust-version = "1.79"
 links = "tauri-plugin-serialplugin"
+readme = "README.md"
 repository = "https://github.com/s00d/tauri-plugin-serialplugin"
-# Keep crate under crates.io 10MB limit; examples live in the git repo.
+homepage = "https://github.com/s00d/tauri-plugin-serialplugin"
+documentation = "https://docs.rs/tauri-plugin-serialplugin"
+keywords = ["tauri-plugin", "serial", "serialport", "usb", "android"]
+categories = ["hardware-support", "api-bindings"]
+# Keep crate lean for crates.io; examples/tests/tooling stay in git.
 exclude = [
     "examples/**",
     ".github/**",
     "docs/**",
     "banner.png",
+    "tests/**",
+    "scripts/**",
+    "coverage/**",
+    "test-results/**",
+    "android/src/test/**",
+    "android/BUILD_INSTRUCTIONS.md",
+    "jest.config.js",
+    ".jestignore",
+    ".versionrc.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "rollup.config.mjs",
 ]
 
 [features]
@@ -30,7 +48,8 @@ android-test-harness = ["android-usb-serial/fake-transport"]
 [package.metadata.docs.rs]
 rustc-args = [ "--cfg", "docsrs" ]
 rustdoc-args = [ "--cfg", "docsrs" ]
-targets = ["x86_64-linux-android"]
+# Desktop APIs are the common docs.rs surface; Android JNI is cfg-gated.
+targets = ["x86_64-unknown-linux-gnu"]
 
 [package.metadata.platforms.support]
 windows = { level = "full", notes = "" }

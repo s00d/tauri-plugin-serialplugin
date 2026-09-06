@@ -1752,6 +1752,14 @@ Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the pe
 
 ---
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for build, test, and PR guidelines.
+
+## Security
+
+See [SECURITY.md](./SECURITY.md) to report vulnerabilities privately.
+
 ## Partners
 
 If you find this plugin valuable and would like to support further development, feel free to donate via [DonationAlerts](https://www.donationalerts.com/r/s00d88). Any contribution is greatly appreciated!
@@ -1760,4 +1768,4 @@ If you find this plugin valuable and would like to support further development, 
 
 ## License
 
-This code is dual-licensed under MIT or Apache-2.0, where applicable, © 2019–2025 Tauri Programme within The Commons Conservancy.
+Dual-licensed under MIT or Apache-2.0. See [LICENSE_MIT](./LICENSE_MIT) and [LICENSE_APACHE-2.0](./LICENSE_APACHE-2.0).
