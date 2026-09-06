@@ -9,9 +9,9 @@
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
 | Robolectric | Android fd / permission glue | `android/` | `test` Ubuntu only — **requires JDK 17** (`JAVA_HOME`) |
 | JNI prebuild | NDK + sync androidTest sources | `android-integration-ci.sh prebuild` | `android-integration` |
-| JNI emulator | FakeTransport Rx/Tx/Detach/Error (+ AT) | `android-integration-ci.sh test` | **nightly** / local — not every PR |
+| JNI connected | FakeTransport Rx/Tx/Detach/Error (+ AT) | `android-integration-ci.sh test` | **local only** (device/emulator) |
 
-Emulator / JNI connected tests are **not** on every PR.
+Connected JNI tests are **not** on every PR — run locally when touching Android I/O.
 
 Local fast gate: `./scripts/ci-fast.sh`  
 Full migration gate: `./scripts/verify-android-usb-migration.sh`
@@ -56,7 +56,7 @@ Notable suites:
 export JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || echo "$JAVA_HOME")"
 cd android && ./gradlew test
 
-# JNI (local or nightly):
+# JNI (local device/emulator):
 ./scripts/android-integration-ci.sh test
 ```
 
