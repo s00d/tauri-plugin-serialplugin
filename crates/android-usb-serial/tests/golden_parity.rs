@@ -458,7 +458,7 @@ fn golden_negative_corrupt_expected_control_bytes_mismatch() {
     let mut fixture: GoldenFixture = serde_json::from_str(&text).expect("parse fixture");
     assert!(!fixture.controls.is_empty());
     // Corrupt expected control payload so parity assertion must fail.
-    fixture.controls[0].data = "!!!!".to_string();
+    fixture.controls[0].data = base64::engine::general_purpose::STANDARD.encode([1, 2, 3]);
     let fake = setup_fake(&fixture);
     let transport: Arc<dyn Transport> = Arc::new(fake.clone());
     let mut driver = create_driver(driver_type(&fixture.driver), fixture.port_index);

@@ -1230,8 +1230,17 @@ mod tests {
             urcs
         );
         let (_, matched) = waiter.wait(100).expect("complete");
-        assert!(matches!(matched, ExchangeMatch::Ok));
-        assert_eq!(expected_match, "ok");
+        match expected_match {
+            "ok" => assert!(
+                matches!(matched, ExchangeMatch::Ok),
+                "expected Ok, got {matched:?}"
+            ),
+            "error" => assert!(
+                matches!(matched, ExchangeMatch::Error),
+                "expected Error, got {matched:?}"
+            ),
+            other => panic!("unsupported expected_match `{other}` in fixture"),
+        }
     }
 
     #[test]

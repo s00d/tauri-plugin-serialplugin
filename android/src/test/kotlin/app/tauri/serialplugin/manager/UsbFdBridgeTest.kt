@@ -315,9 +315,8 @@ class UsbFdBridgeTest {
         t.start()
         assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS))
         harness.bridge.shutdown()
-        harness.bridge.completePermissionForTest(DEVICE, false)
         t.join(3000)
-        assertTrue("worker should finish", !t.isAlive)
+        assertTrue("worker should finish from shutdown alone", !t.isAlive)
         assertTrue(err.get() is IOException)
         assertTrue(err.get()!!.message!!.contains("permission denied"))
     }

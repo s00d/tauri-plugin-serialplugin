@@ -128,7 +128,15 @@ class UsbFdBridge private constructor(
         permissionFutures[deviceName]?.complete(granted)
     }
 
+    /** Fail any in-flight permission waits so blocked IO threads can exit. */
+    private fun failPendingPermissions() {
+        permissionFutures.keys.toList().forEach { name ->
+            permissionFutures.remove(name)?.complete(false)
+        }
+    }
+
     fun shutdown() {
+        failPendingPermissions()
         if (testMode) {
             connections.keys.toList().forEach { closeDeviceFd(it) }
             if (registerReceiver && context != null) {

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { SerialPort, LogLevel, type Capabilities, type LogLevelType } from 'tauri-plugin-serialplugin-api';
+import { SerialPort, LogLevel, type Capabilities } from 'tauri-plugin-serialplugin-api';
 
 const caps = ref<Capabilities | null>(null);
-const logLevel = ref<LogLevelType>('Info');
+const logLevel = ref<LogLevel>(LogLevel.Info);
 const rustOutput = ref<string | null>(null);
 const busy = ref(false);
 
@@ -19,7 +19,7 @@ onMounted(async () => {
   }
 });
 
-async function setLog(level: LogLevelType) {
+async function setLog(level: LogLevel) {
   logLevel.value = level;
   await SerialPort.setLogLevel(level);
 }
@@ -53,7 +53,7 @@ async function runRustPorts() {
     <div class="actions">
       <label class="log-level">
         Log
-        <select :value="logLevel" @change="setLog(($event.target as HTMLSelectElement).value as LogLevelType)">
+        <select :value="logLevel" @change="setLog(($event.target as HTMLSelectElement).value as LogLevel)">
           <option v-for="lvl in logLevels" :key="lvl" :value="lvl">{{ lvl }}</option>
         </select>
       </label>

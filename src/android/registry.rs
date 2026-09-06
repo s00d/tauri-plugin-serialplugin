@@ -226,7 +226,11 @@ pub mod test_harness {
         let Some(waiter) = waiter else {
             return format!("ERR:no exchange waiter for {path}");
         };
-        match waiter.wait(timeout_ms) {
+        let result = waiter.wait(timeout_ms);
+        if let Some(hub) = hub_for(path) {
+            hub.clear_exchange_waiter();
+        }
+        match result {
             Ok((_, ExchangeMatch::Ok)) => "OK:ok".to_string(),
             Ok((_, m)) => format!("OK:{m:?}"),
             Err(e) => format!("ERR:{e}"),

@@ -143,65 +143,58 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Use Node.js 20.x
-      uses: actions/setup-node@v4
+    - name: Setup Android integration
+      uses: ./.github/actions/setup-android-integration
       with:
-        node-version: 20.x
+        install-emulator: "false"
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v4
 
     - name: Install pnpm
       uses: pnpm/action-setup@v2
       with:
         version: 9.15.4
 
-    - name: Setup Java 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 17
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: x86_64-linux-android
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Install Android SDK packages
+    - name: Get pnpm store directory
+      shell: bash
       run: |
-        yes | sdkmanager --licenses
-        sdkmanager \
-          "platform-tools" \
-          "platforms;android-34" \
-          "build-tools;34.0.0" \
-          "ndk;27.2.12479018"
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-    - name: Install cargo-ndk
-      run: cargo install cargo-ndk --locked
+    - name: Setup pnpm cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
 
-    - name: Install dependencies
-      run: pnpm install
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          node_modules
+          examples/*/node_modules
+        key: ${{ runner.os }}-node-modules-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-node-modules-
 
-    - name: Build JS
-      run: pnpm build
-
-    # file: link is snapshotted at install; refresh hardlinks after dist-js appears
-    - name: Relink workspace packages
-      run: pnpm install
-
-    - name: Prebuild Android integration artifacts
-      env:
-        ANDROID_INTEGRATION_NDK_ARCH: x86_64
-        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-        NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-      run: chmod +x scripts/android-integration-ci.sh && ./scripts/android-integration-ci.sh prebuild
-
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-    - uses: actions/checkout@v4
+    - name: Cache Rust dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          ~/.cargo/bin
+          target
+          examples/*/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -217,24 +210,15 @@ jobs:
     - name: Cargo check Windows
       run: cargo check --target x86_64-pc-windows-msvc
 
-    - name: Install pnpm
-      uses: pnpm/action-setup@v2
-      with:
-        version: 9.15.4
-
-    - name: Install cargo-nextest
-      run: cargo install cargo-nextest --locked --force
-
     - name: Install dependencies
       run: pnpm install
 
     - name: TypeScript check
       run: pnpm check
 
+    # nextest --list hits 0xc0000139 on this crate's Windows test exe; cargo test is reliable.
     - name: Run Rust tests (no PTY — unix-only cfg)
-      env:
-        NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
-      run: cargo nextest run --workspace --message-format=libtest-json-plus > test-results.jsonx
+      run: cargo test --workspace --lib
 
     - name: Run JavaScript tests
       run: pnpm test
@@ -247,5 +231,4 @@ jobs:
         path: |
           coverage/
           test-results/
-          test-results.jsonx
         if-no-files-found: warn

@@ -21,10 +21,8 @@ else
   cargo test --workspace
 fi
 
-echo "==> command inventory + ACL smoke"
-cargo test --lib -- command_inventory acl_smoke
-
 echo "==> JS"
+pnpm install --frozen-lockfile
 pnpm check && pnpm test
 
 echo "CI-FAST GATES PASSED"
