@@ -29,6 +29,7 @@ exclude = [
     "banner.png",
     "tests/**",
     "scripts/**",
+    "crates/**",
     "coverage/**",
     "test-results/**",
     "android/src/test/**",

@@ -264,10 +264,10 @@ jobs:
     - name: TypeScript check
       run: pnpm check
 
-    # nextest --list hits 0xc0000139 on this crate's Windows test exe; cargo test is reliable.
-    # Full workspace (integration targets included); PTY suites are cfg(unix) and skip here.
-    - name: Run Rust tests (no PTY — unix-only cfg)
-      run: cargo test --workspace
+    # Plugin lib test exe hits 0xc0000139 (STATUS_ENTRYPOINT_NOT_FOUND) on GHA Windows.
+    # Hub/PTY coverage stays on Ubuntu/macOS nextest; still run the rest of the workspace.
+    - name: Run Rust tests (workspace except plugin lib exe)
+      run: cargo test --workspace --exclude tauri-plugin-serialplugin
 
     - name: Run JavaScript tests
       run: pnpm test

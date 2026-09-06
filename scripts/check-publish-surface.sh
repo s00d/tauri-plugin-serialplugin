@@ -39,6 +39,9 @@ tar -tzf "$TGZ" >"$TMP/files.txt"
 
 need_npm=(
   package/dist-js/index.js
+  package/dist-js/index.cjs
+  package/dist-js/index.d.ts
+  package/guest-js/index.ts
   package/CHANGELOG.md
   package/README.md
   package/CONTRIBUTING.md
@@ -57,7 +60,26 @@ echo "ok: pnpm pack surface"
 echo "==> cargo package --list"
 LIST="$TMP/cargo-list.txt"
 cargo package --list --allow-dirty >"$LIST"
-for bad in '^tests/' '^scripts/' '^jest.config.js$' '^pnpm-lock.yaml$' '^android/src/test/'; do
+for bad in \
+  '^examples/' \
+  '^\.github/' \
+  '^docs/' \
+  '^banner\.png$' \
+  '^tests/' \
+  '^scripts/' \
+  '^crates/' \
+  '^coverage/' \
+  '^test-results/' \
+  '^android/src/test/' \
+  '^android/BUILD_INSTRUCTIONS\.md$' \
+  '^jest\.config\.js$' \
+  '^\.jestignore$' \
+  '^\.versionrc\.json$' \
+  '^pnpm-lock\.yaml$' \
+  '^pnpm-workspace\.yaml$' \
+  '^tsconfig\.json$' \
+  '^rollup\.config\.mjs$'
+do
   if rg -q "$bad" "$LIST"; then
     echo "error: cargo package still includes: $bad" >&2
     rg "$bad" "$LIST" >&2 || true

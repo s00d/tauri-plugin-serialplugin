@@ -46,7 +46,7 @@ pnpm playground
 
 1. Keep changes focused; prefer small PRs.
 2. Match existing style; run fmt / clippy / tests before pushing.
-3. Update `CHANGELOG.md` for user-visible changes (or rely on `pnpm release` / standard-version).
+3. Update `CHANGELOG.md` for user-visible changes (or rely on `pnpm release:patch` / `release:minor` / `release:major`, which write it via release-it).
 4. Do **not** add new top-level CI workflows unless an existing job cannot cover the need.
 5. Public API changes (Rust or JS) need a clear migration note for the next semver bump.
 

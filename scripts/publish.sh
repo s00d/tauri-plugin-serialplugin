@@ -6,6 +6,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [[ "$#" -gt 1 || ( "$#" -eq 1 && "${1:-}" != "--dry-run" ) ]]; then
+  echo "Usage: $0 [--dry-run]" >&2
+  exit 2
+fi
+
 DRY=0
 if [[ "${1:-}" == "--dry-run" ]]; then
   DRY=1
@@ -29,10 +34,13 @@ fi
 echo "ok: pnpm whoami=$(pnpm whoami)"
 
 echo "==> cargo credentials"
-if [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials.toml" ]] || [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials" ]]; then
-  echo "ok: cargo credentials file present"
+if [[ -n "${CARGO_REGISTRY_TOKEN:-}" ]] \
+  || [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials.toml" ]] \
+  || [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials" ]]; then
+  echo "ok: cargo auth available (token env and/or credentials file)"
 else
   echo "error: no cargo credentials. Run: cargo login" >&2
+  echo "  or export CARGO_REGISTRY_TOKEN=..." >&2
   exit 1
 fi
 

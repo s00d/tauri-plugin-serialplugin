@@ -79,6 +79,7 @@ class UsbFdBridge private constructor(
     private val usbManager = context?.getSystemService(Context.USB_SERVICE) as? UsbManager
     private val connections = ConcurrentHashMap<String, UsbDeviceConnection>()
     private val permissionFutures = ConcurrentHashMap<String, CompletableFuture<Boolean>>()
+    private val permissionLock = Any()
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
@@ -141,16 +142,19 @@ class UsbFdBridge private constructor(
     }
 
     /** Fail any in-flight permission waits so blocked IO threads can exit. */
-    private fun failPendingPermissions() {
+    private fun failPendingPermissionsLocked() {
         permissionFutures.keys.toList().forEach { name ->
             permissionFutures.remove(name)?.complete(false)
         }
     }
 
     fun shutdown() {
-        // Flip first so queued IO tasks see shutDown before they start new waits.
-        shutDown = true
-        failPendingPermissions()
+        // Flip + drain under the same lock as future registration so a waiter
+        // cannot insert after failPendingPermissions and then block for 30s.
+        synchronized(permissionLock) {
+            shutDown = true
+            failPendingPermissionsLocked()
+        }
         if (testMode) {
             connections.keys.toList().forEach { closeDeviceFd(it) }
             if (registerReceiver && context != null) {
@@ -281,12 +285,14 @@ class UsbFdBridge private constructor(
     }
 
     private fun requestPermission(device: UsbDevice) {
-        if (shutDown) throw IOException("USB fd bridge shut down")
         val mgr = usbManager ?: throw IOException("no UsbManager")
         val ctx = context ?: throw IOException("no context")
         val name = device.deviceName
         val fut = CompletableFuture<Boolean>()
-        permissionFutures[name] = fut
+        synchronized(permissionLock) {
+            if (shutDown) throw IOException("USB fd bridge shut down")
+            permissionFutures[name] = fut
+        }
         val intent = Intent(ACTION_USB_PERMISSION).apply {
             setPackage(ctx.packageName)
         }
