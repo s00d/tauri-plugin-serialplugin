@@ -1,53 +1,72 @@
 # Publishing
 
-Short guide for maintainers. Details: [CONTRIBUTING.md](./CONTRIBUTING.md).
+Maintainer checklist. Everything registry-side uses **pnpm** (not mixed with `npm` CLI).
 
-## One-shot flow
+## 1. Bump version
+
+Pick **one**:
 
 ```bash
-# 1) Bump version, CHANGELOG, git tag, GitHub Release
-pnpm release          # or: release:patch | release:minor | release:major
-
-# 2) Auth (npm expires often — re-login before publish)
-npm login             # or: pnpm login
-cargo login           # once; token in ~/.cargo/credentials.toml
-
-# 3) Publish registries (npm first, then crates.io)
-pnpm release:publish
-# dry-run: ./scripts/publish.sh --dry-run
+pnpm release:patch
+pnpm release:minor
+pnpm release:major
 ```
 
-## Order (important)
+Each runs release-it: bumps `package.json` + `Cargo.toml`, updates `CHANGELOG.md`, commits, tags `v*`, pushes, creates a GitHub Release.
 
-1. **Check npm auth** (`npm whoami`) — fail early if logged out  
-2. **Check cargo credentials**  
-3. **`pnpm install` + build + surface check**  
-4. **`npm publish`** (`tauri-plugin-serialplugin-api`)  
-5. **`cargo publish`** (`tauri-plugin-serialplugin`)
+## 2. Auth
 
-npm is first because npm sessions frequently invalidate; crates.io tokens are more stable. If cargo fails after npm, fix cargo and re-run only the cargo step (npm version is already taken).
+npm registry sessions expire often. Check and fix with pnpm only:
+
+```bash
+pnpm whoami
+# if that fails:
+pnpm login
+
+cargo login   # once; writes ~/.cargo/credentials.toml
+```
+
+## 3. Publish
+
+```bash
+pnpm release:publish
+```
+
+What it does, in order:
+
+1. `pnpm whoami` — abort if logged out  
+2. cargo credentials file check  
+3. `pnpm install --frozen-lockfile`  
+4. build + pack surface check  
+5. `pnpm publish` → `tauri-plugin-serialplugin-api`  
+6. `cargo publish` → `tauri-plugin-serialplugin`
+
+Dry-run:
+
+```bash
+./scripts/publish.sh --dry-run
+```
+
+Surface check only:
+
+```bash
+pnpm publish:check
+```
 
 ## android-usb-serial
 
-The plugin depends on `android-usb-serial` by **version** on crates.io. If you bumped that crate:
+If you changed that crate’s version, publish it **before** the plugin crate:
 
 ```bash
 cargo publish -p android-usb-serial
-# wait until crates.io indexes it, then:
-cargo publish
-```
-
-## Checks
-
-```bash
-pnpm publish:check    # pack surface + Cargo.toml exclude guards
-./scripts/publish.sh --dry-run
+# wait for crates.io index, then:
+pnpm release:publish
 ```
 
 ## Packages
 
-| Registry | Name | Version source |
-|----------|------|----------------|
-| npm | `tauri-plugin-serialplugin-api` | `package.json` |
-| crates.io | `tauri-plugin-serialplugin` | `Cargo.toml` (synced by release-it) |
-| crates.io | `android-usb-serial` | `crates/android-usb-serial/Cargo.toml` (manual when changed) |
+| Registry  | Package                         | Version file                                      |
+|-----------|---------------------------------|---------------------------------------------------|
+| npm       | `tauri-plugin-serialplugin-api` | `package.json`                                    |
+| crates.io | `tauri-plugin-serialplugin`     | `Cargo.toml` (synced on bump)                     |
+| crates.io | `android-usb-serial`            | `crates/android-usb-serial/Cargo.toml` (manual) |

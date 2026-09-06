@@ -1758,7 +1758,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for build, test, and PR guidelines.
 
 ## Publishing
 
-See [PUBLISHING.md](./PUBLISHING.md) for the release checklist (`pnpm release` → `pnpm release:publish`).
+See [PUBLISHING.md](./PUBLISHING.md) (`pnpm release:patch|minor|major` → `pnpm login` if needed → `pnpm release:publish`).
 
 ## Security
 

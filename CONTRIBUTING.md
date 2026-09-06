@@ -60,41 +60,32 @@ Deprecated Rust items (e.g. `PortBackend`) stay until the next major.
 
 ## Publishing (maintainers)
 
-See **[PUBLISHING.md](./PUBLISHING.md)** for the short checklist.
+Full checklist: **[PUBLISHING.md](./PUBLISHING.md)**.
 
-Bump + changelog + git tag + GitHub Release (does **not** publish registries):
+Bump (pick one):
 
 ```bash
-pnpm release          # interactive / conventional bump
-pnpm release:patch    # explicit patch
+pnpm release:patch
 pnpm release:minor
 pnpm release:major
 ```
 
-Uses [release-it](https://github.com/release-it/release-it) + conventional changelog.
-`scripts/sync-cargo-version.cjs` keeps root `Cargo.toml` version in sync with `package.json`.
-
-Auth (npm often forces re-login) then publish — **npm first**, then crates.io:
+Auth + publish:
 
 ```bash
-npm login             # or: pnpm login
-cargo login           # if credentials missing
+pnpm whoami
+# if logged out:
+pnpm login
+cargo login
+
 pnpm release:publish
-# dry-run:
-./scripts/publish.sh --dry-run
 ```
 
-Surface check only: `pnpm publish:check`
+Dry-run: `./scripts/publish.sh --dry-run`  
+Surface check: `pnpm publish:check`
 
-### Why this stack (not more CI workflows)
-
-| Tool | Role here |
-|------|-----------|
-| **release-it** | bump, CHANGELOG, tag, GitHub release |
-| **scripts/publish.sh** | auth checks → `npm publish` → `cargo publish` |
-| release-plz / pubm | optional later for fully automated CI publish — not required |
-
-Do **not** add a second publish workflow unless secrets + automation are intentionally enabled.
+`release-it` bumps `package.json` + `Cargo.toml` (via `scripts/sync-cargo-version.cjs`), writes `CHANGELOG.md`, tags, and opens a GitHub Release.  
+`scripts/publish.sh` publishes with **pnpm** first, then `cargo publish`.
 
 ## Security
 

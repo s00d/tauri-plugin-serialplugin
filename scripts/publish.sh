@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish npm first (auth is flaky), then crates.io.
+# Publish JS package first (pnpm), then crates.io.
 # Usage: ./scripts/publish.sh [--dry-run]
 set -euo pipefail
 
@@ -19,15 +19,14 @@ if [[ "$CARGO_VER" != "$NPM_VER" ]]; then
 fi
 echo "==> version $CARGO_VER"
 
-echo "==> npm auth"
-if ! npm whoami >/dev/null 2>&1; then
-  echo "error: not logged in to npm." >&2
-  echo "  npm login" >&2
-  echo "  # or: pnpm login" >&2
+echo "==> pnpm registry auth"
+if ! pnpm whoami >/dev/null 2>&1; then
+  echo "error: not logged in to the npm registry via pnpm." >&2
+  echo "  pnpm login" >&2
   echo "Then re-run: pnpm release:publish" >&2
   exit 1
 fi
-echo "ok: npm user=$(npm whoami)"
+echo "ok: pnpm whoami=$(pnpm whoami)"
 
 echo "==> cargo credentials"
 if [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials.toml" ]] || [[ -f "${CARGO_HOME:-$HOME/.cargo}/credentials" ]]; then
@@ -42,22 +41,22 @@ pnpm install --frozen-lockfile
 bash "$ROOT/scripts/check-publish-surface.sh"
 
 if [[ "$DRY" -eq 1 ]]; then
-  echo "==> npm publish --dry-run"
-  npm publish --dry-run
+  echo "==> pnpm publish --dry-run"
+  pnpm publish --dry-run --no-git-checks
   echo "==> cargo publish --dry-run"
   cargo publish --dry-run --allow-dirty
   echo "DRY-RUN OK ($CARGO_VER)"
   exit 0
 fi
 
-# npm first: token expiry / forced re-login is common; fail before crates.io.
-echo "==> npm publish ($NPM_VER)"
+# JS registry first: sessions expire often; fail before crates.io.
+echo "==> pnpm publish ($NPM_VER)"
 pnpm build
-npm publish
+pnpm publish --no-git-checks
 
 echo "==> cargo publish ($CARGO_VER)"
-echo "note: path dep android-usb-serial@$CARGO_VER must already exist on crates.io"
+echo "note: path dep android-usb-serial must already be on crates.io at the required version"
 echo "      if needed: cargo publish -p android-usb-serial"
 cargo publish
 
-echo "PUBLISHED $CARGO_VER (npm + crates.io)"
+echo "PUBLISHED $CARGO_VER (pnpm registry + crates.io)"
