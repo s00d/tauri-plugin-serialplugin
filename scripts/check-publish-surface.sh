@@ -29,8 +29,8 @@ TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TMP"; }
 trap cleanup EXIT
 
-echo "==> npm pack → $TMP"
-npm pack --pack-destination "$TMP" >/dev/null
+echo "==> pnpm pack → $TMP"
+pnpm pack --pack-destination "$TMP" >/dev/null
 TGZ="$(ls "$TMP"/*.tgz | head -1)"
 test -n "$TGZ"
 
@@ -52,7 +52,7 @@ for f in "${need_npm[@]}"; do
     exit 1
   fi
 done
-echo "ok: npm pack surface"
+echo "ok: pnpm pack surface"
 
 echo "==> cargo package --list"
 LIST="$TMP/cargo-list.txt"
