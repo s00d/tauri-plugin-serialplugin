@@ -56,4 +56,12 @@ object MobileBridge {
     /** Debug-only: fail the next bulk-IN read (reader → onUsbError). */
     @JvmStatic
     external fun testFakeInjectError(deviceName: String, reason: String): Boolean
+
+    /** Debug-only: install AT exchange waiter on the hub for [path]. */
+    @JvmStatic
+    external fun testExchangeBegin(path: String, command: String): Boolean
+
+    /** Debug-only: wait for harness exchange; returns `OK:…` or `ERR:…`. */
+    @JvmStatic
+    external fun testExchangeWait(path: String, timeoutMs: Long): String
 }

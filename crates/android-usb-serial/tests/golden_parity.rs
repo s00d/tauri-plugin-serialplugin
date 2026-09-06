@@ -445,6 +445,33 @@ fn assert_controls(path: &Path, got: &[RecordedControl], want: &[GoldenControl])
     }
 }
 
+#[test]
+fn golden_negative_invalid_fixture_json_errors() {
+    let err = serde_json::from_str::<GoldenFixture>("{not-valid-json");
+    assert!(err.is_err(), "corrupt JSON must fail to parse");
+}
+
+#[test]
+fn golden_negative_corrupt_expected_control_bytes_mismatch() {
+    let path = fixture_dir().join("ch34x/set_baud_9600.json");
+    let text = fs::read_to_string(&path).expect("read fixture");
+    let mut fixture: GoldenFixture = serde_json::from_str(&text).expect("parse fixture");
+    assert!(!fixture.controls.is_empty());
+    // Corrupt expected control payload so parity assertion must fail.
+    fixture.controls[0].data = "!!!!".to_string();
+    let fake = setup_fake(&fixture);
+    let transport: Arc<dyn Transport> = Arc::new(fake.clone());
+    let mut driver = create_driver(driver_type(&fixture.driver), fixture.port_index);
+    driver.open(&transport).expect("open");
+    let suffix = scenario_suffix(&fixture);
+    let _ = replay_scenario(driver.as_mut(), &fixture.driver, &suffix);
+    let _ = driver.close();
+    assert!(
+        !controls_match(&fake.recorded_controls(), &fixture.controls),
+        "corrupted expected control bytes must not match recorded transfers"
+    );
+}
+
 fn format_bulk_diff(path: &Path, got: &[RecordedBulkOut], want: &[GoldenBulkOut]) -> String {
     let mut out = format!(
         "bulkOut mismatch for {}: got {} want {}\n",

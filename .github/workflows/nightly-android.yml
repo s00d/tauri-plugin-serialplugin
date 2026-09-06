@@ -1,0 +1,96 @@
+# Nightly Android emulator JNI integration tests.
+#
+# Runs the FakeTransport harness via scripts/android-integration-ci.sh on an
+# AVD (x86_64). Manual trigger + daily schedule; keep timeout generous for
+# SDK/AVD cold start.
+
+name: Nightly Android Integration
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  android-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9.15.4
+
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Enable KVM
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-linux-android
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Install Android SDK packages
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager \
+          "platform-tools" \
+          "platforms;android-34" \
+          "build-tools;34.0.0" \
+          "ndk;27.2.12479018" \
+          "emulator" \
+          "system-images;android-34;google_apis;x86_64"
+
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk --locked
+
+    - name: Install dependencies
+      run: pnpm install
+
+    - name: Build JS
+      run: pnpm build
+
+    - name: Relink workspace packages
+      run: pnpm install
+
+    - name: Prebuild Android integration artifacts
+      env:
+        ANDROID_INTEGRATION_NDK_ARCH: x86_64
+        ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+      run: chmod +x scripts/android-integration-ci.sh && ./scripts/android-integration-ci.sh prebuild
+
+    - name: Run connectedDebugAndroidTest on emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34
+        arch: x86_64
+        target: google_apis
+        force-avd-creation: false
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+        disable-animations: true
+        script: |
+          export ANDROID_INTEGRATION_NDK_ARCH=x86_64
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/27.2.12479018"
+          export NDK_HOME="${ANDROID_NDK_HOME}"
+          chmod +x scripts/android-integration-ci.sh
+          ./scripts/android-integration-ci.sh test

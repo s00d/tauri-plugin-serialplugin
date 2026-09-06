@@ -1,0 +1,12 @@
+{
+  "name": "creg_csq_ok",
+  "command": "AT+CSQ",
+  "chunks_hex": [
+    "0d0a2b435245473a20302c310d0a0d0a",
+    "41542b4353510d0a0d0a",
+    "2b4353513a2031302c39390d0a0d0a",
+    "4f4b0d0a"
+  ],
+  "expected_urc_contains": "+CREG",
+  "expected_match": "ok"
+}

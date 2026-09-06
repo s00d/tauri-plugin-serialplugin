@@ -175,3 +175,39 @@ pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testFakeInjectEr
     };
     test_harness::fake_inject_error(&device_name, &reason) as jboolean
 }
+
+#[cfg(all(debug_assertions, target_os = "android"))]
+#[no_mangle]
+pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testExchangeBegin(
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+    command: JString,
+) -> jboolean {
+    let Some(path) = jstring_to_rust(&mut env, &path) else {
+        return 0;
+    };
+    let Some(command) = jstring_to_rust(&mut env, &command) else {
+        return 0;
+    };
+    match test_harness::exchange_begin(&path, &command) {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+#[cfg(all(debug_assertions, target_os = "android"))]
+#[no_mangle]
+pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testExchangeWait<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    path: JString<'local>,
+    timeout_ms: jlong,
+) -> JString<'local> {
+    let Some(path) = jstring_to_rust(&mut env, &path) else {
+        return env.new_string("ERR:bad path").unwrap_or_default();
+    };
+    let timeout_ms = if timeout_ms < 0 { 0 } else { timeout_ms as u64 };
+    let result = test_harness::exchange_wait(&path, timeout_ms);
+    env.new_string(result).unwrap_or_default()
+}

@@ -249,4 +249,76 @@ class UsbFdBridgeTest {
         assertEquals(55, harness.bridge.openDeviceFd(DEVICE))
         verify(harness.usbManager, times(1)).openDevice(device)
     }
+
+    @Test
+    fun openDeviceFd_doubleGrantWhileWaiting() {
+        val harness = usbHarness()
+        val device = mockDevice()
+        stubDeviceList(harness.usbManager, device)
+        whenever(harness.usbManager.hasPermission(device)).thenReturn(false)
+        val conn = mockConn(77)
+        whenever(harness.usbManager.openDevice(device)).thenReturn(conn)
+        doAnswer {
+            harness.bridge.completePermissionForTest(DEVICE, true)
+            harness.bridge.completePermissionForTest(DEVICE, true)
+            null
+        }.whenever(harness.usbManager).requestPermission(eq(device), any())
+
+        assertEquals(77, harness.bridge.openDeviceFd(DEVICE))
+    }
+
+    @Test
+    fun openDeviceFd_afterDeny_retrySucceeds() {
+        val harness = usbHarness()
+        val device = mockDevice()
+        stubDeviceList(harness.usbManager, device)
+        whenever(harness.usbManager.hasPermission(device)).thenReturn(false)
+        val conn = mockConn(88)
+        whenever(harness.usbManager.openDevice(device)).thenReturn(conn)
+
+        var grant = false
+        doAnswer {
+            harness.bridge.completePermissionForTest(DEVICE, grant)
+            null
+        }.whenever(harness.usbManager).requestPermission(eq(device), any())
+
+        val denied = assertThrows(IOException::class.java) {
+            harness.bridge.openDeviceFd(DEVICE)
+        }
+        assertTrue(denied.message!!.contains("permission denied"))
+
+        grant = true
+        assertEquals(88, harness.bridge.openDeviceFd(DEVICE))
+    }
+
+    @Test
+    fun openDeviceFd_shutdownDuringPermissionWait() {
+        val harness = usbHarness()
+        val device = mockDevice()
+        stubDeviceList(harness.usbManager, device)
+        whenever(harness.usbManager.hasPermission(device)).thenReturn(false)
+
+        val err = java.util.concurrent.atomic.AtomicReference<Throwable>()
+        val started = java.util.concurrent.CountDownLatch(1)
+        doAnswer {
+            started.countDown()
+            null
+        }.whenever(harness.usbManager).requestPermission(eq(device), any())
+
+        val t = Thread {
+            try {
+                harness.bridge.openDeviceFd(DEVICE)
+            } catch (e: Throwable) {
+                err.set(e)
+            }
+        }
+        t.start()
+        assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS))
+        harness.bridge.shutdown()
+        harness.bridge.completePermissionForTest(DEVICE, false)
+        t.join(3000)
+        assertTrue("worker should finish", !t.isAlive)
+        assertTrue(err.get() is IOException)
+        assertTrue(err.get()!!.message!!.contains("permission denied"))
+    }
 }

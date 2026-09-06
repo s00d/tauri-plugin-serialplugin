@@ -227,4 +227,37 @@ mod tests {
         assert_eq!(sms.timeout_ms, Some(9000));
         assert_eq!(sms.result_format, Some(AtResultFormat::Numeric));
     }
+
+    #[test]
+    fn watch_ports_options_deserialize_camel_case() {
+        use crate::events::WatchPortsOptions;
+
+        let json = serde_json::json!({
+            "singlePortPerDevice": true,
+            "pollIntervalMs": 1500
+        });
+        let opts: WatchPortsOptions = serde_json::from_value(json).unwrap();
+        assert_eq!(opts.single_port_per_device, Some(true));
+        assert_eq!(opts.poll_interval_ms, Some(1500));
+    }
+
+    #[test]
+    fn clear_buffer_args_deserialize_camel_case() {
+        use crate::state::ClearBuffer;
+
+        #[derive(Deserialize)]
+        struct ClearBufferArgs {
+            path: String,
+            #[serde(rename = "bufferType")]
+            buffer_type: ClearBuffer,
+        }
+
+        let json = serde_json::json!({
+            "path": "/dev/ttyUSB0",
+            "bufferType": "Input"
+        });
+        let args: ClearBufferArgs = serde_json::from_value(json).unwrap();
+        assert_eq!(args.path, "/dev/ttyUSB0");
+        assert_eq!(args.buffer_type, ClearBuffer::Input);
+    }
 }

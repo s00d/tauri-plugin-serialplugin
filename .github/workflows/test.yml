@@ -222,11 +222,30 @@ jobs:
       with:
         version: 9.15.4
 
+    - name: Install cargo-nextest
+      run: cargo install cargo-nextest --locked --force
+
     - name: Install dependencies
       run: pnpm install
 
     - name: TypeScript check
       run: pnpm check
 
+    - name: Run Rust tests (no PTY — unix-only cfg)
+      env:
+        NEXTEST_EXPERIMENTAL_LIBTEST_JSON: 1
+      run: cargo nextest run --workspace --message-format=libtest-json-plus > test-results.jsonx
+
     - name: Run JavaScript tests
       run: pnpm test
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-windows
+        path: |
+          coverage/
+          test-results/
+          test-results.jsonx
+        if-no-files-found: warn

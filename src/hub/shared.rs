@@ -722,8 +722,11 @@ pub(crate) fn flush_watch_data(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::at::parse::ExchangeMatch;
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
+    use std::path::PathBuf;
     use std::thread;
+    use tauri::ipc::Channel;
 
     #[test]
     fn exchange_waiter_completes_on_final_ok_line() {
@@ -754,6 +757,51 @@ mod tests {
         assert!(actions
             .iter()
             .any(|a| matches!(a, RxRouteAction::UrcLine(s) if s.starts_with("^CARDLOCK"))));
+    }
+
+    #[test]
+    fn feed_bytes_exchange_with_watch_emits_live_urc_pending() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024);
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let options = ResolvedExchangeOptions {
+            timeout_ms: 5000,
+            max_bytes: 4096,
+            terminators: vec![],
+            idle_ms: None,
+            rx_prepare: RxPrepareMode::None,
+            drain_idle_ms: 50,
+            drain_max_ms: 200,
+            completion_mode: ExchangeCompletionMode::AtFinalLine,
+            result_format: AtResultFormat::Verbose,
+            command: Some("AT+CSQ".into()),
+            solicited_prefixes: vec![],
+        };
+        let waiter = ExchangeWaiter::new(options, cancel);
+        shared.set_exchange_waiter(waiter.clone());
+
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(
+            b"\r\n+CREG: 0,1\r\n\r\nAT+CSQ\r\n\r\n+CSQ: 10,99\r\n\r\nOK\r\n",
+            &mut routing,
+        );
+
+        let urcs: Vec<_> = routing
+            .pending_events
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Urc { line, .. } => Some(line.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            urcs.iter().any(|l| l.contains("+CREG:")),
+            "expected +CREG in pending URC, got {:?}",
+            urcs
+        );
+        assert!(waiter.wait(100).is_ok());
     }
 
     #[test]
@@ -867,7 +915,6 @@ mod tests {
 
     #[test]
     fn read_request_rejects_when_watch_active() {
-        use tauri::ipc::Channel;
         let shared = Arc::new(RxHubShared::new());
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
         shared.attach_watch(channel, 100, 1024);
@@ -891,7 +938,6 @@ mod tests {
 
     #[test]
     fn attach_watch_clears_idle() {
-        use tauri::ipc::Channel;
         let shared = Arc::new(RxHubShared::new());
         shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
         assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
@@ -1114,5 +1160,123 @@ mod tests {
         wait_until_read_slot(&shared);
         finish_read_slot(&shared, Ok(b"late".to_vec()));
         assert_eq!(handle.join().unwrap().expect("recovered"), b"late");
+    }
+
+    fn at_csq_options() -> ResolvedExchangeOptions {
+        ResolvedExchangeOptions {
+            timeout_ms: 5000,
+            max_bytes: 4096,
+            terminators: vec![],
+            idle_ms: None,
+            rx_prepare: RxPrepareMode::None,
+            drain_idle_ms: 50,
+            drain_max_ms: 200,
+            completion_mode: ExchangeCompletionMode::AtFinalLine,
+            result_format: AtResultFormat::Verbose,
+            command: Some("AT+CSQ".into()),
+            solicited_prefixes: vec![],
+        }
+    }
+
+    fn decode_hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).expect("hex"))
+            .collect()
+    }
+
+    #[test]
+    fn hub_script_creg_csq_ok_fixture_feeds_urc_and_completes() {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src/tests/fixtures/hub_scripts/creg_csq_ok.json");
+        let text = std::fs::read_to_string(&path).expect("fixture");
+        let fixture: serde_json::Value = serde_json::from_str(&text).expect("json");
+        let command = fixture["command"].as_str().unwrap();
+        let chunks: Vec<Vec<u8>> = fixture["chunks_hex"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| decode_hex(v.as_str().unwrap()))
+            .collect();
+        let expected_urc = fixture["expected_urc_contains"].as_str().unwrap();
+        let expected_match = fixture["expected_match"].as_str().unwrap();
+
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024);
+        let mut options = at_csq_options();
+        options.command = Some(command.to_string());
+        let waiter = ExchangeWaiter::new(options, Arc::new(AtomicBool::new(false)));
+        shared.set_exchange_waiter(waiter.clone());
+
+        let mut routing = HubRoutingState::new("p".into());
+        for chunk in &chunks {
+            shared.feed_bytes(chunk, &mut routing);
+        }
+
+        let urcs: Vec<_> = routing
+            .pending_events
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Urc { line, .. } => Some(line.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            urcs.iter().any(|l| l.contains(expected_urc)),
+            "expected {expected_urc} in {:?}",
+            urcs
+        );
+        let (_, matched) = waiter.wait(100).expect("complete");
+        assert!(matches!(matched, ExchangeMatch::Ok));
+        assert_eq!(expected_match, "ok");
+    }
+
+    #[test]
+    fn feed_bytes_chunked_vs_oneshot_same_exchange_match() {
+        let transcript = b"\r\n+CREG: 0,1\r\n\r\nAT+CSQ\r\n\r\n+CSQ: 10,99\r\n\r\nOK\r\n";
+
+        let run = |chunks: Vec<&[u8]>| {
+            let shared = RxHubShared::new();
+            let waiter = ExchangeWaiter::new(at_csq_options(), Arc::new(AtomicBool::new(false)));
+            shared.set_exchange_waiter(waiter.clone());
+            let mut routing = HubRoutingState::new("p".into());
+            for chunk in chunks {
+                shared.feed_bytes(chunk, &mut routing);
+            }
+            waiter.wait(100).expect("complete").1
+        };
+
+        let oneshot = run(vec![&transcript[..]]);
+        let bytewise = run(transcript.chunks(1).collect());
+        assert_eq!(oneshot, bytewise);
+        assert!(matches!(oneshot, ExchangeMatch::Ok));
+    }
+
+    #[test]
+    fn fail_all_waiters_during_active_drain_completes_with_error() {
+        let shared = Arc::new(RxHubShared::new());
+        let shared_bg = shared.clone();
+        let handle = thread::spawn(move || {
+            shared_bg.drain(10_000, 5_000, Arc::new(AtomicBool::new(false)), vec![])
+        });
+        wait_until_drain_slot(&shared);
+        shared.fail_all_waiters("usb error");
+        let err = handle.join().unwrap().expect_err("drain must fail");
+        assert!(err.contains("usb error"), "unexpected: {err}");
+    }
+
+    #[test]
+    fn cancel_during_active_drain_completes_with_error() {
+        let shared = Arc::new(RxHubShared::new());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let shared_bg = shared.clone();
+        let cancel_bg = cancel.clone();
+        let handle = thread::spawn(move || shared_bg.drain(10_000, 5_000, cancel_bg, vec![]));
+        wait_until_drain_slot(&shared);
+        cancel.store(true, Ordering::SeqCst);
+        shared.tick("p", &mut HubRoutingState::new("p".into()));
+        let err = handle.join().unwrap().expect_err("drain must cancel");
+        assert!(err.contains("cancel"), "unexpected: {err}");
     }
 }

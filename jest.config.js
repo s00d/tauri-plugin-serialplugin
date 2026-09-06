@@ -12,6 +12,12 @@ export default {
   collectCoverage: true,
   coverageDirectory: 'coverage',
   coverageReporters: ['json', 'lcov', 'text', 'clover'],
+  collectCoverageFrom: ['guest-js/**/*.{ts,js}', '!guest-js/**/*.d.ts'],
+  coverageThreshold: {
+    global: {
+      lines: 85,
+    },
+  },
   coveragePathIgnorePatterns: [
     '/node_modules/',
     '/target/',

@@ -930,7 +930,7 @@ mod tests {
         use std::io::{Read, Write};
         use std::sync::{Arc, Mutex};
         use std::thread;
-        use std::time::Duration;
+        use std::time::{Duration, Instant};
         use tauri::ipc::Channel;
         use tauri::ipc::InvokeResponseBody;
 
@@ -1017,15 +1017,28 @@ mod tests {
             response.solicited_body
         );
 
-        let urc_lines: Vec<String> = events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter_map(|e| match e {
-                SerialEvent::Urc { line, .. } => Some(line.clone()),
-                _ => None,
-            })
-            .collect();
+        // Channel delivery can lag the exchange return under parallel load — wait for URC.
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let urc_lines = loop {
+            let lines: Vec<String> = events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter_map(|e| match e {
+                    SerialEvent::Urc { line, .. } => Some(line.clone()),
+                    _ => None,
+                })
+                .collect();
+            if lines.iter().any(|l| l.contains("+CREG:")) {
+                break lines;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "expected live +CREG URC on watch during exchange, got {:?}",
+                lines
+            );
+            thread::sleep(Duration::from_millis(5));
+        };
         assert!(
             urc_lines.iter().any(|l| l.contains("+CREG:")),
             "expected live +CREG URC on watch during exchange, got {:?}",

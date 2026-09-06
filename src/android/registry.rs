@@ -130,11 +130,22 @@ pub mod test_harness {
     use crate::mock_serial::MockSerialPort;
     use crate::state::ConnectedPort;
     use serialport::SerialPort;
-    use std::sync::Arc;
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex, OnceLock};
+
+    type WaiterMap = Mutex<HashMap<String, Arc<crate::hub::ExchangeWaiter>>>;
+
+    fn exchange_waiters() -> &'static WaiterMap {
+        static WAITERS: OnceLock<WaiterMap> = OnceLock::new();
+        WAITERS.get_or_init(|| Mutex::new(HashMap::new()))
+    }
 
     pub fn reset() {
         let _ = crate::android::driver_host::global_host().close(None);
         global_registry().close_all();
+        if let Ok(mut map) = exchange_waiters().lock() {
+            map.clear();
+        }
     }
 
     pub fn register_port(path: &str) {
@@ -170,6 +181,56 @@ pub mod test_harness {
 
     pub fn invoke_write(path: &str, data: &[u8]) -> Result<usize, crate::error::Error> {
         crate::android::driver_host::global_host().write(path, data)
+    }
+
+    /// Install an AT exchange waiter on the hub for [path] (debug JNI harness).
+    pub fn exchange_begin(path: &str, command: &str) -> Result<(), String> {
+        use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
+        use crate::exchange::options::ResolvedExchangeOptions;
+        use crate::hub::ExchangeWaiter;
+        use std::sync::atomic::AtomicBool;
+
+        let hub = hub_for(path).ok_or_else(|| format!("no hub for {path}"))?;
+        let _ = hub.shared().take_idle_bytes();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let options = ResolvedExchangeOptions {
+            timeout_ms: 10_000,
+            max_bytes: 4096,
+            terminators: vec![],
+            idle_ms: None,
+            rx_prepare: RxPrepareMode::None,
+            drain_idle_ms: 50,
+            drain_max_ms: 200,
+            completion_mode: ExchangeCompletionMode::AtFinalLine,
+            result_format: AtResultFormat::Verbose,
+            command: Some(command.to_string()),
+            solicited_prefixes: vec![],
+        };
+        let waiter = ExchangeWaiter::new(options, cancel);
+        hub.set_exchange_waiter(waiter.clone());
+        exchange_waiters()
+            .lock()
+            .map_err(|e| e.to_string())?
+            .insert(path.to_string(), waiter);
+        Ok(())
+    }
+
+    /// Wait for the harness exchange started by [`exchange_begin`]. Returns `OK:…` / `ERR:…`.
+    pub fn exchange_wait(path: &str, timeout_ms: u64) -> String {
+        use crate::at::parse::ExchangeMatch;
+
+        let waiter = match exchange_waiters().lock() {
+            Ok(mut map) => map.remove(path),
+            Err(e) => return format!("ERR:{e}"),
+        };
+        let Some(waiter) = waiter else {
+            return format!("ERR:no exchange waiter for {path}");
+        };
+        match waiter.wait(timeout_ms) {
+            Ok((_, ExchangeMatch::Ok)) => "OK:ok".to_string(),
+            Ok((_, m)) => format!("OK:{m:?}"),
+            Err(e) => format!("ERR:{e}"),
+        }
     }
 
     #[cfg(feature = "android-test-harness")]

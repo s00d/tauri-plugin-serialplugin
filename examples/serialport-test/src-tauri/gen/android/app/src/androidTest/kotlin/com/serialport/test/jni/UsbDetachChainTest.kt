@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 import androidx.test.ext.junit.runners.AndroidJUnit4
 
 @RunWith(AndroidJUnit4::class)
-class UsbErrorChainTest {
+class UsbDetachChainTest {
 
     @Before
     fun setUp() = JniChainFixture.setUp()
@@ -19,18 +19,11 @@ class UsbErrorChainTest {
     fun tearDown() = JniChainFixture.tearDown()
 
     @Test
-    fun fake_read_error_clears_registry() {
+    fun detach_clears_registry() {
         assertTrue(MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath))
-        MobileBridge.testFakeInjectError(JniChainFixture.DEVICE_NAME, "device exploded")
-        val deadline = System.nanoTime() + 5_000_000_000L
-        while (System.nanoTime() < deadline) {
-            if (!MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath)) {
-                return
-            }
-            Thread.sleep(20)
-        }
+        MobileBridge.onDeviceDetached(JniChainFixture.DEVICE_NAME)
         assertFalse(
-            "registry should drop port after reader error → onUsbError",
+            "registry should drop port after USB detach",
             MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath),
         )
     }

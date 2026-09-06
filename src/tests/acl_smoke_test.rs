@@ -59,4 +59,46 @@ mod tests {
             .iter()
             .any(|p| *p == "serialplugin:allow-open" || *p == "serialplugin:default"));
     }
+
+    #[test]
+    fn example_app_capability_grants_serialplugin_default_or_allow_open() {
+        let json = fs::read_to_string(
+            repo_root().join("examples/serialport-test/src-tauri/capabilities/default.json"),
+        )
+        .expect("example capability");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("parse capability");
+        let perms = value["permissions"]
+            .as_array()
+            .expect("permissions array")
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            perms
+                .iter()
+                .any(|p| *p == "serialplugin:default" || *p == "serialplugin:allow-open"),
+            "example capability must include serialplugin:default or allow-open, got {perms:?}"
+        );
+    }
+
+    #[test]
+    fn synthetic_available_ports_only_capability_does_not_grant_open() {
+        let json = serde_json::json!({
+            "identifier": "ports-only",
+            "permissions": ["serialplugin:allow-available-ports"]
+        });
+        let perms = json["permissions"]
+            .as_array()
+            .expect("permissions array")
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect::<Vec<_>>();
+        assert!(
+            !perms
+                .iter()
+                .any(|p| *p == "serialplugin:allow-open" || *p == "serialplugin:default"),
+            "ports-only capability must not grant open"
+        );
+        assert!(!perms.iter().any(|p| p.contains("allow-open")));
+    }
 }
