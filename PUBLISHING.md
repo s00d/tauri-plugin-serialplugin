@@ -22,9 +22,19 @@ npm registry sessions expire often. Check and fix with pnpm only:
 pnpm whoami
 # if that fails:
 pnpm login
-
-cargo login   # once; writes ~/.cargo/credentials.toml
 ```
+
+crates.io — either interactive login **or** a token env var:
+
+```bash
+cargo login
+# writes ~/.cargo/credentials.toml
+
+# CI / non-interactive alternative:
+export CARGO_REGISTRY_TOKEN=...   # from https://crates.io/settings/tokens
+```
+
+`scripts/publish.sh` accepts either the credentials file or `CARGO_REGISTRY_TOKEN`.
 
 ## 3. Publish
 
@@ -35,7 +45,7 @@ pnpm release:publish
 What it does, in order:
 
 1. `pnpm whoami` — abort if logged out  
-2. cargo credentials file check  
+2. cargo auth (`CARGO_REGISTRY_TOKEN` or `~/.cargo/credentials.toml`)  
 3. `pnpm install --frozen-lockfile`  
 4. build + pack surface check  
 5. `pnpm publish` → `tauri-plugin-serialplugin-api`  
