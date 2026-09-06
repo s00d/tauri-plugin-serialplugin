@@ -46,8 +46,8 @@ need_npm=(
   package/README.md
   package/CONTRIBUTING.md
   package/SECURITY.md
-  package/LICENSE_MIT
-  package/LICENSE_APACHE-2.0
+  package/LICENSE-MIT
+  package/LICENSE-APACHE
 )
 for f in "${need_npm[@]}"; do
   if ! grep -qxF "$f" "$TMP/files.txt"; then

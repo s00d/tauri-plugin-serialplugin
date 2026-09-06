@@ -1772,4 +1772,4 @@ If you find this plugin valuable and would like to support further development, 
 
 ## License
 
-Dual-licensed under MIT or Apache-2.0. See [LICENSE_MIT](./LICENSE_MIT) and [LICENSE_APACHE-2.0](./LICENSE_APACHE-2.0).
+Dual-licensed under MIT or Apache-2.0. See [LICENSE-MIT](./LICENSE-MIT) and [LICENSE-APACHE](./LICENSE-APACHE).

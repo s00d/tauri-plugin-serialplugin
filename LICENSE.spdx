@@ -10,7 +10,7 @@ PackageCopyrightText: 2017-Present Tauri Apps Contributors; 2024-2026 s00d and c
 PackageSummary: <text>Tauri plugin for serial port access on desktop and Android.
                 </text>
 PackageComment: <text>Dual-licensed Apache-2.0 OR MIT. Upstream Tauri notice retained
-for derivative code; see LICENSE_MIT and LICENSE_APACHE-2.0.
+for derivative code; see LICENSE-MIT and LICENSE-APACHE.
                 </text>
 Created: 2024-02-04T00:00:00Z
 PackageDownloadLocation: git+https://github.com/s00d/tauri-plugin-serialplugin.git

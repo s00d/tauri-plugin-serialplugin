@@ -55,8 +55,8 @@
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
-    "LICENSE_MIT",
-    "LICENSE_APACHE-2.0",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
     "LICENSE.spdx"
   ],
   "sideEffects": false,
