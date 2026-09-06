@@ -30,6 +30,21 @@ const modeLabels: Record<SendMode, string> = {
   hex: 'Hex',
 };
 
+/** One-click modem probes via `sendAt()` (no need to type). */
+const quickAtCommands = [
+  'AT',
+  'ATI',
+  'AT+CGMI',
+  'AT+CGMM',
+  'AT+CGMR',
+  'AT+CGSN',
+  'AT+CSQ',
+  'AT+CPIN?',
+  'AT+CREG?',
+  'ATE0',
+  'ATE1',
+] as const;
+
 function send() {
   const text = input.value;
   if (!text.trim() || !props.connected) return;
@@ -40,6 +55,16 @@ function send() {
     localEcho: localEcho.value,
   });
   input.value = '';
+}
+
+function sendQuickAt(cmd: string) {
+  if (!props.connected || props.atBusy) return;
+  emit('send', {
+    text: cmd,
+    mode: 'at',
+    lineEnding: lineEnding.value,
+    localEcho: localEcho.value,
+  });
 }
 
 function scrollToBottom() {
@@ -116,6 +141,21 @@ onMounted(scrollToBottom);
           <option value="crlf">CRLF</option>
           <option value="none">none</option>
         </select>
+      </div>
+
+      <div class="quick-at" aria-label="Quick AT commands">
+        <span class="quick-label">AT</span>
+        <button
+          v-for="cmd in quickAtCommands"
+          :key="cmd"
+          type="button"
+          class="ghost quick-btn"
+          :disabled="!connected || !!atBusy"
+          :title="`sendAt(${cmd})`"
+          @click="sendQuickAt(cmd)"
+        >
+          {{ cmd }}
+        </button>
       </div>
 
       <div class="input-row">
@@ -333,6 +373,28 @@ onMounted(scrollToBottom);
   width: auto;
   min-width: 4.5rem;
   font-size: 0.6875rem;
+}
+
+.quick-at {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.quick-label {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.quick-btn {
+  padding: 3px 8px;
+  font-size: 0.625rem;
+  font-family: var(--font-mono);
+  line-height: 1.3;
 }
 
 .input-row {

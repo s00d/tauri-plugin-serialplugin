@@ -140,4 +140,91 @@ mod tests {
         let back: ExchangeMatch = serde_json::from_value(json).unwrap();
         assert!(matches!(back, ExchangeMatch::Ok));
     }
+
+    #[test]
+    fn enable_mux_options_deserialize_camel_case() {
+        use crate::commands::EnableMuxOptions;
+
+        let json = serde_json::json!({
+            "command": "AT+CMUX=0,0,5,31",
+            "timeoutMs": 3000
+        });
+        let opts: EnableMuxOptions = serde_json::from_value(json).unwrap();
+        assert_eq!(opts.command.as_deref(), Some("AT+CMUX=0,0,5,31"));
+        assert_eq!(opts.timeout_ms, Some(3000));
+    }
+
+    #[test]
+    fn at_session_config_deserialize_camel_case() {
+        use crate::at::session::AtSessionConfig;
+        use crate::events::{AtResultFormat, RxPrepareMode};
+
+        let json = serde_json::json!({
+            "defaultTimeoutMs": 4000,
+            "defaultIdleMs": 50,
+            "defaultRxPrepare": "drain",
+            "stopOnError": false,
+            "appendCr": true,
+            "resultFormat": "verbose"
+        });
+        let cfg: AtSessionConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(cfg.default_timeout_ms, Some(4000));
+        assert_eq!(cfg.default_idle_ms, Some(50));
+        assert_eq!(cfg.default_rx_prepare, Some(RxPrepareMode::Drain));
+        assert_eq!(cfg.stop_on_error, Some(false));
+        assert_eq!(cfg.append_cr, Some(true));
+        assert_eq!(cfg.result_format, Some(AtResultFormat::Verbose));
+    }
+
+    #[test]
+    fn at_command_options_deserialize_camel_case() {
+        use crate::at::session::AtCommandOptions;
+        use crate::events::ExchangeCompletionMode;
+
+        let json = serde_json::json!({
+            "timeoutMs": 1500,
+            "completionMode": "atIntermediate",
+            "solicitedPrefixes": ["+CMGS:"],
+            "appendCr": false
+        });
+        let opts: AtCommandOptions = serde_json::from_value(json).unwrap();
+        assert_eq!(opts.timeout_ms, Some(1500));
+        assert_eq!(
+            opts.completion_mode,
+            Some(ExchangeCompletionMode::AtIntermediate)
+        );
+        assert_eq!(
+            opts.solicited_prefixes.as_deref(),
+            Some(&["+CMGS:".to_string()][..])
+        );
+        assert_eq!(opts.append_cr, Some(false));
+    }
+
+    #[test]
+    fn at_phase_and_sms_pdu_options_deserialize_camel_case() {
+        use crate::at::session::{AtPhase, AtPhaseWrite, SendSmsPduOptions};
+        use crate::events::{AtResultFormat, ExchangeCompletionMode};
+
+        let phase_json = serde_json::json!({
+            "write": "AT+CMGS=12",
+            "completionMode": "atIntermediate",
+            "timeoutMs": 2000,
+            "command": "AT+CMGS"
+        });
+        let phase: AtPhase = serde_json::from_value(phase_json).unwrap();
+        assert!(matches!(phase.write, AtPhaseWrite::Text(ref s) if s == "AT+CMGS=12"));
+        assert_eq!(
+            phase.completion_mode,
+            Some(ExchangeCompletionMode::AtIntermediate)
+        );
+        assert_eq!(phase.timeout_ms, Some(2000));
+
+        let sms_json = serde_json::json!({
+            "timeoutMs": 9000,
+            "resultFormat": "numeric"
+        });
+        let sms: SendSmsPduOptions = serde_json::from_value(sms_json).unwrap();
+        assert_eq!(sms.timeout_ms, Some(9000));
+        assert_eq!(sms.result_format, Some(AtResultFormat::Numeric));
+    }
 }

@@ -167,7 +167,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 #[cfg(test)]
 mod tests {
     #[cfg(desktop)]
+    mod acl_smoke_test;
+    #[cfg(desktop)]
     mod available_ports_options_test;
+    #[cfg(desktop)]
+    mod command_inventory_test;
     #[cfg(desktop)]
     mod commands_test;
     #[cfg(desktop)]

@@ -30,7 +30,8 @@ export interface WatchOptions {
   size?: number;
   /**
    * Desktop: preferred batch flush interval (falls back to `timeout`).
-   * Android: `BufferedEmitter` flush interval (10–2000 ms).
+   * Android: watch batch flush interval (hub `batch_timeout_ms`, typically 10–2000 ms).
+   * Prefer this over relying on `timeout` alone when you need a specific coalesce window.
    */
   serialDataFlushIntervalMs?: number;
   /** Default `true` — stream-decode with TextDecoder. */
@@ -133,8 +134,6 @@ export enum ClearBuffer {
   Output = 'Output',
   All = 'All',
 }
-
-export type SerialPortConfig = SerialportOptions;
 
 export interface AutoReconnectOptions {
   interval?: number;

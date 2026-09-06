@@ -22,7 +22,13 @@ class UsbErrorChainTest {
     fun fake_read_error_clears_registry() {
         assertTrue(MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath))
         MobileBridge.testFakeInjectError(JniChainFixture.DEVICE_NAME, "device exploded")
-        Thread.sleep(1500)
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (System.nanoTime() < deadline) {
+            if (!MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath)) {
+                return
+            }
+            Thread.sleep(20)
+        }
         assertFalse(
             "registry should drop port after reader error → onUsbError",
             MobileBridge.testRegistryHasPort(JniChainFixture.sessionPath),

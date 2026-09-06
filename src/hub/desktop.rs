@@ -52,7 +52,9 @@ use io_errors::{is_benign_read_error, is_disconnect_read_error};
 
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
-use crate::hub::shared::{finish_drain, wake_done, ExchangeWaiter, HubRoutingState, RxHubShared};
+use crate::hub::shared::{
+    finish_drain, tick_read_slot, try_complete_drain, ExchangeWaiter, HubRoutingState, RxHubShared,
+};
 use serialport::SerialPort;
 use std::io::Read;
 use std::sync::atomic::AtomicBool;
@@ -234,35 +236,7 @@ fn hub_loop(
         }
 
         if crate::sync_util::lock_or_recover(&shared.drain).is_some() {
-            let early_finish = {
-                let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                #[derive(Clone, Copy)]
-                enum Kind {
-                    Cancel,
-                    Buffer,
-                }
-                let kind = match guard.as_ref() {
-                    None => None,
-                    Some(d) if d.cancel.load(std::sync::atomic::Ordering::SeqCst) => {
-                        Some(Kind::Cancel)
-                    }
-                    Some(d) if Instant::now() >= d.deadline => Some(Kind::Buffer),
-                    _ => None,
-                };
-                kind.map(|k| {
-                    let d = guard.take().unwrap();
-                    match k {
-                        Kind::Cancel => (d.done, Err("exchange cancelled".into())),
-                        Kind::Buffer => (d.done, Ok(d.buffer)),
-                    }
-                })
-            };
-            if let Some((done, result)) = early_finish {
-                wake_done(&done, result);
-                continue;
-            }
-            // Slot may have been reclaimed/finished between the outer is_some()
-            // check and early_finish — don't stay in the drain branch and eat RX.
+            try_complete_drain(&shared);
             if crate::sync_util::lock_or_recover(&shared.drain).is_none() {
                 continue;
             }
@@ -284,35 +258,8 @@ fn hub_loop(
                 shared.feed_bytes(&buf[..n], &mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
             }
-            let finish = {
-                let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-                #[derive(Clone, Copy)]
-                enum Kind {
-                    Empty,
-                    Buffer,
-                }
-                let kind = match guard.as_ref() {
-                    None => None,
-                    Some(d) if d.last_byte_at.is_none() => Some(Kind::Empty),
-                    Some(d)
-                        if d.last_byte_at
-                            .is_some_and(|t| t.elapsed() >= Duration::from_millis(d.idle_ms)) =>
-                    {
-                        Some(Kind::Buffer)
-                    }
-                    _ => None,
-                };
-                kind.map(|k| {
-                    let d = guard.take().unwrap();
-                    match k {
-                        Kind::Empty => (d.done, Ok(Vec::new())),
-                        Kind::Buffer => (d.done, Ok(d.buffer)),
-                    }
-                })
-            };
-            if let Some((done, result)) = finish {
-                wake_done(&done, result);
-            }
+            try_complete_drain(&shared);
+            tick_read_slot(&shared);
             continue;
         }
 

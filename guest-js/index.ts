@@ -8,7 +8,6 @@ export {
   ClearBuffer,
 } from './types';
 export { LogLevel } from './logger';
-export type { LogLevel as LogLevelType } from './logger';
 export type {
   PortInfo,
   Capabilities,

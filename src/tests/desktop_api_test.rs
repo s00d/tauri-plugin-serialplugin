@@ -444,6 +444,7 @@ mod tests {
         use crate::events::ExchangeOptions;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
+        use std::io::Read;
         use std::sync::{Arc, Mutex};
         use std::thread;
         use std::time::{Duration, Instant};
@@ -464,12 +465,33 @@ mod tests {
             },
         );
 
+        let (cmd_seen_tx, cmd_seen_rx) = std::sync::mpsc::sync_channel::<()>(1);
+        let (hold_tx, hold_rx) = std::sync::mpsc::channel::<()>();
+        let drain = thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < deadline {
+                match master.read(&mut buf) {
+                    Ok(n) if n > 0 => {
+                        let _ = cmd_seen_tx.send(());
+                        break;
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+                    _ => continue,
+                }
+            }
+            let _ = hold_rx.recv_timeout(Duration::from_secs(5));
+            let _ = master;
+        });
+
         let sp_cancel = sp.clone();
         let path_cancel = path.clone();
         let cancel_elapsed = Arc::new(Mutex::new(None::<Duration>));
         let cancel_elapsed_bg = cancel_elapsed.clone();
         let cancel_thread = thread::spawn(move || {
-            thread::sleep(Duration::from_millis(100));
+            cmd_seen_rx
+                .recv_timeout(Duration::from_secs(3))
+                .expect("exchange should write AT before cancel");
             let start = Instant::now();
             sp_cancel
                 .cancel_exchange(path_cancel)
@@ -488,6 +510,8 @@ mod tests {
         );
 
         cancel_thread.join().expect("cancel thread join");
+        let _ = hold_tx.send(());
+        drain.join().expect("drain join");
         let elapsed = cancel_elapsed
             .lock()
             .unwrap()
@@ -522,9 +546,6 @@ mod tests {
         use std::sync::{Arc, Mutex};
         use std::thread;
         use std::time::{Duration, Instant};
-
-        // Let prior PTY / hub threads from parallel tests settle (macOS).
-        thread::sleep(Duration::from_millis(150));
 
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
@@ -1517,6 +1538,8 @@ mod tests {
     fn exchange_fails_fast_on_disconnect() {
         use crate::events::ExchangeOptions;
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use serialport::SerialPort as SerialPortTrait;
+        use std::io::Read;
         use std::thread;
         use std::time::{Duration, Instant};
 
@@ -1524,13 +1547,34 @@ mod tests {
         let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
         let path = "pty-exchange-disconnect".to_string();
 
-        let (_pty, master, slave) = pty_pair_locked();
+        let (_pty, mut master, slave) = pty_pair_locked();
+        master
+            .set_timeout(Duration::from_millis(50))
+            .expect("master timeout");
         serial_port.serialports.lock().unwrap().insert(
             path.clone(),
             SerialportInfo {
                 state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
             },
         );
+
+        let (cmd_seen_tx, cmd_seen_rx) = std::sync::mpsc::sync_channel::<()>(1);
+        let master_holder = thread::spawn(move || {
+            let mut buf = [0u8; 256];
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < deadline {
+                match master.read(&mut buf) {
+                    Ok(n) if n > 0 => {
+                        let _ = cmd_seen_tx.send(());
+                        break;
+                    }
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+                    _ => continue,
+                }
+            }
+            // Drop master after AT is seen → disconnect the slave/hub.
+            drop(master);
+        });
 
         let sp = serial_port.clone();
         let path_bg = path.clone();
@@ -1546,8 +1590,10 @@ mod tests {
             )
         });
 
-        thread::sleep(Duration::from_millis(80));
-        drop(master);
+        cmd_seen_rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("exchange should write AT before disconnect");
+        master_holder.join().expect("master holder");
 
         let start = Instant::now();
         let exchange_result = exchange_thread.join().expect("join");
