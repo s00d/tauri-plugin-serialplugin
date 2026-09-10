@@ -1,6 +1,16 @@
 # Changelog
 
 
+## [3.0.6](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.5...v3.0.6) (2026-09-10)
+
+### Bug Fixes
+
+* **ci:** align playground Tauri 2.6; skip Win node_modules cache ([4b09e59](https://github.com/s00d/tauri-plugin-serialplugin/commit/4b09e591483c009bd9883813eab6b6fa3ac115a1))
+* **ci:** restore serialport-test Cargo.lock for Android ([2c4d1f9](https://github.com/s00d/tauri-plugin-serialplugin/commit/2c4d1f942ecc9dc0e87b2a6e09afa94535a2606f))
+* **release:** publish via publish-branch=main ([56d1c8e](https://github.com/s00d/tauri-plugin-serialplugin/commit/56d1c8ebabdcb73169d91bd56bc39b3ee8c04538))
+* **release:** stage Cargo.lock after version bump ([04e2362](https://github.com/s00d/tauri-plugin-serialplugin/commit/04e23621168af78ee0d9c4adc7d9e279ee6ec7f5))
+* **watch:** keep idle RX bytes raw by default ([e5df565](https://github.com/s00d/tauri-plugin-serialplugin/commit/e5df565b297ce587d5b8fc6319260d15546b6e48)), closes [#41](https://github.com/s00d/tauri-plugin-serialplugin/issues/41)
+
 ## [3.0.5](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.0...v3.0.5) (2026-09-06)
 
 ### Bug Fixes

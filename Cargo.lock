@@ -3297,7 +3297,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "3.0.5"
+version = "3.0.6"
 dependencies = [
  "android-usb-serial",
  "jni",
