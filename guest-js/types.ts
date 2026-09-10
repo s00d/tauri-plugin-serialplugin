@@ -36,6 +36,12 @@ export interface WatchOptions {
   serialDataFlushIntervalMs?: number;
   /** Default `true` — stream-decode with TextDecoder. */
   decode?: boolean;
+  /**
+   * When `true`, native hub line-routes idle RX so AT URC lines become `onUrc` events
+   * (and are removed from `onData`). Default: `true` if `onUrc` is provided, else `false`
+   * (raw byte stream — required for binary / NMEA).
+   */
+  routeUrc?: boolean;
 }
 
 export interface WatchHandlers {

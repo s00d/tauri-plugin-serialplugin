@@ -122,6 +122,13 @@ describe('SerialPort watch lifecycle', () => {
     const onUrc = jest.fn();
     await port.watch({ onData: jest.fn(), onUrc });
 
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'plugin:serialplugin|watch',
+      expect.objectContaining({
+        options: expect.objectContaining({ routeUrc: true }),
+      }),
+    );
+
     MockChannel.lastInstance!.onmessage?.({
       kind: 'urc',
       path: '/dev/tty.usbserial',
@@ -129,6 +136,46 @@ describe('SerialPort watch lifecycle', () => {
     });
 
     expect(onUrc).toHaveBeenCalledWith('+CREG: 1,1');
+  });
+
+  it('sends routeUrc false by default for binary-safe watch', async () => {
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
+      if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    await port.watch({ onData: jest.fn() }, { decode: false });
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'plugin:serialplugin|watch',
+      expect.objectContaining({
+        options: expect.objectContaining({ routeUrc: false }),
+      }),
+    );
+  });
+
+  it('allows explicit routeUrc override without onUrc', async () => {
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve('/dev/tty.usbserial');
+      if (cmd === 'plugin:serialplugin|watch') return Promise.resolve(1);
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    await port.watch({ onData: jest.fn() }, { routeUrc: true });
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'plugin:serialplugin|watch',
+      expect.objectContaining({
+        options: expect.objectContaining({ routeUrc: true }),
+      }),
+    );
   });
 
   it('exposes activeWatch while subscribed', async () => {

@@ -98,6 +98,13 @@ pub struct WatchOptions {
     pub size: Option<usize>,
     #[serde(default)]
     pub serial_data_flush_interval_ms: Option<u64>,
+    /// When `true`, idle watch RX is line-routed so AT URC lines become
+    /// [`SerialEvent::Urc`] instead of raw `data`. Default `false`: bytes are
+    /// forwarded unchanged (binary / NMEA / non-AT streams).
+    ///
+    /// The JS guest sets this automatically when `onUrc` is provided.
+    #[serde(default)]
+    pub route_urc: bool,
 }
 
 /// How RX is prepared before sending an exchange payload.

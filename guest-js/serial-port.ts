@@ -120,6 +120,8 @@ async function invokeWatch(
   if (options?.serialDataFlushIntervalMs != null) {
     watchOptions.serialDataFlushIntervalMs = options.serialDataFlushIntervalMs;
   }
+  // Always send: default false preserves binary; true when onUrc is registered.
+  watchOptions.routeUrc = options?.routeUrc ?? (handlers.onUrc != null);
 
   const channelId = await invoke<number>('plugin:serialplugin|watch', {
     path,
@@ -290,6 +292,7 @@ export class SerialPort {
       serialDataFlushIntervalMs:
         options?.serialDataFlushIntervalMs ?? this.options.serialDataFlushIntervalMs,
       decode: options?.decode,
+      routeUrc: options?.routeUrc ?? (handlers.onUrc != null),
     };
 
     this.lastWatchHandlers = {

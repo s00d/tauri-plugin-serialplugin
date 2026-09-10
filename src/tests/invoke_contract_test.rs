@@ -35,7 +35,8 @@ mod tests {
             "options": {
                 "timeout": 500,
                 "size": 2048,
-                "serialDataFlushIntervalMs": 250
+                "serialDataFlushIntervalMs": 250,
+                "routeUrc": true
             }
         });
         let args: WatchArgs = serde_json::from_value(json).unwrap();
@@ -43,6 +44,17 @@ mod tests {
         assert_eq!(args.options.timeout, Some(500));
         assert_eq!(args.options.size, Some(2048));
         assert_eq!(args.options.serial_data_flush_interval_ms, Some(250));
+        assert!(args.options.route_urc);
+    }
+
+    #[test]
+    fn watch_options_route_urc_defaults_false_when_omitted() {
+        let json = serde_json::json!({
+            "path": "/dev/ttyUSB0",
+            "options": { "timeout": 100 }
+        });
+        let args: WatchArgs = serde_json::from_value(json).unwrap();
+        assert!(!args.options.route_urc);
     }
 
     #[test]

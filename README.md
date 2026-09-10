@@ -70,6 +70,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 | `serialDataFlushIntervalMs` | Preferred batch interval for hub `batch_timeout_ms` (falls back to `timeout`) | Same; clamped typically 10–2000 ms |
 | `size` | Read chunk size per syscall | Reserved |
 | `decode` | JS-only: `TextDecoder` on `onData` | JS-only |
+| `routeUrc` | Split AT URC lines into `onUrc` (strips them from `onData`). Default: off; JS sets on when `onUrc` is passed. Keep off for binary/NMEA. | Same |
 
 ---
 

@@ -174,6 +174,8 @@ pub(crate) struct WatchSlot {
     pub(crate) batch_timeout_ms: u64,
     /// Poll read chunk size for the hub thread.
     pub(crate) read_size: usize,
+    /// When true, idle watch RX goes through [`LineRouter`] (AT URC split).
+    pub(crate) route_urc: bool,
 }
 
 pub(crate) struct DrainSlot {
@@ -229,12 +231,14 @@ impl RxHubShared {
         channel: Channel<SerialEvent>,
         batch_timeout_ms: u64,
         read_size: usize,
+        route_urc: bool,
     ) {
         crate::sync_util::lock_or_recover(&self.idle).clear();
         *crate::sync_util::lock_or_recover(&self.watch) = Some(WatchSlot {
             channel,
             batch_timeout_ms,
             read_size,
+            route_urc,
         });
     }
 
@@ -286,7 +290,7 @@ impl RxHubShared {
             return;
         }
         if self.has_watch() {
-            route_watch_chunk(&path, chunk, state);
+            route_watch_chunk(self, &path, chunk, state);
             return;
         }
         push_idle(self, chunk);
@@ -545,8 +549,23 @@ pub(crate) fn route_exchange_chunk(
     waiter.push_bytes(chunk);
 }
 
-pub(crate) fn route_watch_chunk(path: &str, chunk: &[u8], state: &mut HubRoutingState) {
+pub(crate) fn route_watch_chunk(
+    shared: &RxHubShared,
+    path: &str,
+    chunk: &[u8],
+    state: &mut HubRoutingState,
+) {
     state.exchange_demux = None;
+    let route_urc = crate::sync_util::lock_or_recover(&shared.watch)
+        .as_ref()
+        .map(|w| w.route_urc)
+        .unwrap_or(false);
+    if !route_urc {
+        // Raw stream: do not UTF-8-lossify, split on 0x0A, or steal URC-looking lines.
+        state.line_router = LineRouter::default();
+        state.combined_buffer.extend_from_slice(chunk);
+        return;
+    }
     for action in state.line_router.route_streaming(chunk, &[]) {
         match action {
             RxRouteAction::UrcLine(line) => {
@@ -762,10 +781,90 @@ mod tests {
     }
 
     #[test]
+    fn watch_without_route_urc_preserves_mavlink_bytes() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024, false);
+        // MAVLink v2 HEARTBEAT: start 0xFD, payload contains 0x0A, CRC contains 0xFD.
+        let frame: Vec<u8> = vec![
+            0xFD, 0x09, 0x00, 0x00, 0x2A, 0x01, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x2B, 0x00, 0x00,
+            0x01, 0x03, 0x51, 0x04, 0x03, 0xFD, 0x72,
+        ];
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(&frame, &mut routing);
+        assert_eq!(routing.combined_buffer, frame);
+        assert!(
+            routing
+                .pending_events
+                .iter()
+                .all(|e| !matches!(e, SerialEvent::Urc { .. })),
+            "binary stream must not emit URC events"
+        );
+    }
+
+    #[test]
+    fn watch_without_route_urc_keeps_nmea_in_data_stream() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024, false);
+        let nmea = b"$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A\r\n";
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(nmea, &mut routing);
+        assert_eq!(routing.combined_buffer.as_slice(), nmea.as_slice());
+        assert!(
+            routing
+                .pending_events
+                .iter()
+                .all(|e| !matches!(e, SerialEvent::Urc { .. })),
+            "NMEA `$` lines must stay in onData when route_urc is off"
+        );
+    }
+
+    #[test]
+    fn watch_with_route_urc_classifies_idle_urc_lines() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 100, 1024, true);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"^CARDLOCK: 1\r\nOK\r\n", &mut routing);
+        assert!(
+            routing.pending_events.iter().any(
+                |e| matches!(e, SerialEvent::Urc { line, .. } if line.starts_with("^CARDLOCK"))
+            ),
+            "expected URC, got {:?}",
+            routing.pending_events
+        );
+        assert!(
+            routing.combined_buffer.windows(2).any(|w| w == b"OK"),
+            "non-URC line should remain in data stream, got {:?}",
+            routing.combined_buffer
+        );
+    }
+
+    #[test]
+    fn line_router_corrupts_binary_when_applied() {
+        // Documents why watch defaults to raw passthrough: LineRouter is text-oriented.
+        let mut router = LineRouter::default();
+        let frame: Vec<u8> = vec![
+            0xFD, 0x09, 0x00, 0x00, 0x2A, 0x01, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x2B, 0x00, 0x00,
+            0x01, 0x03, 0x51, 0x04, 0x03, 0xFD, 0x72,
+        ];
+        let mut out = Vec::new();
+        for action in router.route_streaming(&frame, &[]) {
+            if let RxRouteAction::StreamData(bytes) = action {
+                out.extend(bytes);
+            }
+        }
+        assert_ne!(out, frame);
+        assert!(out.windows(3).any(|w| w == [0xEF, 0xBF, 0xBD]));
+        assert!(!out.contains(&0x0A));
+    }
+
+    #[test]
     fn feed_bytes_exchange_with_watch_emits_live_urc_pending() {
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024);
+        shared.attach_watch(channel, 100, 1024, false);
 
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ResolvedExchangeOptions {
@@ -919,7 +1018,7 @@ mod tests {
     fn read_request_rejects_when_watch_active() {
         let shared = Arc::new(RxHubShared::new());
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024);
+        shared.attach_watch(channel, 100, 1024, false);
         let err = shared.read_request(64, 100, false).unwrap_err();
         assert!(err.contains("watch"));
     }
@@ -944,7 +1043,7 @@ mod tests {
         shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
         assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024);
+        shared.attach_watch(channel, 100, 1024, false);
         assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
     }
 
@@ -1205,7 +1304,7 @@ mod tests {
 
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024);
+        shared.attach_watch(channel, 100, 1024, false);
         let mut options = at_csq_options();
         options.command = Some(command.to_string());
         let waiter = ExchangeWaiter::new(options, Arc::new(AtomicBool::new(false)));

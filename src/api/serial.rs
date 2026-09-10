@@ -560,6 +560,7 @@ impl<R: Runtime> SerialPort<R> {
             .or(options.timeout)
             .unwrap_or(DEFAULT_PORT_TIMEOUT_MS);
         let read_size = options.size.unwrap_or(1024);
+        let route_urc = options.route_urc;
 
         if let Ok(virtuals) = self.virtual_ports.lock() {
             if let Some(vp) = virtuals.get(&path).cloned() {
@@ -605,7 +606,7 @@ impl<R: Runtime> SerialPort<R> {
             let hub = guard
                 .as_ref()
                 .ok_or_else(|| Error::String("RX hub missing after start".into()))?;
-            hub.attach_watch(channel, batch_timeout, read_size);
+            hub.attach_watch(channel, batch_timeout, read_size, route_urc);
             Ok(())
         }) {
             crate::port::watch_registry::unregister(channel_id);

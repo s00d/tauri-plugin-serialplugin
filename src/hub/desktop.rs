@@ -133,9 +133,10 @@ impl PortRxHub {
         channel: Channel<SerialEvent>,
         batch_timeout_ms: u64,
         read_size: usize,
+        route_urc: bool,
     ) {
         self.shared
-            .attach_watch(channel, batch_timeout_ms, read_size);
+            .attach_watch(channel, batch_timeout_ms, read_size, route_urc);
     }
 
     pub fn detach_watch(&self) {
@@ -199,8 +200,14 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
     fn cancel_active_exchange(&self) {
         self.cancel_active_exchange();
     }
-    fn attach_watch(&self, channel: Channel<SerialEvent>, batch_timeout_ms: u64, read_size: usize) {
-        self.attach_watch(channel, batch_timeout_ms, read_size);
+    fn attach_watch(
+        &self,
+        channel: Channel<SerialEvent>,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+    ) {
+        self.attach_watch(channel, batch_timeout_ms, read_size, route_urc);
     }
     fn detach_watch(&self) {
         self.detach_watch();
