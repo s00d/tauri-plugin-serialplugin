@@ -8,7 +8,7 @@ resolver = "2"
 
 [package]
 name = "tauri-plugin-serialplugin"
-version = "3.0.6"
+version = "3.0.7"
 description = "Tauri plugin for serial port access (desktop and Android)."
 edition = "2021"
 authors = ["s00d"]

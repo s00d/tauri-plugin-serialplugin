@@ -1,6 +1,6 @@
 {
   "name": "tauri-plugin-serialplugin-api",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "Tauri plugin API for serial ports (desktop and Android).",
   "license": "Apache-2.0 OR MIT",
   "author": "s00d",

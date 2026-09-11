@@ -1,6 +1,15 @@
 # Changelog
 
 
+## [3.0.7](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.6...v3.0.7) (2026-09-11)
+
+### Bug Fixes
+
+* **android:** cache UsbNative class in nativeInit ([#42](https://github.com/s00d/tauri-plugin-serialplugin/issues/42)) ([46797ec](https://github.com/s00d/tauri-plugin-serialplugin/commit/46797ec31b78535fbab5d510d52b90ac00d09b0b))
+* **android:** clear aarch64 --all-targets clippy/test noise ([532b334](https://github.com/s00d/tauri-plugin-serialplugin/commit/532b334df3cb6a202004a7550398fca3f3363587))
+* **android:** surface UsbNative class-cache init failures ([b331bc9](https://github.com/s00d/tauri-plugin-serialplugin/commit/b331bc9b7209b1b677884917d3027a605c3fc11d)), references [#42](https://github.com/s00d/tauri-plugin-serialplugin/issues/42)
+* **android:** wire FakeTransport RX hub and AT modem sim ([7f19bf8](https://github.com/s00d/tauri-plugin-serialplugin/commit/7f19bf8c6c6ce291180dd8014be72b5557fd5414))
+
 ## [3.0.6](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.5...v3.0.6) (2026-09-10)
 
 ### Bug Fixes
