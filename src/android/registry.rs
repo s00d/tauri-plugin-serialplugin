@@ -328,18 +328,19 @@ pub mod test_harness {
 #[cfg(all(test, target_os = "android"))]
 mod fail_port_tests {
     use super::*;
+    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
+    use crate::exchange::options::ResolvedExchangeOptions;
     use crate::hub::ExchangeWaiter;
     use crate::hub::PortRxHub;
     use crate::mock_serial::MockSerialPort;
     use crate::port::tx_queue::PortTxQueue;
-    use crate::state::{ConnectedPort, ConnectedPortHandle};
-    use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
+    use crate::state::ConnectedPortHandle;
     use serialport::SerialPort;
     use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    fn test_handle(path: &str, port: Arc<Mutex<Box<dyn SerialPort>>>) -> ConnectedPortHandle {
+    fn test_handle(_path: &str, port: Arc<Mutex<Box<dyn SerialPort>>>) -> ConnectedPortHandle {
         ConnectedPortHandle {
             port,
             rx_hub: Arc::new(Mutex::new(None)),
@@ -417,11 +418,11 @@ mod fail_port_tests {
 #[cfg(test)]
 #[cfg(mobile)]
 mod hub_cancel_tests {
-    use super::*;
+    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
+    use crate::exchange::options::ResolvedExchangeOptions;
     use crate::hub::ExchangeWaiter;
     use crate::hub::PortRxHub;
     use crate::mock_serial::MockSerialPort;
-    use crate::{AtResultFormat, ExchangeCompletionMode, ResolvedExchangeOptions, RxPrepareMode};
     use serialport::SerialPort;
     use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};

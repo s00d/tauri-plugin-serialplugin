@@ -69,7 +69,7 @@ impl SerialportInfo {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, desktop))]
     pub(crate) fn connected_port_mut(&mut self) -> Option<&mut ConnectedPort> {
         match &mut self.state {
             PortState::Connected(cp) => Some(cp),

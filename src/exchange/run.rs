@@ -159,7 +159,6 @@ mod parity_tests {
     #[cfg(mobile)]
     mod mobile_hub {
         use super::*;
-        use crate::hub::handle::RxHubHandle;
         use crate::hub::HubRoutingState;
         use crate::hub::PortRxHub;
         use crate::mock_serial::MockSerialPort;

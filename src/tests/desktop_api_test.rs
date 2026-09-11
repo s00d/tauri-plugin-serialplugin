@@ -1679,4 +1679,36 @@ mod tests {
         closer.join().expect("close join");
         assert!(done.load(Ordering::SeqCst));
     }
+
+    /// Hardware smoke: `SERIAL_SMOKE_PORT=/dev/cu.wchusbserial210 cargo test smoke_real_serial_at -- --ignored --nocapture`
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "requires SERIAL_SMOKE_PORT pointing at a live AT modem"]
+    fn smoke_real_serial_at() {
+        use crate::events::ExchangeOptions;
+        use std::env;
+
+        let path = env::var("SERIAL_SMOKE_PORT").expect("SERIAL_SMOKE_PORT");
+        let app = create_test_app();
+        let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        sp.open(path.clone(), 115200, None, None, None, None, Some(1000))
+            .expect("open real port");
+        let response = sp
+            .exchange(
+                path.clone(),
+                "AT\r".to_string(),
+                ExchangeOptions {
+                    timeout_ms: Some(2000),
+                    ..Default::default()
+                },
+            )
+            .expect("AT exchange");
+        let text = String::from_utf8_lossy(&response.raw);
+        eprintln!("smoke AT response: {text:?}");
+        assert!(
+            text.to_ascii_uppercase().contains("OK"),
+            "expected OK from modem, got {text:?}"
+        );
+        sp.close(path).expect("close");
+    }
 }
