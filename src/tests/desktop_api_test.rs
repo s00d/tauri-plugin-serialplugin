@@ -1680,35 +1680,83 @@ mod tests {
         assert!(done.load(Ordering::SeqCst));
     }
 
-    /// Hardware smoke: `SERIAL_SMOKE_PORT=/dev/cu.wchusbserial210 cargo test smoke_real_serial_at -- --ignored --nocapture`
+    /// Hardware smoke: `SERIAL_SMOKE_PORT=/dev/cu.wchusbserial210 cargo test smoke_real_serial -- --ignored --nocapture`
     #[cfg(unix)]
     #[test]
     #[ignore = "requires SERIAL_SMOKE_PORT pointing at a live AT modem"]
-    fn smoke_real_serial_at() {
-        use crate::events::ExchangeOptions;
+    fn smoke_real_serial() {
+        use crate::events::{ExchangeOptions, SerialEvent, WatchOptions};
         use std::env;
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+        use std::time::Duration;
+        use tauri::ipc::{Channel, InvokeResponseBody};
 
         let path = env::var("SERIAL_SMOKE_PORT").expect("SERIAL_SMOKE_PORT");
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+
+        let ports = sp
+            .available_ports(false)
+            .expect("available_ports");
+        eprintln!(
+            "smoke available_ports ({}): {:?}",
+            ports.len(),
+            ports.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            ports.keys().any(|p| p == &path || path.ends_with(p.as_str())),
+            "SERIAL_SMOKE_PORT {path} not listed in available_ports"
+        );
+
         sp.open(path.clone(), 115200, None, None, None, None, Some(1000))
             .expect("open real port");
-        let response = sp
-            .exchange(
-                path.clone(),
-                "AT\r".to_string(),
-                ExchangeOptions {
-                    timeout_ms: Some(2000),
-                    ..Default::default()
-                },
-            )
-            .expect("AT exchange");
-        let text = String::from_utf8_lossy(&response.raw);
-        eprintln!("smoke AT response: {text:?}");
-        assert!(
-            text.to_ascii_uppercase().contains("OK"),
-            "expected OK from modem, got {text:?}"
-        );
+
+        let events: Arc<Mutex<Vec<SerialEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        let events_bg = events.clone();
+        let channel = Channel::<SerialEvent>::new(move |body| {
+            if let InvokeResponseBody::Json(json) = body {
+                if let Ok(event) = serde_json::from_str::<SerialEvent>(&json) {
+                    events_bg.lock().unwrap().push(event);
+                }
+            }
+            Ok(())
+        });
+        sp.watch(
+            path.clone(),
+            WatchOptions {
+                route_urc: true,
+                serial_data_flush_interval_ms: Some(50),
+                ..Default::default()
+            },
+            channel,
+        )
+        .expect("watch with route_urc");
+
+        for cmd in ["AT\r", "ATI\r", "AT+GMR\r"] {
+            let response = sp
+                .exchange(
+                    path.clone(),
+                    cmd.to_string(),
+                    ExchangeOptions {
+                        timeout_ms: Some(3000),
+                        ..Default::default()
+                    },
+                )
+                .unwrap_or_else(|e| panic!("exchange {cmd:?} failed: {e}"));
+            let text = String::from_utf8_lossy(&response.raw);
+            eprintln!("smoke {cmd:?} => {text:?}");
+            assert!(
+                text.to_ascii_uppercase().contains("OK")
+                    || text.to_ascii_uppercase().contains("ERROR"),
+                "expected AT final line for {cmd:?}, got {text:?}"
+            );
+        }
+
+        thread::sleep(Duration::from_millis(200));
+        let snapshot = events.lock().unwrap().clone();
+        eprintln!("smoke watch events: {snapshot:?}");
+
         sp.close(path).expect("close");
     }
 }

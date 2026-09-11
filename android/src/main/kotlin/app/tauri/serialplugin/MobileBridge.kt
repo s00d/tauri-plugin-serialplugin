@@ -64,6 +64,10 @@ object MobileBridge {
     @JvmStatic
     external fun testFakeInjectError(deviceName: String, reason: String): Boolean
 
+    /** Debug-only: enable Quectel-like AT auto-responder on FakeTransport TX. */
+    @JvmStatic
+    external fun testFakeEnableAtModem(deviceName: String): Boolean
+
     /** Debug-only: install AT exchange waiter on the hub for [path]. */
     @JvmStatic
     external fun testExchangeBegin(path: String, command: String): Boolean

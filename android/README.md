@@ -29,14 +29,32 @@ cd android && ./gradlew test
 
 Stable sources: [`examples/serialport-test/android-integration/`](../examples/serialport-test/android-integration/).
 
-Uses `FakeTransport` via `android-test-harness` (no Kotlin USB fakes).
+Uses `FakeTransport` via `android-test-harness` (no Kotlin USB fakes). This is the supported way to exercise the JNI/fd path on an **emulator**: macOS cannot pass a host USB serial adapter into the AVD, so real Quectel/WCH sticks stay on desktop (`SERIAL_SMOKE_PORT`) or a physical phone with USB host.
 
 ```bash
-cd examples/serialport-test
-pnpm android:integration-test
+# Emulator (arm64 AVD) or device — FakeTransport, no real USB:
+ANDROID_INTEGRATION_NDK_ARCH=arm64-v8a ./scripts/android-integration-ci.sh all
+
+# Desktop Mac smoke against a real AT modem (e.g. Quectel on /dev/cu.wchusbserial*):
+SERIAL_SMOKE_PORT=/dev/cu.wchusbserial210 cargo test --lib smoke_real_serial -- --ignored --nocapture
 ```
 
-Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`, `testEnumerateJsonFromWorkerThread`.
+Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testFakeEnableAtModem`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`, `testEnumerateJsonFromWorkerThread`.
+
+Optional AT modem sim on FakeTransport (`enable_at_modem` / `testFakeEnableAtModem`): scripted Quectel-like replies (`AT`→`OK`, `AT+CSQ` with `+CREG` URC, unknown `AT*`→`ERROR`).
+
+### What we do **not** rely on
+
+| Approach | Why skip here |
+|----------|----------------|
+| AVD `-usb-passthrough` on macOS | Emulator accepts the flag but attaches nothing (`Command line USB devices: ()`); host keeps `/dev/cu.*` |
+| Robolectric `ShadowUsbManager` | Useful for Kotlin-only USB glue; drivers run in Rust via fd + FakeTransport already |
+| Genymotion USB | Not on Apple Silicon |
+
+### Heavier e2e options (not in default CI)
+
+- **Linux CI + Bliss OS / QEMU + USB:** when you need real `UsbManager` in automation — see [Depau’s GH Actions + KVM write-up](https://blog.depau.eu/2025/04/05/android-usb-testing-with-qemu-kvm/). QEMU `usb-serial` or `-device usb-host`.
+- **Mac → Linux USB/IP:** export WCH with [pyusbip](https://github.com/jenish-rudani/pyusbip) / [usbipd-mac](https://github.com/jenish-rudani/usbipd-mac), attach in Waydroid/Bliss on Linux. Heavy; phone OTG is usually simpler.
 
 ## Layout
 

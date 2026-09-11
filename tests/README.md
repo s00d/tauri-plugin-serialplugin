@@ -9,9 +9,12 @@
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
 | Robolectric | Android fd / permission glue | `android/` | `test` Ubuntu only — **requires JDK 17** (`JAVA_HOME`) |
 | JNI prebuild | NDK + sync androidTest sources | `android-integration-ci.sh prebuild` | `android-integration` |
-| JNI connected | FakeTransport Rx/Tx/Detach/Error (+ AT) | `android-integration-ci.sh test` | **local only** (device/emulator) |
+| JNI connected | FakeTransport Rx/Tx/Detach/Error + AT modem sim | `android-integration-ci.sh test` | **local only** (device/emulator) |
+| Desktop hardware smoke | Real AT modem via plugin API | `SERIAL_SMOKE_PORT=… cargo test smoke_real_serial -- --ignored` | local only |
 
 Connected JNI tests are **not** on every PR — run locally when touching Android I/O.
+
+**Not pursued for default Mac/AVD workflow:** USB passthrough into Google AVD, Robolectric `ShadowUsb*` for driver I/O, Genymotion on Apple Silicon. For Linux-only `UsbManager` e2e see `android/README.md` (Bliss/QEMU, USB/IP).
 
 Local fast gate: `./scripts/ci-fast.sh`  
 Full migration gate: `./scripts/verify-android-usb-migration.sh`

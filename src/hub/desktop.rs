@@ -294,15 +294,23 @@ fn hub_loop(
                 shared.flush_watch_now(&mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
                 if is_disconnect_read_error(&e) {
-                    shared.fail_all_waiters(&format!("Serial port disconnected: {}", e));
+                    let reason = format!("Serial port disconnected: {}", e);
+                    shared.fail_all_waiters(&reason);
                     let channel = crate::sync_util::lock_or_recover(&shared.watch)
                         .as_ref()
                         .map(|watch| watch.channel.clone());
                     if let Some(channel) = channel {
                         let _ = channel.send(SerialEvent::Disconnect {
                             path: path.clone(),
-                            reason: format!("Serial port disconnected: {}", e),
+                            reason: reason.clone(),
                         });
+                    }
+                    // Android: clear mobile registry + USB adapter (harness expects
+                    // inject_bulk_read_error → on_usb_error → registry drop).
+                    #[cfg(target_os = "android")]
+                    {
+                        crate::android::registry::on_usb_error(&path, &reason);
+                        let _ = crate::android::driver_host::global_host().close(Some(&path));
                     }
                     break;
                 }

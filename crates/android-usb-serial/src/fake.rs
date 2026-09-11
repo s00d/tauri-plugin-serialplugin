@@ -41,6 +41,9 @@ struct FakeState {
     claimed: Vec<u8>,
     /// Mimic nusb: endpoint address may only be opened once until dropped.
     open_endpoints: Vec<u8>,
+    /// When set, bulk OUT is parsed as AT lines (`…\r`) and auto-responses go to `rx_queue`.
+    at_modem: bool,
+    at_line_buf: Vec<u8>,
 }
 
 /// Thread-safe fake USB device for tests ([`crate::Transport`] implementor).
@@ -587,6 +590,19 @@ impl FakeTransport {
         self.inner.lock().unwrap().bulk_read_error = Some(msg.into());
     }
 
+    /// Enable a scripted Quectel-like AT responder on bulk OUT (`AT\r` → `OK`, etc.).
+    pub fn enable_at_modem(&self) {
+        let mut s = self.inner.lock().unwrap();
+        s.at_modem = true;
+        s.at_line_buf.clear();
+    }
+
+    pub fn disable_at_modem(&self) {
+        let mut s = self.inner.lock().unwrap();
+        s.at_modem = false;
+        s.at_line_buf.clear();
+    }
+
     pub fn set_interfaces(&self, interfaces: Vec<InterfaceInfo>) {
         self.inner.lock().unwrap().interfaces = interfaces;
     }
@@ -680,11 +696,46 @@ impl BulkOut for FakeBulkOut {
             endpoint: self.endpoint,
             data: data.to_vec(),
         });
+        if s.at_modem {
+            feed_at_modem(&mut s, data);
+        }
         Ok(data.len())
     }
 
     fn clear_halt(&mut self) -> Result<()> {
         Ok(())
+    }
+}
+
+/// Parse AT lines from host TX and enqueue modem-style replies (Quectel M26-ish).
+fn feed_at_modem(s: &mut FakeState, data: &[u8]) {
+    s.at_line_buf.extend_from_slice(data);
+    while let Some(idx) = s.at_line_buf.iter().position(|&b| b == b'\r') {
+        let raw: Vec<u8> = s.at_line_buf.drain(..=idx).collect();
+        let line = std::str::from_utf8(&raw[..raw.len().saturating_sub(1)])
+            .unwrap_or("")
+            .trim()
+            .to_ascii_uppercase();
+        let reply = at_modem_reply(&line);
+        s.rx_queue.extend(reply.as_bytes());
+    }
+}
+
+fn at_modem_reply(cmd: &str) -> String {
+    match cmd {
+        "" => "\r\nOK\r\n".to_string(),
+        "AT" => "\r\nOK\r\n".to_string(),
+        "ATI" => {
+            "\r\nQuectel_Ltd\r\nQuectel_M26\r\nRevision: M26FBR03A06-TTS\r\n\r\nOK\r\n".to_string()
+        }
+        "AT+GMR" => "\r\nRevision: M26FBR03A06-TTS\r\n\r\nOK\r\n".to_string(),
+        "AT+CSQ" => {
+            // Leading URC then solicited response (exchange tests).
+            "\r\n+CREG: 0,1\r\n\r\n+CSQ: 20,99\r\n\r\nOK\r\n".to_string()
+        }
+        c if c.starts_with("AT") => "\r\nERROR\r\n".to_string(),
+        // Non-AT / binary garbage — no auto reply (caller can still push_rx).
+        _ => String::new(),
     }
 }
 
@@ -789,5 +840,36 @@ impl FakeTransport {
         }
         s.open_endpoints.push(endpoint);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod at_modem_tests {
+    use super::*;
+
+    #[test]
+    fn at_modem_replies_ok_and_csq_with_urc() {
+        let fake = FakeTransport::cdc_single_iface();
+        fake.enable_at_modem();
+        let mut out = fake.open_bulk_out(0x02, 64).unwrap();
+        out.write(b"AT\r", 1000).unwrap();
+        out.write(b"AT+CSQ\r", 1000).unwrap();
+        let mut s = fake.inner.lock().unwrap();
+        let rx: Vec<u8> = s.rx_queue.drain(..).collect();
+        let text = String::from_utf8_lossy(&rx);
+        assert!(text.contains("OK"), "{text}");
+        assert!(text.contains("+CREG:"), "{text}");
+        assert!(text.contains("+CSQ: 20,99"), "{text}");
+    }
+
+    #[test]
+    fn at_modem_unknown_at_returns_error() {
+        let fake = FakeTransport::cdc_single_iface();
+        fake.enable_at_modem();
+        let mut out = fake.open_bulk_out(0x02, 64).unwrap();
+        out.write(b"AT+FOO\r", 1000).unwrap();
+        let mut s = fake.inner.lock().unwrap();
+        let rx: Vec<u8> = s.rx_queue.drain(..).collect();
+        assert_eq!(String::from_utf8_lossy(&rx), "\r\nERROR\r\n");
     }
 }

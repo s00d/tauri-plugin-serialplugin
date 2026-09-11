@@ -277,12 +277,15 @@ pub mod test_harness {
 
     #[cfg(feature = "android-test-harness")]
     pub fn open_fake_port(device_name: &str) -> Result<String, crate::error::Error> {
+        use crate::hub::RxHubHandle;
         use crate::state::{DataBits, FlowControl, Parity, StopBits};
         use std::sync::Arc;
 
         let fake = Arc::new(cdc_dual_iface_fake());
         crate::android::driver_host::global_host().inject_fake_device(device_name, fake);
-        let (session, _port) = crate::android::driver_host::global_host().open(
+        // Wire hub to the real SerialPortAdapter (FakeTransport reader), not MockSerialPort —
+        // otherwise testFakeInjectRx fills the USB ring while hub polls an empty mock.
+        let (session, port) = crate::android::driver_host::global_host().open(
             device_name,
             115_200,
             DataBits::Eight,
@@ -290,7 +293,11 @@ pub mod test_harness {
             Parity::None,
             StopBits::One,
         )?;
-        register_port(&session);
+        let cp = ConnectedPort::new(port);
+        let hub = Arc::new(PortRxHub::start(cp.port.clone(), session.clone()));
+        *cp.rx_hub.lock().unwrap() = Some(hub.clone());
+        let hub_handle: Arc<dyn RxHubHandle> = hub;
+        global_registry().register(&session, hub_handle, cp.handle());
         Ok(session)
     }
 
@@ -319,6 +326,17 @@ pub mod test_harness {
             .fake_transport(device_name)
             .map(|f| {
                 f.inject_bulk_read_error(reason);
+                true
+            })
+            .unwrap_or(false)
+    }
+
+    #[cfg(feature = "android-test-harness")]
+    pub fn fake_enable_at_modem(device_name: &str) -> bool {
+        crate::android::driver_host::global_host()
+            .fake_transport(device_name)
+            .map(|f| {
+                f.enable_at_modem();
                 true
             })
             .unwrap_or(false)

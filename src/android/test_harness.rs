@@ -203,6 +203,23 @@ pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testFakeInjectEr
     test_harness::fake_inject_error(&device_name, &reason) as jboolean
 }
 
+#[cfg(all(
+    debug_assertions,
+    target_os = "android",
+    feature = "android-test-harness"
+))]
+#[no_mangle]
+pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testFakeEnableAtModem(
+    mut env: JNIEnv,
+    _class: JClass,
+    device_name: JString,
+) -> jboolean {
+    let Some(device_name) = jstring_to_rust(&mut env, &device_name) else {
+        return 0;
+    };
+    test_harness::fake_enable_at_modem(&device_name) as jboolean
+}
+
 #[cfg(all(debug_assertions, target_os = "android"))]
 #[no_mangle]
 pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testExchangeBegin(
