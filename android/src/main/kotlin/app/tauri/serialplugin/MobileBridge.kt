@@ -45,6 +45,13 @@ object MobileBridge {
     @JvmStatic
     external fun testOpenFakePort(deviceName: String): String
 
+    /**
+     * Debug-only: call Rust `enumerateJson` from a freshly spawned Rust thread.
+     * Regression for off-main-thread class-loader crash (#42). Returns JSON or `ERR:…`.
+     */
+    @JvmStatic
+    external fun testEnumerateJsonFromWorkerThread(): String
+
     /** Debug-only: push scripted bulk-IN bytes into the fake transport. */
     @JvmStatic
     external fun testFakeInjectRx(deviceName: String, data: ByteArray): Boolean

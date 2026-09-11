@@ -3,6 +3,8 @@
 #[cfg(target_os = "android")]
 use crate::error::Error;
 #[cfg(target_os = "android")]
+use crate::jni_ready::jni_not_ready_message;
+#[cfg(target_os = "android")]
 use jni::errors::Error as JniError;
 #[cfg(target_os = "android")]
 use jni::objects::{GlobalRef, JObject, JString, JValue};
@@ -22,9 +24,17 @@ struct FdJniCache {
 #[cfg(target_os = "android")]
 static CACHE: OnceLock<FdJniCache> = OnceLock::new();
 
+/// Last `new_global_ref` failure from [`init_class`], if any.
 #[cfg(target_os = "android")]
-fn not_init() -> Error {
-    Error::new("JNI not initialized (UsbNative.bind not called)")
+static CLASS_INIT_ERROR: OnceLock<String> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn not_ready() -> Error {
+    Error::new(jni_not_ready_message(
+        JVM.get().is_some(),
+        CACHE.get().is_some(),
+        CLASS_INIT_ERROR.get().map(String::as_str),
+    ))
 }
 
 #[cfg(target_os = "android")]
@@ -39,7 +49,7 @@ fn with_env<T, F>(f: F) -> Result<T, Error>
 where
     F: FnOnce(&mut JNIEnv) -> Result<T, Error>,
 {
-    let vm = JVM.get().ok_or_else(not_init)?;
+    let vm = JVM.get().ok_or_else(not_ready)?;
     let mut env = vm
         .attach_current_thread()
         .map_err(|e| Error::new(format!("JNI attach failed: {e}")))?;
@@ -78,7 +88,7 @@ fn map_exception(env: &mut JNIEnv, fallback: &str) -> Result<(), Error> {
 
 #[cfg(target_os = "android")]
 fn cache(_env: &mut JNIEnv) -> Result<&'static FdJniCache, Error> {
-    CACHE.get().ok_or_else(not_init)
+    CACHE.get().ok_or_else(not_ready)
 }
 
 /// Called from `UsbNative.nativeInit` on a Java thread, where the app class loader is in scope.
@@ -87,8 +97,15 @@ pub fn init_class(env: &mut JNIEnv, class: &JObject) {
     if CACHE.get().is_some() {
         return;
     }
-    if let Ok(global) = env.new_global_ref(class) {
-        let _ = CACHE.set(FdJniCache { class: global });
+    match env.new_global_ref(class) {
+        Ok(global) => {
+            let _ = CACHE.set(FdJniCache { class: global });
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            crate::log_error!("UsbNative init_class new_global_ref failed: {msg}");
+            let _ = CLASS_INIT_ERROR.set(msg);
+        }
     }
 }
 

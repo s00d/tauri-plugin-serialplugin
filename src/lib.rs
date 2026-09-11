@@ -53,6 +53,9 @@ pub mod commands;
 /// instead of direct println!/eprintln! calls.
 pub mod logger;
 
+#[cfg(any(test, target_os = "android"))]
+mod jni_ready;
+
 #[cfg(mobile)]
 pub mod android;
 pub mod api;

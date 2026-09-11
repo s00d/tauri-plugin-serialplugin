@@ -36,7 +36,7 @@ cd examples/serialport-test
 pnpm android:integration-test
 ```
 
-Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`.
+Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`, `testEnumerateJsonFromWorkerThread`.
 
 ## Layout
 

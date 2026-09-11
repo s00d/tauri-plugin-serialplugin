@@ -116,6 +116,33 @@ pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testOpenFakePort
     }
 }
 
+/// Regression for #42: `call_enumerate_json` from a Rust-spawned thread (system class loader).
+/// Must not crash with ClassNotFoundException after `UsbNative.bind` cached the class.
+#[cfg(all(debug_assertions, target_os = "android"))]
+#[no_mangle]
+pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_testEnumerateJsonFromWorkerThread<
+    'local,
+>(
+    env: JNIEnv<'local>,
+    _class: JClass<'local>,
+) -> JString<'local> {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let result = crate::android::fd_bridge::call_enumerate_json();
+        let _ = tx.send(result);
+    });
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(Ok(json)) => env.new_string(json).unwrap_or_default(),
+        Ok(Err(e)) => env.new_string(format!("ERR:{e}")).unwrap_or_default(),
+        Err(_) => env
+            .new_string("ERR:timeout waiting for worker enumerate")
+            .unwrap_or_default(),
+    }
+}
+
 #[cfg(all(
     debug_assertions,
     target_os = "android",

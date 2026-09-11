@@ -38,8 +38,11 @@ pub extern "system" fn Java_app_tauri_serialplugin_UsbNative_nativeInit(
     // `class` is UsbNative itself. Cache it here: FindClass on a Rust-attached
     // thread uses the system class loader and cannot see app classes.
     crate::android::fd_bridge::init_class(&mut env, &class);
-    if let Ok(vm) = env.get_java_vm() {
-        crate::android::fd_bridge::init_java_vm(vm);
+    match env.get_java_vm() {
+        Ok(vm) => crate::android::fd_bridge::init_java_vm(vm),
+        Err(e) => {
+            crate::log_error!("UsbNative nativeInit get_java_vm failed: {e}");
+        }
     }
 }
 
