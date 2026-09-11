@@ -77,18 +77,19 @@ fn map_exception(env: &mut JNIEnv, fallback: &str) -> Result<(), Error> {
 }
 
 #[cfg(target_os = "android")]
-fn cache(env: &mut JNIEnv) -> Result<&'static FdJniCache, Error> {
-    if let Some(c) = CACHE.get() {
-        return Ok(c);
-    }
-    let class = env
-        .find_class("app/tauri/serialplugin/UsbNative")
-        .map_err(|e| Error::new(e.to_string()))?;
-    let global = env
-        .new_global_ref(class)
-        .map_err(|e| Error::new(e.to_string()))?;
-    let _ = CACHE.set(FdJniCache { class: global });
+fn cache(_env: &mut JNIEnv) -> Result<&'static FdJniCache, Error> {
     CACHE.get().ok_or_else(not_init)
+}
+
+/// Called from `UsbNative.nativeInit` on a Java thread, where the app class loader is in scope.
+#[cfg(target_os = "android")]
+pub fn init_class(env: &mut JNIEnv, class: &JObject) {
+    if CACHE.get().is_some() {
+        return;
+    }
+    if let Ok(global) = env.new_global_ref(class) {
+        let _ = CACHE.set(FdJniCache { class: global });
+    }
 }
 
 #[cfg(target_os = "android")]

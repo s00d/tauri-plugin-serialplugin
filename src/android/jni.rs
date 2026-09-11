@@ -32,9 +32,12 @@ pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_onDeviceDetached
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub extern "system" fn Java_app_tauri_serialplugin_UsbNative_nativeInit(
-    env: JNIEnv,
-    _class: JClass,
+    mut env: JNIEnv,
+    class: JClass,
 ) {
+    // `class` is UsbNative itself. Cache it here: FindClass on a Rust-attached
+    // thread uses the system class loader and cannot see app classes.
+    crate::android::fd_bridge::init_class(&mut env, &class);
     if let Ok(vm) = env.get_java_vm() {
         crate::android::fd_bridge::init_java_vm(vm);
     }
