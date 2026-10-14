@@ -30,9 +30,7 @@ fn usb_err(e: UsbSerialError) -> io::Error {
     // Map fatal USB transport failures to disconnect-class kinds so PortRxHub tears down
     // (BrokenPipe / …) instead of treating them as soft `ErrorKind::Other` and looping forever.
     match &e {
-        UsbSerialError::Disconnected => {
-            io::Error::new(io::ErrorKind::BrokenPipe, e.to_string())
-        }
+        UsbSerialError::Disconnected => io::Error::new(io::ErrorKind::BrokenPipe, e.to_string()),
         UsbSerialError::Io(msg) => io::Error::new(io::ErrorKind::BrokenPipe, msg.clone()),
         other => io::Error::other(other.to_string()),
     }
