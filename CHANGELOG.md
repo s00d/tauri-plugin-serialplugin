@@ -1,5 +1,14 @@
 # Changelog
 
+
+## [3.0.8](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.7...v3.0.8) (2026-10-14)
+
+### Bug Fixes
+
+* **android:** lint at build time and pick a Gradle-compatible JDK ([0cae84a](https://github.com/s00d/tauri-plugin-serialplugin/commit/0cae84a55aba35d61b3f67858aaac20eb8f7b8a1))
+* **android:** prevent app crashes when USB devices disconnect ([#43](https://github.com/s00d/tauri-plugin-serialplugin/issues/43)) ([70371fc](https://github.com/s00d/tauri-plugin-serialplugin/commit/70371fc65b4a26a777e992d41dc67d925ed8fea2))
+* **ci:** stop android-integration from installing removed SDK tools ([e032bbf](https://github.com/s00d/tauri-plugin-serialplugin/commit/e032bbf8d5ecbd24c9099c47a150f96e70df8e5e))
+
 ## Unreleased
 
 - Clear pending Java exceptions on failed USB JNI operations before detaching
