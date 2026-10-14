@@ -42,15 +42,11 @@ else
 fi
 
 if [[ "$(uname -s)" == "Linux" ]] || [[ -d "/Applications/Android Studio.app" ]]; then
-  echo "==> Robolectric (android module)"
-  # Gradle 8.x rejects JDK 21+ classfiles; force 17 even if shell JAVA_HOME is newer.
-  if command -v /usr/libexec/java_home >/dev/null 2>&1; then
-    JAVA17="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
-    if [[ -n "$JAVA17" ]]; then
-      export JAVA_HOME="$JAVA17"
-    fi
-  fi
-  (cd android && ./gradlew test)
+  echo "==> Android lint + Robolectric"
+  # Gradle 8.9 rejects daemon JVMs newer than 21; pick 17/21/11 even if JAVA_HOME is 27.
+  export JAVA_HOME="$("$ROOT/scripts/java-home-for-gradle.sh")"
+  echo "    JAVA_HOME=$JAVA_HOME"
+  (cd android && ./gradlew lintDebug test)
 else
   echo "==> skip android gradle (no JDK/Android on this host)"
 fi

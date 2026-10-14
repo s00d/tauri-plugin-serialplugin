@@ -100,9 +100,12 @@ jobs:
     - name: Clippy android-usb-serial (Android target)
       run: cargo clippy -p android-usb-serial --target aarch64-linux-android -- -D warnings
 
-    - name: Robolectric (Android module)
+    - name: Android lint + Robolectric
       if: matrix.os == 'ubuntu-latest'
-      run: cd android && ./gradlew test
+      run: |
+        export JAVA_HOME="$(./scripts/java-home-for-gradle.sh)"
+        echo "JAVA_HOME=$JAVA_HOME"
+        cd android && ./gradlew lintDebug test
 
     - name: Install dependencies
       run: |
@@ -162,6 +165,12 @@ jobs:
       with:
         distribution: temurin
         java-version: 17
+
+    - name: Pin JAVA_HOME for Gradle
+      run: |
+        export JAVA_HOME="$(./scripts/java-home-for-gradle.sh)"
+        echo "JAVA_HOME=$JAVA_HOME"
+        echo "JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable

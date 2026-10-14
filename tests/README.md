@@ -13,7 +13,7 @@ checks that the USB bridge returns the error with no pending Java exception.
 | nextest desktop | PTY / hub / exchange / watch | `src/tests/*` | `test` (Ubuntu/macOS nextest); Windows: `cargo test --workspace --exclude tauri-plugin-serialplugin` (plugin lib exe hits `0xc0000139` on GHA; PTY is `cfg(unix)`) |
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
 | Desktop JNI bridge | Clears pending Java exceptions at the JNI boundary | `tests/jni-bridge` | `test` (Ubuntu only, requires JDK 17) |
-| Robolectric | Android fd / permission glue | `android/` | `test` Ubuntu only — **requires JDK 17** (`JAVA_HOME`) |
+| Android Lint + Robolectric | API/static checks + fd/permission unit tests | `android/` (`lintDebug test`) | `test` Ubuntu only — JDK 11–21 via `scripts/java-home-for-gradle.sh` |
 | JNI prebuild | NDK + sync androidTest sources | `android-integration-ci.sh prebuild` | `android-integration` |
 | JNI connected | FakeTransport Rx/Tx/Detach/Error + AT modem sim | `android-integration-ci.sh test` | **local only** (device/emulator) |
 | Desktop hardware smoke | Real AT modem via plugin API | `SERIAL_SMOKE_PORT=… cargo test smoke_real_serial -- --ignored` | local only |

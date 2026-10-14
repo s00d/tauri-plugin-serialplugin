@@ -30,6 +30,14 @@ android {
     kotlinOptions {
         jvmTarget = "11"
     }
+    // Static analysis at build time (Android's closest analogue to clippy).
+    lint {
+        abortOnError = true
+        warningsAsErrors = false
+        checkReleaseBuilds = true
+        // Library pins; churny "newer version available" noise is not a gate.
+        disable "GradleDependency", "AndroidGradlePluginVersion", "OldTargetApi"
+    }
     testOptions {
         unitTests {
             includeAndroidResources = true

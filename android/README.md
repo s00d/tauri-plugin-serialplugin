@@ -16,14 +16,19 @@ Kotlin keeps `UsbDeviceConnection` and the raw fd. Rust duplicates the fd (`dup`
 2. Ship a `device_filter.xml` aligned with [`device_filter.xml`](src/main/res/xml/device_filter.xml) / `ProbeTable::default_table()`.
 3. Request runtime USB permission before open (the plugin uses `PendingIntent.FLAG_MUTABLE` + `setPackage()`).
 
-## JVM unit tests (Robolectric)
+## JVM unit tests + Android Lint
 
-Requires **JDK 17**:
+Gradle 8.9 / AGP 8.5 only **run** on JDK 11–21 (JDK 22+ dies with
+`Unsupported class file major version`). Prefer 17. The helper picks a
+compatible install even if your shell `JAVA_HOME` is 27:
 
 ```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 17)  # macOS
-cd android && ./gradlew test
+export JAVA_HOME="$(./scripts/java-home-for-gradle.sh)"
+cd android && ./gradlew lintDebug test
 ```
+
+Lint is the Android-side analogue of clippy (API misuse, permissions, …) and
+runs in CI on Ubuntu together with Robolectric.
 
 ## Kotlin ↔ Rust JNI integration tests (instrumented)
 

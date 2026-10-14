@@ -52,11 +52,9 @@ prebuild() {
 
 run_tests() {
   cd "$EXAMPLE/src-tauri/gen/android"
-  if [[ -z "${JAVA_HOME:-}" ]]; then
-    if [[ "$(uname)" == "Darwin" ]]; then
-      export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
-    fi
-  fi
+  # Always re-resolve: a shell JAVA_HOME=27 breaks Gradle 8.9 before any test runs.
+  export JAVA_HOME="$("$ROOT/scripts/java-home-for-gradle.sh")"
+  echo "JAVA_HOME=$JAVA_HOME"
   chmod +x ./gradlew
   ./gradlew "$GRADLE_TASK" "${GRADLE_SKIP_RUST[@]}"
 }

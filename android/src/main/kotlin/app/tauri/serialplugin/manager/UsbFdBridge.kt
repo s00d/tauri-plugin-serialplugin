@@ -109,13 +109,12 @@ class UsbFdBridge private constructor(
                 addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
                 addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
             }
-            if (Build.VERSION.SDK_INT >= 33 || testMode) {
-                context.registerReceiver(usbReceiver, filter, Context.RECEIVER_EXPORTED)
-            } else {
-                ContextCompat.registerReceiver(
-                    context, usbReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED,
-                )
-            }
+            // USB attach/detach/permission broadcasts come from the system, so the
+            // receiver must be exported. ContextCompat keeps this lint-clean on minSdk 24
+            // (unlike Context.registerReceiver(..., RECEIVER_EXPORTED) which is API 33+).
+            ContextCompat.registerReceiver(
+                context, usbReceiver, filter, ContextCompat.RECEIVER_EXPORTED,
+            )
         }
     }
 
