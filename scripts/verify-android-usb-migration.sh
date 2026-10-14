@@ -7,9 +7,11 @@ cd "$ROOT"
 
 echo "==> cargo fmt"
 cargo fmt --all -- --check
+cargo fmt --manifest-path tests/jni-bridge/Cargo.toml -- --check
 
 echo "==> cargo clippy (host)"
 cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --manifest-path tests/jni-bridge/Cargo.toml --all-targets -- -D warnings
 
 echo "==> rustup android target"
 rustup target add aarch64-linux-android
@@ -23,8 +25,14 @@ cargo check -p tauri-plugin-serialplugin --target aarch64-linux-android
 echo "==> cargo clippy android-usb-serial (Android)"
 cargo clippy -p android-usb-serial --target aarch64-linux-android -- -D warnings
 
+echo "==> cargo clippy plugin (Android)"
+cargo clippy -p tauri-plugin-serialplugin --target aarch64-linux-android --all-targets -- -D warnings
+
 echo "==> android-usb-serial tests (fake-transport)"
 cargo test -p android-usb-serial --features fake-transport
+
+echo "==> JNI bridge regression (requires JDK)"
+cargo test --manifest-path tests/jni-bridge/Cargo.toml
 
 echo "==> workspace tests (nextest if available)"
 if command -v cargo-nextest >/dev/null 2>&1; then
@@ -35,8 +43,12 @@ fi
 
 if [[ "$(uname -s)" == "Linux" ]] || [[ -d "/Applications/Android Studio.app" ]]; then
   echo "==> Robolectric (android module)"
+  # Gradle 8.x rejects JDK 21+ classfiles; force 17 even if shell JAVA_HOME is newer.
   if command -v /usr/libexec/java_home >/dev/null 2>&1; then
-    export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17 2>/dev/null || true)}"
+    JAVA17="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
+    if [[ -n "$JAVA17" ]]; then
+      export JAVA_HOME="$JAVA17"
+    fi
   fi
   (cd android && ./gradlew test)
 else
