@@ -1,6 +1,8 @@
 # Changelog
 
 
+## [3.0.9](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.8...v3.0.9) (2026-10-14)
+
 ## [3.0.8](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.7...v3.0.8) (2026-10-14)
 
 ### Bug Fixes
