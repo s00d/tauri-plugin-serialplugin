@@ -170,6 +170,9 @@ jobs:
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
+      with:
+        # Default includes obsolete `tools` (removed from Google's repo → sdkmanager exit 1).
+        packages: platform-tools
 
     - name: Install Android SDK packages
       run: |
