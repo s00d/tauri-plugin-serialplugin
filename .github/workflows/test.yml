@@ -93,6 +93,10 @@ jobs:
     - name: Golden parity (host)
       run: cargo test -p android-usb-serial --features fake-transport
 
+    - name: JNI bridge regression (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: cargo test --manifest-path tests/jni-bridge/Cargo.toml
+
     - name: Clippy android-usb-serial (Android target)
       run: cargo clippy -p android-usb-serial --target aarch64-linux-android -- -D warnings
 

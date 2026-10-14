@@ -12,12 +12,14 @@ checks that the USB bridge returns the error with no pending Java exception.
 | Jest | JS wrapper → `invoke` payload/shape | `tests/*.test.ts` | `test` (Ubuntu/macOS), `windows` |
 | nextest desktop | PTY / hub / exchange / watch | `src/tests/*` | `test` (Ubuntu/macOS nextest); Windows: `cargo test --workspace --exclude tauri-plugin-serialplugin` (plugin lib exe hits `0xc0000139` on GHA; PTY is `cfg(unix)`) |
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
+| Desktop JNI bridge | Clears pending Java exceptions at the JNI boundary | `tests/jni-bridge` | `test` (Ubuntu only, requires JDK 17) |
 | Robolectric | Android fd / permission glue | `android/` | `test` Ubuntu only — **requires JDK 17** (`JAVA_HOME`) |
 | JNI prebuild | NDK + sync androidTest sources | `android-integration-ci.sh prebuild` | `android-integration` |
 | JNI connected | FakeTransport Rx/Tx/Detach/Error + AT modem sim | `android-integration-ci.sh test` | **local only** (device/emulator) |
 | Desktop hardware smoke | Real AT modem via plugin API | `SERIAL_SMOKE_PORT=… cargo test smoke_real_serial -- --ignored` | local only |
 
-Connected JNI tests are **not** on every PR — run locally when touching Android I/O.
+Connected/device JNI tests are **not** on every PR — run them locally when touching Android I/O.
+The host-side desktop JNI exception regression runs on Ubuntu in the `test` CI job.
 
 **Not pursued for default Mac/AVD workflow:** USB passthrough into Google AVD, Robolectric `ShadowUsb*` for driver I/O, Genymotion on Apple Silicon. For Linux-only `UsbManager` e2e see `android/README.md` (Bliss/QEMU, USB/IP).
 
