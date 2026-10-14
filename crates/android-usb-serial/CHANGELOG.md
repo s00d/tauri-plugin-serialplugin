@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Return `Disconnected` for I/O and control operations on closed serial handles,
+  preventing stale adapter clones from panicking after USB detach.
+- Add regression coverage for stale clones, closed-handle operations, and reopening.
+
 ## 0.1.1
 
 - Track CDC ACM interrupt-IN notifications and expose DCD, DSR, and ring state

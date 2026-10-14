@@ -1,0 +1,13 @@
+[package]
+name = "jni-bridge-regression"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Run the actual JNI boundary against a JVM without linking desktop Tauri/WebView.
+[workspace]
+
+[dev-dependencies]
+jni = { version = "0.21", features = ["invocation"] }
+serde = "1.0"
+serialport = { version = "4.10", default-features = false }

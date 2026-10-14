@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Clear pending Java exceptions on failed USB JNI operations before detaching
+  native threads, preventing an Android crash when reconnecting an unplugged dongle.
+
 
 ## [3.0.7](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.6...v3.0.7) (2026-09-11)
 

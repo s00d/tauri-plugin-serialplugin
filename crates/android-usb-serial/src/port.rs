@@ -5,7 +5,7 @@
 
 use crate::config::{FlowControl, LineConfig, PurgeKind};
 use crate::drivers::{Driver, ModemStatus};
-use crate::error::Result;
+use crate::error::{Result, UsbSerialError};
 use crate::reader::SerialReader;
 use crate::transport::SharedTransport;
 
@@ -27,39 +27,57 @@ impl SerialPortHandle {
         }
     }
 
+    // Adapter clones share this handle under a mutex. A detach can close it
+    // before a queued operation acquires that mutex; never enter a torn-down driver.
+    fn ensure_open(&self) -> Result<()> {
+        if self.closed {
+            Err(UsbSerialError::Disconnected)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Bulk OUT write. Opens OUT only — IN belongs to the optional [`Self::start_reader`].
     pub fn write(&mut self, data: &[u8]) -> Result<usize> {
+        self.ensure_open()?;
         self.driver.write(data)
     }
 
     /// Blocking/synchronous bulk IN read through the driver (not the background reader).
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.ensure_open()?;
         self.driver.read(buf)
     }
 
     /// Baud / framing line coding.
     pub fn set_line_config(&mut self, cfg: LineConfig) -> Result<()> {
+        self.ensure_open()?;
         self.driver.set_line_config(cfg)
     }
 
     pub fn set_flow_control(&mut self, flow: FlowControl) -> Result<()> {
+        self.ensure_open()?;
         self.driver.set_flow_control(flow)
     }
 
     pub fn set_dtr(&mut self, value: bool) -> Result<()> {
+        self.ensure_open()?;
         self.driver.set_dtr(value)
     }
 
     pub fn set_rts(&mut self, value: bool) -> Result<()> {
+        self.ensure_open()?;
         self.driver.set_rts(value)
     }
 
     pub fn set_break(&mut self, enabled: bool) -> Result<()> {
+        self.ensure_open()?;
         self.driver.set_break(enabled)
     }
 
     /// Clear RX and/or TX driver buffers (host-side purge).
     pub fn purge(&mut self, kind: PurgeKind) -> Result<()> {
+        self.ensure_open()?;
         self.driver.purge(kind)
     }
 
@@ -70,6 +88,7 @@ impl SerialPortHandle {
 
     /// Latched modem status lines (CTS/DSR/RI/CD), when the chip reports them.
     pub fn modem_status(&mut self) -> Result<ModemStatus> {
+        self.ensure_open()?;
         self.driver.modem_status()
     }
 
@@ -87,6 +106,7 @@ impl SerialPortHandle {
     ///
     /// Call **after** [`Self::set_line_config`] and DTR/RTS on weak OTG / CH340 adapters.
     pub fn start_reader(&mut self) -> Result<()> {
+        self.ensure_open()?;
         if self.reader.is_some() {
             return Ok(());
         }
@@ -97,6 +117,7 @@ impl SerialPortHandle {
 
     /// Non-blocking read from the background reader if running; else [`Self::read`].
     pub fn try_read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        self.ensure_open()?;
         if let Some(reader) = &mut self.reader {
             return reader.try_read(buf);
         }

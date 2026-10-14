@@ -64,3 +64,8 @@ base64 = "0.23"
 name = "golden_record"
 path = "src/bin/golden_record.rs"
 required-features = ["fake-transport"]
+
+[[test]]
+name = "disconnect_test"
+path = "tests/disconnect_test.rs"
+required-features = ["fake-transport", "serialport-compat"]

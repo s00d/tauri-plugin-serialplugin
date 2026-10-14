@@ -1696,16 +1696,16 @@ mod tests {
         let app = create_test_app();
         let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
 
-        let ports = sp
-            .available_ports(false)
-            .expect("available_ports");
+        let ports = sp.available_ports(false).expect("available_ports");
         eprintln!(
             "smoke available_ports ({}): {:?}",
             ports.len(),
             ports.keys().collect::<Vec<_>>()
         );
         assert!(
-            ports.keys().any(|p| p == &path || path.ends_with(p.as_str())),
+            ports
+                .keys()
+                .any(|p| p == &path || path.ends_with(p.as_str())),
             "SERIAL_SMOKE_PORT {path} not listed in available_ports"
         );
 
