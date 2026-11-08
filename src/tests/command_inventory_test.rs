@@ -101,7 +101,12 @@ mod tests {
     #[test]
     fn guest_js_invokes_exactly_handler_commands() {
         let js = guest_js_invoke_commands();
-        let handler: BTreeSet<_> = HANDLER_COMMANDS.iter().map(|s| (*s).to_string()).collect();
+        // `read` is kept for Rust callers; guest-js uses `read_binary` and decodes.
+        let handler: BTreeSet<_> = HANDLER_COMMANDS
+            .iter()
+            .filter(|c| **c != "read")
+            .map(|s| (*s).to_string())
+            .collect();
         assert_eq!(js, handler, "mismatch guest-js invoke ↔ generate_handler!");
     }
 
