@@ -169,6 +169,7 @@ onMounted(scrollToBottom);
           :disabled="!connected"
           autocomplete="off"
           autocapitalize="off"
+          autocorrect="off"
           spellcheck="false"
           @keyup.enter="send"
         />

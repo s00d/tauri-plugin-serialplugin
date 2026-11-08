@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-#[cfg(not(target_os = "ios"))]
 use crate::commands::*;
-#[cfg(not(target_os = "ios"))]
 use tauri::Manager;
 use tauri::{
     plugin::{Builder, TauriPlugin},
@@ -17,13 +15,13 @@ const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
 #[cfg(target_os = "android")]
 mod android_log;
 
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use crate::api::SerialPort;
 #[cfg(target_os = "android")]
 use crate::api::SerialPort;
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use std::collections::HashMap;
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use std::sync::{Arc, Mutex};
 
 /// Commands module providing Tauri commands for serial port operations
@@ -48,7 +46,6 @@ use std::sync::{Arc, Mutex};
 ///         .map_err(|e| e.to_string())
 /// }
 /// ```
-#[cfg(not(target_os = "ios"))]
 pub mod commands;
 
 /// Centralized logging module
@@ -63,28 +60,18 @@ mod jni_ready;
 
 #[cfg(target_os = "android")]
 pub mod android;
-#[cfg(not(target_os = "ios"))]
 pub mod api;
-#[cfg(not(target_os = "ios"))]
 pub mod at;
-#[cfg(not(target_os = "ios"))]
 pub mod cmux;
-#[cfg(not(target_os = "ios"))]
 pub mod error;
-#[cfg(not(target_os = "ios"))]
 pub mod events;
-#[cfg(not(target_os = "ios"))]
 pub mod exchange;
-#[cfg(not(target_os = "ios"))]
 pub mod hub;
-#[cfg(not(target_os = "ios"))]
 pub mod port;
-#[cfg(not(target_os = "ios"))]
 pub mod state;
-#[cfg(not(target_os = "ios"))]
 pub mod sync_util;
 
-#[cfg(any(desktop, all(debug_assertions, target_os = "android")))]
+#[cfg(any(not(target_os = "android"), debug_assertions))]
 pub mod mock_serial;
 
 /// Initializes the serial plugin for Tauri
@@ -109,7 +96,6 @@ pub mod mock_serial;
 ///         // .expect("error while running tauri application");
 /// }
 /// ```
-#[cfg(not(target_os = "ios"))]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialplugin")
         .invoke_handler(tauri::generate_handler![
@@ -169,7 +155,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 app.manage(serialplugin);
                 crate::log_info!("serial plugin setup complete");
             }
-            #[cfg(desktop)]
+            #[cfg(not(target_os = "android"))]
             {
                 let serialplugin = SerialPort {
                     app: app.clone(),
@@ -191,45 +177,32 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
-/// iOS has no API for serial/USB-serial devices. The plugin still builds there so an
-/// app that ships desktop/Android serial support can also build for iOS; every
-/// command rejects with a clear error instead of failing at compile time.
-#[cfg(target_os = "ios")]
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    Builder::new("serialplugin")
-        .invoke_handler(|invoke| {
-            invoke
-                .resolver
-                .reject("Serial ports are not supported on iOS");
-            true
-        })
-        .build()
-}
-
 #[cfg(test)]
 mod tests {
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod acl_smoke_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod available_ports_options_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod command_inventory_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod commands_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod desktop_api_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod error_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod invoke_contract_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod ipc_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod mock_serial;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod serial_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     mod state_test;
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
+    mod tcp_test;
+    #[cfg(not(target_os = "android"))]
     mod watch_registry_test;
 }

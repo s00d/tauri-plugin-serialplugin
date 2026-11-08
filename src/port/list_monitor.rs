@@ -90,14 +90,14 @@ fn send_event(channel: &Channel<PortListEvent>, event: PortListEvent) -> bool {
     }
 }
 
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 fn enumerate(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
     crate::port::list::enumerate_available_ports(single_port_per_device)
 }
 
-#[cfg(not(desktop))]
+#[cfg(target_os = "android")]
 fn enumerate(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
@@ -304,7 +304,7 @@ mod tests {
 
     /// Regression: unsubscribe used to join the poll thread while holding the lock the
     /// thread needed, freezing the caller. Now it returns at once and the thread exits.
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     #[test]
     fn unsubscribe_does_not_block_and_thread_exits() {
         let channel: Channel<PortListEvent> = Channel::new(|_| Ok(()));

@@ -283,7 +283,7 @@ impl CmuxSession {
     }
 }
 
-#[cfg(all(test, desktop))]
+#[cfg(all(test, not(target_os = "android")))]
 mod tests {
     use super::*;
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};

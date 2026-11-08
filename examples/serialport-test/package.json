@@ -14,15 +14,15 @@
   },
   "dependencies": {
     "tauri-plugin-serialplugin-api": "file:../../",
-    "vue": "^3.5.13"
+    "vue": "^3.5.45"
   },
   "devDependencies": {
-    "@tauri-apps/api": "~2.6.0",
-    "@tauri-apps/cli": "~2.11.4",
-    "@types/node": "^20.17.6",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "^5.6.3",
-    "vite": "^6.2.5",
-    "vue-tsc": "^2.2.8"
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/node": "^22.19.0",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.6",
+    "vue-tsc": "^3.3.14"
   }
 }

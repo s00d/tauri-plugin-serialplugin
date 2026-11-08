@@ -1,4 +1,4 @@
-// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
+// Learn more about Tauri commands at https://v2.tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -11,6 +11,7 @@ async fn get_ports_programmatically(
     serial: tauri::State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>,
 ) -> Result<String, String> {
     let available_ports = tauri_plugin_serialplugin::commands::available_ports(app.clone(), serial.clone(), None)
+        .await
         .map_err(|e| format!("Failed to get available ports: {}", e))?;
 
     let managed_ports = tauri_plugin_serialplugin::commands::managed_ports(app.clone(), serial.clone())

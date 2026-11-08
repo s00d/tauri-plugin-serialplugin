@@ -55,7 +55,14 @@ function runScript() {
 
     <label class="script-label">
       Script (one command per line)
-      <textarea v-model="script" rows="3" :disabled="!connected" />
+      <textarea
+        v-model="script"
+        rows="3"
+        :disabled="!connected"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
     </label>
     <button
       type="button"

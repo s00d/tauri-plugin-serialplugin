@@ -155,7 +155,7 @@ mod parity_tests {
         assert_eq!(response.status, AtParseStatus::Ok);
     }
 
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     mod mobile_hub {
         use super::*;
         use crate::hub::HubRoutingState;

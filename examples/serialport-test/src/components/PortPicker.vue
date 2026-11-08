@@ -140,7 +140,11 @@ onUnmounted(() => {
       <input
         v-model="manualPath"
         type="text"
-        placeholder="COM3 / /dev/ttyUSB0"
+        placeholder="COM3 / /dev/ttyUSB0 / tcp://host:port"
+        autocapitalize="off"
+        autocorrect="off"
+        autocomplete="off"
+        spellcheck="false"
         @keyup.enter="addManual"
       />
       <button type="button" class="primary" @click="addManual">Open</button>

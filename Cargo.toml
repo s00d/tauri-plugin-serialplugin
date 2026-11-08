@@ -57,7 +57,7 @@ windows = { level = "full", notes = "" }
 linux = { level = "full", notes = "" }
 macos = { level = "full", notes = "" }
 android = { level = "full", notes = "" }
-ios = { level = "none", notes = "Builds; every command rejects with \"Serial ports are not supported on iOS\"." }
+ios = { level = "partial", notes = "No local serial/USB API on iOS; serial-over-TCP (tcp://host:port) works." }
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = [ "build" ] }
@@ -74,7 +74,7 @@ android-usb-serial = { path = "crates/android-usb-serial", version = "0.1.2" }
 serialport = "4.10"
 log = { version = "0.4", features = ["std"] }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+[target.'cfg(not(target_os = "android"))'.dependencies]
 serialport = "4.10"
 
 [dev-dependencies]

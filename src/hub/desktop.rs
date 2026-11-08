@@ -28,7 +28,7 @@ mod io_errors {
         use super::*;
 
         /// Windows reports an unplugged adapter as PermissionDenied, never BrokenPipe.
-        #[cfg(desktop)]
+        #[cfg(not(target_os = "android"))]
         #[test]
         fn persistent_read_error_ends_in_disconnect_event() {
             use crate::events::SerialEvent;

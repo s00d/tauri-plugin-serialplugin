@@ -7,7 +7,7 @@ use crate::at::session::{AtCommandOptions, AtPhase, AtSessionConfig, SendSmsPduO
 use crate::cmux::{mux_path, parse_mux_path, CmuxSession};
 use crate::error::Error;
 use crate::events::{ExchangeOptions, SerialEvent, WatchOptions};
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 use crate::log_error;
 use crate::port::tx_queue::PortTxQueue;
 use crate::state::{
@@ -18,29 +18,29 @@ use crate::{log_debug, log_info};
 use serialport::SerialPort as SerialPortTrait;
 use std::collections::HashMap;
 use std::io::Write;
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 use std::marker::PhantomData;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use tauri::plugin::PluginHandle;
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 use tauri::Runtime;
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use tauri::{AppHandle, Runtime};
 
 /// Platform seam: enumerate available ports.
 fn platform_available_ports(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     {
         crate::port::list::enumerate_available_ports(single_port_per_device)
     }
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     {
         let json = crate::android::fd_bridge::call_enumerate_json()?;
         log_info!(
@@ -81,7 +81,20 @@ fn platform_open(
     stop_bits: StopBits,
     timeout: Duration,
 ) -> Result<(String, Box<dyn SerialPortTrait>), Error> {
-    #[cfg(desktop)]
+    if crate::port::tcp::tcp_address(path).is_some() {
+        let port = crate::port::tcp::TcpSerialPort::connect(
+            path,
+            baud_rate,
+            data_bits.into(),
+            flow_control.into(),
+            parity.into(),
+            stop_bits.into(),
+            timeout,
+        )
+        .map_err(|e| Error::String(format!("Failed to open {path}: {e}")))?;
+        return Ok((path.to_string(), Box::new(port)));
+    }
+    #[cfg(not(target_os = "android"))]
     {
         let port = serialport::new(path, baud_rate)
             .data_bits(data_bits.into())
@@ -93,7 +106,7 @@ fn platform_open(
             .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
         Ok((path.to_string(), port))
     }
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     {
         let _ = timeout;
         crate::android::driver_host::global_host().open(
@@ -162,13 +175,13 @@ fn write_all_port(
 
 /// Tear down resources held by a [`SerialportInfo`] (RX hub + port).
 fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error> {
-    #[cfg(not(mobile))]
+    #[cfg(not(target_os = "android"))]
     let _ = path;
     match info.state {
         PortState::Connected(cp) => {
             if let Ok(mut hub_guard) = cp.rx_hub.lock() {
                 if let Some(hub) = hub_guard.take() {
-                    #[cfg(mobile)]
+                    #[cfg(target_os = "android")]
                     crate::android::registry::global_registry().unregister(path);
                     match Arc::try_unwrap(hub) {
                         Ok(hub) => hub.stop(),
@@ -176,7 +189,7 @@ fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error>
                     }
                 }
             }
-            #[cfg(mobile)]
+            #[cfg(target_os = "android")]
             {
                 let _ = crate::android::driver_host::global_host().close(Some(path));
             }
@@ -187,12 +200,12 @@ fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error>
 }
 
 fn register_mobile_hub(path: &str, cp: &ConnectedPortHandle, hub: Arc<crate::hub::PortRxHub>) {
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     {
         let hub_handle: Arc<dyn crate::hub::RxHubHandle> = hub;
         crate::android::registry::global_registry().register(path, hub_handle, cp.clone());
     }
-    #[cfg(not(mobile))]
+    #[cfg(not(target_os = "android"))]
     {
         let _ = (path, cp, hub);
     }
@@ -235,10 +248,10 @@ fn ensure_rx_hub_on_physical<R: Runtime>(
 /// Lock order: `serialports` before `virtual_ports`; never hold a map lock across
 /// device I/O, thread spawn, or `JoinHandle` join.
 pub struct SerialPort<R: Runtime> {
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     #[allow(dead_code)]
     pub(crate) app: AppHandle<R>,
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     _runtime: PhantomData<fn() -> R>,
     pub(crate) serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,
     pub(crate) virtual_ports: Arc<Mutex<HashMap<String, crate::state::VirtualPortRef>>>,
@@ -247,9 +260,9 @@ pub struct SerialPort<R: Runtime> {
 impl<R: Runtime> Clone for SerialPort<R> {
     fn clone(&self) -> Self {
         Self {
-            #[cfg(desktop)]
+            #[cfg(not(target_os = "android"))]
             app: self.app.clone(),
-            #[cfg(mobile)]
+            #[cfg(target_os = "android")]
             _runtime: PhantomData::<fn() -> R>,
             serialports: Arc::clone(&self.serialports),
             virtual_ports: Arc::clone(&self.virtual_ports),
@@ -258,13 +271,13 @@ impl<R: Runtime> Clone for SerialPort<R> {
 }
 
 impl<R: Runtime> SerialPort<R> {
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 impl<R: Runtime> Default for SerialPort<R> {
     fn default() -> Self {
         Self {
@@ -276,7 +289,7 @@ impl<R: Runtime> Default for SerialPort<R> {
 }
 
 impl<R: Runtime> SerialPort<R> {
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     pub fn setup_teardown(&self) {
         let serialports = self.serialports.clone();
         let virtual_ports = self.virtual_ports.clone();
@@ -291,7 +304,7 @@ impl<R: Runtime> SerialPort<R> {
         crate::android::registry::init_registry();
     }
 
-    #[cfg(mobile)]
+    #[cfg(target_os = "android")]
     fn rust_fail_port_state(
         ports: &Arc<Mutex<HashMap<String, SerialportInfo>>>,
         virtual_ports: &Arc<Mutex<HashMap<String, crate::state::VirtualPortRef>>>,
@@ -309,7 +322,7 @@ impl<R: Runtime> SerialPort<R> {
         Ok(())
     }
 
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     #[allow(dead_code)]
     pub fn new(app: AppHandle<R>) -> Self {
         Self {
@@ -319,7 +332,7 @@ impl<R: Runtime> SerialPort<R> {
         }
     }
 
-    #[cfg(desktop)]
+    #[cfg(not(target_os = "android"))]
     #[allow(dead_code)]
     pub fn from_plugin_handle(plugin_handle: PluginHandle<R>) -> Self {
         Self {

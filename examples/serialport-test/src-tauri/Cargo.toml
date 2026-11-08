@@ -13,17 +13,12 @@ name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [build-dependencies]
-# Keep major.minor aligned with @tauri-apps/api (Tauri CLI rejects mismatches).
-# Pin minors so Android does not float into broken tauri-runtime-wry/wry pairs.
-tauri-build = { version = "~2.3", features = [] }
+# Keep the tauri minor aligned with @tauri-apps/api (Tauri CLI rejects mismatches).
+tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "=2.6.2", features = [] }
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "^1.0.135"
-serialport = "4.7.0"
+tauri = { version = "2.12.5", features = [] }
 tauri-plugin-serialplugin = { path = "../../../" }
-tauri-plugin-devtools = "2.0.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

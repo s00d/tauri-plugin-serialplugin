@@ -37,7 +37,7 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: iOS build check (plugin compiles; commands reject at runtime)
+      - name: iOS build check (tcp:// transport only on iOS)
         if: runner.os == 'macOS'
         run: |
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim

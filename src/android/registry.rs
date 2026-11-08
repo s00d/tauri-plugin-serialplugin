@@ -433,7 +433,7 @@ mod fail_port_tests {
 }
 
 #[cfg(test)]
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 mod hub_cancel_tests {
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
     use crate::exchange::options::ResolvedExchangeOptions;

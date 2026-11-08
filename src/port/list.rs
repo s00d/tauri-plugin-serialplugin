@@ -1,16 +1,16 @@
 //! Helpers for normalizing port lists returned by `serialport-rs`.
 
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use crate::error::Error;
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use crate::state::{BLUETOOTH, PCI, UNKNOWN, USB};
 use std::collections::HashMap;
 
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 use serialport::SerialPortType;
 
 /// Build metadata map for one enumerated port (desktop).
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 pub fn port_info_from_type(port: SerialPortType) -> HashMap<String, String> {
     let mut port_info: HashMap<String, String> = HashMap::new();
     port_info.insert("type".to_string(), UNKNOWN.to_string());
@@ -53,10 +53,15 @@ pub fn port_info_from_type(port: SerialPortType) -> HashMap<String, String> {
 }
 
 /// Enumerate available serial ports (desktop), with optional macOS de-duplication.
-#[cfg(desktop)]
+#[cfg(not(target_os = "android"))]
 pub fn enumerate_available_ports(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
+    // iOS has no serial devices to list (only tcp:// works there): an empty list,
+    // not an enumeration error.
+    #[cfg(target_os = "ios")]
+    let mut list: Vec<serialport::SerialPortInfo> = Vec::new();
+    #[cfg(not(target_os = "ios"))]
     let mut list = serialport::available_ports()
         .map_err(|e| Error::String(format!("Failed to enumerate serial ports: {}", e)))?;
     list.sort_by(|a, b| a.port_name.cmp(&b.port_name));
