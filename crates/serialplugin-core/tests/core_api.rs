@@ -427,6 +427,8 @@ fn core_error_kinds_and_old_texts() {
 
 // ---------------------------------------------------------------- 2. split handles
 
+// Split handles only: Windows keeps one handle and the 4.x write path (2x wire time + 1 s).
+#[cfg(not(windows))]
 #[test]
 fn set_timeout_takes_effect_and_hub_does_not_overwrite_it() {
     let fake = Fake::new();
@@ -442,20 +444,17 @@ fn set_timeout_takes_effect_and_hub_does_not_overwrite_it() {
         t.elapsed()
     );
 
-    // Windows keeps a single handle, so the hub's poll timeout applies there as in 4.x.
-    if !cfg!(windows) {
-        let (sink, _rx) = old_sink();
-        m.watch("timeouts".into(), watch_opts(10, false), sink)
-            .unwrap();
-        thread::sleep(Duration::from_millis(150)); // the hub polls meanwhile
-        let t = Instant::now();
-        assert!(m.write("timeouts".into(), "x".into()).is_err());
-        assert!(
-            t.elapsed() < Duration::from_millis(500),
-            "{:?}",
-            t.elapsed()
-        );
-    }
+    let (sink, _rx) = old_sink();
+    m.watch("timeouts".into(), watch_opts(10, false), sink)
+        .unwrap();
+    thread::sleep(Duration::from_millis(150)); // the hub polls meanwhile
+    let t = Instant::now();
+    assert!(m.write("timeouts".into(), "x".into()).is_err());
+    assert!(
+        t.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        t.elapsed()
+    );
     m.close("timeouts".into()).unwrap();
 }
 
