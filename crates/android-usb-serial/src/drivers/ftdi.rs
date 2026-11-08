@@ -1,6 +1,6 @@
 //! FTDI driver (vendor control + 2-byte RX header strip).
 
-use super::{Driver, EndpointPair, ModemStatus};
+use super::{opened, reply_bytes, Driver, EndpointPair, ModemStatus};
 use crate::config::{
     DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits, CHAR_XOFF, CHAR_XON,
 };
@@ -45,17 +45,17 @@ impl FtdiDriver {
     }
 
     fn vendor_out(&self, request: u8, value: u16, index: u16) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_out(&ControlRequest::vendor_out(request, value, index, vec![]))?;
+        opened(self.transport.as_ref())?.control_out(&ControlRequest::vendor_out(
+            request,
+            value,
+            index,
+            vec![],
+        ))?;
         Ok(())
     }
 
     fn vendor_in(&self, request: u8, value: u16, index: u16, len: usize) -> Result<Vec<u8>> {
-        self.transport
-            .as_ref()
-            .unwrap()
+        opened(self.transport.as_ref())?
             .control_in(&ControlRequest::vendor_in(request, value, index, len))
     }
 }
@@ -96,8 +96,8 @@ impl Driver for FtdiDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let t = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().write(t, data)
+        let t = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.write(t, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -172,7 +172,7 @@ impl Driver for FtdiDriver {
 
     fn modem_status(&mut self) -> Result<ModemStatus> {
         let data = self.vendor_in(5, 0, self.w_index(), 2)?;
-        let status = data.first().copied().unwrap_or(0);
+        let status = reply_bytes(&data, 1, "GET_MODEM_STATUS")?[0];
         Ok(ModemStatus {
             cts: status & 0x10 != 0,
             dsr: status & 0x20 != 0,

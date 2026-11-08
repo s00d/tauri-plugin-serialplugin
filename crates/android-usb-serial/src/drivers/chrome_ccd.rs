@@ -1,6 +1,6 @@
 //! Google Chrome OS CCD (3 ports — interface N = port N, no CDC init).
 
-use super::{Driver, EndpointPair, ModemStatus};
+use super::{opened, Driver, EndpointPair, ModemStatus};
 use crate::config::{FlowControl, LineConfig, PurgeKind};
 use crate::error::{Result, UsbSerialError};
 use crate::reader::SerialReader;
@@ -47,8 +47,8 @@ impl Driver for ChromeCcdDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let t = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().write(t, data)
+        let t = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.write(t, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

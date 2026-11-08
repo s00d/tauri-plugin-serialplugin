@@ -1,6 +1,6 @@
 //! WCH CH34x driver.
 
-use super::{Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
+use super::{opened, reply_bytes, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};
 use crate::error::{Result, UsbSerialError};
 use crate::reader::SerialReader;
@@ -54,9 +54,7 @@ impl Ch34xDriver {
     }
 
     fn vendor_out(&self, request: u8, value: u16, index: u16) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
+        opened(self.transport.as_ref())?
             .control_out(&ControlRequest {
                 request_type: 0x40,
                 request,
@@ -69,9 +67,7 @@ impl Ch34xDriver {
     }
 
     fn vendor_in(&self, request: u8, value: u16, index: u16, len: usize) -> Result<Vec<u8>> {
-        self.transport
-            .as_ref()
-            .unwrap()
+        opened(self.transport.as_ref())?
             .control_in(&ControlRequest::vendor_in(request, value, index, len))
     }
 
@@ -99,7 +95,7 @@ impl Ch34xDriver {
 
     fn get_status(&self) -> Result<u8> {
         let buf = self.vendor_in(0x95, 0x0706, 0, 2)?;
-        Ok(buf[0])
+        Ok(reply_bytes(&buf, 1, "get_status")?[0])
     }
 }
 
@@ -130,8 +126,8 @@ impl Driver for Ch34xDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let t = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().write(t, data)
+        let t = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.write(t, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -195,6 +191,7 @@ impl Driver for Ch34xDriver {
 
     fn set_break(&mut self, enabled: bool) -> Result<()> {
         let mut req = self.vendor_in(0x95, 0x1805, 0, 2)?;
+        reply_bytes(&req, 2, "set_break")?;
         if enabled {
             req[0] &= !1;
             req[1] &= !0x40;

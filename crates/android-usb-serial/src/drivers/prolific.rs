@@ -1,6 +1,6 @@
 //! Prolific PL2303 driver (ported from ProlificSerialDriver.java).
 
-use super::{line_coding_bytes, Driver, ModemStatus, WRITE_TIMEOUT_MS};
+use super::{line_coding_bytes, opened, reply_bytes, Driver, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};
 use crate::error::{Result, UsbSerialError};
 use crate::reader::SerialReader;
@@ -135,38 +135,30 @@ impl ProlificDriver {
     }
 
     fn vendor_in(&self, value: u16, index: u16, length: usize) -> Result<Vec<u8>> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_in(&ControlRequest {
-                request_type: 0xC0,
-                request: self.vendor_read_request(),
-                value,
-                index,
-                data: vec![0; length],
-                timeout_ms: WRITE_TIMEOUT_MS,
-            })
+        opened(self.transport.as_ref())?.control_in(&ControlRequest {
+            request_type: 0xC0,
+            request: self.vendor_read_request(),
+            value,
+            index,
+            data: vec![0; length],
+            timeout_ms: WRITE_TIMEOUT_MS,
+        })
     }
 
     fn vendor_out(&self, value: u16, index: u16, data: Vec<u8>) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_out(&ControlRequest {
-                request_type: 0x40,
-                request: self.vendor_write_request(),
-                value,
-                index,
-                data,
-                timeout_ms: WRITE_TIMEOUT_MS,
-            })?;
+        opened(self.transport.as_ref())?.control_out(&ControlRequest {
+            request_type: 0x40,
+            request: self.vendor_write_request(),
+            value,
+            index,
+            data,
+            timeout_ms: WRITE_TIMEOUT_MS,
+        })?;
         Ok(())
     }
 
     fn ctrl_out(&self, request: u8, value: u16, index: u16, data: Vec<u8>) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
+        opened(self.transport.as_ref())?
             .control_out(&ControlRequest::class_out(request, value, index, data))?;
         Ok(())
     }
@@ -196,9 +188,10 @@ impl ProlificDriver {
     }
 
     fn test_hx_status(&self) -> bool {
-        self.transport
-            .as_ref()
-            .unwrap()
+        let Some(transport) = self.transport.as_ref() else {
+            return false;
+        };
+        transport
             .control_in(&ControlRequest {
                 request_type: 0xC0,
                 request: VENDOR_READ_REQUEST,
@@ -297,16 +290,16 @@ impl ProlificDriver {
 
         let initial = if self.device_type == DeviceType::TypeHxn {
             let data = self.vendor_in(GET_CONTROL_HXN_REQUEST as u16, 0, 1)?;
-            decode_vendor_status_hxn(data[0])
+            decode_vendor_status_hxn(reply_bytes(&data, 1, "GET_CONTROL_HXN")?[0])
         } else {
             let data = self.vendor_in(GET_CONTROL_REQUEST as u16, 0, 1)?;
-            decode_vendor_status(data[0])
+            decode_vendor_status(reply_bytes(&data, 1, "GET_CONTROL")?[0])
         };
         self.status.store(initial, Ordering::Relaxed);
 
-        let transport = self.transport.as_ref().unwrap().clone();
-        let interrupt_ep = self.endpoints.as_ref().unwrap().interrupt_ep;
-        let interrupt_mps = self.endpoints.as_ref().unwrap().interrupt_mps;
+        let transport = opened(self.transport.as_ref())?.clone();
+        let interrupt_ep = opened(self.endpoints.as_ref())?.interrupt_ep;
+        let interrupt_mps = opened(self.endpoints.as_ref())?.interrupt_mps;
         let stop = self.stop_status_thread.clone();
         let status = self.status.clone();
         let status_error = self.status_error.clone();
@@ -533,8 +526,8 @@ impl Driver for ProlificDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let t = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().data.write(t, data)
+        let t = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.data.write(t, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

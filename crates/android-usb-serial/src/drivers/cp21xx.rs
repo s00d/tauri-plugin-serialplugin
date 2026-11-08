@@ -1,6 +1,6 @@
 //! Silicon Labs CP21xx driver.
 
-use super::{Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
+use super::{opened, reply_bytes, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{
     DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits, CHAR_XOFF, CHAR_XON,
 };
@@ -62,47 +62,38 @@ impl Cp21xxDriver {
     }
 
     fn cfg_out(&self, request: u8, value: u16) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_out(&ControlRequest {
-                request_type: REQTYPE_HOST_TO_DEVICE,
-                request,
-                value,
-                index: self.port_index as u16,
-                data: vec![],
-                timeout_ms: WRITE_TIMEOUT_MS,
-            })?;
+        opened(self.transport.as_ref())?.control_out(&ControlRequest {
+            request_type: REQTYPE_HOST_TO_DEVICE,
+            request,
+            value,
+            index: self.port_index as u16,
+            data: vec![],
+            timeout_ms: WRITE_TIMEOUT_MS,
+        })?;
         Ok(())
     }
 
     fn cfg_out_data(&self, request: u8, value: u16, data: Vec<u8>) -> Result<()> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_out(&ControlRequest {
-                request_type: REQTYPE_HOST_TO_DEVICE,
-                request,
-                value,
-                index: self.port_index as u16,
-                data,
-                timeout_ms: WRITE_TIMEOUT_MS,
-            })?;
+        opened(self.transport.as_ref())?.control_out(&ControlRequest {
+            request_type: REQTYPE_HOST_TO_DEVICE,
+            request,
+            value,
+            index: self.port_index as u16,
+            data,
+            timeout_ms: WRITE_TIMEOUT_MS,
+        })?;
         Ok(())
     }
 
     fn cfg_in(&self, request: u8, value: u16, length: usize) -> Result<Vec<u8>> {
-        self.transport
-            .as_ref()
-            .unwrap()
-            .control_in(&ControlRequest {
-                request_type: REQTYPE_DEVICE_TO_HOST,
-                request,
-                value,
-                index: self.port_index as u16,
-                data: vec![0; length],
-                timeout_ms: WRITE_TIMEOUT_MS,
-            })
+        opened(self.transport.as_ref())?.control_in(&ControlRequest {
+            request_type: REQTYPE_DEVICE_TO_HOST,
+            request,
+            value,
+            index: self.port_index as u16,
+            data: vec![0; length],
+            timeout_ms: WRITE_TIMEOUT_MS,
+        })
     }
 
     fn set_xon(&self, value: bool) -> Result<()> {
@@ -154,8 +145,8 @@ impl Driver for Cp21xxDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let t = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().write(t, data)
+        let t = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.write(t, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
@@ -301,7 +292,7 @@ impl Driver for Cp21xxDriver {
 
     fn modem_status(&mut self) -> Result<ModemStatus> {
         let buf = self.cfg_in(SILABSER_GET_MDMSTS_REQUEST_CODE, 0, 1)?;
-        let status = buf[0];
+        let status = reply_bytes(&buf, 1, "GET_MDMSTS")?[0];
         Ok(ModemStatus {
             cts: (status & STATUS_CTS) != 0,
             dsr: (status & STATUS_DSR) != 0,

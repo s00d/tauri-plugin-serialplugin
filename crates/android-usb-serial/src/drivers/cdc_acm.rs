@@ -1,6 +1,6 @@
 //! CDC ACM driver.
 
-use super::{line_coding_bytes, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
+use super::{line_coding_bytes, opened, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{FlowControl, LineConfig, PurgeKind};
 use crate::error::{ReadOutcome, Result, UsbSerialError};
 use crate::reader::SerialReader;
@@ -157,7 +157,7 @@ impl CdcAcmDriver {
     }
 
     fn acm_control(&self, request: u8, value: u16, data: Vec<u8>) -> Result<()> {
-        let transport = self.transport.as_ref().unwrap();
+        let transport = opened(self.transport.as_ref())?;
         let req = ControlRequest {
             request_type: USB_TYPE_CLASS | USB_RECIP_INTERFACE,
             request,
@@ -300,8 +300,8 @@ impl Driver for CdcAcmDriver {
     }
 
     fn write(&mut self, data: &[u8]) -> Result<usize> {
-        let transport = self.transport.as_ref().unwrap();
-        self.endpoints.as_mut().unwrap().write(transport, data)
+        let transport = opened(self.transport.as_ref())?;
+        opened(self.endpoints.as_mut())?.write(transport, data)
     }
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {

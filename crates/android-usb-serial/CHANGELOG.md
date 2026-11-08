@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.4
+
+- A driver used before `open` (or written after `close`) returns `Io("driver is not
+  open")` instead of panicking on `unwrap()` (CDC ACM, FTDI, CP21xx, CH34x, PL2303,
+  GSM modem, Chrome CCD).
+- Control-IN replies are length-checked before indexing: an empty CP21xx
+  `GET_MDMSTS`, CH34x status / break register or PL2303 status reply is an error,
+  not an index-out-of-bounds panic. An empty FTDI `GET_MODEM_STATUS` reply is an
+  error too (it read as "all lines off" before).
+
 ## 0.1.3
 
 - PL2303: detect the chip type from the device descriptor. `raw_descriptors()` holds

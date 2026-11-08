@@ -31,6 +31,24 @@ use crate::transport::{BulkIn, BulkOut, SharedTransport};
 /// Default bulk OUT timeout used by drivers.
 pub const WRITE_TIMEOUT_MS: u32 = 5000;
 
+/// Driver state that exists only between `open` and `close`; an error, not a panic,
+/// when a driver is used outside that window.
+fn opened<T>(state: Option<T>) -> Result<T> {
+    state.ok_or_else(|| crate::error::UsbSerialError::Io("driver is not open".into()))
+}
+
+/// A control-IN reply that must carry at least `len` bytes (a chip or a stack may
+/// return a short packet).
+fn reply_bytes<'a>(buf: &'a [u8], len: usize, what: &str) -> Result<&'a [u8]> {
+    if buf.len() < len {
+        return Err(crate::error::UsbSerialError::Io(format!(
+            "{what}: expected {len} control-IN bytes, got {}",
+            buf.len()
+        )));
+    }
+    Ok(buf)
+}
+
 /// Modem status lines reported by chips that support them.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ModemStatus {
