@@ -2,7 +2,8 @@
 
 use crate::at::session::AtSessionConfig;
 use crate::error::Error;
-use std::sync::{Condvar, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 
 const CANCELLED_MSG: &str = "transaction queue cancelled";
 
@@ -11,6 +12,10 @@ pub struct PortTxQueue {
     inner: Mutex<Inner>,
     turn: Condvar,
     at_session: Mutex<AtSessionConfig>,
+    /// Port-wide exchange cancel flag. Reset when a job *takes its turn*, not when
+    /// each exchange starts, so a cancel landing between the phases of one job
+    /// (`at_phases`, `send_sms_pdu`) is not wiped before the next phase.
+    cancel_flag: Arc<AtomicBool>,
 }
 
 struct Inner {
@@ -39,7 +44,12 @@ impl PortTxQueue {
             }),
             turn: Condvar::new(),
             at_session: Mutex::new(AtSessionConfig::default()),
+            cancel_flag: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub fn cancel_flag(&self) -> Arc<AtomicBool> {
+        self.cancel_flag.clone()
     }
 
     pub fn configure_at_session(&self, session: AtSessionConfig) {
@@ -76,6 +86,7 @@ impl PortTxQueue {
             inner = self.turn.wait(inner).unwrap_or_else(|e| e.into_inner());
         }
         inner.running = true;
+        self.cancel_flag.store(false, Ordering::SeqCst);
         drop(inner);
 
         // Release the turn even if `f` panics, so the queue never wedges.
@@ -189,6 +200,25 @@ mod tests {
             .recv_timeout(Duration::from_secs(2))
             .expect("next job never ran");
         assert_eq!(r.unwrap(), 7);
+    }
+
+    /// A cancel during one job stays visible for the rest of that job (later
+    /// phases) and is cleared only when the next job takes its turn.
+    #[test]
+    fn cancel_flag_survives_within_job_and_resets_for_next() {
+        let q = PortTxQueue::new();
+        let flag = q.cancel_flag();
+        q.run_serial(|| {
+            flag.store(true, Ordering::SeqCst);
+            assert!(flag.load(Ordering::SeqCst));
+            Ok(())
+        })
+        .unwrap();
+        q.run_serial(|| {
+            assert!(!flag.load(Ordering::SeqCst));
+            Ok(())
+        })
+        .unwrap();
     }
 
     #[test]

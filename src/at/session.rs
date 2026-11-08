@@ -117,12 +117,12 @@ impl AtSessionConfig {
     }
 }
 
+/// Terminate `command` with CR unless the caller already did (or opted out).
 pub fn normalize_at_command(command: &str, append_cr: bool) -> String {
-    let trimmed = command.trim();
-    if !append_cr || command.contains('\r') || command.contains('\n') {
-        trimmed.to_string()
+    if !append_cr || command.ends_with(['\r', '\n']) {
+        command.to_string()
     } else {
-        format!("{trimmed}\r")
+        format!("{}\r", command.trim())
     }
 }
 
@@ -147,6 +147,9 @@ mod tests {
     #[test]
     fn append_cr_adds_cr() {
         assert_eq!(normalize_at_command("AT", true), "AT\r");
-        assert_eq!(normalize_at_command("AT\r\n", true), "AT");
+        // A terminator the caller already supplied must survive.
+        assert_eq!(normalize_at_command("AT\r", true), "AT\r");
+        assert_eq!(normalize_at_command("AT\r\n", true), "AT\r\n");
+        assert_eq!(normalize_at_command("AT\r", false), "AT\r");
     }
 }

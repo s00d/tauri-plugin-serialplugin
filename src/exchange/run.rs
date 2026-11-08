@@ -26,7 +26,6 @@ pub fn run_physical_exchange<H: RxHubHandle>(
         opts.command = Some(command.to_string());
     }
     let resolved = opts.resolve();
-    exchange_cancel.store(false, Ordering::SeqCst);
     let cancel = exchange_cancel.clone();
     let hub_shared = hub.shared();
 
@@ -92,7 +91,6 @@ pub fn run_mux_exchange(
         opts.command = Some(command.to_string());
     }
     let resolved = opts.resolve();
-    exchange_cancel.store(false, Ordering::SeqCst);
     let cancel = exchange_cancel.clone();
     let waiter = ExchangeWaiter::new(resolved.clone(), cancel);
     session.set_exchange_waiter(dlci, waiter.clone());

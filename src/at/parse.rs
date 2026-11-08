@@ -244,32 +244,53 @@ fn classify_final_line_with_format(line: &str, format: AtResultFormat) -> Option
     })
 }
 
-/// Returns `Some(match)` when the buffer ends with a complete AT final line.
+/// Returns `Some(match)` when the buffer holds a complete AT final line.
+///
+/// Lines after the final code that look like URCs (`RING`, `+CMTI: …`) are skipped:
+/// they can arrive in the same read as `OK` and must not hide it. Bytes are decoded
+/// lossily so line noise or a Latin-1 phonebook entry cannot stall the exchange.
 pub fn at_final_line_complete(buf: &[u8], result_format: AtResultFormat) -> Option<ExchangeMatch> {
     if buf.is_empty() || !buf.ends_with(b"\n") {
         return None;
     }
-    let text = std::str::from_utf8(buf).ok()?;
-    let lines = split_lines(text);
-    let last = lines.last()?;
-    classify_final_line_with_format(last, result_format)
+    let lines = split_lines(&String::from_utf8_lossy(buf));
+    for line in lines.iter().rev() {
+        if let Some(m) = classify_final_line_with_format(line, result_format) {
+            return Some(m);
+        }
+        if !is_likely_urc(line, &[]) {
+            return None;
+        }
+    }
+    None
 }
 
-/// Returns `Some(Intermediate)` when the buffer ends with a complete intermediate line.
+/// Completion for prompt-style commands (`AT+CMGS=…` → `> `, `ATD` → `CONNECT`).
+///
+/// 27.005 sends the SMS prompt as `\r\n> ` with no line feed after it, so the last
+/// unterminated line counts too. A final result (`+CMS ERROR: …`, `ERROR`) also
+/// completes, otherwise a rejected command would wait out the whole timeout.
 pub fn at_intermediate_line_complete(
     buf: &[u8],
     result_format: AtResultFormat,
 ) -> Option<ExchangeMatch> {
-    if buf.is_empty() || !buf.ends_with(b"\n") {
+    if buf.is_empty() {
         return None;
     }
-    let text = std::str::from_utf8(buf).ok()?;
-    let lines = split_lines(text);
+    let text = String::from_utf8_lossy(buf);
+    let tail = text.rsplit('\n').next().unwrap_or_default().trim();
+    if tail == ">" {
+        return Some(ExchangeMatch::Intermediate { line: ">".into() });
+    }
+    if !buf.ends_with(b"\n") {
+        return None;
+    }
+    let lines = split_lines(&text);
     let last = lines.last()?;
     if classify_intermediate_line_with_format(last, result_format) {
         Some(ExchangeMatch::Intermediate { line: last.clone() })
     } else {
-        None
+        at_final_line_complete(buf, result_format)
     }
 }
 
@@ -390,7 +411,8 @@ pub struct ExchangeDemux {
     phase: ExchangePhase,
     command: String,
     solicited_prefixes: Vec<String>,
-    partial: String,
+    /// Bytes of an unfinished line (kept raw so a split UTF-8 char survives).
+    partial: Vec<u8>,
     emitted_urc: Vec<String>,
 }
 
@@ -400,7 +422,7 @@ impl ExchangeDemux {
             phase: ExchangePhase::AwaitingFirstLine,
             command: normalize_command(command),
             solicited_prefixes: merge_solicited_prefixes(command, solicited_prefixes),
-            partial: String::new(),
+            partial: Vec::new(),
             emitted_urc: Vec::new(),
         }
     }
@@ -413,14 +435,11 @@ impl ExchangeDemux {
 
     /// Process complete lines from a chunk; returns new URC lines to emit live.
     pub fn process_chunk(&mut self, chunk: &[u8]) -> Vec<String> {
-        self.partial.push_str(&String::from_utf8_lossy(chunk));
+        self.partial.extend_from_slice(chunk);
         let mut live_urc = Vec::new();
-        while let Some(pos) = self.partial.find('\n') {
-            let line = self.partial[..pos]
-                .trim()
-                .trim_end_matches('\r')
-                .to_string();
-            self.partial.drain(..=pos);
+        while let Some(pos) = self.partial.iter().position(|&b| b == b'\n') {
+            let raw: Vec<u8> = self.partial.drain(..=pos).collect();
+            let line = String::from_utf8_lossy(&raw).trim().to_string();
             if line.is_empty() {
                 continue;
             }
@@ -436,16 +455,11 @@ impl ExchangeDemux {
                 self.phase = ExchangePhase::CollectingSolicited;
                 continue;
             }
-            match self.phase {
-                ExchangePhase::AwaitingFirstLine => {
-                    if is_likely_urc(&line, &self.solicited_prefixes)
-                        && !self.emitted_urc.contains(&line)
-                    {
-                        self.emitted_urc.push(line.clone());
-                        live_urc.push(line);
-                    }
-                }
-                ExchangePhase::CollectingSolicited => {}
+            // URCs can arrive before the echo or in the middle of the reply
+            // (`+CMTI` during `AT+CSQ`); either way they are not part of it.
+            if is_likely_urc(&line, &self.solicited_prefixes) && !self.emitted_urc.contains(&line) {
+                self.emitted_urc.push(line.clone());
+                live_urc.push(line);
             }
         }
         live_urc
@@ -462,6 +476,46 @@ pub fn urc_lines_from_drain(bytes: &[u8], solicited_prefixes: &[String]) -> Vec<
 
 #[cfg(test)]
 mod tests {
+    use crate::events::AtResultFormat as F;
+
+    #[test]
+    fn urc_after_echo_is_still_emitted() {
+        let mut demux = ExchangeDemux::new("AT+CSQ", &[]);
+        let urc = demux.process_chunk(b"AT+CSQ\r\r\n+CMTI: \"SM\",3\r\n+CSQ: 20,0\r\n\r\nOK\r\n");
+        assert_eq!(urc, vec!["+CMTI: \"SM\",3".to_string()]);
+    }
+
+    #[test]
+    fn sms_prompt_without_trailing_lf_completes() {
+        let m = at_intermediate_line_complete(b"AT+CMGS=20\r\r\n> ", F::Verbose);
+        assert!(
+            matches!(m, Some(ExchangeMatch::Intermediate { .. })),
+            "{m:?}"
+        );
+    }
+
+    #[test]
+    fn prompt_command_rejected_with_cms_error_completes() {
+        let m = at_intermediate_line_complete(b"AT+CMGS=20\r\r\n+CMS ERROR: 304\r\n", F::Verbose);
+        assert!(
+            matches!(m, Some(ExchangeMatch::CmsError { code: Some(304) })),
+            "{m:?}"
+        );
+    }
+
+    #[test]
+    fn non_utf8_noise_does_not_block_final_line() {
+        let m = at_final_line_complete(b"\xFF\xFEAT\r\r\nOK\r\n", F::Verbose);
+        assert_eq!(m, Some(ExchangeMatch::Ok));
+    }
+
+    #[test]
+    fn urc_in_same_read_after_ok_does_not_hide_it() {
+        let m = at_final_line_complete(b"AT\r\r\nOK\r\n\r\nRING\r\n", F::Verbose);
+        assert_eq!(m, Some(ExchangeMatch::Ok));
+        assert_eq!(at_final_line_complete(b"+CSQ: 20,0\r\n", F::Verbose), None);
+    }
+
     use super::*;
 
     #[test]

@@ -80,14 +80,15 @@ impl SerialportInfo {
 
 impl ConnectedPort {
     pub fn new(port: Box<dyn SerialPort>) -> Self {
+        let tx_queue = Arc::new(PortTxQueue::new());
         Self {
             port: Arc::new(Mutex::new(port)),
             rx_hub: Arc::new(Mutex::new(None)),
             mux: Arc::new(Mutex::new(None)),
             virtual_dlci: None,
             physical_path: None,
-            exchange_cancel: Arc::new(AtomicBool::new(false)),
-            tx_queue: Arc::new(PortTxQueue::new()),
+            exchange_cancel: tx_queue.cancel_flag(),
+            tx_queue,
         }
     }
 

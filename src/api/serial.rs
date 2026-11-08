@@ -478,6 +478,18 @@ impl<R: Runtime> SerialPort<R> {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
     ) -> Result<String, Error> {
+        // Re-open (e.g. after a webview reload): tear the old session down the same
+        // way `close` does, so its watches, CMUX channels and hub go with it.
+        let already_open = matches!(
+            crate::sync_util::lock_or_recover(&self.serialports)
+                .get(&path)
+                .map(|i| &i.state),
+            Some(PortState::Connected(_))
+        );
+        if already_open {
+            log_info!("Replacing existing port {}", path);
+            let _ = self.close(path.clone());
+        }
         let stale = {
             let mut serialports = self
                 .serialports
@@ -538,18 +550,33 @@ impl<R: Runtime> SerialPort<R> {
                 }
 
                 let cp = ConnectedPort::new(port);
-                ensure_rx_hub(&cp.handle(), &session_path)?;
-                let entry = serialports.get_mut(&session_path).ok_or_else(|| {
-                    Error::String(format!("Port '{}' disappeared during open", session_path))
-                })?;
-                if !matches!(entry.state, PortState::Opening) {
-                    return Err(Error::String(format!(
-                        "Port '{}' state changed during open",
-                        session_path
-                    )));
+                let hub = ensure_rx_hub(&cp.handle(), &session_path);
+                let reserved = matches!(
+                    serialports.get(&session_path).map(|i| &i.state),
+                    Some(PortState::Opening)
+                );
+                if let (Ok(()), true) = (&hub, reserved) {
+                    if let Some(entry) = serialports.get_mut(&session_path) {
+                        entry.state = PortState::Connected(cp);
+                    }
+                    return Ok(session_path);
                 }
-                entry.state = PortState::Connected(cp);
-                Ok(session_path)
+                // Never leave an `Opening` entry or a running hub thread behind.
+                if reserved {
+                    serialports.remove(&session_path);
+                }
+                drop(serialports);
+                let _ = finish_serialport_info(
+                    &session_path,
+                    SerialportInfo {
+                        state: PortState::Connected(cp),
+                    },
+                );
+                hub?;
+                Err(Error::String(format!(
+                    "Port '{}' state changed during open",
+                    session_path
+                )))
             }
             Err(e) => {
                 if matches!(
@@ -1193,15 +1220,15 @@ impl<R: Runtime> SerialPort<R> {
         self.virtual_ports
             .lock()
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
-            .insert(
-                virtual_path.clone(),
+            .insert(virtual_path.clone(), {
+                let tx_queue = Arc::new(PortTxQueue::new());
                 crate::state::VirtualPortRef {
                     physical_path,
                     dlci,
-                    exchange_cancel: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-                    tx_queue: Arc::new(PortTxQueue::new()),
-                },
-            );
+                    exchange_cancel: tx_queue.cancel_flag(),
+                    tx_queue,
+                }
+            });
         Ok(virtual_path)
     }
 

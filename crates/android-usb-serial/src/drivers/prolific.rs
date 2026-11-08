@@ -171,17 +171,10 @@ impl ProlificDriver {
     }
 
     fn detect_device_type(&mut self, transport: &SharedTransport) -> Result<()> {
-        let raw = transport.raw_descriptors();
-        let desc = if raw.len() >= 14 {
-            raw
-        } else {
-            transport.raw_device_descriptor().to_vec()
-        };
-        if desc.len() < 14 {
-            return Err(UsbSerialError::Io(
-                "could not get device descriptors".into(),
-            ));
-        }
+        // usb-serial-for-android reads these from Android's getRawDescriptors(), whose
+        // first 18 bytes are the *device* descriptor. Our raw_descriptors() holds only
+        // configuration descriptors, so take the device descriptor explicitly.
+        let desc = transport.raw_device_descriptor();
         let usb_version = u16::from_le_bytes([desc[2], desc[3]]);
         let device_version = u16::from_le_bytes([desc[12], desc[13]]);
         let max_packet_size0 = desc[7];

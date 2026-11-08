@@ -1807,4 +1807,48 @@ mod tests {
 
         sp.close(path).expect("close");
     }
+
+    /// Regression: re-opening a port (webview reload) kept the old watch registered,
+    /// so the next `watch` failed with "A watch is already active".
+    #[test]
+    fn reopen_unregisters_old_watch() {
+        use crate::events::WatchOptions;
+        use crate::state::ConnectedPort;
+        use crate::tests::mock_serial::MockSerialPort;
+        use tauri::ipc::Channel;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "mock-reopen".to_string();
+        let insert = || {
+            serial_port.serialports.lock().unwrap().insert(
+                path.clone(),
+                SerialportInfo {
+                    state: PortState::Connected(ConnectedPort::new(
+                        Box::new(MockSerialPort::new()),
+                    )),
+                },
+            );
+        };
+        insert();
+        serial_port
+            .watch(
+                path.clone(),
+                WatchOptions::default(),
+                Channel::new(|_| Ok(())),
+            )
+            .expect("first watch");
+        // The mock path has no device, so the re-open itself fails, but the old
+        // session (and its watch) must be gone either way.
+        let _ = serial_port.open(path.clone(), 9600, None, None, None, None, Some(100));
+        insert();
+        serial_port
+            .watch(
+                path.clone(),
+                WatchOptions::default(),
+                Channel::new(|_| Ok(())),
+            )
+            .expect("watch after re-open");
+        serial_port.close(path).expect("close");
+    }
 }

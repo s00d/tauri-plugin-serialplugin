@@ -99,8 +99,12 @@ impl DriverHost {
     }
 
     fn ensure_device(&self, device_name: &str) -> Result<SharedTransport, Error> {
-        let mut devices = self.devices.lock().map_err(|e| Error::new(e.to_string()))?;
-        if let Some(entry) = devices.get(device_name) {
+        if let Some(entry) = self
+            .devices
+            .lock()
+            .map_err(|e| Error::new(e.to_string()))?
+            .get(device_name)
+        {
             return Ok(entry.transport.clone());
         }
 
@@ -113,15 +117,15 @@ impl DriverHost {
             .cloned()
         {
             let transport: SharedTransport = fake;
-            devices.insert(
-                device_name.to_string(),
-                DeviceHost {
-                    transport: transport.clone(),
-                },
-            );
-            return Ok(transport);
+            let mut devices = self.devices.lock().map_err(|e| Error::new(e.to_string()))?;
+            let entry = devices
+                .entry(device_name.to_string())
+                .or_insert(DeviceHost { transport });
+            return Ok(entry.transport.clone());
         }
 
+        // Not under the `devices` lock: openDeviceFd may wait up to 30 s for the USB
+        // permission dialog, and the detach broadcast needs that lock meanwhile.
         crate::log_info!("[SerialOpen] openDeviceFd {device_name} …");
         let fd = call_open_device_fd(device_name).map_err(|e| {
             crate::log_error!("[SerialOpen] openDeviceFd {device_name}: {e}");
@@ -131,22 +135,26 @@ impl DriverHost {
             return Err(Error::new(format!("openDeviceFd failed for {device_name}")));
         }
         crate::log_info!("[SerialOpen] from_raw_fd fd={fd} device={device_name}");
-        let device = android_usb_serial::from_raw_fd(fd).map_err(|e| {
-            crate::log_error!("[SerialOpen] from_raw_fd: {e}");
-            Error::new(e.to_string())
-        })?;
-        let transport: SharedTransport =
-            Arc::new(NusbTransport::from_device(device).map_err(|e| {
-                crate::log_error!("[SerialOpen] NusbTransport: {e}");
-                Error::new(e.to_string())
-            })?);
-        devices.insert(
-            device_name.to_string(),
-            DeviceHost {
-                transport: transport.clone(),
-            },
-        );
-        Ok(transport)
+        let transport = android_usb_serial::from_raw_fd(fd)
+            .map_err(|e| format!("from_raw_fd: {e}"))
+            .and_then(|device| {
+                NusbTransport::from_device(device).map_err(|e| format!("NusbTransport: {e}"))
+            });
+        let transport: SharedTransport = match transport {
+            Ok(t) => Arc::new(t),
+            Err(e) => {
+                crate::log_error!("[SerialOpen] {e}");
+                // Kotlin still holds the UsbDeviceConnection; release it.
+                let _ = call_close_device_fd(device_name);
+                return Err(Error::new(e));
+            }
+        };
+        let mut devices = self.devices.lock().map_err(|e| Error::new(e.to_string()))?;
+        // Another open of the same device may have won the race while we waited.
+        let entry = devices
+            .entry(device_name.to_string())
+            .or_insert(DeviceHost { transport });
+        Ok(entry.transport.clone())
     }
 
     /// Open USB port and return a [`serialport::SerialPort`] facade (RX via reader + ring).

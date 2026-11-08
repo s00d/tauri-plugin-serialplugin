@@ -41,6 +41,7 @@ use std::sync::{Arc, Mutex};
 ///     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 /// ) -> Result<String, String> {
 ///     commands::open(app, serial, "COM1".to_string(), 9600, None, None, None, None, None)
+///         .await
 ///         .map_err(|e| e.to_string())
 /// }
 /// ```
@@ -163,6 +164,14 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                 app.manage(serialplugin);
             }
             Ok(())
+        })
+        .on_event(|app, event| {
+            // Release ports (and stop their hub threads) when the app exits.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(serial) = app.try_state::<crate::api::SerialPort<R>>() {
+                    let _ = serial.close_all();
+                }
+            }
         })
         .build()
 }

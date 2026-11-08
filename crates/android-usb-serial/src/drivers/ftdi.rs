@@ -71,12 +71,10 @@ impl Driver for FtdiDriver {
         self.vendor_out(1, modem, self.w_index())?;
         self.set_flow_control(FlowControl::None)?;
         self.baud_with_port = transport.interfaces().len() > 1;
-        let raw = transport.raw_descriptors();
-        if raw.len() >= 14 {
-            let device_type = raw[13];
-            self.baud_with_port =
-                self.baud_with_port || device_type == 7 || device_type == 8 || device_type == 9;
-        }
+        // bcdDevice high byte of the device descriptor (FT2232H=7, FT4232H=8, FT232H=9).
+        let device_type = transport.raw_device_descriptor()[13];
+        self.baud_with_port =
+            self.baud_with_port || device_type == 7 || device_type == 8 || device_type == 9;
         Ok(())
     }
 
@@ -239,7 +237,9 @@ pub fn ftdi_baud_encoding(
     } else if baud >= 1_750_000 {
         (1, 0, 2_000_000)
     } else {
-        let mut d = (24_000_000u32 << 1) / baud;
+        let mut d = (24_000_000u32 << 1)
+            .checked_div(baud)
+            .ok_or_else(|| UsbSerialError::Unsupported("baud rate 0".into()))?;
         d = (d + 1) >> 1;
         let sub = d & 0x07;
         d >>= 3;
@@ -283,4 +283,12 @@ pub fn ftdi_baud_encoding(
         index = (index << 8) | (port_index as u16 + 1);
     }
     Ok((value, index))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn baud_zero_is_rejected_not_a_panic() {
+        assert!(super::ftdi_baud_encoding(0, false, 0).is_err());
+    }
 }

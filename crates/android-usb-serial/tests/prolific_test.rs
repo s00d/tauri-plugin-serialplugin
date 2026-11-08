@@ -53,6 +53,25 @@ fn type_hxn_detection() {
     );
 }
 
+/// Regression: on a real device `raw_descriptors()` holds configuration
+/// descriptors (never empty), which were misread as the device descriptor so every
+/// chip was detected as Type01.
+#[test]
+fn hxn_detected_with_real_config_descriptors_present() {
+    let fake = FakeTransport::pl2303_hxn();
+    // Config descriptor: bLength 9, type 2, ..., bmAttributes 0x80 at offset 7.
+    fake.set_raw_descriptors(vec![
+        9, 2, 32, 0, 1, 1, 0, 0x80, 50, 9, 4, 0, 0, 3, 0xFF, 0, 0, 0,
+    ]);
+    script_pl2303_open(&fake);
+    let transport: Arc<dyn Transport> = Arc::new(fake.clone());
+    let _port = open_port(transport, 0).expect("open");
+    assert!(
+        !fake.recorded_controls().iter().any(|c| c.value == 0x8484),
+        "HXN must skip black magic reads"
+    );
+}
+
 #[test]
 fn type_01_detection() {
     let fake = FakeTransport::pl2303_type01();

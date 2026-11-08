@@ -100,10 +100,14 @@ impl ExchangeWaiter {
     }
 }
 
-/// Line-oriented router for streaming when no exchange is active.
+/// Line-oriented router for streaming when no exchange is active (`route_urc`).
+///
+/// Data lines go out byte-for-byte, terminator included; only URC lines are pulled out.
+/// An unfinished line is held until the next chunk (or the batch flush), so a URC split
+/// across two reads is still recognised and UTF-8 characters are never cut in half.
 #[derive(Debug, Default)]
 pub struct LineRouter {
-    partial: String,
+    partial: Vec<u8>,
 }
 
 impl LineRouter {
@@ -112,29 +116,26 @@ impl LineRouter {
         chunk: &[u8],
         solicited_prefixes: &[String],
     ) -> Vec<RxRouteAction> {
-        let text = String::from_utf8_lossy(chunk);
-        self.partial.push_str(&text);
+        self.partial.extend_from_slice(chunk);
         let mut actions = Vec::new();
-        while let Some(pos) = self.partial.find('\n') {
-            let line = self.partial[..pos]
-                .trim()
-                .trim_end_matches('\r')
-                .to_string();
-            self.partial.drain(..=pos);
-            if line.is_empty() {
-                continue;
-            }
-            if is_likely_urc(&line, solicited_prefixes) && classify_final_line(&line).is_none() {
+        while let Some(pos) = self.partial.iter().position(|&b| b == b'\n') {
+            let raw: Vec<u8> = self.partial.drain(..=pos).collect();
+            let line = String::from_utf8_lossy(&raw).trim().to_string();
+            if !line.is_empty()
+                && is_likely_urc(&line, solicited_prefixes)
+                && classify_final_line(&line).is_none()
+            {
                 actions.push(RxRouteAction::UrcLine(line));
             } else {
-                actions.push(RxRouteAction::StreamData(line.into_bytes()));
+                actions.push(RxRouteAction::StreamData(raw));
             }
         }
-        if !self.partial.is_empty() {
-            actions.push(RxRouteAction::StreamData(self.partial.as_bytes().to_vec()));
-            self.partial.clear();
-        }
         actions
+    }
+
+    /// Unfinished line bytes (handed to the data stream on batch flush).
+    pub fn take_partial(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.partial)
     }
 }
 
@@ -317,6 +318,8 @@ impl RxHubShared {
             .unwrap_or(1000);
         if state.flush_at.elapsed() >= Duration::from_millis(batch_timeout_ms) {
             state.flush_at = Instant::now();
+            let partial = state.line_router.take_partial();
+            state.combined_buffer.extend_from_slice(&partial);
             flush_watch_data(
                 self,
                 path,
@@ -433,6 +436,8 @@ impl RxHubShared {
     }
 
     pub fn flush_watch_now(&self, state: &mut HubRoutingState) {
+        let partial = state.line_router.take_partial();
+        state.combined_buffer.extend_from_slice(&partial);
         flush_watch_data(
             self,
             &state.path,
@@ -858,23 +863,24 @@ mod tests {
         );
     }
 
+    /// Regression: data lines lost their `\r\n`, and a URC split across reads went
+    /// out as data.
     #[test]
-    fn line_router_corrupts_binary_when_applied() {
-        // Documents why watch defaults to raw passthrough: LineRouter is text-oriented.
+    fn line_router_keeps_terminators_and_joins_split_lines() {
         let mut router = LineRouter::default();
-        let frame: Vec<u8> = vec![
-            0xFD, 0x09, 0x00, 0x00, 0x2A, 0x01, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x2B, 0x00, 0x00,
-            0x01, 0x03, 0x51, 0x04, 0x03, 0xFD, 0x72,
-        ];
-        let mut out = Vec::new();
-        for action in router.route_streaming(&frame, &[]) {
-            if let RxRouteAction::StreamData(bytes) = action {
-                out.extend(bytes);
+        let mut data = Vec::new();
+        let mut urc = Vec::new();
+        for chunk in [&b"A\r\nB\r\n+CRE"[..], b"G: 0,1\r\n\xD0", b"\x9F\r\n"] {
+            for action in router.route_streaming(chunk, &[]) {
+                match action {
+                    RxRouteAction::StreamData(b) => data.extend(b),
+                    RxRouteAction::UrcLine(l) => urc.push(l),
+                }
             }
         }
-        assert_ne!(out, frame);
-        assert!(out.windows(3).any(|w| w == [0xEF, 0xBF, 0xBD]));
-        assert!(!out.contains(&0x0A));
+        assert_eq!(data, "A\r\nB\r\nП\r\n".as_bytes());
+        assert_eq!(urc, vec!["+CREG: 0,1".to_string()]);
+        assert!(router.take_partial().is_empty());
     }
 
     #[test]
