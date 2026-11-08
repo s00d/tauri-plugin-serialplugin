@@ -25,8 +25,10 @@ pub extern "system" fn Java_app_tauri_serialplugin_MobileBridge_onDeviceDetached
     let Some(name) = jstring_to_rust(&mut env, &device_name) else {
         return;
     };
-    // Runs on the Android main thread (broadcast receiver): teardown joins reader
-    // threads and takes port locks, so do it off the UI thread to avoid ANRs.
+    // Runs on the Android main thread (broadcast receiver). Mark the ports dead
+    // right away; the teardown joins reader threads and takes port locks, so it
+    // runs off the UI thread to avoid ANRs.
+    crate::android::driver_host::global_host().mark_device_detached(&name);
     std::thread::spawn(move || {
         crate::android::driver_host::global_host().on_device_detached(&name);
         on_device_detached(&name);

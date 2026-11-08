@@ -138,6 +138,8 @@ function clearPort() {
     bottom: 0;
     width: min(300px, 88vw);
     z-index: 40;
+    padding-top: env(safe-area-inset-top, 0px);
+    box-sizing: border-box;
     transform: translateX(-105%);
     transition: transform 0.22s ease;
     border-radius: 0;

@@ -248,9 +248,8 @@ impl DriverHost {
         Ok(())
     }
 
-    pub fn on_device_detached(&self, device_name: &str) {
-        let paths: Vec<String> = self
-            .ports
+    fn ports_of_device(&self, device_name: &str) -> Vec<String> {
+        self.ports
             .lock()
             .ok()
             .map(|ports| {
@@ -260,13 +259,25 @@ impl DriverHost {
                     .cloned()
                     .collect()
             })
-            .unwrap_or_default();
-        for path in paths {
-            let _ = self.close(Some(&path));
+            .unwrap_or_default()
+    }
+
+    /// Detach, fast part: fail waiters, emit `disconnect`, drop the registry entry.
+    /// Never blocks, so it can run on the broadcast (UI) thread.
+    pub fn mark_device_detached(&self, device_name: &str) {
+        for path in self.ports_of_device(device_name) {
             crate::android::registry::on_usb_error(
                 &path,
                 "USB device detached (unplug, power loss, or protocol error on bulk IN)",
             );
+        }
+    }
+
+    /// Detach, slow part: stop readers (joins threads) and release the device.
+    /// Run it off the UI thread.
+    pub fn on_device_detached(&self, device_name: &str) {
+        for path in self.ports_of_device(device_name) {
+            let _ = self.close(Some(&path));
         }
         let _ = self.devices.lock().map(|mut d| d.remove(device_name));
         let _ = call_close_device_fd(device_name);
