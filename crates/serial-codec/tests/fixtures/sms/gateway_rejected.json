@@ -1,0 +1,26 @@
+[
+ {
+  "id": "stackoverflow_hello_world_deliver",
+  "source": "stackoverflow.com/q/17973495",
+  "pdu": "07919719610030BC00000D9131B0723808F30000A591C8329BFD06D4DF7D",
+  "reason": "sms-pdu-decoder: Invalid first bit of Type Of Address octet; not included in golden corpus"
+ },
+ {
+  "id": "charset_portuguese_acao",
+  "source": "gs-pdu generate roundtrip",
+  "pdu": "n/a",
+  "reason": "PT charset plan / shift decode roundtrip incomplete (ação → aço); tracked for follow-up"
+ },
+ {
+  "id": "sms_pdu_decoder_deliver_hello",
+  "source": "fazalrasel/sms-pdu-decoder parser.rs",
+  "pdu": "07911234567890F0040B911234567890F00000112011212143800CC8329BFD06",
+  "reason": "PDU stream unexpectedly ended"
+ },
+ {
+  "id": "sms_pdu_decoder_ucs2_truncated_cn",
+  "source": "fazalrasel/sms-pdu-decoder fields.rs",
+  "pdu": "0891683110304105F1240D91683167414052F700081270115183942344597D70E6597D70E651CF80A551CF80A55C",
+  "reason": "sms_pdu_decoder_ucs2_truncated_cn: fazal (\"好烦好烦减肥减肥…\") != morgverd (\"好烦好烦减肥减肥�\")"
+ }
+]

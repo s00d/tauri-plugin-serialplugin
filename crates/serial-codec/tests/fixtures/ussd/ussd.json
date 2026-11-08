@@ -1,0 +1,836 @@
+[
+ {
+  "id": "us-000",
+  "source": "chan_dongle/test/parse.c:348",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 0,\"CF2135487D2E4130572D0682BB1A\",0"
+  },
+  "expected": {
+   "ret": 0,
+   "type": 0,
+   "cusd": "CF2135487D2E4130572D0682BB1A",
+   "dcs": 0
+  },
+  "name": "test_parse_cusd",
+  "note": "at_parse_cusd: <m> type, raw (still encoded) <str>, <dcs>; missing str -> '' and missing dcs -> -1."
+ },
+ {
+  "id": "us-001",
+  "source": "chan_dongle/test/parse.c:349",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 1,\"CF2135487D2E4130572D0682BB1A\",1"
+  },
+  "expected": {
+   "ret": 0,
+   "type": 1,
+   "cusd": "CF2135487D2E4130572D0682BB1A",
+   "dcs": 1
+  },
+  "name": "test_parse_cusd",
+  "note": "at_parse_cusd: <m> type, raw (still encoded) <str>, <dcs>; missing str -> '' and missing dcs -> -1."
+ },
+ {
+  "id": "us-002",
+  "source": "chan_dongle/test/parse.c:350",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 5"
+  },
+  "expected": {
+   "ret": 0,
+   "type": 5,
+   "cusd": "",
+   "dcs": -1
+  },
+  "name": "test_parse_cusd",
+  "note": "at_parse_cusd: <m> type, raw (still encoded) <str>, <dcs>; missing str -> '' and missing dcs -> -1."
+ },
+ {
+  "id": "us-003",
+  "source": "gammu/tests/at-ussd/01-E160.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 0, 49B41C74ACD3D16171D90D66666666666666666666B45CAC76C3CD6CB41B2D060389CB74F9FE4C07DD5CB91AA85897BF1B",
+   "model": "E160",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-01-E160",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing. E160 sends unquoted 7-bit packed hex without DCS (Huawei quirk).",
+  "vendor": "Huawei"
+ },
+ {
+  "id": "us-004",
+  "source": "gammu/tests/at-ussd/02-E160.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 0,\"49B41C74ACD3D16171D90D32FBE52072BA0C72CA5DB45CAC76C3CD6CB41B2D060389CB74F9FE4C07D55C371CA85897BF1B\",15",
+   "model": "E160",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-02-E160",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing. E160 sends unquoted 7-bit packed hex without DCS (Huawei quirk).",
+  "vendor": "Huawei"
+ },
+ {
+  "id": "us-005",
+  "source": "gammu/tests/at-ussd/03-unknown.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 1,\"Kontostand: 3.00 EUR Bitte w{hlen Sie: 1 Konto aufladen 2 CallNow Transfer\"",
+   "model": "unknown",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-03-unknown",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-006",
+  "source": "gammu/tests/at-ussd/04-unknown.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 2,\"Maaf, permintaan Anda tidak dapat kami proses. Silakan coba beberapa saat lagi.\",0",
+   "model": "unknown",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-04-unknown",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-007",
+  "source": "gammu/tests/at-ussd/Uissue358-Quectel_M35.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 2,\"00480061007600690020006B0065007200650074003A0020003000460074002E002000460065006C007400F6006C007400F60074007400200065006700790065006E006C00650067003A0020003700370037003700460074002C002800650062006200F6006C0020007600E0007300E00072006C00E000730072006100200069007300200066006F0072006400EC007400680061007400F2003A00200037003700370037004600740029002E0020004400EC006A00630073006F006D00610067003A002000420065006E0063007300F200200041002E00200055006A002000540065006C0065006B006F006D002000F6006E006B00690073007A006F006C006700E0006C00F2003A0020002A0031003100310023\",15",
+   "model": "Quectel_M35",
+   "at_charset": "UCS2"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-Uissue358-Quectel_M35",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-008",
+  "source": "gammu/tests/at-ussd/issue109-E3276.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 0,\"0414043B044F00200441043F044004300432043A04380020043E002004310430043B0430043D044104350020043D04300431043504400438044204350020002A0031003000350023002E002004230441043B0443043304300020043104350441043F043B04300442043D0430002E\",72",
+   "model": "E3276",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-issue109-E3276",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-009",
+  "source": "gammu/tests/at-ussd/issue178-dell.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 0,\"On DATA Pack u have 3Gb 817Mb 169kb valid until 21/05/2016   upto time of data recharge done by u.\",15",
+   "model": "dell",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-issue178-dell",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-010",
+  "source": "gammu/tests/at-ussd/issue377-HE910-D.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "line": "+CUSD: 2,\"613906310635064A062F06430020003100300037002E003900330020062F002E0644060C06270644063506440627062D064A0629002000200032003000310038002D00310031002D003000390000FFFF60B16260EEEEFFFFFFFFFFFFFFFFFFFF60B16260EEEEFFFFFFFFFFFFFFFFFFFF60B16260EEEEFFFF00A962600000000000000000EE000000000000000000000068B5626058655F60\",17",
+   "model": "D",
+   "at_charset": "GSM"
+  },
+  "expected": {
+   "ok": true,
+   "text_nonempty_and_not_raw_hex": true
+  },
+  "name": "at-ussd-reply-issue377-HE910-D",
+  "checked_by": "gammu/tests/CMakeLists.txt:832",
+  "note": "at-ussd-reply: ATGEN_ReplyGetUSSD must return ERR_NONE and the printed decoded response must NOT match 'Response: (00[A-Fa-f0-0]*)?\\n' (i.e. text decoded, not empty and not left as UCS2 hex). Decoded text and status are not asserted. Charset = +CSCS in effect (U prefix => UCS2 else GSM); DCS in line (15 = GSM7, 72 = UCS2, 17 = UCS2 w/ language) decides packing."
+ },
+ {
+  "id": "us-011",
+  "source": "libosmocore/tests/ussd/ussd_test.c:298",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "01234567"
+  },
+  "expected": {
+   "hex": "B0986C46ABD96E",
+   "decoded": "01234567"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 72-74."
+ },
+ {
+  "id": "us-012",
+  "source": "libosmocore/tests/ussd/ussd_test.c:299",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "0123456"
+  },
+  "expected": {
+   "hex": "B0986C46ABD91A",
+   "decoded": "0123456"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 76-78."
+ },
+ {
+  "id": "us-013",
+  "source": "libosmocore/tests/ussd/ussd_test.c:300",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "01234567\r"
+  },
+  "expected": {
+   "hex": "B0986C46ABD96E0D",
+   "decoded": "01234567\r"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 80-82."
+ },
+ {
+  "id": "us-014",
+  "source": "libosmocore/tests/ussd/ussd_test.c:302",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "0123456\r"
+  },
+  "expected": {
+   "hex": "B0986C46ABD91A0D",
+   "decoded": "0123456\r\r"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 84-86."
+ },
+ {
+  "id": "us-015",
+  "source": "libosmocore/tests/ussd/ussd_test.c:303",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "012345\r"
+  },
+  "expected": {
+   "hex": "B0986C46AB351A",
+   "decoded": "012345\r"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 88-90."
+ },
+ {
+  "id": "us-016",
+  "source": "libosmocore/tests/ussd/ussd_test.c:307",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": ""
+  },
+  "expected": {
+   "hex": "",
+   "decoded": ""
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 93-95."
+ },
+ {
+  "id": "us-017",
+  "source": "libosmocore/tests/ussd/ussd_test.c:313",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit_ussd",
+   "text": "forty-two"
+  },
+  "expected": {
+   "hex": "E6B79C9E6FD1EF6F",
+   "decoded": "forty-two"
+  },
+  "name": "test_7bit_ussd",
+  "note": "gsm_7bit_encode_n_ussd / gsm_7bit_decode_n_ussd(septets = octets*8/7). 23.038 6.1.2.3.1: when 7 spare bits remain the encoder pads with CR (0x0D<<1); when the text ends with CR on an octet boundary an extra CR is added. Decoder strips the padding CR, so '0123456\\r' decodes with a second CR. .ok lines 98-100."
+ },
+ {
+  "id": "us-059",
+  "source": "python-gsmmodem/test/test_modem.py:405",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "OK",
+    "+CUSD: 0,\"Available Balance: R 96.45 .\",15"
+   ]
+  },
+  "expected": {
+   "command": "AT+CUSD=1,\"*101#\",15",
+   "message": "Available Balance: R 96.45 .",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssd",
+  "note": "+CUSD <m>: 0 = no further action, 1 = further user action required (session active), 2 = terminated. Also asserted with +CUSD before OK; active sessions cancelled with AT+CUSD=2. Message may contain embedded CR/LF inside the quotes."
+ },
+ {
+  "id": "us-060",
+  "source": "python-gsmmodem/test/test_modem.py:406",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*120*500#",
+   "lines": [
+    "OK",
+    "+CUSD: 1,\"Hallo daar\",15"
+   ]
+  },
+  "expected": {
+   "command": "AT+CUSD=1,\"*120*500#\",15",
+   "message": "Hallo daar",
+   "session_active": true
+  },
+  "name": "TestUssd.test_sendUssd",
+  "note": "+CUSD <m>: 0 = no further action, 1 = further user action required (session active), 2 = terminated. Also asserted with +CUSD before OK; active sessions cancelled with AT+CUSD=2. Message may contain embedded CR/LF inside the quotes."
+ },
+ {
+  "id": "us-061",
+  "source": "python-gsmmodem/test/test_modem.py:407",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*130*111#",
+   "lines": [
+    "OK",
+    "+CUSD: 2,\"Totsiens\",15"
+   ]
+  },
+  "expected": {
+   "command": "AT+CUSD=1,\"*130*111#\",15",
+   "message": "Totsiens",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssd",
+  "note": "+CUSD <m>: 0 = no further action, 1 = further user action required (session active), 2 = terminated. Also asserted with +CUSD before OK; active sessions cancelled with AT+CUSD=2. Message may contain embedded CR/LF inside the quotes."
+ },
+ {
+  "id": "us-062",
+  "source": "python-gsmmodem/test/test_modem.py:408",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*111*502#",
+   "lines": [
+    "OK",
+    "+CUSD: 2,\"You have the following remaining balances:\n0 free minutes\n20 MORE Weekend minutes \",15"
+   ]
+  },
+  "expected": {
+   "command": "AT+CUSD=1,\"*111*502#\",15",
+   "message": "You have the following remaining balances:\n0 free minutes\n20 MORE Weekend minutes ",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssd",
+  "note": "+CUSD <m>: 0 = no further action, 1 = further user action required (session active), 2 = terminated. Also asserted with +CUSD before OK; active sessions cancelled with AT+CUSD=2. Message may contain embedded CR/LF inside the quotes."
+ },
+ {
+  "id": "us-063",
+  "source": "python-gsmmodem/test/test_modem.py:409",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "#100#",
+   "lines": [
+    "OK",
+    "+CUSD: 1,\"Bal:$100.00 *\r\nExp 01 Jan 2013\r\n1. Recharge\r\n2. Balance\r\n3. My Offer\r\n4. PlusPacks\r\n5. Tones&Extras\r\n6. History\r\n7. CredMe2U\r\n8. Hlp\r\n00. Home\r\n*charges can take 48hrs\",15"
+   ]
+  },
+  "expected": {
+   "command": "AT+CUSD=1,\"#100#\",15",
+   "message": "Bal:$100.00 *\r\nExp 01 Jan 2013\r\n1. Recharge\r\n2. Balance\r\n3. My Offer\r\n4. PlusPacks\r\n5. Tones&Extras\r\n6. History\r\n7. CredMe2U\r\n8. Hlp\r\n00. Home\r\n*charges can take 48hrs",
+   "session_active": true
+  },
+  "name": "TestUssd.test_sendUssd",
+  "note": "+CUSD <m>: 0 = no further action, 1 = further user action required (session active), 2 = terminated. Also asserted with +CUSD before OK; active sessions cancelled with AT+CUSD=2. Message may contain embedded CR/LF inside the quotes."
+ },
+ {
+  "id": "us-064",
+  "source": "python-gsmmodem/test/test_modem.py:500",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*100#",
+   "lines": [
+    "+CUSD: 2,\"Initiating Release\",15",
+    "+CUSD: 0,\"Wrong order test message\",15",
+    "OK"
+   ]
+  },
+  "expected": {
+   "message": "Wrong order test message",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssdExtraRelease",
+  "note": "Extra +CUSD: 2/3 release notifications must be ignored in favour of the +CUSD: 0 result; next AT returns only OK."
+ },
+ {
+  "id": "us-065",
+  "source": "python-gsmmodem/test/test_modem.py:501",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "OK",
+    "+CUSD: 2,\"Initiating Release\",15",
+    "+CUSD: 0,\"Notifications test\",15"
+   ]
+  },
+  "expected": {
+   "message": "Notifications test",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssdExtraRelease",
+  "note": "Extra +CUSD: 2/3 release notifications must be ignored in favour of the +CUSD: 0 result; next AT returns only OK."
+ },
+ {
+  "id": "us-066",
+  "source": "python-gsmmodem/test/test_modem.py:502",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "OK",
+    "+CUSD: 3,\"Other local client responded\",15",
+    "+CUSD: 0,\"Test2\",15"
+   ]
+  },
+  "expected": {
+   "message": "Test2",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssdExtraRelease",
+  "note": "Extra +CUSD: 2/3 release notifications must be ignored in favour of the +CUSD: 0 result; next AT returns only OK."
+ },
+ {
+  "id": "us-067",
+  "source": "python-gsmmodem/test/test_modem.py:525",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "OK",
+    "+CUSD: 2,\"Notification appended\",15",
+    "Some random notification!"
+   ]
+  },
+  "expected": {
+   "message": "Notification appended"
+  },
+  "name": "TestUssd.test_sendUssdExtraLinesInResponse",
+  "note": "Unrelated unsolicited lines mixed in (a 0.1 s pause after OK in the test) must be skipped."
+ },
+ {
+  "id": "us-068",
+  "source": "python-gsmmodem/test/test_modem.py:526",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "OK",
+    "Another random notification!",
+    "+CUSD: 2,\"Notification prepended\",15"
+   ]
+  },
+  "expected": {
+   "message": "Notification prepended"
+  },
+  "name": "TestUssd.test_sendUssdExtraLinesInResponse",
+  "note": "Unrelated unsolicited lines mixed in (a 0.1 s pause after OK in the test) must be skipped."
+ },
+ {
+  "id": "us-069",
+  "source": "python-gsmmodem/test/test_modem.py:527",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "Yet another random notification!",
+    "OK",
+    "+CUSD: 2,\"Notification before OK\",15"
+   ]
+  },
+  "expected": {
+   "message": "Notification before OK"
+  },
+  "name": "TestUssd.test_sendUssdExtraLinesInResponse",
+  "note": "Unrelated unsolicited lines mixed in (a 0.1 s pause after OK in the test) must be skipped."
+ },
+ {
+  "id": "us-070",
+  "source": "python-gsmmodem/test/test_modem.py:462",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "ussd": "*101#",
+   "lines": [
+    "+CUSD: 1,\"First menu. Reply with 1 for blah blah blah...\",15",
+    "OK"
+   ]
+  },
+  "expected": {
+   "message": "First menu. Reply with 1 for blah blah blah...",
+   "session_active": true
+  },
+  "name": "TestUssd.test_sendUssdReply",
+  "note": ""
+ },
+ {
+  "id": "us-071",
+  "source": "python-gsmmodem/test/test_modem.py:468",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "reply",
+   "reply": "1",
+   "lines": [
+    "+CUSD: 2,\"Second menu\",15",
+    "OK"
+   ]
+  },
+  "expected": {
+   "message": "Second menu",
+   "session_active": false
+  },
+  "name": "TestUssd.test_sendUssdReply",
+  "note": "Replying to an inactive session raises InvalidStateException."
+ },
+ {
+  "id": "us-072",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:136",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": null,
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": null
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/nil",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-073",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:142",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": ""
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/empty",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-074",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:148",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "0D",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "0D"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/cr",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-075",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:154",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "31",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "31"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/one",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-076",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:160",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "3032",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "3019"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/two",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-077",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:166",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "6D65737361676500",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "EDF27C1E3E9701"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/message0",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-078",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:172",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "6D657373616765",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "EDF27C1E3E971B"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/message",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-079",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:178",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7061747465726E",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "F0309D5E96BB1B"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/seven",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-080",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:184",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7061747465726E3F",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "F0309D5E96BB7F"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/eight",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-081",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:190",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7061747465726E2121",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "F0309D5E96BB4321"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/nine",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-082",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:196",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "612076657279206C6F6E672074657374207061747465726E",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "6190BD2CCF83D86FF719442FCFE92078984E2FCBDD"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/long",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-083",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:205",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7061747465726E0D",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "F0309D5E96BB1B0D"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/octet cr",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-084",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:211",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "66696C6C65723F",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "E6349B5D96FF1A"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/filler",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-085",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:217",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "66696C6C65723F00",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "E6349B5D96FF00"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/null filler",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-086",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:223",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 1
+  },
+  "expected": {
+   "packed": "FE"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill1",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-087",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:229",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 2
+  },
+  "expected": {
+   "packed": "FC1B"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill2",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-088",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:235",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 3
+  },
+  "expected": {
+   "packed": "F803"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill3",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-089",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:241",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 4
+  },
+  "expected": {
+   "packed": "F007"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill4",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-090",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:247",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 5
+  },
+  "expected": {
+   "packed": "E00F"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill5",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ },
+ {
+  "id": "us-091",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:253",
+  "license": "MIT",
+  "input": {
+   "op": "pack7_ussd",
+   "septets": "7F",
+   "pad_bits": 6
+  },
+  "expected": {
+   "packed": "C01F"
+  },
+  "name": "TestPack7BitUSSD+TestUnpack7BitUSSD/fill6",
+  "note": "USSD/CBS 7-bit packing (23.038 6.1.2.3.1: CR fill when 7 spare bits / trailing CR doubled). Both directions asserted unless test body differs; see note in source."
+ }
+]

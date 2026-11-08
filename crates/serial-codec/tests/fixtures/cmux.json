@@ -1,0 +1,925 @@
+[
+ {
+  "source": "ofono/unit/test-mux.c:218",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_basic/basic_open",
+  "input": {
+   "op": "fill_frame",
+   "option": "basic",
+   "dlci": 1,
+   "control": "3F",
+   "info": ""
+  },
+  "expected": {
+   "frame": "F9073F01DEF9",
+   "fcs": "DE"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Basic option: F9 flags, length octet with EA (2-octet length when >127: here 136 bytes -> 10 01), FCS over address+control+length. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:221",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_basic/basic_close",
+  "input": {
+   "op": "fill_frame",
+   "option": "basic",
+   "dlci": 1,
+   "control": "53",
+   "info": ""
+  },
+  "expected": {
+   "frame": "F90753013FF9",
+   "fcs": "3F"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Basic option: F9 flags, length octet with EA (2-octet length when >127: here 136 bytes -> 10 01), FCS over address+control+length. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:224",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_basic/basic_data",
+  "input": {
+   "op": "fill_frame",
+   "option": "basic",
+   "dlci": 1,
+   "control": "EF",
+   "info": "123456"
+  },
+  "expected": {
+   "frame": "F907EF07123456D3F9",
+   "fcs": "D3"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Basic option: F9 flags, length octet with EA (2-octet length when >127: here 136 bytes -> 10 01), FCS over address+control+length. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:229",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_basic/basic_long_frame",
+  "input": {
+   "op": "fill_frame",
+   "option": "basic",
+   "dlci": 1,
+   "control": "EF",
+   "info": "123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0"
+  },
+  "expected": {
+   "frame": "F907EF1001123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF088F9",
+   "fcs": "88"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Basic option: F9 flags, length octet with EA (2-octet length when >127: here 136 bytes -> 10 01), FCS over address+control+length. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:300",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_advanced/advanced_open",
+  "input": {
+   "op": "fill_frame",
+   "option": "advanced",
+   "dlci": 1,
+   "control": "3F",
+   "info": ""
+  },
+  "expected": {
+   "frame": "7E073F897E",
+   "fcs": "89"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Advanced option: 7E flags, no length field, control-octet transparency (7E->7D 5E, 7D->7D 5D), FCS over address+control. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:303",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_advanced/advanced_close",
+  "input": {
+   "op": "fill_frame",
+   "option": "advanced",
+   "dlci": 1,
+   "control": "53",
+   "info": ""
+  },
+  "expected": {
+   "frame": "7E0753C87E",
+   "fcs": "C8"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Advanced option: 7E flags, no length field, control-octet transparency (7E->7D 5E, 7D->7D 5D), FCS over address+control. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:306",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_advanced/advanced_data",
+  "input": {
+   "op": "fill_frame",
+   "option": "advanced",
+   "dlci": 1,
+   "control": "EF",
+   "info": "123456"
+  },
+  "expected": {
+   "frame": "7E07EF123456057E",
+   "fcs": "05"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Advanced option: 7E flags, no length field, control-octet transparency (7E->7D 5E, 7D->7D 5D), FCS over address+control. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:311",
+  "license": "GPL-2.0-only",
+  "name": "test_fill_advanced/advanced_quoted_data",
+  "input": {
+   "op": "fill_frame",
+   "option": "advanced",
+   "dlci": 1,
+   "control": "EF",
+   "info": "1234567E787D"
+  },
+  "expected": {
+   "frame": "7E07EF1234567D5E787D5D057E",
+   "fcs": "05"
+  },
+  "note": "Control constants from gatchat/gsm0710.h: SABM|PF=0x3F, DISC|PF=0x53, UIH|PF=0xEF. Address 0x07 = DLCI 1, C/R=1, EA=1. Advanced option: 7E flags, no length field, control-octet transparency (7E->7D 5E, 7D->7D 5D), FCS over address+control. fcs value = the octet before the closing flag as listed."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:358",
+  "license": "GPL-2.0-only",
+  "name": "test_extract_basic/basic_input",
+  "input": {
+   "op": "extract_frames",
+   "option": "basic",
+   "stream": "FFFFFFFFF907EF07123456D3F907EF07123456D3F9",
+   "calls": [
+    {
+     "offset": 0,
+     "len": 4
+    },
+    {
+     "offset": 4,
+     "len": 8
+    },
+    {
+     "offset": 4,
+     "len": 9
+    },
+    {
+     "offset": 12,
+     "len": 9
+    },
+    {
+     "offset": 20,
+     "len": 1
+    }
+   ]
+  },
+  "expected": {
+   "results": [
+    {
+     "frame": null,
+     "frame_size": 0
+    },
+    {
+     "nread": 0,
+     "frame": null
+    },
+    {
+     "nread": 8,
+     "payload": "123456"
+    },
+    {
+     "nread": 8,
+     "payload": "123456"
+    },
+    {
+     "nread": 0
+    }
+   ]
+  },
+  "note": "gsm0710_basic_extract_frame on 4 garbage bytes + two frames sharing one flag. Call 1 nread not asserted (test relies on it skipping the 4 garbage bytes). Partial frame (no closing flag) -> nread 0. nread consumes open flag + frame but leaves the closing flag (it can open the next frame). dlc/ctrl outputs NOT asserted. call slices: FFFFFFFF; F907EF07123456D3; F907EF07123456D3F9; F907EF07123456D3F9; F9"
+ },
+ {
+  "source": "ofono/unit/test-mux.c:420",
+  "license": "GPL-2.0-only",
+  "name": "test_extract_basic/basic_input2",
+  "input": {
+   "op": "extract_frames",
+   "option": "basic",
+   "stream": "FFFFFFFFF907EF07123456D3F9F907EF07123456D3F9",
+   "calls": [
+    {
+     "offset": 0,
+     "len": 22
+    },
+    {
+     "offset": 12,
+     "len": 10
+    }
+   ]
+  },
+  "expected": {
+   "results": [
+    {
+     "nread": 12,
+     "payload": "123456"
+    },
+    {
+     "payload": "123456"
+    }
+   ],
+   "total_consumed": 21
+  },
+  "note": "Two frames separated by back-to-back flags F9 F9. Second call nread not asserted individually; total consumed == len-1."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:457",
+  "license": "GPL-2.0-only",
+  "name": "test_extract_advanced/advanced_input",
+  "input": {
+   "op": "extract_frames",
+   "option": "advanced",
+   "stream": "FFFFFF7E07EF123456057E07EF123456057E",
+   "calls": [
+    {
+     "offset": 0,
+     "len": 3
+    },
+    {
+     "offset": 3,
+     "len": 7
+    },
+    {
+     "offset": 3,
+     "len": 8
+    },
+    {
+     "offset": 10,
+     "len": 8
+    },
+    {
+     "offset": 17,
+     "len": 1
+    }
+   ]
+  },
+  "expected": {
+   "results": [
+    {
+     "frame": null,
+     "frame_size": 0
+    },
+    {
+     "nread": 0,
+     "frame": null
+    },
+    {
+     "nread": 7,
+     "payload": "123456"
+    },
+    {
+     "nread": 7,
+     "payload": "123456"
+    },
+    {
+     "nread": 0
+    }
+   ]
+  },
+  "note": "Advanced-option equivalent of extract_basic (3 garbage bytes, two frames sharing a flag). dlc/ctrl NOT asserted."
+ },
+ {
+  "source": "ofono/unit/test-mux.c:520",
+  "license": "GPL-2.0-only",
+  "name": "test_extract_advanced/advanced_input2",
+  "input": {
+   "op": "extract_frames",
+   "option": "advanced",
+   "stream": "FFFFFF7E07EF123456057E07EF123456057E",
+   "calls": [
+    {
+     "offset": 0,
+     "len": 18
+    },
+    {
+     "offset": 10,
+     "len": 8
+    }
+   ]
+  },
+  "expected": {
+   "results": [
+    {
+     "nread": 10,
+     "payload": "123456"
+    },
+    {
+     "payload": "123456"
+    }
+   ],
+   "total_consumed": 17
+  },
+  "note": "Note: advanced_input2 is byte-identical to advanced_input in the source (unlike basic_input2 it has no double flag)."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:120",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_sabm_cmd",
+  "input": {
+   "frame": "F9033F011CF9"
+  },
+  "expected": {
+   "named": "control_sabm_cmd",
+   "role": "SABM DLCI0 sent by CMUX on connect (CMUX also accepts it when the peer opens first)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_sabm_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:121",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_sabm_ack",
+  "input": {
+   "frame": "F9037301D7F9"
+  },
+  "expected": {
+   "named": "control_sabm_ack",
+   "role": "UA for DLCI0 SABM (peer reply, and CMUX reply when peer opens first)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_sabm_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:122",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_cld_cmd",
+  "input": {
+   "frame": "F903EF05C301F2F9"
+  },
+  "expected": {
+   "named": "control_cld_cmd",
+   "role": "CLD multiplexer close-down command sent on disconnect"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_cld_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:123",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_cld_ack",
+  "input": {
+   "frame": "F903EF05C101F2F9"
+  },
+  "expected": {
+   "named": "control_cld_ack",
+   "role": "CLD response from peer"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_cld_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:124",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci0_disc_cmd",
+  "input": {
+   "frame": "F90153019CF9"
+  },
+  "expected": {
+   "named": "dlci0_disc_cmd",
+   "role": "DISC on DLCI0 received from peer"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci0_disc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:125",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci0_ua_ack",
+  "input": {
+   "frame": "F9017301B6F9"
+  },
+  "expected": {
+   "named": "dlci0_ua_ack",
+   "role": "UA sent by CMUX in reply to DLCI0 DISC"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci0_ua_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:126",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_sabm_cmd",
+  "input": {
+   "frame": "F9073F01DEF9"
+  },
+  "expected": {
+   "named": "dlci1_sabm_cmd",
+   "role": "SABM DLCI1 sent on pipe open"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_sabm_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:127",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_sabm_ack",
+  "input": {
+   "frame": "F907730115F9"
+  },
+  "expected": {
+   "named": "dlci1_sabm_ack",
+   "role": "UA DLCI1 (identical to dlci1_ua_ack)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_sabm_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:128",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_disc_cmd",
+  "input": {
+   "frame": "F90753013FF9"
+  },
+  "expected": {
+   "named": "dlci1_disc_cmd",
+   "role": "DISC DLCI1 sent on pipe close"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_disc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:131",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_ua_ack",
+  "input": {
+   "frame": "F907730115F9"
+  },
+  "expected": {
+   "named": "dlci1_ua_ack",
+   "role": "UA DLCI1"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_ua_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:129",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_msc_cmd",
+  "input": {
+   "frame": "F903EF09E305078DFBF9"
+  },
+  "expected": {
+   "named": "dlci1_msc_cmd",
+   "role": "MSC (on DLCI0 UIH) for DLCI1 sent after open"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_msc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:132",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_sabm_cmd",
+  "input": {
+   "frame": "F90B3F0159F9"
+  },
+  "expected": {
+   "named": "dlci2_sabm_cmd",
+   "role": "SABM DLCI2"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_sabm_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:133",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_sabm_ack",
+  "input": {
+   "frame": "F90B730192F9"
+  },
+  "expected": {
+   "named": "dlci2_sabm_ack",
+   "role": "UA DLCI2"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_sabm_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:134",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_disc_cmd",
+  "input": {
+   "frame": "F90B5301B8F9"
+  },
+  "expected": {
+   "named": "dlci2_disc_cmd",
+   "role": "DISC DLCI2"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_disc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:143",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_ua_ack",
+  "input": {
+   "frame": "F90B730192F9"
+  },
+  "expected": {
+   "named": "dlci2_ua_ack",
+   "role": "UA DLCI2"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_ua_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:135",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_msc_cmd",
+  "input": {
+   "frame": "F903EF09E3050B8DFBF9"
+  },
+  "expected": {
+   "named": "dlci2_msc_cmd",
+   "role": "MSC for DLCI2, FC bit clear, sent after open / after drain"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_msc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:137",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_msc_ack",
+  "input": {
+   "frame": "F903EF09E1050B8DFBF9"
+  },
+  "expected": {
+   "named": "dlci2_msc_ack",
+   "role": "MSC response for DLCI2"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_msc_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:139",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_msc_fcon_cmd",
+  "input": {
+   "frame": "F903EF09E3050B8FFBF9"
+  },
+  "expected": {
+   "named": "dlci2_msc_fcon_cmd",
+   "role": "MSC for DLCI2 with FC bit set (receive buffer above threshold)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_msc_fcon_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:141",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_msc_fcon_ack",
+  "input": {
+   "frame": "F903EF09E1050B8FFBF9"
+  },
+  "expected": {
+   "named": "dlci2_msc_fcon_ack",
+   "role": "MSC response with FC set"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_msc_fcon_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:144",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_msc_cmd",
+  "input": {
+   "frame": "F901EF09E30507019AF9"
+  },
+  "expected": {
+   "named": "control_msc_cmd",
+   "role": "MSC command from peer (address 0x01)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_msc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:146",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_msc_ack",
+  "input": {
+   "frame": "F901EF09E10507019AF9"
+  },
+  "expected": {
+   "named": "control_msc_ack",
+   "role": "MSC response CMUX must send"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_msc_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:148",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_fcon_cmd",
+  "input": {
+   "frame": "F901FF05A30186F9"
+  },
+  "expected": {
+   "named": "control_fcon_cmd",
+   "role": "FCon command from peer"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_fcon_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:149",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_fcon_ack",
+  "input": {
+   "frame": "F901FF05A10186F9"
+  },
+  "expected": {
+   "named": "control_fcon_ack",
+   "role": "FCon response CMUX must send"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_fcon_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:150",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_fcoff_cmd",
+  "input": {
+   "frame": "F901FF05630186F9"
+  },
+  "expected": {
+   "named": "control_fcoff_cmd",
+   "role": "FCoff command from peer"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_fcoff_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:151",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_fcoff_ack",
+  "input": {
+   "frame": "F901FF05610186F9"
+  },
+  "expected": {
+   "named": "control_fcoff_ack",
+   "role": "FCoff response CMUX must send"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_fcoff_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:229",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_psc_cmd",
+  "input": {
+   "frame": "F901FF05430186F9"
+  },
+  "expected": {
+   "named": "control_psc_cmd",
+   "role": "PSC from peer: DLCI0, C/R=0 in address, UIH+PF, PSC type 0x43 (ea=1,cr=1), len 0; FCS over {01 FF 05} (test comment)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_psc_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:235",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_psc_ack",
+  "input": {
+   "frame": "F901FF05410186F9"
+  },
+  "expected": {
+   "named": "control_psc_ack",
+   "role": "PSC response from CMUX: same address/control, type cr cleared 0x41 (test comment)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_psc_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:243",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_psc_initiator_cmd",
+  "input": {
+   "frame": "F903FF054301E7F9"
+  },
+  "expected": {
+   "named": "control_psc_initiator_cmd",
+   "role": "PSC sent by CMUX as initiator: C/R=1 address 0x03; FCS over {03 FF 05}"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_psc_initiator_cmd); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:250",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_control_psc_initiator_ack",
+  "input": {
+   "frame": "F903FF054101E7F9"
+  },
+  "expected": {
+   "named": "control_psc_initiator_ack",
+   "role": "PSC response from peer to initiator (address stays 0x03, type 0x41)"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_control_psc_initiator_ack); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:156",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_at_cgdcont",
+  "input": {
+   "frame": "F90BEF4341542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D2223F9"
+  },
+  "expected": {
+   "named": "dlci2_at_cgdcont",
+   "role": "UIH DLCI2 carrying 'AT+CGDCONT=1,\"IP\",\"trackunit.m2m\"'"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_at_cgdcont); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:166",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_at_newline",
+  "input": {
+   "frame": "F90BEF050D0AB7F9"
+  },
+  "expected": {
+   "named": "dlci2_at_newline",
+   "role": "UIH DLCI2 carrying CR LF"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_at_newline); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:181",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_at_at",
+  "input": {
+   "frame": "F907EF05415430F9"
+  },
+  "expected": {
+   "named": "dlci1_at_at",
+   "role": "UIH DLCI1 carrying 'AT'"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_at_at); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:185",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci1_at_newline",
+  "input": {
+   "frame": "F907EF050D0A30F9"
+  },
+  "expected": {
+   "named": "dlci1_at_newline",
+   "role": "UIH DLCI1 carrying CR LF"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci1_at_newline); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:197",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_ppp_52",
+  "input": {
+   "frame": "F90BEF697EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87EF6F9"
+  },
+  "expected": {
+   "named": "dlci2_ppp_52",
+   "role": "UIH DLCI2 carrying 52-byte PPP (HDLC-escaped) payload"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_ppp_52); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:209",
+  "license": "Apache-2.0",
+  "name": "cmux_frame_dlci2_ppp_18",
+  "input": {
+   "frame": "F90BEF257EFF7D23C0217D227D217D207D247D3C907E8FF9"
+  },
+  "expected": {
+   "named": "dlci2_ppp_18",
+   "role": "UIH DLCI2 carrying 18-byte PPP payload"
+  },
+  "note": "Frame byte array named by the test (cmux_frame_dlci2_ppp_18); field meaning comes from the variable name/comments only, expected bytes are exact. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:441",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_receive_dlci2_at",
+  "input": {
+   "rx_stream": [
+    "F90BEF4341542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D2223F9",
+    "F90BEF050D0AB7F9"
+   ]
+  },
+  "expected": {
+   "dlci": 2,
+   "payload": "41542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D220D0A"
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. Two UIH frames decoded and concatenated on DLCI2 pipe."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:473",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_receive_dlci1_at",
+  "input": {
+   "rx_stream": [
+    "F907EF05415430F9",
+    "F907EF050D0A30F9"
+   ]
+  },
+  "expected": {
+   "dlci": 1,
+   "payload": "41540D0A"
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. "
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:503",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_receive_dlci2_ppp",
+  "input": {
+   "rx_stream": [
+    "F90BEF697EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87EF6F9",
+    "F90BEF257EFF7D23C0217D227D217D207D247D3C907E8FF9"
+   ]
+  },
+  "expected": {
+   "dlci": 2,
+   "payload": "7EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87E7EFF7D23C0217D227D217D207D247D3C907E",
+   "tx_frames": [
+    "F903EF09E3050B8FFBF9"
+   ],
+   "peer_reply": [
+    "F903EF09E1050B8FFBF9"
+   ]
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. 70 bytes into a 127-byte buffer above the 64-byte threshold => CMUX sends MSC with FC set (mock transaction)."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:593",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_flow_control_dlci2",
+  "input": {
+   "steps": [
+    {
+     "rx": "F901FF05630186F9"
+    },
+    {
+     "tx_payload": {
+      "dlci": 2,
+      "data": "7EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87E"
+     }
+    },
+    {
+     "rx": "F901FF05A30186F9"
+    },
+    {
+     "tx_payload": {
+      "dlci": 2,
+      "data": "7EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87E"
+     }
+    }
+   ]
+  },
+  "expected": {
+   "steps": [
+    {
+     "tx": "F901FF05610186F9"
+    },
+    {
+     "transmit_ret": 0,
+     "tx": ""
+    },
+    {
+     "tx": "F901FF05A10186F9"
+    },
+    {
+     "transmit_ret": 52,
+     "tx": "F90BEF697EFF7D23C0217D217D207D207D387D227D267D207D207D207D207D237D24C0237D257D2653967D38AA7D277D227D287D22D5A87EF6F9"
+    }
+   ]
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. FCoff blocks transmit (returns 0 bytes, nothing on the wire); FCon re-enables. Encoder vector: 52-byte payload on DLCI2 => exact UIH frame cmux_frame_dlci2_ppp_52."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:565",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_resync",
+  "input": {
+   "rx_stream": [
+    "415430F9",
+    "F907EF05415430F9",
+    "F907EF050D0A30F9"
+   ]
+  },
+  "expected": {
+   "dlci": 1,
+   "payload": "41540D0A"
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. Leading garbage tail of a frame (41 54 30 F9) is discarded; decoder resyncs on flags."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:1109",
+  "license": "Apache-2.0",
+  "name": "test_modem_drop_frames_with_invalid_length",
+  "input": {
+   "rx_stream": [
+    "F90BEFFE41542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D2223F9",
+    "F90BEF4341542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D2223F9",
+    "F90BEF050D0AB7F9"
+   ]
+  },
+  "expected": {
+   "first_frame_delivered": false,
+   "dlci": 2,
+   "payload": "41542B434744434F4E543D312C224950222C22747261636B756E69742E6D326D220D0A"
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. Length octet 0xFE (EA=0 => 2-byte length, larger than buffer) => frame dropped; following valid frames decoded."
+ },
+ {
+  "source": "zephyr/tests/subsys/modem/modem_cmux/src/main.c:1168",
+  "license": "Apache-2.0",
+  "name": "test_modem_cmux_chain_send",
+  "input": {
+   "tx_fragments": {
+    "dlci": 2,
+    "data": [
+     "ATE0",
+     "\r"
+    ]
+   }
+  },
+  "expected": {
+   "transmit_ret": 5,
+   "tx_len": 11
+  },
+  "note": "Zephyr modem_cmux as initiator (TE), basic option, CONFIG_MODEM_CMUX_MTU=64, MSC_FC_THRESHOLD=64, DLCI rx buffers 127 bytes. Scatter-gather transmit goes out as one UIH frame (5 + 6)."
+ }
+]

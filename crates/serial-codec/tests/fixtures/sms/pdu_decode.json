@@ -1,0 +1,2441 @@
+[
+ {
+  "id": "dec-000",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:41",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F2040B916105551511F100006060605130308A04D4F29C0E",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "smsc": "+14155551212",
+   "sender": "+16505551111",
+   "text": "Test"
+  },
+  "name": "testAddressing",
+  "note": ""
+ },
+ {
+  "id": "dec-001",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:47",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F2040B916105551511F100036060924180008A0DA8695DAC2E8FE9296A794E07",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "smsc": "+14155551212",
+   "sender": "+16505551111",
+   "text": "(Subject)Test"
+  },
+  "name": "testAddressing",
+  "note": "PID 00, DCS 0x03 (7-bit, class 3). Only addresses and body asserted."
+ },
+ {
+  "id": "dec-002",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:54",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F20409E1BADCBE5AF100006060605130308A04D4F29C0E",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "sender": "*#abc#*51"
+  },
+  "name": "testAddressing",
+  "note": "OA type E1 (ext, unknown TON, numbering plan 1) with semi-octets B,A,D,C,E -> '*', '#', 'a', 'b', 'c' (DTMF digits per 23.040 / 24.008 BCD extended mapping: A='*', B='#', C='a', D='b', E='c')."
+ },
+ {
+  "id": "dec-004",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:78",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F2440A8111110301003BF56080207130138A8C0B05040B8423F000032A02010106276170706C69636174696F6E2F766E642E7761702E6D6D732D6D65737361676500AF848D0185B4848C8298524E453955304A6D713551414142666C414141414D7741414236514141414141008D908918802B31353132323937373638332F545950453D504C4D4E008A808E022B918805810306977F83687474703A2F2F36",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "udh": {
+    "concat": {
+     "ref": 42,
+     "total": 2,
+     "seq": 1,
+     "ref_8bit": true
+    },
+    "ports": {
+     "dest": 2948,
+     "orig": 9200,
+     "8bit": false
+    }
+   }
+  },
+  "name": "testUdh",
+  "note": "WAP push (MMS notification) over 8-bit data (DCS F5); UDH 0B 05 04 0B84 23F0 00 03 2A 02 0x. Only header asserted."
+ },
+ {
+  "id": "dec-005",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:97",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F2440A8111110301003BF56080207130238A3B0B05040B8423F000032A0202362E3130322E3137312E3135302F524E453955304A6D713551414142666C414141414D774141423651414141414100",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "udh": {
+    "concat": {
+     "ref": 42,
+     "total": 2,
+     "seq": 2,
+     "ref_8bit": true
+    },
+    "ports": {
+     "dest": 2948,
+     "orig": 9200,
+     "8bit": false
+    }
+   }
+  },
+  "name": "testUdh",
+  "note": "WAP push (MMS notification) over 8-bit data (DCS F5); UDH 0B 05 04 0B84 23F0 00 03 2A 02 0x. Only header asserted."
+ },
+ {
+  "id": "dec-006",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:116",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000010F7040B910100000010F600087010807121352B10212200A900AE00680065006C006C006F",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "text": "™©®hello",
+   "dcs": 8
+  },
+  "name": "testUcs2",
+  "note": "UCS2 (DCS 08) body; only body asserted (dcs value read from the PDU, not asserted)."
+ },
+ {
+  "id": "dec-007",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:127",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000010F9440B810100000010F800007060217175830AA005000300020162B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562B1582C168BC562",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "text": "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "name": "testMultipart",
+  "note": "Part 1 of a 2-part 7-bit concat SMS (UDH 050003 00 02 01, 1 fill bit). Only body asserted."
+ },
+ {
+  "id": "dec-008",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:140",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000010F9440B810100000010F800007060217185000A2305000300020262B1582C168BC96432994C2693C96432994C2693C96432990C",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "text": "1111111222222222222222222222"
+  },
+  "name": "testMultipart",
+  "note": "Part 2 of the same message."
+ },
+ {
+  "id": "dec-009",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:150",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F00404D0110041006060627171118A0120",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "sender": "_@",
+   "text": " ",
+   "replace": true,
+   "mwi": "set"
+  },
+  "name": "testCPHSVoiceMail",
+  "note": "CPHS voicemail indicator: OA alphanumeric (D0) 4 semi-octets 11 00 -> GSM7 '_@'; PID 0x41 (replace type 1). MWI set/clear is CPHS-specific: derived from the OA bits, not DCS."
+ },
+ {
+  "id": "dec-010",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:161",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F00404D0100041006021924193352B0120",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "mwi": "clear"
+  },
+  "name": "testCPHSVoiceMail",
+  "note": "CPHS voicemail clear (OA 10 00)."
+ },
+ {
+  "id": "dec-011",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:169",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F00404D0100041006060627161058A0120",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "sender": "Δ@",
+   "text": " ",
+   "replace": true,
+   "mwi": "clear"
+  },
+  "name": "testCPHSVoiceMail",
+  "note": "CPHS voicemail clear."
+ },
+ {
+  "id": "dec-012",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:183",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F14401800500C87020026195702B06040102000200",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "mwi": "set",
+   "mwi_dont_store": true
+  },
+  "name": "testCingularVoiceMail",
+  "note": "DCS C8 = message waiting indication group 'discard message', indication active, voicemail. UDH present (special SMS indication IE 01). Only MWI flags asserted."
+ },
+ {
+  "id": "dec-013",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:191",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07910100000020F14401800500C07020027160112B06040102000000",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "mwi": "clear",
+   "mwi_dont_store": true
+  },
+  "name": "testCingularVoiceMail",
+  "note": "DCS C0 = discard group, indication inactive."
+ },
+ {
+  "id": "dec-014",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:200",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F204038105F300007011103164638A28E6F71B50C687DB7076D9357EB7412F7A794E07CDEB6275794C07BDE8E5391D247E93F3",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "smsc": "+14155551212",
+   "is_email": true,
+   "email_from": "foo@example.com",
+   "display_sender": "foo@example.com",
+   "text": "test subject /test body",
+   "email_body": "test subject /test body"
+  },
+  "name": "testEmailGateway",
+  "note": "Email gateway (23.040 3.8): short OA 038105F3 = '503'; Android splits the leading address off the body. Raw TP-UD text not asserted."
+ },
+ {
+  "id": "dec-015",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:216",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F204038105F400007011103105458A29E6F71B50C687DB7076D9357EB741AF0D0A442FCFE9C23739BFE16D289BDEE6B5F1813629",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "smsc": "+14155551212",
+   "is_email": true,
+   "email_from": "foo@example.com",
+   "display_sender": "foo@example.com",
+   "text": "{ testBody[^~\\] }",
+   "email_body": "{ testBody[^~\\] }"
+  },
+  "name": "testEmailGateway",
+  "note": "Email gateway with GSM extension table chars."
+ },
+ {
+  "id": "dec-016",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:231",
+  "license": "Apache-2.0",
+  "input": {
+   "pdu": "07914151551512F2040B916105551511F100006080615131728A44D4F29C0E2AE3E96537B94C068DD16179784C2FCB41F4B0985D06B958ADD00FB0E94536AF974974DA6D281BA00E95E26D509B946FC3DBF87A25D56A04",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "smsc": "+14155551212",
+   "sender": "+16505551111",
+   "text": "Test extended character table .,-!?@~_\\/&\"';^|:()<{}>[]=%*+#"
+  },
+  "name": "testExtendedCharacterTable",
+  "note": "Body exercises the default extension table (^ { } [ ] ~ \\ |)."
+ },
+ {
+  "id": "dec-032",
+  "source": "gammu/tests/sms-pdu-security.c:38",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "00010000810000A1",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": false,
+   "error": "ERR_CORRUPTED"
+  },
+  "name": "test_malformed_frames/long_udl",
+  "note": "GSM_DecodePDUFrame(..., smsc=TRUE). TP-UDL 0xA1 (161) exceeds available user data."
+ },
+ {
+  "id": "dec-033",
+  "source": "gammu/tests/sms-pdu-security.c:48",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "000100008100080141",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": false,
+   "error": "ERR_CORRUPTED"
+  },
+  "name": "test_malformed_frames/odd_unicode",
+  "note": "GSM_DecodePDUFrame(..., smsc=TRUE). UCS2 (DCS 08) with odd UDL=1."
+ },
+ {
+  "id": "dec-034",
+  "source": "gammu/tests/sms-pdu-security.c:41",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "000100008100000541",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": true,
+   "user_data_length": 1
+  },
+  "name": "test_malformed_frames/truncated",
+  "note": "GSM_DecodePDUFrame(..., smsc=TRUE). UDL=5 but only one octet follows; 'complete header with short user-data tail remains decodable', sms.Length==1."
+ },
+ {
+  "id": "dec-035",
+  "source": "gammu/tests/sms-pdu-security.c:56",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "00010000810008040041FF",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": true,
+   "final_pos": 11,
+   "length": 1,
+   "text": "A"
+  },
+  "name": "test_malformed_frames/truncated_odd_unicode",
+  "note": "GSM_DecodePDUFrame(..., smsc=TRUE). Truncated UCS2 PDU; trailing odd octet consumed (final_pos == sizeof input == 11)."
+ },
+ {
+  "id": "dec-036",
+  "source": "gammu/tests/sms-pdu-security.c:63",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "00",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": false,
+   "error": "ERR_CORRUPTED"
+  },
+  "name": "test_malformed_frames/one",
+  "note": "Only a zero SMSC length octet."
+ },
+ {
+  "id": "dec-037",
+  "source": "gammu/tests/sms-pdu-security.c:66",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "C88111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": false,
+   "error": "ERR_CORRUPTED"
+  },
+  "name": "test_malformed_frames/long_smsc",
+  "note": "201 octets: SMSC length 200 (0xC8), TOA 0x81, rest 0x11 (built by memset in the test)."
+ },
+ {
+  "id": "dec-038",
+  "source": "gammu/tests/sms-pdu-security.c:97",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "00400081000400000000000000100B0504158A00000003CE010130017F7F",
+   "has_smsc": true
+  },
+  "expected": {
+   "ok": true,
+   "multipart_decode_ok": false
+  },
+  "name": "test_special_decoders/1",
+  "note": "Decodes (ERR_NONE) but GSM_DecodeMultiPartSMS must fail (special UDH decoder hardening); only those two outcomes asserted."
+ },
+ {
+  "id": "dec-055",
+  "source": "modemmanager/src/tests/test-sms-list.c:37",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdus": [
+    "07910100000010F7440B915155685703F900005240713104738A3E050003C40202DA6F37881E969FCBF4B4FB0CCABFEB20F4FB0EA287E5E7323DED3E83DAE17519747FCBD96490B95C6683D273101D5D0601",
+    "07910100000010F7440B915155685703F900005240713104738AA0050003C40201AC69373D7C2E83E87538BC2CBF87E565D039DC2E83C220769A4E6797416132394D4FBFDDA0FB5B4E4783C2EE3C888E2E83E86FD0DB0C1A86E769F71B647EB3D9EF7BDA7D06A5E7A0B09B0C9AB3DF74109C1DCE83E8E8301D44479741F9771D949E83E861F9B94C4FBBCF20F13B4C9F83E8E832485C068DDFEDF6DB0DA2A3CBA0FCBB0E1ABFDB"
+   ],
+   "has_smsc": true,
+   "indexes": [
+    null,
+    null
+   ],
+   "kind": "multipart_assembly"
+  },
+  "expected": {
+   "messages": 1
+  },
+  "name": "test_mbim_multipart_unstored",
+  "note": "two concatenated parts (ref 0xC4, 2 parts) both with invalid/unstored index combine into one message"
+ },
+ {
+  "id": "dec-056",
+  "source": "modemmanager/src/tests/test-sms-list.c:99",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdus": [
+    "07910100000010F7440B915155685703F900005240713104738A3E050003C40202DA6F37881E969FCBF4B4FB0CCABFEB20F4FB0EA287E5E7323DED3E83DAE17519747FCBD96490B95C6683D273101D5D0601"
+   ],
+   "has_smsc": true,
+   "indexes": [
+    0
+   ],
+   "kind": "multipart_assembly"
+  },
+  "expected": {
+   "messages": 1
+  },
+  "name": "test_mbim_multipart_zero_index",
+  "note": "single part of a 2-part message at index 0"
+ },
+ {
+  "id": "dec-057",
+  "source": "modemmanager/src/tests/test-sms-list.c:138",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdus": [
+    "0791010000000032511905812122F000000BA005000319020198E9B2B82C0759DFE4B0F9ED2EB7967537B9CC02B5D37450122D2FCB41EE303DFD7687D96537881A96A7CD6F383DFD7683F46134BBEC064DD36550DA0D22A7CBF3721BE42CD3F5A0198B56036DCA20B8FC0D6A0A4170767D0EAAE540433A082E7F83A6E5F93CFD76BB40D7B2DB0D9AA6CB2072BA3C2F83926EF31BE44E8FD17450BB8C9683CA",
+    "0791010000000032511905812122F000000B4F050003190202E4E8309B5E7683DAFC319A5E76B340F73D9A5D7683A6E93268FD9ED3CB6EF67B0E5AD172B19B2C2693C9602E90355D6683A6F0B007946E8382F5393BEC26BB00"
+   ],
+   "has_smsc": true,
+   "kind": "multipart_assembly"
+  },
+  "expected": {
+   "messages": 1
+  },
+  "name": "test_multipart_match_pdu_type",
+  "note": "SUBMIT parts ref 0x19 assemble into one message"
+ },
+ {
+  "id": "dec-058",
+  "source": "modemmanager/src/tests/test-sms-list.c:138",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdus": [
+    "0791010000000032511905812122F000000BA005000319020198E9B2B82C0759DFE4B0F9ED2EB7967537B9CC02B5D37450122D2FCB41EE303DFD7687D96537881A96A7CD6F383DFD7683F46134BBEC064DD36550DA0D22A7CBF3721BE42CD3F5A0198B56036DCA20B8FC0D6A0A4170767D0EAAE540433A082E7F83A6E5F93CFD76BB40D7B2DB0D9AA6CB2072BA3C2F83926EF31BE44E8FD17450BB8C9683CA",
+    "0791010000000032511905812122F000000B4F050003190202E4E8309B5E7683DAFC319A5E76B340F73D9A5D7683A6E93268FD9ED3CB6EF67B0E5AD172B19B2C2693C9602E90355D6683A6F0B007946E8382F5393BEC26BB00",
+    "07910100000000324405852122F039F101506271217180A005000319020198E9B2B82C0759DFE4B0F9ED2EB7967537B9CC02B5D37450122D2FCB41EE303DFD7687D96537881A96A7CD6F383DFD7683F46134BBEC064DD36550DA0D22A7CBF3721BE42CD3F5A0198B56036DCA20B8FC0D6A0A4170767D0EAAE540433A082E7F83A6E5F93CFD76BB40D7B2DB0D9AA6CB2072BA3C2F83926EF31BE44E8FD17450BB8C9683CA",
+    "07910100000000324405852122F039F1015062712181804F050003190202E4E8309B5E7683DAFC319A5E76B340F73D9A5D7683A6E93268FD9ED3CB6EF67B0E5AD172B19B2C2693C9602E90355D6683A6F0B007946E8382F5393BEC26BB00"
+   ],
+   "has_smsc": true,
+   "kind": "multipart_assembly"
+  },
+  "expected": {
+   "messages": 2,
+   "deliver_complete": true
+  },
+  "name": "test_multipart_match_pdu_type",
+  "note": "DELIVER and SUBMIT parts share concat ref 0x19 but must not be merged across PDU types"
+ },
+ {
+  "id": "dec-061",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:153",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1040B918100551512F20000111010214365000AE8329BFD4697D9EC37",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": "+12345678901",
+   "number": "+18005551212",
+   "timestamp": "2011-01-01T12:34:56Z",
+   "should_concat": false,
+   "text": "hellohello"
+  },
+  "name": "test_pdu3",
+  "note": "mm_sms_part_3gpp_new_from_pdu; NULL expected field = not asserted. Timestamp is MM's ISO form with UTC offset hours."
+ },
+ {
+  "id": "dec-062",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:174",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1040B918100551512F2FF00111010214365000AE8329BFD4697D9EC37",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": "+12345678901",
+   "number": "+18005551212",
+   "timestamp": "2011-01-01T12:34:56Z",
+   "should_concat": false,
+   "text": "hellohello"
+  },
+  "name": "test_pdu3_nzpid",
+  "note": "mm_sms_part_3gpp_new_from_pdu; NULL expected field = not asserted. Timestamp is MM's ISO form with UTC offset hours. TP-PID 0xFF must not affect decoding."
+ },
+ {
+  "id": "dec-063",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:195",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1000B918100551512F20000111010214365000AE8329BFD4697D9EC37",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": "+12345678901",
+   "number": "+18005551212",
+   "timestamp": "2011-01-01T12:34:56Z",
+   "should_concat": false,
+   "text": "hellohello"
+  },
+  "name": "test_pdu3_mms",
+  "note": "mm_sms_part_3gpp_new_from_pdu; NULL expected field = not asserted. Timestamp is MM's ISO form with UTC offset hours. First octet 0x00 (TP-MMS clear)."
+ },
+ {
+  "id": "dec-064",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:236",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1040B918100551512F20004111010214365000AE8329BFD4697D9EC37DE",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": "+12345678901",
+   "number": "+18005551212",
+   "timestamp": "2011-01-01T12:34:56Z",
+   "should_concat": false,
+   "data_hex": "E8329BFD4697D9EC37DE"
+  },
+  "name": "test_pdu3_8bit",
+  "note": "mm_sms_part_3gpp_new_from_pdu; NULL expected field = not asserted. Timestamp is MM's ISO form with UTC offset hours. DCS 0x04 = 8-bit data; text not asserted."
+ },
+ {
+  "id": "dec-066",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:308",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1040B918100551512F200F4111010214365000AE8329BFD4697D9EC37DE",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": "+12345678901",
+   "number": "+18005551212",
+   "timestamp": "2011-01-01T12:34:56Z",
+   "should_concat": false,
+   "data_hex": "E8329BFD4697D9EC37DE"
+  },
+  "name": "test_pdu_dcsf_8bit",
+  "note": "mm_sms_part_3gpp_new_from_pdu; NULL expected field = not asserted. Timestamp is MM's ISO form with UTC offset hours. DCS 0xF4 (group F, 8-bit)."
+ },
+ {
+  "id": "dec-071",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:433",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "07912143658709F1040B918100551512F20000111010214365000BE8329BFD4697D9EC37",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": true
+  },
+  "name": "test_pdu_insufficient_data",
+  "note": "mm_sms_part_3gpp_new_from_binary_pdu must fail (any error type)."
+ },
+ {
+  "id": "dec-072",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:447",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "000ABF00",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": true
+  },
+  "name": "test_pdu_no_address",
+  "note": "mm_sms_part_3gpp_new_from_binary_pdu must fail (any error type)."
+ },
+ {
+  "id": "dec-073",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:455",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "001C011C",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": true
+  },
+  "name": "test_pdu_wrong_address_size",
+  "note": "mm_sms_part_3gpp_new_from_binary_pdu must fail (any error type)."
+ },
+ {
+  "id": "dec-074",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:463",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "004100010100014B00002E",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": true
+  },
+  "name": "test_pdu_wrong_user_data_elements_size",
+  "note": "mm_sms_part_3gpp_new_from_binary_pdu must fail (any error type)."
+ },
+ {
+  "id": "dec-075",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:473",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "pdu": "00F101010C0000000000",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": true
+  },
+  "name": "test_pdu_wrong_udh",
+  "note": "mm_sms_part_3gpp_new_from_binary_pdu must fail (any error type)."
+ },
+ {
+  "id": "dec-080",
+  "source": "ofono/unit/test-sms.c:338",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "04819999990414D0FBFD7EBFDFEFF77BFE1E0019512090801361807E00DC00FC00C400E400D600F600C500E500D800F800C600E600C700E700C900E900CA00EA00DF0031003200330034003500360037003800390030002000540068006900730020006D00650073007300610067006500200069007300200036003300200075006E00690063006F00640065002000630068006100720073002E",
+   "has_smsc": true,
+   "direction": "deliver",
+   "tpdu_len": 149
+  },
+  "expected": {
+   "type": "deliver",
+   "reencode_identical": true,
+   "tpdu_len": 149
+  },
+  "name": "test_deliver_encode/unicode_deliver",
+  "note": "UCS2 deliver. Only decode success + byte-identical re-encode asserted (no field values); see sms_pdu_encode."
+ },
+ {
+  "id": "dec-081",
+  "source": "ofono/unit/test-sms.c:782",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0041000B915121551532F40000631A0A031906200A032104100A032705040A032E05080A043807002B8ACD29A85D9ECFC3E7F21C340EBB41E3B79B1E4EBB41697A989D1EB340E2379BCC02B1C3F27399059AB7C36C3628EC2683C66FF65B5E2683E8653C1D",
+   "has_smsc": true,
+   "direction": "submit",
+   "tpdu_len": 100
+  },
+  "expected": {
+   "type": "submit",
+   "udhi": true,
+   "udl": 99,
+   "udhl": 26,
+   "ud_bytes": 87,
+   "udh_ies": [
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 4
+    }
+   ],
+   "text": "EMS messages can contain italic, bold, large, small and colored text"
+  },
+  "name": "test_ems_udh/ems_udh_test_1",
+  "note": "EMS text-format IEs (IEI 0x0A). Only IE type and length (and iteration end) are asserted; the struct's start/span/format/color values are NOT asserted (VERBOSE-only). Text unpacked with fill bits after UDH (byte_offset = udhl+1). ofono sms_decode(pdu, len, outgoing, tpdu_len): SMSC octets = len - tpdu_len. Text is obtained via unpack_7bit + convert_gsm_to_utf8 in the test."
+ },
+ {
+  "id": "dec-082",
+  "source": "ofono/unit/test-sms.c:831",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "079101000000004251030B910100000020F60000FF80230A030F07230A031806130A031E0A430A032E0D830A033D14020A035104F60A0355010600159D9E83D2735018442FCFE98A243DCC4E97C92C90F8CD26B3407537B92C67A7DD65320B1476934173BA3CBD2ED3D1F277FD8C76299CEF3B280C92A7CF683A28CC4E9FDD6532E8FE96935D",
+   "has_smsc": true,
+   "direction": "submit",
+   "tpdu_len": 126
+  },
+  "expected": {
+   "type": "submit",
+   "udhi": true,
+   "udl": 128,
+   "udhl": 35,
+   "ud_bytes": 112,
+   "udh_ies": [
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    },
+    {
+     "iei": 10,
+     "len": 3
+    }
+   ],
+   "text": "This is a test\nItalied, bold, underlined, and strikethrough.\nNow a right aligned word."
+  },
+  "name": "test_ems_udh/ems_udh_test_2",
+  "note": "EMS text-format IEs (IEI 0x0A). Only IE type and length (and iteration end) are asserted; the struct's start/span/format/color values are NOT asserted (VERBOSE-only). Text unpacked with fill bits after UDH (byte_offset = udhl+1). ofono sms_decode(pdu, len, outgoing, tpdu_len): SMSC octets = len - tpdu_len. Text is obtained via unpack_7bit + convert_gsm_to_utf8 in the test."
+ },
+ {
+  "id": "dec-083",
+  "source": "ofono/unit/test-sms.c:1002",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdus": [
+    {
+     "pdu": "038121F340048155550119906041001222048C0500031E0301041804420430043A002C00200410043B0435043A04410430043D04340440002000200441043B044304480430043B00200437043000200434043204350440044C044E0020002004380020002004320441043500200431043E043B044C044804350020043F0440043504380441043F043E043B043D044F043B0441044F002000200433043D0435",
+     "has_smsc": true,
+     "direction": "deliver",
+     "tpdu_len": 155
+    },
+    {
+     "pdu": "038121F340048155550119906041001222048C0500031E03020432043E043C002E000A041D0430043A043E043D04350446002C0020043D043500200432002004410438043B04300445002004340430043B043504350020044204350440043F04350442044C002C0020043E043D00200441044204400435043C043804420435043B044C043D043E002004320431043504360430043B002004320020043A043E",
+     "has_smsc": true,
+     "direction": "deliver",
+     "tpdu_len": 155
+    },
+    {
+     "pdu": "038121F340048155550119906041001222044A0500031E0303043C043D043004420443002C0020043F043E043704300431044B0432000A0434043004360435002C002004470442043E002000200431044B043B0020043D04300433002E",
+     "has_smsc": true,
+     "direction": "deliver",
+     "tpdu_len": 89
+    }
+   ]
+  },
+  "expected": {
+   "assembly": [
+    "incomplete",
+    "incomplete",
+    "complete"
+   ],
+   "expire_after_s_drops_partial": 40,
+   "reprepare_ucs2_16bit_ref_segments": 3,
+   "reprepare_roundtrip_text_equal": true
+  },
+  "name": "test_assembly",
+  "note": "3-part UCS2 (Cyrillic) concatenated deliver. Asserted: fragment 1 and 2 return NULL, 3rd completes; a partial assembly is dropped by sms_assembly_expire(now+40); re-preparing the assembled text with sms_text_prepare(\"555\", text, ref, use_16bit=TRUE) yields 3 segments whose decoded text equals the original. The assembled text itself and concat ref/max/seq are NOT asserted (UDH bytes visible in PDU: 05 00 03 1E 03 0n). TP-OA is 038121F3 (national '123'?)."
+ },
+ {
+  "id": "dec-084",
+  "source": "ofono/unit/test-sms.c:1546",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "06040D91945152991136F00160124130340A0160124130940A00",
+   "has_smsc": false,
+   "direction": "status-report",
+   "tpdu_len": 26
+  },
+  "expected": {
+   "decode_ok": true
+  },
+  "name": "test_sr_assembly/sr_pdu1",
+  "note": "Only sms_decode()==TRUE asserted. Source comments: sr_pdu1/2 = international recipient address, mr 4 / mr 5; sr_pdu3 = national address, mr 6 (implied by the assembly test, not asserted directly). pdu_len == tpdu_len (no SMSC octets)."
+ },
+ {
+  "id": "dec-085",
+  "source": "ofono/unit/test-sms.c:1548",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "06050D91945152991136F00160124130640A0160124130450A00",
+   "has_smsc": false,
+   "direction": "status-report",
+   "tpdu_len": 26
+  },
+  "expected": {
+   "decode_ok": true
+  },
+  "name": "test_sr_assembly/sr_pdu2",
+  "note": "Only sms_decode()==TRUE asserted. Source comments: sr_pdu1/2 = international recipient address, mr 4 / mr 5; sr_pdu3 = national address, mr 6 (implied by the assembly test, not asserted directly). pdu_len == tpdu_len (no SMSC octets)."
+ },
+ {
+  "id": "dec-086",
+  "source": "ofono/unit/test-sms.c:1550",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0606098121436587F9019012413064A0019012413045A000",
+   "has_smsc": false,
+   "direction": "status-report",
+   "tpdu_len": 24
+  },
+  "expected": {
+   "decode_ok": true
+  },
+  "name": "test_sr_assembly/sr_pdu3",
+  "note": "Only sms_decode()==TRUE asserted. Source comments: sr_pdu1/2 = international recipient address, mr 4 / mr 5; sr_pdu3 = national address, mr 6 (implied by the assembly test, not asserted directly). pdu_len == tpdu_len (no SMSC octets)."
+ },
+ {
+  "id": "dec-088",
+  "source": "ofono/unit/test-sms.c:1656",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0791010000000052440185F039F501801140311480720605040B8423F00106246170706C69636174696F6E2F766E642E7761702E6D6D732D6D65737361676500AF84B4868C82984F67514B4B42008D9089088045726F74696B009650696E2D557073008A808E0240008805810303F48083687474703A2F2F657073332E64652F4F2F5A39495A4F00",
+   "has_smsc": true,
+   "direction": "deliver",
+   "tpdu_len": 128
+  },
+  "expected": {
+   "type": "deliver",
+   "charset": "8bit",
+   "app_port": {
+    "dst": 2948,
+    "is_8bit": false
+   },
+   "datagram_nonnull": true
+  },
+  "name": "test_wap_push/wap_push_1",
+  "note": "WAP Push (MMS notification) over 16-bit application port addressing (IEI 05). src port and datagram bytes NOT asserted."
+ },
+ {
+  "id": "dec-089",
+  "source": "python-gsmmodem/test/test_pdu.py:20",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "semioctet",
+   "hex": "5121551532F4"
+  },
+  "expected": {
+   "digits": "15125551234"
+  },
+  "name": "TestSemiOctets.test_decode",
+  "note": "Also asserted with hex-string input; F filler dropped."
+ },
+ {
+  "id": "dec-090",
+  "source": "python-gsmmodem/test/test_pdu.py:22",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "semioctet",
+   "hex": "2143"
+  },
+  "expected": {
+   "digits": "1234"
+  },
+  "name": "TestSemiOctets.test_decode",
+  "note": "Also asserted with hex-string input; F filler dropped."
+ },
+ {
+  "id": "dec-091",
+  "source": "python-gsmmodem/test/test_pdu.py:140",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "hex": "0A918967452301"
+  },
+  "expected": {
+   "number": "+9876543210",
+   "read_count": 7
+  },
+  "name": "TestSmsPduAddressFields.test_decodeAddressField",
+  "note": "Trailing bytes beyond the field must be ignored. '+' prefix = TOA international."
+ },
+ {
+  "id": "dec-092",
+  "source": "python-gsmmodem/test/test_pdu.py:142",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "hex": "099189674523F1000000"
+  },
+  "expected": {
+   "number": "+987654321",
+   "read_count": 7
+  },
+  "name": "TestSmsPduAddressFields.test_decodeAddressField",
+  "note": "Trailing bytes beyond the field must be ignored. '+' prefix = TOA international."
+ },
+ {
+  "id": "dec-093",
+  "source": "python-gsmmodem/test/test_pdu.py:144",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "hex": "06D061F118"
+  },
+  "expected": {
+   "number": "abc",
+   "read_count": 5
+  },
+  "name": "TestSmsPduAddressFields.test_decodeAddressField",
+  "note": "Trailing bytes beyond the field must be ignored. '+' prefix = TOA international."
+ },
+ {
+  "id": "dec-094",
+  "source": "python-gsmmodem/test/test_pdu.py:146",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "hex": "0ED04669D0397C26A7"
+  },
+  "expected": {
+   "number": "FRANCOIS",
+   "read_count": 9
+  },
+  "name": "TestSmsPduAddressFields.test_decodeAddressField",
+  "note": "Trailing bytes beyond the field must be ignored. '+' prefix = TOA international."
+ },
+ {
+  "id": "dec-095",
+  "source": "python-gsmmodem/test/test_pdu.py:147",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "hex": "14D0E10D6FE3DBA036A94D19"
+  },
+  "expected": {
+   "number": "a[]{}€",
+   "read_count": 12
+  },
+  "name": "TestSmsPduAddressFields.test_decodeAddressField",
+  "note": "Trailing bytes beyond the field must be ignored. '+' prefix = TOA international."
+ },
+ {
+  "id": "dec-096",
+  "source": "python-gsmmodem/test/test_pdu.py:171",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "smsc-address",
+   "hex": "06918967452301"
+  },
+  "expected": {
+   "number": "+9876543210",
+   "read_count": 7
+  },
+  "name": "TestSmsPduSmscFields.test_decodeSmscField",
+  "note": "SMSC length octet counts octets (TOA+digits)."
+ },
+ {
+  "id": "dec-097",
+  "source": "python-gsmmodem/test/test_pdu.py:173",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "smsc-address",
+   "hex": "069189674523F1000000"
+  },
+  "expected": {
+   "number": "+987654321",
+   "read_count": 7
+  },
+  "name": "TestSmsPduSmscFields.test_decodeSmscField",
+  "note": "SMSC length octet counts octets (TOA+digits)."
+ },
+ {
+  "id": "dec-098",
+  "source": "python-gsmmodem/test/test_pdu.py:212",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "validity-period-relative",
+   "tp_vp": 2048
+  },
+  "expected": {
+   "error": "ValueError"
+  },
+  "name": "TestRelativeValidityPeriod.test_decode_invalidTpVp",
+  "note": ""
+ },
+ {
+  "id": "dec-099",
+  "source": "python-gsmmodem/test/test_pdu.py:267",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "scts-timezone",
+   "hex": "B2"
+  },
+  "expected": {
+   "offset_hours": -8
+  },
+  "name": "TestSmsPduTzInfo.test_utcoffset",
+  "note": "Raw (nibble-swapped) TZ octet as it appears in the PDU: '08' -> +2h (8 quarters), 'B2' -> -8h."
+ },
+ {
+  "id": "dec-100",
+  "source": "python-gsmmodem/test/test_pdu.py:279",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "udh-ie",
+   "hex": "080401800402"
+  },
+  "expected": {
+   "type": "Concatenation",
+   "reference": 384,
+   "number": 2,
+   "parts": 4
+  },
+  "name": "TestUdhConcatenation",
+  "note": "Both encode (IE bytes incl. IEI+IEL) and decode asserted."
+ },
+ {
+  "id": "dec-101",
+  "source": "python-gsmmodem/test/test_pdu.py:318",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "udh-ie",
+   "hex": "050404D21466"
+  },
+  "expected": {
+   "type": "PortAddress",
+   "destination": 1234,
+   "source": 5222
+  },
+  "name": "TestUdhPortAddress",
+  "note": "Both encode and decode asserted."
+ },
+ {
+  "id": "dec-102",
+  "source": "python-gsmmodem/test/test_pdu.py:375",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "pdu": "07915892000000F0040B915892214365F700007040213252242331493A283D0795C3F33C88FE06C9CB6132885EC6D341EDF27C1E3E97E7207B3A0C0A5241E377BB1D7693E72E",
+   "has_smsc": true
+  },
+  "expected": {
+   "type": "SMS-DELIVER",
+   "smsc": "+85290000000",
+   "number": "+85291234567",
+   "time": "2007-04-12T23:25:42+08:00",
+   "text": "It is easy to read text messages via AT commands."
+  },
+  "name": "TestSmsPdu.test_decode",
+  "note": "Only keys listed in expected are asserted (decodeSmsPdu returns more). Times compared as instants."
+ },
+ {
+  "id": "dec-106",
+  "source": "python-gsmmodem/test/test_pdu.py:412",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "pdu": "0591721891F101000B917228214365F700040C48656C6C6F20776F726C6421",
+   "has_smsc": true
+  },
+  "expected": {
+   "type": "SMS-SUBMIT",
+   "number": "+27821234567",
+   "smsc": "+2781191",
+   "text": "Hello world!"
+  },
+  "name": "TestSmsPdu.test_decode",
+  "note": "Only keys listed in expected are asserted (decodeSmsPdu returns more). Times compared as instants."
+ },
+ {
+  "id": "dec-107",
+  "source": "python-gsmmodem/test/test_pdu.py:421",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "pdu": "0297F1061C0F910B487228297020F5317062419272803170624192138000",
+   "has_smsc": true
+  },
+  "expected": {
+   "type": "SMS-STATUS-REPORT",
+   "number": "+b08427829207025",
+   "reference": 28,
+   "time": "2013-07-26T14:29:27+02:00",
+   "discharge": "2013-07-26T14:29:31+02:00"
+  },
+  "name": "TestSmsPdu.test_decode",
+  "note": "Only keys listed in expected are asserted (decodeSmsPdu returns more). Times compared as instants. ZTE-captured semi-invalid status report; the broken number is the asserted value."
+ },
+ {
+  "id": "dec-108",
+  "source": "python-gsmmodem/test/test_pdu.py:487",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "pdu": "0043010C910661345542F60008A0050003000301306F3044",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": "EncodingError"
+  },
+  "name": "TestSmsPdu.test_decode_invalidPduType",
+  "note": "First TPDU octet 0x43 -> MTI 3 (reserved)."
+ },
+ {
+  "id": "dec-109",
+  "source": "python-gsmmodem/test/test_pdu.py:494",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "pdu": "AEFDSDFSDFSDFS",
+   "has_smsc": true
+  },
+  "expected": {
+   "error": "EncodingError"
+  },
+  "name": "TestSmsPdu.test_decode_invalidData",
+  "note": ""
+ },
+ {
+  "id": "dec-110",
+  "source": "smspdudecoder/tests/test_elements.py:12",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "hex": ""
+  },
+  "expected": {
+   "number": ""
+  },
+  "name": "test_empty",
+  "note": "Test is assertEqual(encode(''), decode(''), '') -- third arg is the failure message, so only encode('') == decode('') is asserted (both empty strings implied)."
+ },
+ {
+  "id": "dec-111",
+  "source": "smspdudecoder/tests/test_elements.py:17",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "hex": "80"
+  },
+  "expected": {
+   "toa": {
+    "ton": "unknown",
+    "npi": "unknown"
+   }
+  },
+  "name": "test_unknown",
+  "note": ""
+ },
+ {
+  "id": "dec-112",
+  "source": "smspdudecoder/tests/test_elements.py:21",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "call": "TypeOfAddress.decode",
+   "args": [
+    "00"
+   ]
+  },
+  "expected": {
+   "error": "ValueError"
+  },
+  "name": "test_decode_invalid_extension",
+  "note": "Library raises ValueError."
+ },
+ {
+  "id": "dec-113",
+  "source": "smspdudecoder/tests/test_elements.py:25",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "call": "TypeOfAddress.decode",
+   "args": [
+    "82"
+   ]
+  },
+  "expected": {
+   "error": "ValueError"
+  },
+  "name": "test_decode_invalid_npi",
+  "note": "Source arg f'{0x80|0b10:02x}' == '82' (NPI 2 is not a known value for this library)."
+ },
+ {
+  "id": "dec-114",
+  "source": "smspdudecoder/tests/test_fields.py:10",
+  "license": "MIT",
+  "input": {
+   "pdu": "0891683110304105F1240D91683167414052F700081270115183942344597D70E6597D70E651CF80A551CF80A55C",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "user_data": {
+    "data": "好烦好烦减肥减肥…",
+    "warning": "<present>"
+   }
+  },
+  "name": "test_decode_truncated_ucs2",
+  "note": "Only user_data.data and the presence of a 'warning' key are asserted (UD shorter than UDL / odd UCS2 length). The trailing … is in the asserted string."
+ },
+ {
+  "id": "dec-115",
+  "source": "smspdudecoder/smspdudecoder/elements.py:33",
+  "license": "MIT",
+  "input": {
+   "field": "swap-nibbles",
+   "hex": "0123"
+  },
+  "expected": {
+   "hex": "1032"
+  },
+  "name": "doctest swap_nibbles('0123')",
+  "note": ""
+ },
+ {
+  "id": "dec-116",
+  "source": "smspdudecoder/smspdudecoder/elements.py:54",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "hex": "70402132522400"
+  },
+  "expected": {
+   "utc": "2007-04-12T23:25:42Z"
+  },
+  "name": "doctest Date.decode('70402132522400')",
+  "note": "Result normalised to UTC by the library (repr datetime(..., tzinfo=utc) rendered as ISO Z)."
+ },
+ {
+  "id": "dec-117",
+  "source": "smspdudecoder/smspdudecoder/elements.py:59",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "hex": "70402132522423"
+  },
+  "expected": {
+   "utc": "2007-04-12T15:25:42Z"
+  },
+  "name": "doctest Date.decode('70402132522423')",
+  "note": "Result normalised to UTC by the library (repr datetime(..., tzinfo=utc) rendered as ISO Z)."
+ },
+ {
+  "id": "dec-118",
+  "source": "smspdudecoder/smspdudecoder/elements.py:64",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "hex": "3130523210658A"
+  },
+  "expected": {
+   "utc": "2013-03-26T06:01:56Z"
+  },
+  "name": "doctest Date.decode('3130523210658A')",
+  "note": "Result normalised to UTC by the library (repr datetime(..., tzinfo=utc) rendered as ISO Z)."
+ },
+ {
+  "id": "dec-120",
+  "source": "smspdudecoder/smspdudecoder/elements.py:124",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "hex": "5155214365F7"
+  },
+  "expected": {
+   "number": "15551234567"
+  },
+  "name": "doctest Number.decode('5155214365F7')",
+  "note": ""
+ },
+ {
+  "id": "dec-121",
+  "source": "smspdudecoder/smspdudecoder/elements.py:126",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "hex": "1032547698"
+  },
+  "expected": {
+   "number": "0123456789"
+  },
+  "name": "doctest Number.decode('1032547698')",
+  "note": ""
+ },
+ {
+  "id": "dec-122",
+  "source": "smspdudecoder/smspdudecoder/elements.py:188",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "hex": "91"
+  },
+  "expected": {
+   "toa": {
+    "ton": "international",
+    "npi": "isdn"
+   }
+  },
+  "name": "doctest TypeOfAddress.decode('91')",
+  "note": ""
+ },
+ {
+  "id": "dec-123",
+  "source": "smspdudecoder/smspdudecoder/fields.py:39",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "hex": "0B915155214365F7"
+  },
+  "expected": {
+   "length": 11,
+   "toa": {
+    "ton": "international",
+    "npi": "isdn"
+   },
+   "number": "15551234567"
+  },
+  "name": "doctest Address.decode(StringIO('0B915155214365F7'))",
+  "note": "length = digits (TP address; for alphanumeric = semi-octets of packed data) / octets (SMSC)."
+ },
+ {
+  "id": "dec-124",
+  "source": "smspdudecoder/smspdudecoder/fields.py:44",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "hex": "0BD0CDE6DB5DCE03"
+  },
+  "expected": {
+   "length": 11,
+   "toa": {
+    "ton": "alphanumeric",
+    "npi": "unknown"
+   },
+   "number": "MMoney"
+  },
+  "name": "doctest Address.decode(StringIO('0BD0CDE6DB5DCE03'))",
+  "note": "length = digits (TP address; for alphanumeric = semi-octets of packed data) / octets (SMSC)."
+ },
+ {
+  "id": "dec-125",
+  "source": "smspdudecoder/smspdudecoder/fields.py:49",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "hex": "14D0C4F23C7D760390EF7619"
+  },
+  "expected": {
+   "length": 20,
+   "toa": {
+    "ton": "alphanumeric",
+    "npi": "unknown"
+   },
+   "number": "Design@Home"
+  },
+  "name": "doctest Address.decode(StringIO('14D0C4F23C7D760390EF7619'))",
+  "note": "length = digits (TP address; for alphanumeric = semi-octets of packed data) / octets (SMSC)."
+ },
+ {
+  "id": "dec-127",
+  "source": "smspdudecoder/smspdudecoder/fields.py:117",
+  "license": "MIT",
+  "input": {
+   "field": "first-octet",
+   "direction": "deliver",
+   "hex": "44"
+  },
+  "expected": {
+   "rp": false,
+   "udhi": true,
+   "sri": false,
+   "lp": false,
+   "mms": true,
+   "mti": "deliver"
+  },
+  "name": "doctest PDUHeader.decode(StringIO('44'))",
+  "note": ""
+ },
+ {
+  "id": "dec-128",
+  "source": "smspdudecoder/smspdudecoder/fields.py:155",
+  "license": "MIT",
+  "input": {
+   "field": "first-octet",
+   "direction": "submit",
+   "hex": "11"
+  },
+  "expected": {
+   "rp": false,
+   "udhi": false,
+   "srr": false,
+   "vpf": 2,
+   "rd": false,
+   "mti": "submit"
+  },
+  "name": "doctest OutgoingPDUHeader.decode(StringIO('11'))",
+  "note": ""
+ },
+ {
+  "id": "dec-129",
+  "source": "warthog-sms/encoding/tpdu/tpdu_test.go:1410",
+  "license": "MIT",
+  "input": {
+   "pdu": "",
+   "has_smsc": false,
+   "direction": "MT"
+  },
+  "expected": {
+   "tpdu": {},
+   "error": {
+    "go": "tpdu.NewDecodeError(\"tpdu.firstOctet\", 0, tpdu.ErrUnderflow)"
+   }
+  },
+  "name": "TestUnmarshalBinary/underflow fo",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TPDU.UD holds unpacked user data (septets for 7-bit, raw octets for 8-bit/UCS2), not packed octets and not decoded text. direction is the 3GPP transfer direction (MT = to MS, MO = from MS) that selects which TPDU type the MTI means. On error the test also asserts the partially decoded TPDU state."
+ },
+ {
+  "id": "dec-130",
+  "source": "warthog-sms/encoding/tpdu/tpdu_test.go:83",
+  "license": "MIT",
+  "input": {
+   "field": "dcs",
+   "dcs": 128
+  },
+  "expected": {
+   "alphabet": {
+    "const": "tpdu.Alpha7Bit",
+    "value": 0
+   },
+   "error": {
+    "go": "tpdu.ErrInvalid"
+   }
+  },
+  "name": "TestAlphabet",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-131",
+  "source": "warthog-sms/encoding/tpdu/userdata_test.go:164",
+  "license": "MIT",
+  "input": {
+   "field": "udh-concat",
+   "op": "ConcatInfo",
+   "udh": []
+  },
+  "expected": {
+   "segments": 0,
+   "seqno": 0,
+   "mref": 0,
+   "ok": false
+  },
+  "name": "TestConcatInfo/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). ConcatInfo8 only accepts IE 0, ConcatInfo16 only IE 8, ConcatInfo either."
+ },
+ {
+  "id": "dec-132",
+  "source": "warthog-sms/encoding/tpdu/userdata_test.go:615",
+  "license": "MIT",
+  "input": {
+   "field": "user-data-text",
+   "ud": "1B1E1B1F1B20",
+   "udh": [
+    {
+     "ID": 24,
+     "Data": "07"
+    }
+   ],
+   "alphabet": {
+    "const": "tpdu.Alpha7Bit",
+    "value": 0
+   },
+   "options": [
+    {
+     "go": "tpdu.WithCharset(charset.Kannada)"
+    }
+   ]
+  },
+  "expected": {
+   "msg": "೨೩೪",
+   "error": null
+  },
+  "name": "TestDecodeUserDataAllCharsets/message 7bit shift kannada",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). ud is unpacked septets (7-bit) or raw octets; msg is UTF-8 text. UDH IE 24 = national single shift, IE 25 = national locking shift; IE data = NLI (charset: 1 Turkish .. 7 Kannada .. 13 Urdu)."
+ },
+ {
+  "id": "dec-133",
+  "source": "warthog-sms/encoding/tpdu/tpdu_internal_test.go:23",
+  "license": "MIT",
+  "input": {
+   "field": "user-data",
+   "tpdu": {},
+   "hex": null
+  },
+  "expected": {
+   "ud": null,
+   "udh": null,
+   "error": {
+    "go": "NewDecodeError(\"udl\", 0, ErrUnderflow)"
+   }
+  },
+  "name": "TestDecodeUserData(internal)/nil",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TPDU.UD holds unpacked user data (septets for 7-bit, raw octets for 8-bit/UCS2), not packed octets and not decoded text. hex starts at TP-UDL; tpdu gives DCS/FirstOctet(UDHI) context."
+ },
+ {
+  "id": "dec-134",
+  "source": "warthog-sms/encoding/tpdu/tpdu_internal_test.go:129",
+  "license": "MIT",
+  "input": {
+   "field": "user-data",
+   "tpdu": {
+    "FirstOctet": 64
+   },
+   "hex": "050401030102"
+  },
+  "expected": {
+   "ud": null,
+   "udh": null,
+   "error": {
+    "go": "NewDecodeError(\"udh.ied\", 4, ErrUnderflow)"
+   }
+  },
+  "name": "TestDecodeUserData(internal)/bad udh",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TPDU.UD holds unpacked user data (septets for 7-bit, raw octets for 8-bit/UCS2), not packed octets and not decoded text. hex starts at TP-UDL; tpdu gives DCS/FirstOctet(UDHI) context."
+ },
+ {
+  "id": "dec-135",
+  "source": "warthog-sms/encoding/tpdu/address_test.go:111",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "hex": "0000"
+  },
+  "expected": {
+   "address": {},
+   "read_count": 2,
+   "error": null
+  },
+  "name": "TestAddressUnmarshalBinary/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-136",
+  "source": "warthog-sms/encoding/tpdu/address_test.go:175",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "hex": "0AD1CFE539"
+  },
+  "expected": {
+   "address": {},
+   "read_count": 5,
+   "error": {
+    "go": "tpdu.NewDecodeError(\"addr\", 2, tpdu.ErrUnderflow)"
+   }
+  },
+  "name": "TestAddressUnmarshalBinary/underflow alpha",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-137",
+  "source": "warthog-sms/encoding/tpdu/dcs_test.go:23",
+  "license": "MIT",
+  "input": {
+   "field": "dcs",
+   "dcs": 16
+  },
+  "expected": {
+   "alphabet": {
+    "const": "tpdu.Alpha7Bit",
+    "value": 0
+   },
+   "error": null
+  },
+  "name": "TestDCSAlphabet/00010000",
+  "note": "Table built by loops in the test (expanded verbatim from the loop rules at dcs_test.go:25-620)."
+ },
+ {
+  "id": "dec-138",
+  "source": "warthog-sms/encoding/tpdu/dcs_test.go:241",
+  "license": "MIT",
+  "input": {
+   "field": "dcs",
+   "dcs": 240
+  },
+  "expected": {
+   "compressed": false
+  },
+  "name": "TestDCSCompressed",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-139",
+  "source": "warthog-sms/encoding/tpdu/firstoctet_test.go:72",
+  "license": "MIT",
+  "input": {
+   "field": "first-octet",
+   "first_octet": 0
+  },
+  "expected": {
+   "vpf": {
+    "const": "tpdu.VpfNotPresent",
+    "value": 0
+   }
+  },
+  "name": "TestFirstOctetVPF",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-140",
+  "source": "warthog-sms/encoding/tpdu/firstoctet_test.go:75",
+  "license": "MIT",
+  "input": {
+   "field": "first-octet",
+   "first_octet": 8
+  },
+  "expected": {
+   "vpf": {
+    "const": "tpdu.VpfEnhanced",
+    "value": 1
+   }
+  },
+  "name": "TestFirstOctetVPF",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-141",
+  "source": "warthog-sms/encoding/tpdu/timestamp_test.go:100",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "hex": "07101010203000"
+  },
+  "expected": {
+   "timestamp": {
+    "Time": "1970-01-01T01:02:03+00:00"
+   },
+   "error": null
+  },
+  "name": "TestUnmarhalBinary/19700101",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Test compares instant and UTC offset (zone name 'SCTS' also asserted)."
+ },
+ {
+  "id": "dec-142",
+  "source": "warthog-sms/encoding/tpdu/validityperiod_test.go:22",
+  "license": "MIT",
+  "input": {
+   "field": "validity-period-enhanced-format",
+   "octet": 0
+  },
+  "expected": {
+   "format": 0
+  },
+  "name": "TestVPEnhancedFormat",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-143",
+  "source": "warthog-sms/encoding/pdumode/pdu_test.go:28",
+  "license": "MIT",
+  "input": {
+   "pdu": "",
+   "has_smsc": true
+  },
+  "expected": {
+   "smsc": null,
+   "tpdu_hex": null,
+   "error": {
+    "go": "tpdu.NewDecodeError(\"length\", 0, tpdu.ErrUnderflow)"
+   }
+  },
+  "name": "TestUnmarshalBinary/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). pdumode splits +CMGR/+CMGL/+CMT PDU-mode hex into SMSC address and raw TPDU bytes (TPDU not decoded here). smsc/tpdu only asserted when error is nil."
+ },
+ {
+  "id": "dec-144",
+  "source": "warthog-sms/encoding/pdumode/smscaddress_test.go:80",
+  "license": "MIT",
+  "input": {
+   "field": "smsc-address",
+   "hex": null
+  },
+  "expected": {
+   "smsc": {},
+   "read_count": 0,
+   "error": {
+    "go": "tpdu.NewDecodeError(\"length\", 0, tpdu.ErrUnderflow)"
+   }
+  },
+  "name": "TestSMSCAddressUnmarshalBinary/nil",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "dec-146",
+  "source": "warthog-sms/encoding/semioctet/semioctet_test.go:24",
+  "license": "MIT",
+  "input": {
+   "field": "semioctet",
+   "dst": null,
+   "hex": null
+  },
+  "expected": {
+   "digits": null,
+   "read_count": 0,
+   "error": null
+  },
+  "name": "semioctet.TestDecode/nil",
+  "note": "Decode appends ASCII digits to dst ({\"go\":\"make([]byte, n)\"} = n zero bytes prefix). F filler terminates."
+ },
+ {
+  "id": "dec-148",
+  "source": "warthog-sms/cmd/smsdecode/smsdecode_test.go:24",
+  "license": "MIT",
+  "input": {
+   "pdu": "BAD HEX",
+   "has_smsc": false,
+   "direction": "MT"
+  },
+  "expected": {
+   "tpdu": null,
+   "error": {
+    "go": "hex.InvalidByteError(' ')"
+   }
+  },
+  "name": "smsdecode.TestDecode/invalid hex",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TPDU.UD holds unpacked user data (septets for 7-bit, raw octets for 8-bit/UCS2), not packed octets and not decoded text. direction is the 3GPP transfer direction (MT = to MS, MO = from MS) that selects which TPDU type the MTI means."
+ },
+ {
+  "id": "dec-149",
+  "source": "warthog-sms/collect_test.go:46",
+  "license": "MIT",
+  "input": {
+   "op": "collect_sequence",
+   "steps": [
+    {
+     "name": "deliver single segment",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      }
+     }
+    },
+    {
+     "name": "deliver one segment",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "010101"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver two a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "020201"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver two b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "020202"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver three a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "030301"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver three b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "030302"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver three c",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "030303"
+       }
+      ]
+     }
+    },
+    {
+     "name": "jumbled a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "040301"
+       }
+      ]
+     }
+    },
+    {
+     "name": "jumbled c",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "040303"
+       }
+      ]
+     }
+    },
+    {
+     "name": "duplicate",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "040303"
+       }
+      ]
+     }
+    },
+    {
+     "name": "jumbled b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "040302"
+       }
+      ]
+     }
+    },
+    {
+     "name": "concurrent one a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "050201"
+       }
+      ]
+     }
+    },
+    {
+     "name": "concurrent two a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "060201"
+       }
+      ]
+     }
+    },
+    {
+     "name": "concurrent one b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "050202"
+       }
+      ]
+     }
+    },
+    {
+     "name": "concurrent two b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "060202"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver 16bit concat a",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 8,
+        "Data": "04040201"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliver 16bit concat b",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 8,
+        "Data": "04040202"
+       }
+      ]
+     }
+    },
+    {
+     "name": "submit two a",
+     "in": {
+      "Direction": {
+       "const": "tpdu.MO",
+       "value": 1
+      },
+      "FirstOctet": 1,
+      "DA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "020201"
+       }
+      ]
+     }
+    },
+    {
+     "name": "submit two b",
+     "in": {
+      "Direction": {
+       "const": "tpdu.MO",
+       "value": 1
+      },
+      "FirstOctet": 1,
+      "DA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "020202"
+       }
+      ]
+     }
+    },
+    {
+     "name": "zero seqno",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "070200"
+       }
+      ]
+     }
+    },
+    {
+     "name": "large seqno",
+     "in": {
+      "OA": {
+       "Addr": "1234",
+       "TOA": 145
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "080203"
+       }
+      ]
+     }
+    },
+    {
+     "name": "deliverreport concat",
+     "in": {
+      "Direction": {
+       "const": "tpdu.MO",
+       "value": 1
+      },
+      "UDH": [
+       {
+        "ID": 0,
+        "Data": "080201"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "expected": {
+   "steps": [
+    {
+     "name": "deliver single segment",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       }
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "deliver one segment",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "010101"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "deliver two a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "deliver two b",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "020201"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "020202"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "deliver three a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "deliver three b",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "deliver three c",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "030301"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "030302"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "030303"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "jumbled a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "jumbled c",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "duplicate",
+     "out": null,
+     "error": {
+      "go": "sms.ErrDuplicateSegment"
+     }
+    },
+    {
+     "name": "jumbled b",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "040301"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "040302"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "040303"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "concurrent one a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "concurrent two a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "concurrent one b",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "050201"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "050202"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "concurrent two b",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "060201"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "060202"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "deliver 16bit concat a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "deliver 16bit concat b",
+     "out": [
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 8,
+         "Data": "04040201"
+        }
+       ]
+      },
+      {
+       "OA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 8,
+         "Data": "04040202"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "submit two a",
+     "out": null,
+     "error": null
+    },
+    {
+     "name": "submit two b",
+     "out": [
+      {
+       "Direction": {
+        "const": "tpdu.MO",
+        "value": 1
+       },
+       "FirstOctet": 1,
+       "DA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "020201"
+        }
+       ]
+      },
+      {
+       "Direction": {
+        "const": "tpdu.MO",
+        "value": 1
+       },
+       "FirstOctet": 1,
+       "DA": {
+        "Addr": "1234",
+        "TOA": 145
+       },
+       "UDH": [
+        {
+         "ID": 0,
+         "Data": "020202"
+        }
+       ]
+      }
+     ],
+     "error": null
+    },
+    {
+     "name": "zero seqno",
+     "out": null,
+     "error": {
+      "go": "sms.ErrReassemblyInconsistency"
+     }
+    },
+    {
+     "name": "large seqno",
+     "out": null,
+     "error": {
+      "go": "sms.ErrReassemblyInconsistency"
+     }
+    },
+    {
+     "name": "deliverreport concat",
+     "out": null,
+     "error": {
+      "go": "tpdu.ErrUnsupportedSmsType(tpdu.SmsDeliverReport)"
+     }
+    }
+   ]
+  },
+  "name": "sms.TestCollectorCollect",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Steps run in order against ONE collector (state carries over); out = completed message segments ordered by seq, nil while incomplete. Reassembly key includes originator address + concat ref + total."
+ }
+]

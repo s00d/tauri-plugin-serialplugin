@@ -1,0 +1,2041 @@
+[
+ {
+  "id": "enc-000",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/SmsDispatchersControllerTest.java:278",
+  "license": "Apache-2.0",
+  "input": {
+   "smsc": "222",
+   "number": "111",
+   "text": "SmsDispatchersControllerTest",
+   "message_ref": 0,
+   "options": {
+    "status_report": false,
+    "vp": null,
+    "dcs": 0
+   }
+  },
+  "expected": {
+   "smsc_hex": "038122F2",
+   "pdu": "0100038111F100001CD3F69C989EC3C3F431BA2C9F0FDF6EBAFCCD6697E5D4F29C0E"
+  },
+  "name": "testSendImsGmsTest",
+  "note": "Verified via mock sendImsGsmSms(smsc, pdu). Text is TelephonyTest.TAG = getClass().getSimpleName() (TelephonyTest.java:479, SmsDispatchersControllerTest.java:210). SMSC/DA with TON/NPI 0x81 (unknown/ISDN). First octet 01 (SUBMIT, no VP), MR 00. Test is @FlakyTest; MR depends on dispatcher state (first send)."
+ },
+ {
+  "id": "enc-002",
+  "source": "chan_dongle/test/gen.c:35",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "",
+   "number": "+49800123456",
+   "text": "Hello. This is a really long SMS. It contains more than 160 characters and thus cannot be encoded using a single SMS. It must be split up into multiplé SMS that are concatenated when they are received. Nevertheless, this SMS contains only GSM7 characters!",
+   "validity_minutes": 60,
+   "status_report": true,
+   "csms_ref": 1,
+   "split": "auto (concatenated if needed)"
+  },
+  "expected": {
+   "pdus": [
+    "0071000B919408103254F600000B9F050003010201906536FBED0251D1E939283D078541F27298CDCE83D86FF719346D4E5DA0241D347EBBE9E1B47B0E6ABFE565101D1D7683623618688C0ECBC3637A593E0785DD64101D5D9F83C661B7FB4D0789CBA0B27BFC2697C9A0FA3CED3E83C2A079DA7D669741D3E6D4054AD241EDFA9C0E12974173383B4D07D5E1A0B49BFE06B5EB6C7A1ACE2E8000",
+    "0071000B919408103254F600000B6E050003010202A6CD29888E0ED341617919347EBBC7617AD91DA697C9A03BBAEC06D1D1E53C282C2F83E4E571396D2F935D2067D95E96D3D16576793E6781E8E8F41C346D4E41E3B79B1E4EBBE7A0B79B9D071DA7CD1B688C0ECBC3637A593E0F01"
+   ]
+  },
+  "name": "test_pdu_build/1",
+  "note": "chan_dongle pdu_build_mult(pdus, sca=\"\", dst, ucs2, len, valid_minutes=60, srr=1, csmsref=1) (call at chan_dongle/test/gen.c:69); each part hex compared exactly. PDU starts with 00 (empty SMSC). GSM7 if the text fits the default alphabet, else UCS2 (emoji as surrogate pair D83D DE0B). Concatenation uses 8-bit ref UDH 050003<ref><n><i>. Phone numbers look like test/sample numbers."
+ },
+ {
+  "id": "enc-005",
+  "source": "gammu/tests/at-sms-encode/01.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "1234",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036"
+  },
+  "expected": {
+   "pdu": "038121431100048121430000FF0631D98C56B301"
+  },
+  "name": "sms-at-encode-01",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-006",
+  "source": "gammu/tests/at-sms-encode/07.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "1234",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "expected": {
+   "pdu": "038121431100048121430008FF1A005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "name": "sms-at-encode-07",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-007",
+  "source": "gammu/tests/at-sms-encode/13.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "800123456",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036"
+  },
+  "expected": {
+   "pdu": "038121431100098108103254F60000FF0631D98C56B301"
+  },
+  "name": "sms-at-encode-13",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-008",
+  "source": "gammu/tests/at-sms-encode/18.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "800123456",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "0381214300098108103254F60000706050316503000DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-18",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-009",
+  "source": "gammu/tests/at-sms-encode/24.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "800123456",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "0381214300098108103254F60008706050316503008C0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069"
+  },
+  "name": "sms-at-encode-24",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-010",
+  "source": "gammu/tests/at-sms-encode/30.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "+420800123456",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "03812143000C912480002143650000706050316503000DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-30",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-011",
+  "source": "gammu/tests/at-sms-encode/36.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "+420800123456",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "03812143000C912480002143650008706050316503008C0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069"
+  },
+  "name": "sms-at-encode-36",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-012",
+  "source": "gammu/tests/at-sms-encode/42.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "+41761234567",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "03812143000B911467214365F70000706050316503000DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-42",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-013",
+  "source": "gammu/tests/at-sms-encode/48.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "1234",
+   "number": "+41761234567",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "03812143000B911467214365F70008706050316503008C0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069"
+  },
+  "name": "sms-at-encode-48",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-014",
+  "source": "gammu/tests/at-sms-encode/53.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "1234",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "expected": {
+   "pdu": "068108103254F61100048121430000FF0DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-53",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-015",
+  "source": "gammu/tests/at-sms-encode/59.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "1234",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E"
+  },
+  "expected": {
+   "pdu": "068108103254F61100048121430008FF8C0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069"
+  },
+  "name": "sms-at-encode-59",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-016",
+  "source": "gammu/tests/at-sms-encode/65.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "800123456",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "expected": {
+   "pdu": "068108103254F61100098108103254F60000FF0DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-65",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-017",
+  "source": "gammu/tests/at-sms-encode/71.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "800123456",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E"
+  },
+  "expected": {
+   "pdu": "068108103254F61100098108103254F60008FF8C0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069"
+  },
+  "name": "sms-at-encode-71",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-018",
+  "source": "gammu/tests/at-sms-encode/77.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "+420800123456",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "expected": {
+   "pdu": "068108103254F611000C912480002143650000FF0DDAF5BB3E5F8741F3B4BCE006"
+  },
+  "name": "sms-at-encode-77",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-019",
+  "source": "gammu/tests/at-sms-encode/82.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "+420800123456",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "068108103254F6000C91248000214365000070605031650300A054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-82",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-020",
+  "source": "gammu/tests/at-sms-encode/88.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "+41761234567",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "068108103254F6000B911467214365F70008706050316503000C003100320033003400350036"
+  },
+  "name": "sms-at-encode-88",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-021",
+  "source": "gammu/tests/at-sms-encode/94.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "800123456",
+   "number": "+41761234567",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "068108103254F6000B911467214365F7000070605031650300A054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-94",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-022",
+  "source": "gammu/tests/at-sms-encode/100.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "1234",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "079124800021436500048121430008706050316503000C003100320033003400350036"
+  },
+  "name": "sms-at-encode-100",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-023",
+  "source": "gammu/tests/at-sms-encode/106.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "1234",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07912480002143650004812143000070605031650300A054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-106",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-024",
+  "source": "gammu/tests/at-sms-encode/112.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "800123456",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "079124800021436500098108103254F60008706050316503000C003100320033003400350036"
+  },
+  "name": "sms-at-encode-112",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-025",
+  "source": "gammu/tests/at-sms-encode/117.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "800123456",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E"
+  },
+  "expected": {
+   "pdu": "07912480002143651100098108103254F60000FFA054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-117",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-026",
+  "source": "gammu/tests/at-sms-encode/123.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "+420800123456",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036"
+  },
+  "expected": {
+   "pdu": "079124800021436511000C912480002143650008FF0C003100320033003400350036"
+  },
+  "name": "sms-at-encode-123",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-027",
+  "source": "gammu/tests/at-sms-encode/129.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "+420800123456",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E"
+  },
+  "expected": {
+   "pdu": "079124800021436511000C912480002143650000FFA054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-129",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-028",
+  "source": "gammu/tests/at-sms-encode/135.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "+41761234567",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036"
+  },
+  "expected": {
+   "pdu": "079124800021436511000B911467214365F70008FF0C003100320033003400350036"
+  },
+  "name": "sms-at-encode-135",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-029",
+  "source": "gammu/tests/at-sms-encode/141.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+420800123456",
+   "number": "+41761234567",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License version 2 as published by the Free Software Foundation.",
+   "text_ucs2_hex": "0054006800690073002000700072006F006700720061006D0020006900730020006600720065006500200073006F006600740077006100720065003B00200079006F0075002000630061006E002000720065006400690073007400720069006200750074006500200069007400200061006E0064002F006F00720020006D006F006400690066007900200069007400200075006E00640065007200200074006800650020007400650072006D00730020006F0066002000740068006500200047004E0055002000470065006E006500720061006C0020005000750062006C006900630020004C006900630065006E00730065002000760065007200730069006F006E002000320020006100730020007000750062006C0069007300680065006400200062007900200074006800650020004600720065006500200053006F00660074007700610072006500200046006F0075006E0064006100740069006F006E002E"
+  },
+  "expected": {
+   "pdu": "079124800021436511000B911467214365F70000FFA054747A0E82CBDF6779B80D4ACF416679B90C9ABFCDF47B585EDE81F2EF3A681C7683E465727A4E97A7C5757A1994A683C26EF2EB2D07B5DFE4B4390F4AD3417537B92C07D1D16510BD2C6FCF416F33888E2E838ECE2AE8587697E56136085A17B3D36310333D2EBBE76590BD2C9FA7DF6E900C149E83E075313B3D4797C920711E444797414679B90C9ABECD"
+  },
+  "name": "sms-at-encode-141",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. CAUTION: text exceeds single-SMS limit; sms-at-encode returns success WITHOUT comparing the dump when MakeSMSFrame fails with ERR_INVALIDDATA for over-limit text, so this expected PDU may be unverified (the dump appears to encode only the first part of the 177-char text, i.e. historical truncation to the single-SMS limit). Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-030",
+  "source": "gammu/tests/at-sms-encode/146.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "1234",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F700048121430000706050316503000631D98C56B301"
+  },
+  "name": "sms-at-encode-146",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-031",
+  "source": "gammu/tests/at-sms-encode/152.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "1234",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F700048121430008706050316503001A005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "name": "sms-at-encode-152",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-032",
+  "source": "gammu/tests/at-sms-encode/158.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "800123456",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F700098108103254F60000706050316503000631D98C56B301"
+  },
+  "name": "sms-at-encode-158",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-033",
+  "source": "gammu/tests/at-sms-encode/164.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "800123456",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F700098108103254F60008706050316503001A005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "name": "sms-at-encode-164",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-034",
+  "source": "gammu/tests/at-sms-encode/170.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "+420800123456",
+   "coding": "Default",
+   "state": "Sent",
+   "folder": 2,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F7000C912480002143650000706050316503000631D98C56B301"
+  },
+  "name": "sms-at-encode-170",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-035",
+  "source": "gammu/tests/at-sms-encode/176.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "+420800123456",
+   "coding": "Unicode",
+   "state": "Sent",
+   "folder": 2,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E",
+   "sent": "20070605T135630"
+  },
+  "expected": {
+   "pdu": "07911467214365F7000C912480002143650008706050316503001A005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "name": "sms-at-encode-176",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-036",
+  "source": "gammu/tests/at-sms-encode/181.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "+41761234567",
+   "coding": "Default",
+   "state": "Read",
+   "folder": 1,
+   "text": "123456",
+   "text_ucs2_hex": "003100320033003400350036"
+  },
+  "expected": {
+   "pdu": "07911467214365F711000B911467214365F70000FF0631D98C56B301"
+  },
+  "name": "sms-at-encode-181",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-037",
+  "source": "gammu/tests/at-sms-encode/187.dump:1",
+  "license": "GPL-2.0-only",
+  "input": {
+   "smsc": "+41761234567",
+   "number": "+41761234567",
+   "coding": "Unicode",
+   "state": "Read",
+   "folder": 1,
+   "text": "Zkouška sirén",
+   "text_ucs2_hex": "005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "expected": {
+   "pdu": "07911467214365F711000B911467214365F70008FF1A005A006B006F00750161006B0061002000730069007200E9006E"
+  },
+  "name": "sms-at-encode-187",
+  "checked_by": "gammu/tests/sms-at-encode.c:157",
+  "note": "gammu ATGEN_MakeSMSFrame (PDU mode) output compared byte-exact (strcmp) with the .dump; PDU includes the SMSC address prefix. Input is a gammu SMS backup: Folder=1/State=Read encodes as SMS-SUBMIT, Folder=2/State=Sent with Sent=timestamp encodes as SMS-DELIVER with SCTS (timestamp has no TZ; TZ octet as in expected). Coding Default=GSM 7-bit, Unicode=UCS2. TP-MR/VP/flags as produced by gammu. Input fields come from the sibling .backup file (same number); the cited .dump holds the expected PDU."
+ },
+ {
+  "id": "enc-039",
+  "source": "libosmocore/tests/sms/sms_test.c:81",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "split_concat_7bit",
+   "text": "this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. cut here .....: this is a second testmessage. end here.",
+   "udh_ref": 111
+  },
+  "expected": {
+   "parts": [
+    {
+     "udh_hex": "0500036F0201",
+     "text": "this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. cut here .....:",
+     "septets": 153
+    },
+    {
+     "udh_hex": "0500036F0202",
+     "text": " this is a second testmessage. end here.",
+     "septets": 40
+    }
+   ]
+  },
+  "note": "Split point implied by the test data (153 septets per part with 8-bit concat UDH); libosmocore does not split itself here."
+ },
+ {
+  "id": "enc-040",
+  "source": "libosmocore/tests/sms/sms_test.c:239",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "address_field",
+   "type": "unknown",
+   "plan": "isdn",
+   "number": "12345678901234567891",
+   "buf_len": 12
+  },
+  "expected": {
+   "hex": "148121436587092143658719",
+   "len": 12
+  },
+  "name": "test_gen_oa",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:16",
+  "note": "gsm340_gen_oa; len asserted, bytes from .ok line 16. 21-digit number does not fit: only the header (00 91) is written. Alphanumeric: length byte counts semi-octets of the packed 7-bit text; long one truncated to buffer."
+ },
+ {
+  "id": "enc-041",
+  "source": "libosmocore/tests/sms/sms_test.c:243",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "address_field",
+   "type": "national",
+   "plan": "isdn",
+   "number": "12345678901234567891",
+   "buf_len": 12
+  },
+  "expected": {
+   "hex": "14A121436587092143658719",
+   "len": 12
+  },
+  "name": "test_gen_oa",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:17",
+  "note": "gsm340_gen_oa; len asserted, bytes from .ok line 17. 21-digit number does not fit: only the header (00 91) is written. Alphanumeric: length byte counts semi-octets of the packed 7-bit text; long one truncated to buffer."
+ },
+ {
+  "id": "enc-042",
+  "source": "libosmocore/tests/sms/sms_test.c:249",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "address_field",
+   "type": "international",
+   "plan": "isdn",
+   "number": "123456789123456789120",
+   "buf_len": 12
+  },
+  "expected": {
+   "hex": "0091",
+   "len": 2
+  },
+  "name": "test_gen_oa",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:18",
+  "note": "gsm340_gen_oa; len asserted, bytes from .ok line 18. 21-digit number does not fit: only the header (00 91) is written. Alphanumeric: length byte counts semi-octets of the packed 7-bit text; long one truncated to buffer."
+ },
+ {
+  "id": "enc-043",
+  "source": "libosmocore/tests/sms/sms_test.c:255",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "address_field",
+   "type": "alphanumeric",
+   "plan": "unknown",
+   "number": "OpenBSC",
+   "buf_len": 12
+  },
+  "expected": {
+   "hex": "0ED04F78D92D9C0E01",
+   "len": 9
+  },
+  "name": "test_gen_oa",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:19",
+  "note": "gsm340_gen_oa; len asserted, bytes from .ok line 19. 21-digit number does not fit: only the header (00 91) is written. Alphanumeric: length byte counts semi-octets of the packed 7-bit text; long one truncated to buffer."
+ },
+ {
+  "id": "enc-044",
+  "source": "libosmocore/tests/sms/sms_test.c:261",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "kind": "address_field",
+   "type": "alphanumeric",
+   "plan": "unknown",
+   "number": "OpenBSCabcdefghijklm",
+   "buf_len": 12
+  },
+  "expected": {
+   "hex": "14D04F78D92D9C0EC3E23119",
+   "len": 12
+  },
+  "name": "test_gen_oa",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:20",
+  "note": "gsm340_gen_oa; len asserted, bytes from .ok line 20. 21-digit number does not fit: only the header (00 91) is written. Alphanumeric: length byte counts semi-octets of the packed 7-bit text; long one truncated to buffer."
+ },
+ {
+  "id": "enc-056",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:636",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "submit_pdu",
+   "smsc": null,
+   "number": "+15555551234",
+   "text": "Да здравствует король, детка!",
+   "validity_relative": 5,
+   "class": null
+  },
+  "expected": {
+   "pdu": "0011000B915155551532F40008003A041404300020043704340440043004320441044204320443043504420020043A043E0440043E043B044C002C0020043404350442043A04300021",
+   "msgstart": 1
+  },
+  "name": "test_create_pdu_ucs2_no_smsc",
+  "note": "mm_sms_part_3gpp_get_submit_pdu; encoding auto-picked (GSM7 if representable else UCS2). TP-MR=0. validity 5 -> TP-VP 0x00 relative (MM maps minutes); msgstart = TPDU offset for AT+CMGS length. "
+ },
+ {
+  "id": "enc-058",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:686",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "submit_pdu",
+   "smsc": null,
+   "number": "+15555551234",
+   "text": "Hi there...Tue 17th Jan 2012 05:30.18 pm (GMT+1) ΔΔΔΔΔ",
+   "validity_relative": 5,
+   "class": null
+  },
+  "expected": {
+   "pdu": "0011000B915155551532F400000036C834888E2ECBCB2E978B5A2F8362373A1AA40CBB4132584C0682D57433982B8603C1DB20D4B1495DC552200804028100",
+   "msgstart": 1
+  },
+  "name": "test_create_pdu_gsm_no_smsc",
+  "note": "mm_sms_part_3gpp_get_submit_pdu; encoding auto-picked (GSM7 if representable else UCS2). TP-MR=0. validity 5 -> TP-VP 0x00 relative (MM maps minutes); msgstart = TPDU offset for AT+CMGS length. "
+ },
+ {
+  "id": "enc-059",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:710",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "submit_pdu",
+   "smsc": null,
+   "number": "+15556661234",
+   "text": "This is really cool ΔΔΔΔΔ",
+   "validity_relative": 5,
+   "class": null
+  },
+  "expected": {
+   "pdu": "0011000B915155661632F40000001954747A0E4ACF41F27298CDCE83C6EF371B0481402010",
+   "msgstart": 1
+  },
+  "name": "test_create_pdu_gsm_3",
+  "note": "mm_sms_part_3gpp_get_submit_pdu; encoding auto-picked (GSM7 if representable else UCS2). TP-MR=0. validity 5 -> TP-VP 0x00 relative (MM maps minutes); msgstart = TPDU offset for AT+CMGS length. gsm_3: 25 septets, last septet alone in final octet (packing edge case)."
+ },
+ {
+  "id": "enc-060",
+  "source": "modemmanager/src/tests/test-sms-part-3gpp.c:738",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "submit_pdu",
+   "smsc": null,
+   "number": "+15556661234",
+   "text": "This is really cool ΔΔΔΔΔ",
+   "validity_relative": null,
+   "class": null
+  },
+  "expected": {
+   "pdu": "0001000B915155661632F400001954747A0E4ACF41F27298CDCE83C6EF371B0481402010",
+   "msgstart": 1
+  },
+  "name": "test_create_pdu_gsm_no_validity",
+  "note": "mm_sms_part_3gpp_get_submit_pdu; encoding auto-picked (GSM7 if representable else UCS2). TP-MR=0. validity 5 -> TP-VP 0x00 relative (MM maps minutes); msgstart = TPDU offset for AT+CMGS length. "
+ },
+ {
+  "id": "enc-061",
+  "source": "ofono/unit/test-sms.c:273",
+  "license": "GPL-2.0-only",
+  "input": {
+   "roundtrip_of_pdu": "07911326040000F0040B910100000020F70000208062917314480CC8F71D14969741F977FD07",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "pdu": "07911326040000F0040B910100000020F70000208062917314480CC8F71D14969741F977FD07",
+   "tpdu_len": 30,
+   "pdu_len": 38
+  },
+  "name": "test_deliver_encode/simple_deliver",
+  "note": "decode then sms_encode must reproduce the PDU byte-for-byte (case-insensitive hex compare)."
+ },
+ {
+  "id": "enc-062",
+  "source": "ofono/unit/test-sms.c:273",
+  "license": "GPL-2.0-only",
+  "input": {
+   "roundtrip_of_pdu": "0791010000000082040DD0F334FC1CA6970100008080312170224008D4F29CDE0EA7D9",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "pdu": "0791010000000082040DD0F334FC1CA6970100008080312170224008D4F29CDE0EA7D9",
+   "tpdu_len": 27,
+   "pdu_len": 35
+  },
+  "name": "test_deliver_encode/alnum_sender",
+  "note": "decode then sms_encode must reproduce the PDU byte-for-byte (case-insensitive hex compare)."
+ },
+ {
+  "id": "enc-063",
+  "source": "ofono/unit/test-sms.c:273",
+  "license": "GPL-2.0-only",
+  "input": {
+   "roundtrip_of_pdu": "04819999990414D0FBFD7EBFDFEFF77BFE1E0019512090801361807E00DC00FC00C400E400D600F600C500E500D800F800C600E600C700E700C900E900CA00EA00DF0031003200330034003500360037003800390030002000540068006900730020006D00650073007300610067006500200069007300200036003300200075006E00690063006F00640065002000630068006100720073002E",
+   "has_smsc": true,
+   "direction": "deliver"
+  },
+  "expected": {
+   "pdu": "04819999990414D0FBFD7EBFDFEFF77BFE1E0019512090801361807E00DC00FC00C400E400D600F600C500E500D800F800C600E600C700E700C900E900CA00EA00DF0031003200330034003500360037003800390030002000540068006900730020006D00650073007300610067006500200069007300200036003300200075006E00690063006F00640065002000630068006100720073002E",
+   "tpdu_len": 149,
+   "pdu_len": 154
+  },
+  "name": "test_deliver_encode/unicode_deliver",
+  "note": "decode then sms_encode must reproduce the PDU byte-for-byte (case-insensitive hex compare)."
+ },
+ {
+  "id": "enc-064",
+  "source": "ofono/unit/test-sms.c:424",
+  "license": "GPL-2.0-only",
+  "input": {
+   "roundtrip_of_pdu": "0011000B910100000010F50000AA0AE8329BFD4697D9EC37",
+   "has_smsc": true,
+   "direction": "submit"
+  },
+  "expected": {
+   "pdu": "0011000B910100000010F50000AA0AE8329BFD4697D9EC37",
+   "tpdu_len": 23,
+   "pdu_len": 24
+  },
+  "name": "test_submit_encode",
+  "note": "decode then sms_encode must reproduce the PDU byte-for-byte."
+ },
+ {
+  "id": "enc-066",
+  "source": "ofono/unit/test-sms.c:1161",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text": "Shakespeare divided his time between London and Stratford during his career. In 1596, the year before he bought New Place as his family home in Stratford, Shakespeare was living in the parish of St. Helen's, Bishopsgate, north of the River Thames.",
+   "number": "+15554449999",
+   "ref": 0,
+   "use_16bit_ref": true,
+   "status_report_request": false
+  },
+  "expected": {
+   "segments": 2,
+   "roundtrip_text_equal": true,
+   "pdu_len_eq_tpdu_len_plus_1": true
+  },
+  "name": "test_prepare_concat/shakespeare_test",
+  "note": "Concatenated GSM7 (16-bit ref). Segment PDUs are not asserted, only count and decode+assembly roundtrip. String should end padded; checks decoders honour UDL."
+ },
+ {
+  "id": "enc-067",
+  "source": "ofono/unit/test-sms.c:1775",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text_spec": "'a'*4560 + 'b'*152 + 'c'*152 + 'd'*152 (5016 chars)",
+   "number": "+15554449999",
+   "ref": 0,
+   "use_16bit_ref": true
+  },
+  "expected": {
+   "segments": 33,
+   "roundtrip_text_equal": true
+  },
+  "name": "test_prepare_concat/long_string_test",
+  "note": "30+ segment concat (152 GSM7 chars per segment with 16-bit ref UDH)."
+ },
+ {
+  "id": "enc-068",
+  "source": "ofono/unit/test-sms.c:1283",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text_spec": "U+0041 repeated 38760 times",
+   "number": "555",
+   "use_16bit_ref": true
+  },
+  "expected": {
+   "segments": 255,
+   "decoded_char_count": 38760,
+   "one_more_char": "NULL (exceeds 255 segments)"
+  },
+  "name": "test_prepare_limits",
+  "note": "Segmentation limit: GSM7, 16-bit ref: 152 chars/segment"
+ },
+ {
+  "id": "enc-069",
+  "source": "ofono/unit/test-sms.c:1287",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text_spec": "U+0041 repeated 39015 times",
+   "number": "555",
+   "use_16bit_ref": false
+  },
+  "expected": {
+   "segments": 255,
+   "decoded_char_count": 39015,
+   "one_more_char": "NULL (exceeds 255 segments)"
+  },
+  "name": "test_prepare_limits",
+  "note": "Segmentation limit: GSM7, 8-bit ref: 153 chars/segment"
+ },
+ {
+  "id": "enc-070",
+  "source": "ofono/unit/test-sms.c:1291",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text_spec": "U+0416 repeated 16830 times",
+   "number": "555",
+   "use_16bit_ref": true
+  },
+  "expected": {
+   "segments": 255,
+   "decoded_char_count": 16830,
+   "one_more_char": "NULL (exceeds 255 segments)"
+  },
+  "name": "test_prepare_limits",
+  "note": "Segmentation limit: UCS2, 16-bit ref: 66 chars/segment"
+ },
+ {
+  "id": "enc-071",
+  "source": "ofono/unit/test-sms.c:1295",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text_spec": "U+0416 repeated 17085 times",
+   "number": "555",
+   "use_16bit_ref": false
+  },
+  "expected": {
+   "segments": 255,
+   "decoded_char_count": 17085,
+   "one_more_char": "NULL (exceeds 255 segments)"
+  },
+  "name": "test_prepare_limits",
+  "note": "Segmentation limit: UCS2, 8-bit ref: 67 chars/segment"
+ },
+ {
+  "id": "enc-072",
+  "source": "python-gsmmodem/test/test_pdu.py:20",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "semioctet",
+   "digits": "15125551234"
+  },
+  "expected": {
+   "hex": "5121551532F4"
+  },
+  "name": "TestSemiOctets.test_encode",
+  "note": ""
+ },
+ {
+  "id": "enc-073",
+  "source": "python-gsmmodem/test/test_pdu.py:21",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "semioctet",
+   "digits": "123"
+  },
+  "expected": {
+   "hex": "21F3"
+  },
+  "name": "TestSemiOctets.test_encode",
+  "note": ""
+ },
+ {
+  "id": "enc-074",
+  "source": "python-gsmmodem/test/test_pdu.py:140",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "number": "+9876543210"
+  },
+  "expected": {
+   "hex": "0A918967452301"
+  },
+  "name": "TestSmsPduAddressFields.test_encodeAddressField",
+  "note": ""
+ },
+ {
+  "id": "enc-076",
+  "source": "python-gsmmodem/test/test_pdu.py:144",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "number": "abc"
+  },
+  "expected": {
+   "hex": "06D061F118"
+  },
+  "name": "TestSmsPduAddressFields.test_encodeAddressField",
+  "note": ""
+ },
+ {
+  "id": "enc-077",
+  "source": "python-gsmmodem/test/test_pdu.py:147",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "address",
+   "number": "a[]{}€"
+  },
+  "expected": {
+   "hex": "14D0E10D6FE3DBA036A94D19"
+  },
+  "name": "TestSmsPduAddressFields.test_encodeAddressField",
+  "note": ""
+ },
+ {
+  "id": "enc-080",
+  "source": "python-gsmmodem/test/test_pdu.py:194",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "validity-period-relative",
+   "duration": {
+    "timedelta_seconds": 1800
+   }
+  },
+  "expected": {
+   "tp_vp": 5
+  },
+  "name": "TestRelativeValidityPeriod",
+  "note": "Both encode and decode asserted."
+ },
+ {
+  "id": "enc-081",
+  "source": "python-gsmmodem/test/test_pdu.py:195",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "validity-period-relative",
+   "duration": {
+    "timedelta_seconds": 57600
+   }
+  },
+  "expected": {
+   "tp_vp": 151
+  },
+  "name": "TestRelativeValidityPeriod",
+  "note": "Both encode and decode asserted."
+ },
+ {
+  "id": "enc-082",
+  "source": "python-gsmmodem/test/test_pdu.py:197",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "validity-period-relative",
+   "duration": {
+    "timedelta_seconds": 3024000
+   }
+  },
+  "expected": {
+   "tp_vp": 197
+  },
+  "name": "TestRelativeValidityPeriod",
+  "note": "Both encode and decode asserted."
+ },
+ {
+  "id": "enc-083",
+  "source": "python-gsmmodem/test/test_pdu.py:216",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "validity-period-relative",
+   "duration": {
+    "timedelta_seconds": 604800000
+   }
+  },
+  "expected": {
+   "error": "ValueError"
+  },
+  "name": "TestRelativeValidityPeriod.test_encode_validityPeriodTooLong",
+  "note": ""
+ },
+ {
+  "id": "enc-084",
+  "source": "python-gsmmodem/test/test_pdu.py:223",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "scts",
+   "timestamp": "2015-11-27T00:00:00+00:00"
+  },
+  "expected": {
+   "hex": "51117200000000"
+  },
+  "name": "TestTimestamp",
+  "note": "Both _encodeTimestamp and _decodeTimestamp asserted (datetime equality = same instant)."
+ },
+ {
+  "id": "enc-085",
+  "source": "python-gsmmodem/test/test_pdu.py:225",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "scts",
+   "timestamp": "2007-04-12T23:25:42+08:00"
+  },
+  "expected": {
+   "hex": "70402132522423"
+  },
+  "name": "TestTimestamp",
+  "note": "Both _encodeTimestamp and _decodeTimestamp asserted (datetime equality = same instant)."
+ },
+ {
+  "id": "enc-086",
+  "source": "python-gsmmodem/test/test_pdu.py:226",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "field": "scts",
+   "timestamp": "2007-04-12T23:25:42-08:00"
+  },
+  "expected": {
+   "hex": "7040213252242B"
+  },
+  "name": "TestTimestamp",
+  "note": "Both _encodeTimestamp and _decodeTimestamp asserted (datetime equality = same instant)."
+ },
+ {
+  "id": "enc-089",
+  "source": "python-gsmmodem/test/test_pdu.py:355",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+123456789",
+   "text": "世界您好！",
+   "reference": 0,
+   "validity": {
+    "timedelta_seconds": 31449600
+   },
+   "smsc": "+44000000000",
+   "rejectDuplicates": false,
+   "sendFlash": false
+  },
+  "expected": {
+   "pdu": "07914400000000F01100099121436587F90008F40A4E16754C60A8597DFF01",
+   "pdu_count": 1
+  },
+  "name": "TestSmsPdu.test_encodeSmsSubmit",
+  "note": "PDU includes SMSC field (00 when smsc is None). Validity: timedelta -> relative VP, datetime -> absolute VP. requestStatusReport default False."
+ },
+ {
+  "id": "enc-090",
+  "source": "python-gsmmodem/test/test_pdu.py:356",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "0000000030",
+   "text": "Test message: local numbers",
+   "reference": 13,
+   "validity": {
+    "timedelta_seconds": 259200
+   },
+   "smsc": "12345",
+   "rejectDuplicates": true,
+   "sendFlash": false
+  },
+  "expected": {
+   "pdu": "04A12143F5310D0AA100000000030000A91BD4F29C0E6A97E7F3F0B9AC03B1DFE3301BE4AEB7C565F91C",
+   "pdu_count": 1
+  },
+  "name": "TestSmsPdu.test_encodeSmsSubmit",
+  "note": "PDU includes SMSC field (00 when smsc is None). Validity: timedelta -> relative VP, datetime -> absolute VP. requestStatusReport default False."
+ },
+ {
+  "id": "enc-091",
+  "source": "python-gsmmodem/test/test_pdu.py:461",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+15125551234",
+   "text": "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.Ut enim ad minim veniam, quinostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.Duis aute irure dolor in reprehenderit in voluptate velit esse cillum doloe eu fugiat nulla pariatur.Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum",
+   "reference": 0,
+   "requestStatusReport": false,
+   "rejectDuplicates": true
+  },
+  "expected": {
+   "pdus": [
+    "0045000B915121551532F40000A0050003000301986F79B90D4AC3E7F53688FC66BFE5A0799A0E0AB7CB741668FC76CFCB637A995E9783C2E4343C3D4F8FD3EE33A8CC4ED359A079990C22BF41E5747DDE7E9341F4721BFE9683D2EE719A9C26D7DD74509D0E6287C56F791954A683C86FF65B5E06B5C36777181466A7E3F5B0AB4A0795DDE936284C06B5D3EE741B642FBBD3E1360B14AFA7DD",
+    "0045000B915121551532F40000A0050003000302DE73BABC4E0695F165F9384D0FD3D36F37A8CE6687DBE337881D16BFE5E939C89D9EA741753A28CC4EC7EB6938A88C0795C3A0F1BBDD7E93DFA0F1DB3D2FC7EB61BA8B584FCF41E13ABD0C4ACBEBF23288FC66BFE5A0B41B242FC3E56574D94D2ECBD37450DA0DB2BFD975383D4C2F83EC65769A0E2ACFE765D038CD66D7DB20F29BFD2E83CA",
+    "0045000B915121551532F400008C050003000303EA2073FD9C0ED341EE3A9B1D06C1C3F274985E97BB8AF871194E2FD7E5A079DA4D07BDC7E370791CA683C675789A1CA687E920F7DB0D82CBDF6972D94D6781E675371D947683C675363C0C8AD7D3A0B7D99C1EA7C32072795E96D7DD7450FBCD66A7E9A0B03BDD06A5C9A0F29C0E6287C56F79BD0D"
+   ],
+   "pdu_count": 3
+  },
+  "name": "TestSmsPdu.test_encodeSmsSubmit_concatenated",
+  "note": "8-bit concat ref taken from reference=0."
+ },
+ {
+  "id": "enc-093",
+  "source": "python-gsmmodem/test/test_pdu.py:499",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "gsm7",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060"
+  },
+  "expected": {
+   "segments": 1
+  },
+  "name": "TestSmsPdu.test_encode_Gsm7_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-094",
+  "source": "python-gsmmodem/test/test_pdu.py:503",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "gsm7",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 12345-070 12345-080 12345-090 12345-100 12345-010 12345-020 12345-030 12345-040 12345-050 1234"
+  },
+  "expected": {
+   "segments": 2
+  },
+  "name": "TestSmsPdu.test_encode_Gsm7_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-095",
+  "source": "python-gsmmodem/test/test_pdu.py:505",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "gsm7",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 12345-070 12345-080 12345-090 12345-100 12345-010 12345-020 12345-030 12345-040 12345-050 12]"
+  },
+  "expected": {
+   "segments": 2
+  },
+  "name": "TestSmsPdu.test_encode_Gsm7_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-096",
+  "source": "python-gsmmodem/test/test_pdu.py:512",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "ucs2",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060"
+  },
+  "expected": {
+   "segments": 1
+  },
+  "name": "TestSmsPdu.test_encode_Ucs2_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-097",
+  "source": "python-gsmmodem/test/test_pdu.py:514",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "ucs2",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 1234567"
+  },
+  "expected": {
+   "segments": 1
+  },
+  "name": "TestSmsPdu.test_encode_Ucs2_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-098",
+  "source": "python-gsmmodem/test/test_pdu.py:516",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "ucs2",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 12345678"
+  },
+  "expected": {
+   "segments": 2
+  },
+  "name": "TestSmsPdu.test_encode_Ucs2_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-099",
+  "source": "python-gsmmodem/test/test_pdu.py:520",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "ucs2",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 1234567["
+  },
+  "expected": {
+   "segments": 2
+  },
+  "name": "TestSmsPdu.test_encode_Ucs2_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-100",
+  "source": "python-gsmmodem/test/test_pdu.py:522",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "divide_text",
+   "alphabet": "ucs2",
+   "text": "12345-010,12345-020,12345-030,12345-040,12345-050,12345-060,123456 12345-010,12345-020,12345-030,12345-040,12345-050,12345-060,1234567"
+  },
+  "expected": {
+   "segments": 2
+  },
+  "name": "TestSmsPdu.test_encode_Ucs2_divideSMS",
+  "note": "Number of concatenated segments; 7-bit extension chars count as 2 septets (153 per concat segment / 67 UCS2 chars)."
+ },
+ {
+  "id": "enc-101",
+  "source": "python-gsmmodem/test/test_modem.py:1349",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+0123456789",
+   "text": "Helló worłd!",
+   "reference": 141,
+   "smsc": null
+  },
+  "expected": {
+   "pdus": [
+    "00218D0A91103254769800081800480065006C006C00F300200077006F0072014200640021"
+   ],
+   "tpdu_lengths": [
+    36
+   ],
+   "cscs": "UCS2",
+   "commands": [
+    "AT+CMGF=0",
+    "AT+CSCS=?",
+    "AT+CSCS=\"UCS2\"",
+    "AT+CMGS=36",
+    "00218D0A91103254769800081800480065006C006C00F300200077006F0072014200640021\u001a"
+   ]
+  },
+  "name": "test_sendSmsLeaveTextModeOnInvalidCharacter",
+  "note": "sendSms() switches to PDU mode when text is not GSM-7 representable in text mode; each PDU starts with 00 (no SMSC), first octet 0x21/0x61 = SUBMIT+SRR(+UDHI). AT+CMGS=<TPDU length excl. SMSC>. Modem replies '> ', '+CMGS: <ref>', OK. The modem's _smsRef is preset to the ref so the PDU's TP-MR equals it."
+ },
+ {
+  "id": "enc-102",
+  "source": "python-gsmmodem/test/test_modem.py:1356",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+0123456789",
+   "text": "Hellò wor£d!",
+   "reference": 142,
+   "smsc": null
+  },
+  "expected": {
+   "pdus": [
+    "00218E0A91103254769800000CC8329B8D00DDDFF2003904"
+   ],
+   "tpdu_lengths": [
+    23
+   ],
+   "cscs": "GSM",
+   "commands": [
+    "AT+CMGF=0",
+    "AT+CSCS=?",
+    "AT+CSCS=\"GSM\"",
+    "AT+CMGS=23",
+    "00218E0A91103254769800000CC8329B8D00DDDFF2003904\u001a"
+   ]
+  },
+  "name": "test_sendSmsLeaveTextModeOnInvalidCharacter",
+  "note": "sendSms() switches to PDU mode when text is not GSM-7 representable in text mode; each PDU starts with 00 (no SMSC), first octet 0x21/0x61 = SUBMIT+SRR(+UDHI). AT+CMGS=<TPDU length excl. SMSC>. Modem replies '> ', '+CMGS: <ref>', OK. The modem's _smsRef is preset to the ref so the PDU's TP-MR equals it."
+ },
+ {
+  "id": "enc-103",
+  "source": "python-gsmmodem/test/test_modem.py:1363",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+0123456789",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 12345-070 12345-080 12345-090 12345-100 12345-110 12345-120 12345-130 12345-140 12345-150 12345-160-Hellò wor£d!",
+   "reference": 143,
+   "smsc": null
+  },
+  "expected": {
+   "pdus": [
+    "00618F0A9110325476980000A00500038F020162B219ADD682C560A0986C46ABB560321828269BD16A2DD80C068AC966B45A0B46838162B219ADD682D560A0986C46ABB560361828269BD16A2DD80D068AC966B45A0B86838162B219ADD682E560A0986C46ABB562301828269BD16AAD580C068AC966B45A2B26838162B219ADD68ACD60A0986C46ABB562341828269BD16AAD580D068AC966",
+    "00618F0A91103254769800001A0500038F020268B556CC066B21CB6C3602747FCB03E410"
+   ],
+   "tpdu_lengths": [
+    152,
+    35
+   ],
+   "cscs": "GSM",
+   "commands": [
+    "AT+CMGF=0",
+    "AT+CSCS=?",
+    "AT+CSCS=\"GSM\"",
+    "AT+CMGS=152",
+    "00618F0A9110325476980000A00500038F020162B219ADD682C560A0986C46ABB560321828269BD16A2DD80C068AC966B45A0B46838162B219ADD682D560A0986C46ABB560361828269BD16A2DD80D068AC966B45A0B86838162B219ADD682E560A0986C46ABB562301828269BD16AAD580C068AC966B45A2B26838162B219ADD68ACD60A0986C46ABB562341828269BD16AAD580D068AC966\u001a",
+    "AT+CMGS=35",
+    "00618F0A91103254769800001A0500038F020268B556CC066B21CB6C3602747FCB03E410\u001a"
+   ]
+  },
+  "name": "test_sendSmsLeaveTextModeOnInvalidCharacter",
+  "note": "sendSms() switches to PDU mode when text is not GSM-7 representable in text mode; each PDU starts with 00 (no SMSC), first octet 0x21/0x61 = SUBMIT+SRR(+UDHI). AT+CMGS=<TPDU length excl. SMSC>. Modem replies '> ', '+CMGS: <ref>', OK. The modem's _smsRef is preset to the ref so the PDU's TP-MR equals it."
+ },
+ {
+  "id": "enc-104",
+  "source": "python-gsmmodem/test/test_modem.py:1371",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+0123456789",
+   "text": "Hello world!\n Hello world!\n Hello world!\n Hello world!\n-> Helló worłd! ",
+   "reference": 144,
+   "smsc": null
+  },
+  "expected": {
+   "pdus": [
+    "0061900A91103254769800088C05000390020100480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002D003E002000480065006C006C00F300200077006F0072",
+    "0061900A91103254769800080E0500039002020142006400210020"
+   ],
+   "tpdu_lengths": [
+    152,
+    26
+   ],
+   "cscs": "UCS2",
+   "commands": [
+    "AT+CMGF=0",
+    "AT+CSCS=?",
+    "AT+CSCS=\"UCS2\"",
+    "AT+CMGS=152",
+    "0061900A91103254769800088C05000390020100480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002000480065006C006C006F00200077006F0072006C00640021000A002D003E002000480065006C006C00F300200077006F0072\u001a",
+    "AT+CMGS=26",
+    "0061900A91103254769800080E0500039002020142006400210020\u001a"
+   ]
+  },
+  "name": "test_sendSmsLeaveTextModeOnInvalidCharacter",
+  "note": "sendSms() switches to PDU mode when text is not GSM-7 representable in text mode; each PDU starts with 00 (no SMSC), first octet 0x21/0x61 = SUBMIT+SRR(+UDHI). AT+CMGS=<TPDU length excl. SMSC>. Modem replies '> ', '+CMGS: <ref>', OK. The modem's _smsRef is preset to the ref so the PDU's TP-MR equals it."
+ },
+ {
+  "id": "enc-105",
+  "source": "python-gsmmodem/test/test_modem.py:1379",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "number": "+0123456789",
+   "text": "12345-010 12345-020 12345-030 12345-040 12345-050 12345-060 12345-070 12345-080 12345-090 12345-100 12345-110 12345-120 12345-130 12345-140 12345-150 12345-160-Hello word!",
+   "reference": 145,
+   "smsc": null
+  },
+  "expected": {
+   "pdus": [
+    "0061910A9110325476980000A005000391020162B219ADD682C560A0986C46ABB560321828269BD16A2DD80C068AC966B45A0B46838162B219ADD682D560A0986C46ABB560361828269BD16A2DD80D068AC966B45A0B86838162B219ADD682E560A0986C46ABB562301828269BD16AAD580C068AC966B45A2B26838162B219ADD68ACD60A0986C46ABB562341828269BD16AAD580D068AC966",
+    "0061910A91103254769800001905000391020268B556CC066B21CB6CF61B747FCBC921"
+   ],
+   "tpdu_lengths": [
+    152,
+    34
+   ],
+   "cscs": "GSM",
+   "commands": [
+    "AT+CMGF=0",
+    "AT+CSCS=?",
+    "AT+CSCS=\"GSM\"",
+    "AT+CMGS=152",
+    "0061910A9110325476980000A005000391020162B219ADD682C560A0986C46ABB560321828269BD16A2DD80C068AC966B45A0B46838162B219ADD682D560A0986C46ABB560361828269BD16A2DD80D068AC966B45A0B86838162B219ADD682E560A0986C46ABB562301828269BD16AAD580C068AC966B45A2B26838162B219ADD68ACD60A0986C46ABB562341828269BD16AAD580D068AC966\u001a",
+    "AT+CMGS=34",
+    "0061910A91103254769800001905000391020268B556CC066B21CB6CF61B747FCBC921\u001a"
+   ]
+  },
+  "name": "test_sendSmsLeaveTextModeOnInvalidCharacter",
+  "note": "sendSms() switches to PDU mode when text is not GSM-7 representable in text mode; each PDU starts with 00 (no SMSC), first octet 0x21/0x61 = SUBMIT+SRR(+UDHI). AT+CMGS=<TPDU length excl. SMSC>. Modem replies '> ', '+CMGS: <ref>', OK. The modem's _smsRef is preset to the ref so the PDU's TP-MR equals it."
+ },
+ {
+  "id": "enc-106",
+  "source": "smspdudecoder/tests/test_elements.py:12",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "number": ""
+  },
+  "expected": {
+   "hex": ""
+  },
+  "name": "test_empty",
+  "note": "Test is assertEqual(encode(''), decode(''), '') -- third arg is the failure message, so only encode('') == decode('') is asserted (both empty strings implied)."
+ },
+ {
+  "id": "enc-107",
+  "source": "smspdudecoder/tests/test_elements.py:18",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "toa": {
+    "ton": "unknown",
+    "npi": "unknown"
+   }
+  },
+  "expected": {
+   "hex": "80"
+  },
+  "name": "test_unknown",
+  "note": ""
+ },
+ {
+  "id": "enc-111",
+  "source": "smspdudecoder/smspdudecoder/elements.py:91",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "datetime_py": "datetime(2018, 1, 1)"
+  },
+  "expected": {
+   "hex": "81101000000000"
+  },
+  "name": "doctest Date.encode(datetime(2018, 1, 1))",
+  "note": "Input is the Python expression (naive datetime = offset 00; pytz localize gives local time + that zone's offset at that date: Europe/Paris 2020-01-29 = +01:00, US/Pacific 2013-03-25 = -07:00). Expected uppercased."
+ },
+ {
+  "id": "enc-112",
+  "source": "smspdudecoder/smspdudecoder/elements.py:94",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "datetime_py": "pytz.timezone('Europe/Paris').localize(datetime(2020, 1, 29, 13, 25, 41))"
+  },
+  "expected": {
+   "hex": "02109231521440"
+  },
+  "name": "doctest Date.encode(pytz.timezone('Europe/Paris').localize(datetime(2020, 1, 29, 13, 25, 41)))",
+  "note": "Input is the Python expression (naive datetime = offset 00; pytz localize gives local time + that zone's offset at that date: Europe/Paris 2020-01-29 = +01:00, US/Pacific 2013-03-25 = -07:00). Expected uppercased."
+ },
+ {
+  "id": "enc-113",
+  "source": "smspdudecoder/smspdudecoder/elements.py:97",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "datetime_py": "pytz.timezone('US/Pacific').localize(datetime(2013, 3, 25, 23, 1, 56))"
+  },
+  "expected": {
+   "hex": "3130523210658A"
+  },
+  "name": "doctest Date.encode(pytz.timezone('US/Pacific').localize(datetime(2013, 3, 25, 23, 1, 56)))",
+  "note": "Input is the Python expression (naive datetime = offset 00; pytz localize gives local time + that zone's offset at that date: Europe/Paris 2020-01-29 = +01:00, US/Pacific 2013-03-25 = -07:00). Expected uppercased."
+ },
+ {
+  "id": "enc-114",
+  "source": "smspdudecoder/smspdudecoder/elements.py:141",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "number": "15551234567"
+  },
+  "expected": {
+   "hex": "5155214365F7"
+  },
+  "name": "doctest Number.encode('15551234567')",
+  "note": ""
+ },
+ {
+  "id": "enc-115",
+  "source": "smspdudecoder/smspdudecoder/elements.py:143",
+  "license": "MIT",
+  "input": {
+   "field": "number-semioctets",
+   "number": "0123456789"
+  },
+  "expected": {
+   "hex": "1032547698"
+  },
+  "name": "doctest Number.encode('0123456789')",
+  "note": ""
+ },
+ {
+  "id": "enc-116",
+  "source": "smspdudecoder/smspdudecoder/elements.py:216",
+  "license": "MIT",
+  "input": {
+   "field": "type-of-address",
+   "toa": {
+    "ton": "international",
+    "npi": "isdn"
+   }
+  },
+  "expected": {
+   "hex": "91"
+  },
+  "name": "doctest TypeOfAddress.encode({'ton': 'international', 'npi': 'isdn'})",
+  "note": ""
+ },
+ {
+  "id": "enc-126",
+  "source": "warthog-sms/encoding/tpdu/address_test.go:37",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "address": {}
+  },
+  "expected": {
+   "hex": "0000",
+   "error": null
+  },
+  "name": "TestAddressMarshalBinary/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TP-OA/DA/RA: length in semi-octets(digits), TOA, BCD digits; alphanumeric (TOA 0xD0) uses GSM7 packing with length in semi-octets of packed data."
+ },
+ {
+  "id": "enc-127",
+  "source": "warthog-sms/encoding/tpdu/address_test.go:57",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "address": {
+    "Addr": "message",
+    "TOA": 209
+   }
+  },
+  "expected": {
+   "hex": "0DD1EDF27C1E3E9701",
+   "error": null
+  },
+  "name": "TestAddressMarshalBinary/alpha odd",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TP-OA/DA/RA: length in semi-octets(digits), TOA, BCD digits; alphanumeric (TOA 0xD0) uses GSM7 packing with length in semi-octets of packed data."
+ },
+ {
+  "id": "enc-128",
+  "source": "warthog-sms/encoding/tpdu/address_test.go:85",
+  "license": "MIT",
+  "input": {
+   "field": "address",
+   "address": {
+    "Addr": "mes⌘sages",
+    "TOA": 209
+   }
+  },
+  "expected": {
+   "hex": null,
+   "error": {
+    "go": "tpdu.EncodeError(\"addr\", gsm7.ErrInvalidUTF8('⌘'))"
+   }
+  },
+  "name": "TestAddressMarshalBinary/invalid alpha",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). TP-OA/DA/RA: length in semi-octets(digits), TOA, BCD digits; alphanumeric (TOA 0xD0) uses GSM7 packing with length in semi-octets of packed data."
+ },
+ {
+  "id": "enc-129",
+  "source": "warthog-sms/encoding/tpdu/timestamp_test.go:27",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "timestamp": {
+    "Time": "1970-01-01T01:02:03+00:00"
+   }
+  },
+  "expected": {
+   "hex": "07101010203000",
+   "error": null
+  },
+  "name": "TestMarhalBinary/19700101",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Time as ISO-8601 with UTC offset (TP-SCTS timezone in quarter hours)."
+ },
+ {
+  "id": "enc-130",
+  "source": "warthog-sms/encoding/tpdu/timestamp_test.go:49",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "timestamp": {
+    "Time": "2017-08-31T11:21:54+08:00"
+   }
+  },
+  "expected": {
+   "hex": "71801311124523",
+   "error": null
+  },
+  "name": "TestMarhalBinary/20170831",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Time as ISO-8601 with UTC offset (TP-SCTS timezone in quarter hours)."
+ },
+ {
+  "id": "enc-131",
+  "source": "warthog-sms/encoding/tpdu/timestamp_test.go:73",
+  "license": "MIT",
+  "input": {
+   "field": "scts",
+   "timestamp": {
+    "Time": {
+     "go": "time.Date(2070, time.December, 31, 23, 59, 59, 0, time.FixedZone(\"SCTS\", 24*3600))"
+    }
+   }
+  },
+  "expected": {
+   "hex": null,
+   "error": {
+    "go": "bcd.ErrInvalidInteger(96)"
+   }
+  },
+  "name": "TestMarhalBinary/20701231",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Time as ISO-8601 with UTC offset (TP-SCTS timezone in quarter hours)."
+ },
+ {
+  "id": "enc-132",
+  "source": "warthog-sms/encoding/tpdu/validityperiod_test.go:81",
+  "license": "MIT",
+  "input": {
+   "field": "validity-period",
+   "vp": {}
+  },
+  "expected": {
+   "hex": null,
+   "error": null
+  },
+  "name": "TestVPMarshalBinary/notpresent",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Durations are Go time.Duration in nanoseconds when evaluated."
+ },
+ {
+  "id": "enc-133",
+  "source": "warthog-sms/encoding/tpdu/validityperiod_test.go:115",
+  "license": "MIT",
+  "input": {
+   "field": "validity-period",
+   "vp": {
+    "Format": {
+     "const": "tpdu.VpfRelative",
+     "value": 2
+    },
+    "Duration": 38102400000000000
+   }
+  },
+  "expected": {
+   "hex": "FF",
+   "error": null
+  },
+  "name": "TestVPMarshalBinary/relativeMax",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Durations are Go time.Duration in nanoseconds when evaluated."
+ },
+ {
+  "id": "enc-134",
+  "source": "warthog-sms/encoding/tpdu/validityperiod_test.go:155",
+  "license": "MIT",
+  "input": {
+   "field": "validity-period",
+   "vp": {
+    "Format": {
+     "const": "tpdu.VpfEnhanced",
+     "value": 1
+    },
+    "EFI": 255
+   }
+  },
+  "expected": {
+   "hex": null,
+   "error": {
+    "go": "tpdu.EncodeError(\"fi\", tpdu.ErrInvalid)"
+   }
+  },
+  "name": "TestVPMarshalBinary/invalid enhanced",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Durations are Go time.Duration in nanoseconds when evaluated."
+ },
+ {
+  "id": "enc-135",
+  "source": "warthog-sms/encoding/pdumode/pdu_test.go:108",
+  "license": "MIT",
+  "input": {
+   "smsc": {},
+   "tpdu_hex": null
+  },
+  "expected": {
+   "pdu": "00",
+   "error": null
+  },
+  "name": "TestMarshalBinary/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Go test compares lowercase hex; uppercased here."
+ },
+ {
+  "id": "enc-136",
+  "source": "warthog-sms/encoding/pdumode/pdu_test.go:115",
+  "license": "MIT",
+  "input": {
+   "smsc": [
+    {
+     "Addr": "100000000029",
+     "TOA": 145
+    }
+   ],
+   "tpdu_hex": "010203040506070809"
+  },
+  "expected": {
+   "pdu": "0791010000000092010203040506070809",
+   "error": null
+  },
+  "name": "TestMarshalBinary/valid",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Go test compares lowercase hex; uppercased here."
+ },
+ {
+  "id": "enc-137",
+  "source": "warthog-sms/encoding/pdumode/pdu_test.go:123",
+  "license": "MIT",
+  "input": {
+   "smsc": [
+    {
+     "Addr": "banana"
+    }
+   ],
+   "tpdu_hex": null
+  },
+  "expected": {
+   "pdu": "",
+   "error": {
+    "go": "tpdu.EncodeError(\"addr\", semioctet.ErrInvalidDigit(0x6e))"
+   }
+  },
+  "name": "TestMarshalBinary/invalid addr",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). Go test compares lowercase hex; uppercased here."
+ },
+ {
+  "id": "enc-138",
+  "source": "warthog-sms/encoding/pdumode/smscaddress_test.go:23",
+  "license": "MIT",
+  "input": {
+   "field": "smsc-address",
+   "smsc": {}
+  },
+  "expected": {
+   "hex": "00",
+   "error": null
+  },
+  "name": "TestSMSCAddressMarshalBinary/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). SMSC length is in octets (TOA + digits), unlike TP addresses."
+ },
+ {
+  "id": "enc-139",
+  "source": "warthog-sms/encoding/pdumode/smscaddress_test.go:37",
+  "license": "MIT",
+  "input": {
+   "field": "smsc-address",
+   "smsc": [
+    {
+     "Addr": "0123456789*#abc",
+     "TOA": 145
+    }
+   ]
+  },
+  "expected": {
+   "hex": "09911032547698BADCFE",
+   "error": null
+  },
+  "name": "TestSMSCAddressMarshalBinary/number alphabet",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). SMSC length is in octets (TOA + digits), unlike TP addresses."
+ },
+ {
+  "id": "enc-140",
+  "source": "warthog-sms/encoding/pdumode/smscaddress_test.go:53",
+  "license": "MIT",
+  "input": {
+   "field": "smsc-address",
+   "smsc": [
+    {
+     "Addr": "6140f98656",
+     "TOA": 145
+    }
+   ]
+  },
+  "expected": {
+   "hex": null,
+   "error": {
+    "go": "tpdu.EncodeError(\"addr\", semioctet.ErrInvalidDigit('f'))"
+   }
+  },
+  "name": "TestSMSCAddressMarshalBinary/invalid number",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options). SMSC length is in octets (TOA + digits), unlike TP addresses."
+ },
+ {
+  "id": "enc-144",
+  "source": "warthog-sms/encoding/semioctet/semioctet_test.go:155",
+  "license": "MIT",
+  "input": {
+   "field": "semioctet",
+   "digits": null
+  },
+  "expected": {
+   "hex": null,
+   "error": null
+  },
+  "name": "semioctet.TestEncode/nil",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "enc-145",
+  "source": "warthog-sms/encoding/semioctet/semioctet_test.go:185",
+  "license": "MIT",
+  "input": {
+   "field": "semioctet",
+   "digits": "012345D6789"
+  },
+  "expected": {
+   "hex": null,
+   "error": {
+    "go": "semioctet.ErrInvalidDigit('D')"
+   }
+  },
+  "name": "semioctet.TestEncode/invalid digit",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ }
+]

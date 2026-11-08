@@ -1,0 +1,36 @@
+{
+ "pdu_cases": [
+  {
+   "id": "python_gsmmodem_submit_hello_world",
+   "source": "https://github.com/faucamp/python-gsmmodem/blob/master/test/test_pdu.py",
+   "pdu": "0591721891F101000B917228214365F700040C48656C6C6F20776F726C6421",
+   "tpdu_type": "SMS-SUBMIT",
+   "encoding": "bit8",
+   "text": "Hello world!",
+   "destination": "27821234567"
+  }
+ ],
+ "payload_cases": [
+  {
+   "id": "warthog618_tpdu_report_8bit",
+   "source": "https://github.com/warthog618/sms/blob/master/encoding/tpdu/tpdu_internal_test.go",
+   "payload_hex": "7265706F7274",
+   "expect_text": "report"
+  },
+  {
+   "id": "warthog618_tpdu_8bit_binary",
+   "source": "https://github.com/warthog618/sms/blob/master/encoding/tpdu/tpdu_internal_test.go",
+   "payload_hex": "EDF27C1E3E9701",
+   "expect_binary": true
+  }
+ ],
+ "ussd_cases": [
+  {
+   "id": "python_gsmmodem_ussd_hello_world",
+   "source": "https://github.com/faucamp/python-gsmmodem/blob/master/test/test_pdu.py (TP-UD octets)",
+   "ussd_hex": "48656C6C6F20776F726C6421",
+   "dcs": "4",
+   "text": "Hello world!"
+  }
+ ]
+}

@@ -1,0 +1,4463 @@
+[
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1715",
+  "license": "GPL-2.0-or-later",
+  "name": "test_c5greg1_solicited",
+  "input": {
+   "line": "+C5GREG: 1,3",
+   "solicited": true,
+   "device": "C5GREG=1"
+  },
+  "expected": {
+   "state": "denied",
+   "lac": 0,
+   "ci": 0,
+   "act": "unknown",
+   "cgreg": false,
+   "cereg": false,
+   "c5greg": true
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+C5GREG?",
+  "codec": [
+   {
+    "command": "AT+C5GREG?",
+    "raw": "AT+C5GREG?\r\r\n+C5GREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 1,3"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+C5GREG?",
+    "raw": "+C5GREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 1,3"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+C5GREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1725",
+  "license": "GPL-2.0-or-later",
+  "name": "test_c5greg1_multidigit_stat_solicited",
+  "input": {
+   "line": "\r\n+C5GREG: 1, 10\r\n",
+   "solicited": true,
+   "device": "C5GREG=1 with multidigit \"stat\" value"
+  },
+  "expected": {
+   "state": "roaming_csfb_not_preferred",
+   "lac": 0,
+   "ci": 0,
+   "act": "unknown",
+   "cgreg": false,
+   "cereg": false,
+   "c5greg": true
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+C5GREG?",
+  "codec": [
+   {
+    "command": "AT+C5GREG?",
+    "raw": "AT+C5GREG?\r\r\n\r\n+C5GREG: 1, 10\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 1, 10"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+C5GREG?",
+    "raw": "\r\n+C5GREG: 1, 10\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 1, 10"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+C5GREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1745",
+  "license": "GPL-2.0-or-later",
+  "name": "test_c5greg2_solicited",
+  "input": {
+   "line": "+C5GREG: 2,1,1F00,79D903,11,6,ABCDEF",
+   "solicited": true,
+   "device": "C5GREG=2"
+  },
+  "expected": {
+   "state": "home",
+   "lac": 7936,
+   "ci": 7985411,
+   "act": "5gnr",
+   "cgreg": false,
+   "cereg": false,
+   "c5greg": true
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+C5GREG?",
+  "codec": [
+   {
+    "command": "AT+C5GREG?",
+    "raw": "AT+C5GREG?\r\r\n+C5GREG: 2,1,1F00,79D903,11,6,ABCDEF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 2,1,1F00,79D903,11,6,ABCDEF"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+C5GREG?",
+    "raw": "+C5GREG: 2,1,1F00,79D903,11,6,ABCDEF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+C5GREG: 2,1,1F00,79D903,11,6,ABCDEF"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+C5GREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-ccfc/complete.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-ccfc-reply-complete",
+  "input": {
+   "at_response": "AT+CCFC=4,0\n+CCFC:1,7,\"+420800123456\",129,\"\",128,0\nOK\n\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetDivert asserts only ERR_NONE.",
+  "group": "+CCFC",
+  "codec": [
+   {
+    "command": "AT+CCFC=4,0",
+    "raw": "AT+CCFC=4,0\n+CCFC:1,7,\"+420800123456\",129,\"\",128,0\nOK\n\n",
+    "matched": "ok",
+    "body": [
+     "+CCFC:1,7,\"+420800123456\",129,\"\",128,0"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-ccfc/disabled.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-ccfc-reply-disabled",
+  "input": {
+   "at_response": "AT+CCFC=4,0\n+CCFC:0,7\nOK\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetDivert asserts only ERR_NONE.",
+  "group": "+CCFC",
+  "codec": [
+   {
+    "command": "AT+CCFC=4,0",
+    "raw": "AT+CCFC=4,0\n+CCFC:0,7\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CCFC:0,7"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-ccfc/ma260.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-ccfc-reply-ma260",
+  "input": {
+   "at_response": "AT+CCFC=4,0\n+CCFC: 1,1,\"+420123456678\",145,,,\nOK\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetDivert asserts only ERR_NONE.",
+  "group": "+CCFC",
+  "codec": [
+   {
+    "command": "AT+CCFC=4,0",
+    "raw": "AT+CCFC=4,0\n+CCFC: 1,1,\"+420123456678\",145,,,\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CCFC: 1,1,\"+420123456678\",145,,,"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3771",
+  "license": "GPL-2.0-or-later",
+  "name": "cclk_tests",
+  "input": {
+   "response": "+CCLK: \"14/08/05,04:00:21\"",
+   "want_iso8601": true,
+   "want_tz": false
+  },
+  "expected": {
+   "ok": true,
+   "iso8601": "2014-08-05T04:00:21Z"
+  },
+  "note": "tz in quarter-hours (+40 = +600 min); iso8601 only asserted when want_iso8601; format differs: with tz-only request the formatter yields +HH:MM, with iso request +HH (project quirk, as asserted); dst/leap seconds asserted unknown",
+  "group": "+CCLK?",
+  "codec": [
+   {
+    "command": "AT+CCLK?",
+    "raw": "AT+CCLK?\r\r\n+CCLK: \"14/08/05,04:00:21\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: \"14/08/05,04:00:21\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CCLK?",
+    "raw": "+CCLK: \"14/08/05,04:00:21\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: \"14/08/05,04:00:21\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CCLK"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3771",
+  "license": "GPL-2.0-or-later",
+  "name": "cclk_tests",
+  "input": {
+   "response": "+CCLK: 17/07/26,11:42:15+01",
+   "want_iso8601": true,
+   "want_tz": false
+  },
+  "expected": {
+   "ok": true,
+   "iso8601": "2017-07-26T11:42:15+00:15"
+  },
+  "note": "tz in quarter-hours (+40 = +600 min); iso8601 only asserted when want_iso8601; format differs: with tz-only request the formatter yields +HH:MM, with iso request +HH (project quirk, as asserted); dst/leap seconds asserted unknown",
+  "group": "+CCLK?",
+  "codec": [
+   {
+    "command": "AT+CCLK?",
+    "raw": "AT+CCLK?\r\r\n+CCLK: 17/07/26,11:42:15+01\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: 17/07/26,11:42:15+01"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CCLK?",
+    "raw": "+CCLK: 17/07/26,11:42:15+01\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: 17/07/26,11:42:15+01"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CCLK"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3771",
+  "license": "GPL-2.0-or-later",
+  "name": "cclk_tests",
+  "input": {
+   "response": "+CCLK: \"XX/XX/XX,XX:XX:XX+XX\"",
+   "want_iso8601": true,
+   "want_tz": false
+  },
+  "expected": {
+   "ok": false,
+   "iso8601": null
+  },
+  "note": "tz in quarter-hours (+40 = +600 min); iso8601 only asserted when want_iso8601; format differs: with tz-only request the formatter yields +HH:MM, with iso request +HH (project quirk, as asserted); dst/leap seconds asserted unknown",
+  "group": "+CCLK?",
+  "codec": [
+   {
+    "command": "AT+CCLK?",
+    "raw": "AT+CCLK?\r\r\n+CCLK: \"XX/XX/XX,XX:XX:XX+XX\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: \"XX/XX/XX,XX:XX:XX+XX\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CCLK?",
+    "raw": "+CCLK: \"XX/XX/XX,XX:XX:XX+XX\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCLK: \"XX/XX/XX,XX:XX:XX+XX\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CCLK"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4471",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ccwa",
+  "input": {
+   "response": "+CCWA: 0,255\r\n"
+  },
+  "expected": {
+   "enabled": false
+  },
+  "note": "service query: voice class (1) or all (255) status; missing voice / bad status -> error",
+  "group": "+CCWA?",
+  "codec": [
+   {
+    "command": "AT+CCWA?",
+    "raw": "AT+CCWA?\r\r\n+CCWA: 0,255\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCWA: 0,255"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CCWA?",
+    "raw": "+CCWA: 0,255\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCWA: 0,255"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CCWA"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4471",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ccwa",
+  "input": {
+   "response": "+CCWA: 2,1\r\n+CCWA: 2,4\r\n"
+  },
+  "expected": {
+   "error": true
+  },
+  "note": "service query: voice class (1) or all (255) status; missing voice / bad status -> error",
+  "group": "+CCWA?",
+  "codec": [
+   {
+    "command": "AT+CCWA?",
+    "raw": "AT+CCWA?\r\r\n+CCWA: 2,1\r\n+CCWA: 2,4\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCWA: 2,1",
+     "+CCWA: 2,4"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CCWA?",
+    "raw": "+CCWA: 2,1\r\n+CCWA: 2,4\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CCWA: 2,1",
+     "+CCWA: 2,4"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CCWA"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1585",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cereg1_solicited",
+  "input": {
+   "line": "+CEREG: 1,3",
+   "solicited": true,
+   "device": "CEREG=1"
+  },
+  "expected": {
+   "state": "denied",
+   "lac": 0,
+   "ci": 0,
+   "act": "unknown",
+   "cgreg": false,
+   "cereg": true,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CEREG?",
+  "codec": [
+   {
+    "command": "AT+CEREG?",
+    "raw": "AT+CEREG?\r\r\n+CEREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 1,3"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CEREG?",
+    "raw": "+CEREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 1,3"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CEREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1625",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cereg2_multidigit_stat_solicited",
+  "input": {
+   "line": "\r\n+CEREG: 2,10,\"8d83\",\"671f98a\",7\r\n",
+   "solicited": true,
+   "device": "CEREG=2 with multidigit \"stat\" value"
+  },
+  "expected": {
+   "state": "roaming_csfb_not_preferred",
+   "lac": 36227,
+   "ci": 108132746,
+   "act": "lte",
+   "cgreg": false,
+   "cereg": true,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CEREG?",
+  "codec": [
+   {
+    "command": "AT+CEREG?",
+    "raw": "AT+CEREG?\r\r\n\r\n+CEREG: 2,10,\"8d83\",\"671f98a\",7\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 2,10,\"8d83\",\"671f98a\",7"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CEREG?",
+    "raw": "\r\n+CEREG: 2,10,\"8d83\",\"671f98a\",7\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 2,10,\"8d83\",\"671f98a\",7"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CEREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1675",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cereg2_novatel_lte_solicited",
+  "input": {
+   "line": "\r\n+CEREG: 2,1, 1F00, 20 ,79D903 ,7\r\n",
+   "solicited": true,
+   "device": "Novatel LTE E362 CEREG=2"
+  },
+  "expected": {
+   "state": "home",
+   "lac": 7936,
+   "ci": 7985411,
+   "act": "lte",
+   "cgreg": false,
+   "cereg": true,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CEREG?",
+  "codec": [
+   {
+    "command": "AT+CEREG?",
+    "raw": "AT+CEREG?\r\r\n\r\n+CEREG: 2,1, 1F00, 20 ,79D903 ,7\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 2,1, 1F00, 20 ,79D903 ,7"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CEREG?",
+    "raw": "\r\n+CEREG: 2,1, 1F00, 20 ,79D903 ,7\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CEREG: 2,1, 1F00, 20 ,79D903 ,7"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CEREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4166",
+  "license": "GPL-2.0-or-later",
+  "name": "cesq_response_tests",
+  "input": {
+   "response": "+CESQ: 99,99,255,255,20,80"
+  },
+  "expected": {
+   "rxlev": 99,
+   "ber": 99,
+   "rscp_level": 255,
+   "ecn0_level": 255,
+   "rsrq_level": 20,
+   "rsrp_level": 80,
+   "signal": {
+    "gsm": null,
+    "umts": null,
+    "lte": {
+     "rsrq_db": -10.0,
+     "rsrp_dbm": -61.0
+    }
+   }
+  },
+  "note": "raw levels asserted exactly; signal values within 0.1 tolerance; null tech = asserted absent (99/255 = not known)",
+  "group": "+CESQ",
+  "codec": [
+   {
+    "command": "AT+CESQ",
+    "raw": "AT+CESQ\r\r\n+CESQ: 99,99,255,255,20,80\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CESQ: 99,99,255,255,20,80"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CESQ",
+    "raw": "+CESQ: 99,99,255,255,20,80\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CESQ: 99,99,255,255,20,80"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CESQ"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4166",
+  "license": "GPL-2.0-or-later",
+  "name": "cesq_response_tests",
+  "input": {
+   "response": "+CESQ:10,6,255,255,255,255"
+  },
+  "expected": {
+   "rxlev": 10,
+   "ber": 6,
+   "rscp_level": 255,
+   "ecn0_level": 255,
+   "rsrq_level": 255,
+   "rsrp_level": 255,
+   "signal": {
+    "gsm": {
+     "rssi_dbm": -101.0
+    },
+    "umts": null,
+    "lte": null
+   }
+  },
+  "note": "raw levels asserted exactly; signal values within 0.1 tolerance; null tech = asserted absent (99/255 = not known)",
+  "group": "+CESQ",
+  "codec": [
+   {
+    "command": "AT+CESQ",
+    "raw": "AT+CESQ\r\r\n+CESQ:10,6,255,255,255,255\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CESQ:10,6,255,255,255,255"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CESQ",
+    "raw": "+CESQ:10,6,255,255,255,255\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CESQ:10,6,255,255,255,255"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CESQ"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4116",
+  "license": "GPL-2.0-or-later",
+  "name": "cfun_query_tests",
+  "input": {
+   "response": "+CFUN: 1"
+  },
+  "expected": {
+   "fun": 1
+  },
+  "note": "",
+  "group": "+CFUN?",
+  "codec": [
+   {
+    "command": "AT+CFUN?",
+    "raw": "AT+CFUN?\r\r\n+CFUN: 1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CFUN: 1"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CFUN?",
+    "raw": "+CFUN: 1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CFUN: 1"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CFUN"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4275",
+  "license": "GPL-2.0-or-later",
+  "name": "cfun_query_generic_tests",
+  "input": {
+   "response": "+CFUN: 4,0"
+  },
+  "expected": {
+   "power_state": "low"
+  },
+  "note": "generic mapping 1->on, 0->off, 4->low",
+  "group": "+CFUN?",
+  "codec": [
+   {
+    "command": "AT+CFUN?",
+    "raw": "AT+CFUN?\r\r\n+CFUN: 4,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CFUN: 4,0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CFUN?",
+    "raw": "+CFUN: 4,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CFUN: 4,0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CFUN"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2925",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgact_read_response_none",
+  "input": {
+   "response": ""
+  },
+  "expected": {
+   "contexts": []
+  },
+  "note": "empty response -> empty list, no error",
+  "group": "+CGACT?",
+  "codec": [
+   {
+    "command": "AT+CGACT?",
+    "raw": "AT+CGACT?\r\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   },
+   {
+    "command": "AT+CGACT?",
+    "raw": "\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGACT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2942",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgact_read_response_single_active",
+  "input": {
+   "response": "+CGACT: 1,1\r\n"
+  },
+  "expected": {
+   "contexts": [
+    {
+     "cid": 1,
+     "active": true
+    }
+   ]
+  },
+  "note": "empty response -> empty list, no error",
+  "group": "+CGACT?",
+  "codec": [
+   {
+    "command": "AT+CGACT?",
+    "raw": "AT+CGACT?\r\r\n+CGACT: 1,1\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGACT: 1,1"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGACT?",
+    "raw": "+CGACT: 1,1\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGACT: 1,1"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGACT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2953",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgact_read_response_multiple",
+  "input": {
+   "response": "+CGACT: 1,0\r\n+CGACT: 4,1\r\n+CGACT: 5,0\r\n"
+  },
+  "expected": {
+   "contexts": [
+    {
+     "cid": 1,
+     "active": false
+    },
+    {
+     "cid": 4,
+     "active": true
+    },
+    {
+     "cid": 5,
+     "active": false
+    }
+   ]
+  },
+  "note": "empty response -> empty list, no error",
+  "group": "+CGACT?",
+  "codec": [
+   {
+    "command": "AT+CGACT?",
+    "raw": "AT+CGACT?\r\r\n+CGACT: 1,0\r\n+CGACT: 4,1\r\n+CGACT: 5,0\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGACT: 1,0",
+     "+CGACT: 4,1",
+     "+CGACT: 5,0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGACT?",
+    "raw": "+CGACT: 1,0\r\n+CGACT: 4,1\r\n+CGACT: 5,0\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGACT: 1,0",
+     "+CGACT: 4,1",
+     "+CGACT: 5,0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGACT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3924",
+  "license": "GPL-2.0-or-later",
+  "name": "cgcontrdp_response_tests",
+  "input": {
+   "response": "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49.255.255.255.255\",\"2.197.17.49\",\"10.207.43.46\",\"10.206.56.132\",\"0.0.0.0\",\"0.0.0.0\",0"
+  },
+  "expected": {
+   "cid": 4,
+   "bearer_id": 5,
+   "apn": "ibox.tim.it.mnc001.mcc222.gprs",
+   "local_address": "2.197.17.49",
+   "subnet": "255.255.255.255",
+   "gateway_address": "2.197.17.49",
+   "dns_primary_address": "10.207.43.46",
+   "dns_secondary_address": "10.206.56.132"
+  },
+  "note": "null = asserted absent; handles pre/post 27.007 v9.4.0 (addr+mask combined) formats and dotted-decimal IPv6 -> canonical text; empty apn \"\" -> null",
+  "group": "+CGCONTRDP",
+  "codec": [
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "AT+CGCONTRDP\r\r\n+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49.255.255.255.255\",\"2.197.17.49\",\"10.207.43.46\",\"10.206.56.132\",\"0.0.0.0\",\"0.0.0.0\",0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49.255.255.255.255\",\"2.197.17.49\",\"10.207.43.46\",\"10.206.56.132\",\"0.0.0.0\",\"0.0.0.0\",0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49.255.255.255.255\",\"2.197.17.49\",\"10.207.43.46\",\"10.206.56.132\",\"0.0.0.0\",\"0.0.0.0\",0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49.255.255.255.255\",\"2.197.17.49\",\"10.207.43.46\",\"10.206.56.132\",\"0.0.0.0\",\"0.0.0.0\",0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGCONTRDP"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3924",
+  "license": "GPL-2.0-or-later",
+  "name": "cgcontrdp_response_tests",
+  "input": {
+   "response": "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49\",\"255.255.255.255\""
+  },
+  "expected": {
+   "cid": 4,
+   "bearer_id": 5,
+   "apn": "ibox.tim.it.mnc001.mcc222.gprs",
+   "local_address": "2.197.17.49",
+   "subnet": "255.255.255.255",
+   "gateway_address": null,
+   "dns_primary_address": null,
+   "dns_secondary_address": null
+  },
+  "note": "null = asserted absent; handles pre/post 27.007 v9.4.0 (addr+mask combined) formats and dotted-decimal IPv6 -> canonical text; empty apn \"\" -> null",
+  "group": "+CGCONTRDP",
+  "codec": [
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "AT+CGCONTRDP\r\r\n+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49\",\"255.255.255.255\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49\",\"255.255.255.255\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49\",\"255.255.255.255\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"ibox.tim.it.mnc001.mcc222.gprs\",\"2.197.17.49\",\"255.255.255.255\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGCONTRDP"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3924",
+  "license": "GPL-2.0-or-later",
+  "name": "cgcontrdp_response_tests",
+  "input": {
+   "response": "+CGCONTRDP: 4,5,\"\""
+  },
+  "expected": {
+   "cid": 4,
+   "bearer_id": 5,
+   "apn": null,
+   "local_address": null,
+   "subnet": null,
+   "gateway_address": null,
+   "dns_primary_address": null,
+   "dns_secondary_address": null
+  },
+  "note": "null = asserted absent; handles pre/post 27.007 v9.4.0 (addr+mask combined) formats and dotted-decimal IPv6 -> canonical text; empty apn \"\" -> null",
+  "group": "+CGCONTRDP",
+  "codec": [
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "AT+CGCONTRDP\r\r\n+CGCONTRDP: 4,5,\"\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGCONTRDP",
+    "raw": "+CGCONTRDP: 4,5,\"\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGCONTRDP: 4,5,\"\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGCONTRDP"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2711",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_test_response_single",
+  "input": {
+   "response": "+CGDCONT: (1-10),\"IP\",,,(0,1),(0,1)"
+  },
+  "expected": {
+   "formats": [
+    {
+     "min_cid": 1,
+     "max_cid": 10,
+     "pdp_type": "ipv4"
+    }
+   ]
+  },
+  "note": "matched by pdp_type; unsupported PDP types (PPP) ignored; for multi-range '(1-17,101-116)' only the first range is kept",
+  "group": "+CGDCONT=?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "AT+CGDCONT=?\r\r\n+CGDCONT: (1-10),\"IP\",,,(0,1),(0,1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-10),\"IP\",,,(0,1),(0,1)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "+CGDCONT: (1-10),\"IP\",,,(0,1),(0,1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-10),\"IP\",,,(0,1),(0,1)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2738",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_test_response_multiple_and_ignore",
+  "input": {
+   "response": "+CGDCONT: (1-16),\"IP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"PPP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"IPV6\",,,(0-2),(0-4)\r\n"
+  },
+  "expected": {
+   "formats": [
+    {
+     "min_cid": 1,
+     "max_cid": 16,
+     "pdp_type": "ipv4"
+    },
+    {
+     "min_cid": 1,
+     "max_cid": 16,
+     "pdp_type": "ipv6"
+    }
+   ]
+  },
+  "note": "matched by pdp_type; unsupported PDP types (PPP) ignored; for multi-range '(1-17,101-116)' only the first range is kept",
+  "group": "+CGDCONT=?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "AT+CGDCONT=?\r\r\n+CGDCONT: (1-16),\"IP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"PPP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"IPV6\",,,(0-2),(0-4)\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-16),\"IP\",,,(0-2),(0-4)",
+     "+CGDCONT: (1-16),\"PPP\",,,(0-2),(0-4)",
+     "+CGDCONT: (1-16),\"IPV6\",,,(0-2),(0-4)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "+CGDCONT: (1-16),\"IP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"PPP\",,,(0-2),(0-4)\r\n+CGDCONT: (1-16),\"IPV6\",,,(0-2),(0-4)\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-16),\"IP\",,,(0-2),(0-4)",
+     "+CGDCONT: (1-16),\"PPP\",,,(0-2),(0-4)",
+     "+CGDCONT: (1-16),\"IPV6\",,,(0-2),(0-4)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2782",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_test_response_cinterion_phs8",
+  "input": {
+   "response": "+CGDCONT: (1-17,101-116),\"IP\",,,(0),(0-4)\r\n"
+  },
+  "expected": {
+   "formats": [
+    {
+     "min_cid": 1,
+     "max_cid": 17,
+     "pdp_type": "ipv4"
+    }
+   ]
+  },
+  "note": "matched by pdp_type; unsupported PDP types (PPP) ignored; for multi-range '(1-17,101-116)' only the first range is kept",
+  "group": "+CGDCONT=?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "AT+CGDCONT=?\r\r\n+CGDCONT: (1-17,101-116),\"IP\",,,(0),(0-4)\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-17,101-116),\"IP\",,,(0),(0-4)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT=?",
+    "raw": "+CGDCONT: (1-17,101-116),\"IP\",,,(0),(0-4)\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: (1-17,101-116),\"IP\",,,(0),(0-4)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2839",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_read_response_nokia",
+  "input": {
+   "response": "+CGDCONT: 1,\"IP\",,,0,0"
+  },
+  "expected": {
+   "contexts": [
+    {
+     "cid": 1,
+     "pdp_type": "ipv4",
+     "apn": null
+    }
+   ]
+  },
+  "note": "matched by cid; apn null = absent",
+  "group": "+CGDCONT?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "AT+CGDCONT?\r\r\n+CGDCONT: 1,\"IP\",,,0,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",,,0,0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "+CGDCONT: 1,\"IP\",,,0,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",,,0,0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2850",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_read_response_samsung",
+  "input": {
+   "response": "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\",\"\",0,0\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\",\"\",0,0\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\",\"\",0,0\r\n"
+  },
+  "expected": {
+   "contexts": [
+    {
+     "cid": 1,
+     "pdp_type": "ipv4",
+     "apn": "nate.sktelecom.com"
+    },
+    {
+     "cid": 2,
+     "pdp_type": "ipv4",
+     "apn": "epc.tmobile.com"
+    },
+    {
+     "cid": 3,
+     "pdp_type": "ipv4",
+     "apn": "MAXROAM.com"
+    }
+   ]
+  },
+  "note": "matched by cid; apn null = absent",
+  "group": "+CGDCONT?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "AT+CGDCONT?\r\r\n+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\",\"\",0,0\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\",\"\",0,0\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\",\"\",0,0\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\",\"\",0,0",
+     "+CGDCONT: 2,\"IP\",\"epc.tmobile.com\",\"\",0,0",
+     "+CGDCONT: 3,\"IP\",\"MAXROAM.com\",\"\",0,0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\",\"\",0,0\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\",\"\",0,0\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\",\"\",0,0\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\",\"\",0,0",
+     "+CGDCONT: 2,\"IP\",\"epc.tmobile.com\",\"\",0,0",
+     "+CGDCONT: 3,\"IP\",\"MAXROAM.com\",\"\",0,0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2866",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgdcont_read_response_simcom",
+  "input": {
+   "response": "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\"\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\"\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\"\r\n"
+  },
+  "expected": {
+   "contexts": [
+    {
+     "cid": 1,
+     "pdp_type": "ipv4",
+     "apn": "nate.sktelecom.com"
+    },
+    {
+     "cid": 2,
+     "pdp_type": "ipv4",
+     "apn": "epc.tmobile.com"
+    },
+    {
+     "cid": 3,
+     "pdp_type": "ipv4",
+     "apn": "MAXROAM.com"
+    }
+   ]
+  },
+  "note": "matched by cid; apn null = absent",
+  "group": "+CGDCONT?",
+  "codec": [
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "AT+CGDCONT?\r\r\n+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\"\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\"\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\"",
+     "+CGDCONT: 2,\"IP\",\"epc.tmobile.com\"",
+     "+CGDCONT: 3,\"IP\",\"MAXROAM.com\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGDCONT?",
+    "raw": "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\"\r\n+CGDCONT: 2,\"IP\",\"epc.tmobile.com\"\r\n+CGDCONT: 3,\"IP\",\"MAXROAM.com\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGDCONT: 1,\"IP\",\"nate.sktelecom.com\"",
+     "+CGDCONT: 2,\"IP\",\"epc.tmobile.com\"",
+     "+CGDCONT: 3,\"IP\",\"MAXROAM.com\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGDCONT"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2294",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgerep_response_telit_le910q1",
+  "input": {
+   "response": "+CGEREP: (0,1),(0)"
+  },
+  "expected": {
+   "modes": [
+    "discard_urcs",
+    "discard_urcs_if_link_reserved"
+   ]
+  },
+  "note": "only <mode> list is reported",
+  "group": "+CGEREP=?",
+  "codec": [
+   {
+    "command": "AT+CGEREP=?",
+    "raw": "AT+CGEREP=?\r\r\n+CGEREP: (0,1),(0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGEREP: (0,1),(0)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGEREP=?",
+    "raw": "+CGEREP: (0,1),(0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGEREP: (0,1),(0)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGEREP"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2305",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgerep_response_telit_ln920",
+  "input": {
+   "response": "+CGEREP: (0-2),(0,1)"
+  },
+  "expected": {
+   "modes": [
+    "discard_urcs",
+    "discard_urcs_if_link_reserved",
+    "buffer_urcs_if_link_reserved"
+   ]
+  },
+  "note": "only <mode> list is reported",
+  "group": "+CGEREP=?",
+  "codec": [
+   {
+    "command": "AT+CGEREP=?",
+    "raw": "AT+CGEREP=?\r\r\n+CGEREP: (0-2),(0,1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGEREP: (0-2),(0,1)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGEREP=?",
+    "raw": "+CGEREP: (0-2),(0,1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGEREP: (0-2),(0,1)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGEREP"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:144",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_manufacturer",
+  "input": {
+   "command": "AT+CGMI",
+   "lines": [
+    "huawei",
+    "OK"
+   ]
+  },
+  "expected": {
+   "manufacturer": "huawei"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGMI",
+  "codec": [
+   {
+    "command": "AT+CGMI",
+    "raw": "AT+CGMI\r\r\nhuawei\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "huawei"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMI",
+    "raw": "\r\nhuawei\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "huawei"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMI"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:144",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_manufacturer",
+  "input": {
+   "command": "AT+CGMI",
+   "lines": [
+    "Some Random Manufacturer",
+    "OK"
+   ]
+  },
+  "expected": {
+   "manufacturer": "Some Random Manufacturer"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGMI",
+  "codec": [
+   {
+    "command": "AT+CGMI",
+    "raw": "AT+CGMI\r\r\nSome Random Manufacturer\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "Some Random Manufacturer"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMI",
+    "raw": "\r\nSome Random Manufacturer\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "Some Random Manufacturer"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMI"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:153",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_model",
+  "input": {
+   "command": "AT+CGMM",
+   "lines": [
+    "K3715",
+    "OK"
+   ]
+  },
+  "expected": {
+   "model": "K3715"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGMM",
+  "codec": [
+   {
+    "command": "AT+CGMM",
+    "raw": "AT+CGMM\r\r\nK3715\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "K3715"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMM",
+    "raw": "\r\nK3715\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "K3715"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:153",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_model",
+  "input": {
+   "command": "AT+CGMM",
+   "lines": [
+    "Some Random Model",
+    "OK"
+   ]
+  },
+  "expected": {
+   "model": "Some Random Model"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGMM",
+  "codec": [
+   {
+    "command": "AT+CGMM",
+    "raw": "AT+CGMM\r\r\nSome Random Model\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "Some Random Model"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMM",
+    "raw": "\r\nSome Random Model\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "Some Random Model"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:162",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_revision",
+  "input": {
+   "command": "AT+CGMR",
+   "lines": [
+    "1",
+    "OK"
+   ]
+  },
+  "expected": {
+   "revision": "1"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGMR",
+  "codec": [
+   {
+    "command": "AT+CGMR",
+    "raw": "AT+CGMR\r\r\n1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "1"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMR",
+    "raw": "\r\n1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "1"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMR"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:167",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_revision",
+  "input": {
+   "command": "AT+CGMR",
+   "lines": [
+    "ERROR"
+   ]
+  },
+  "expected": {
+   "revision": null
+  },
+  "note": "",
+  "group": "+CGMR",
+  "codec": [
+   {
+    "command": "AT+CGMR",
+    "raw": "AT+CGMR\r\r\nERROR\r\n",
+    "matched": "error",
+    "body": [],
+    "urc": []
+   },
+   {
+    "command": "AT+CGMR",
+    "raw": "\r\nERROR\r\n",
+    "matched": "error",
+    "body": [],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGMR"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1404",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgreg1_solicited",
+  "input": {
+   "line": "+CGREG: 1,3",
+   "solicited": true,
+   "device": "CGREG=1"
+  },
+  "expected": {
+   "state": "denied",
+   "lac": 0,
+   "ci": 0,
+   "act": "unknown",
+   "cgreg": true,
+   "cereg": false,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CGREG?",
+  "codec": [
+   {
+    "command": "AT+CGREG?",
+    "raw": "AT+CGREG?\r\r\n+CGREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGREG: 1,3"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGREG?",
+    "raw": "+CGREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGREG: 1,3"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1695",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cgreg2_thuraya_solicited",
+  "input": {
+   "line": "+CGREG: 2, 1, \"0426\", \"F00F\"",
+   "solicited": true,
+   "device": "Thuraya solicited CREG=2"
+  },
+  "expected": {
+   "state": "home",
+   "lac": 1062,
+   "ci": 61455,
+   "act": "unknown",
+   "cgreg": true,
+   "cereg": false,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CGREG?",
+  "codec": [
+   {
+    "command": "AT+CGREG?",
+    "raw": "AT+CGREG?\r\r\n+CGREG: 2, 1, \"0426\", \"F00F\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGREG: 2, 1, \"0426\", \"F00F\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGREG?",
+    "raw": "+CGREG: 2, 1, \"0426\", \"F00F\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CGREG: 2, 1, \"0426\", \"F00F\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3584",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cdma_parse_gsn",
+  "input": {
+   "response": "000000000000000\r\n"
+  },
+  "expected": {
+   "ok": true,
+   "imei": "000000000000000"
+  },
+  "note": "mm_parse_gsn; CDMA ESN/MEID rows skipped; failure rows also assert no IMEI PII?: real-looking number(s) (phone/IMEI/ICCID) 000000000000000 (heuristic flag). [numbers anonymized for serial-codec fixtures]",
+  "group": "+CGSN",
+  "codec": [
+   {
+    "command": "AT+CGSN",
+    "raw": "AT+CGSN\r\r\n000000000000000\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "000000000000000"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGSN",
+    "raw": "000000000000000\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "000000000000000"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGSN"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:174",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_imei",
+  "input": {
+   "command": "AT+CGSN",
+   "lines": [
+    "012345678912345",
+    "OK"
+   ]
+  },
+  "expected": {
+   "imei": "012345678912345"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CGSN",
+  "codec": [
+   {
+    "command": "AT+CGSN",
+    "raw": "AT+CGSN\r\r\n012345678912345\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "012345678912345"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CGSN",
+    "raw": "\r\n012345678912345\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "012345678912345"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CGSN"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:183",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_imsi",
+  "input": {
+   "command": "AT+CIMI",
+   "lines": [
+    "987654321012345",
+    "OK"
+   ]
+  },
+  "expected": {
+   "imsi": "987654321012345"
+  },
+  "note": "Information text line returned verbatim.",
+  "group": "+CIMI",
+  "codec": [
+   {
+    "command": "AT+CIMI",
+    "raw": "AT+CIMI\r\r\n987654321012345\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "987654321012345"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CIMI",
+    "raw": "\r\n987654321012345\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "987654321012345"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CIMI"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2242",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cind_response_linktop_lw273",
+  "input": {
+   "response": "+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"batterywarning\",(0-1)),(\"chargerconnected\",(0-1)),(\"service\",(0-1)),(\"sounder\",(0-1)),(\"message\",(0-1)),()"
+  },
+  "expected": {
+   "indicators": [
+    {
+     "name": "battchg",
+     "index": 1,
+     "min": 0,
+     "max": 5
+    },
+    {
+     "name": "signal",
+     "index": 2,
+     "min": 0,
+     "max": 5
+    },
+    {
+     "name": "batterywarning",
+     "index": 3,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "chargerconnected",
+     "index": 4,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "service",
+     "index": 5,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "sounder",
+     "index": 6,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "message",
+     "index": 7,
+     "min": 0,
+     "max": 1
+    }
+   ]
+  },
+  "note": "names normalized: lowercased, spaces removed (\"Voice Mail\" -> voicemail); index is 1-based",
+  "group": "+CIND=?",
+  "codec": [
+   {
+    "command": "AT+CIND=?",
+    "raw": "AT+CIND=?\r\r\n+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"batterywarning\",(0-1)),(\"chargerconnected\",(0-1)),(\"service\",(0-1)),(\"sounder\",(0-1)),(\"message\",(0-1)),()\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"batterywarning\",(0-1)),(\"chargerconnected\",(0-1)),(\"service\",(0-1)),(\"sounder\",(0-1)),(\"message\",(0-1)),()"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CIND=?",
+    "raw": "+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"batterywarning\",(0-1)),(\"chargerconnected\",(0-1)),(\"service\",(0-1)),(\"sounder\",(0-1)),(\"message\",(0-1)),()\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CIND: (\"battchg\",(0-5)),(\"signal\",(0-5)),(\"batterywarning\",(0-1)),(\"chargerconnected\",(0-1)),(\"service\",(0-1)),(\"sounder\",(0-1)),(\"message\",(0-1)),()"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CIND"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2259",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cind_response_moto_v3m",
+  "input": {
+   "response": "+CIND: (\"Voice Mail\",(0,1)),(\"service\",(0,1)),(\"call\",(0,1)),(\"Roam\",(0-2)),(\"signal\",(0-5)),(\"callsetup\",(0-3)),(\"smsfull\",(0,1))"
+  },
+  "expected": {
+   "indicators": [
+    {
+     "name": "voicemail",
+     "index": 1,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "service",
+     "index": 2,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "call",
+     "index": 3,
+     "min": 0,
+     "max": 1
+    },
+    {
+     "name": "roam",
+     "index": 4,
+     "min": 0,
+     "max": 2
+    },
+    {
+     "name": "signal",
+     "index": 5,
+     "min": 0,
+     "max": 5
+    },
+    {
+     "name": "callsetup",
+     "index": 6,
+     "min": 0,
+     "max": 3
+    },
+    {
+     "name": "smsfull",
+     "index": 7,
+     "min": 0,
+     "max": 1
+    }
+   ]
+  },
+  "note": "names normalized: lowercased, spaces removed (\"Voice Mail\" -> voicemail); index is 1-based",
+  "group": "+CIND=?",
+  "codec": [
+   {
+    "command": "AT+CIND=?",
+    "raw": "AT+CIND=?\r\r\n+CIND: (\"Voice Mail\",(0,1)),(\"service\",(0,1)),(\"call\",(0,1)),(\"Roam\",(0-2)),(\"signal\",(0-5)),(\"callsetup\",(0-3)),(\"smsfull\",(0,1))\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CIND: (\"Voice Mail\",(0,1)),(\"service\",(0,1)),(\"call\",(0,1)),(\"Roam\",(0-2)),(\"signal\",(0-5)),(\"callsetup\",(0-3)),(\"smsfull\",(0,1))"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CIND=?",
+    "raw": "+CIND: (\"Voice Mail\",(0,1)),(\"service\",(0,1)),(\"call\",(0,1)),(\"Roam\",(0-2)),(\"signal\",(0-5)),(\"callsetup\",(0-3)),(\"smsfull\",(0,1))\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CIND: (\"Voice Mail\",(0,1)),(\"service\",(0,1)),(\"call\",(0,1)),(\"Roam\",(0-2)),(\"signal\",(0-5)),(\"callsetup\",(0-3)),(\"smsfull\",(0,1))"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CIND"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:205",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_supportedCommands",
+  "input": {
+   "command": "AT+CLAC",
+   "raw_lines": [
+    "+CLAC:&C,D,E,\\S,+CGMM,^DTMF\r\n",
+    "OK\r\n"
+   ]
+  },
+  "expected": {
+   "commands": [
+    "&C",
+    "D",
+    "E",
+    "\\S",
+    "+CGMM",
+    "^DTMF"
+   ]
+  },
+  "note": "raw_lines include the CR LF (some Huawei add an extra CR); AT prefix of listed commands is stripped.",
+  "group": "+CLAC",
+  "codec": [
+   {
+    "command": "AT+CLAC",
+    "raw": "AT+CLAC\r\r\n+CLAC:&C,D,E,\\S,+CGMM,^DTMF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLAC:&C,D,E,\\S,+CGMM,^DTMF"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CLAC",
+    "raw": "\r\n+CLAC:&C,D,E,\\S,+CGMM,^DTMF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLAC:&C,D,E,\\S,+CGMM,^DTMF"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CLAC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:223",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_supportedCommands",
+  "input": {
+   "command": "AT+CLAC",
+   "lines": [
+    "OK"
+   ]
+  },
+  "expected": {
+   "commands": null
+  },
+  "note": "OK with no list = unhandled.",
+  "group": "+CLAC",
+  "codec": [
+   {
+    "command": "AT+CLAC",
+    "raw": "AT+CLAC\r\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   },
+   {
+    "command": "AT+CLAC",
+    "raw": "\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CLAC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:421",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_clcc",
+  "input": {
+   "line": "+CLCC: 1,1,4,0,0,\"\",145"
+  },
+  "expected": {
+   "ret": 0,
+   "index": 1,
+   "dir": 1,
+   "stat": 4,
+   "mode": 0,
+   "mpty": 0,
+   "number": "",
+   "toa": 145
+  },
+  "note": "at_parse_clcc.",
+  "group": "+CLCC",
+  "codec": [
+   {
+    "command": "AT+CLCC",
+    "raw": "AT+CLCC\r\r\n+CLCC: 1,1,4,0,0,\"\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLCC: 1,1,4,0,0,\"\",145"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CLCC",
+    "raw": "+CLCC: 1,1,4,0,0,\"\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLCC: 1,1,4,0,0,\"\",145"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CLCC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:424",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_clcc",
+  "input": {
+   "line": "+CLCC: 1,1,4,0,0,\"+7913913ABCA\""
+  },
+  "expected": {
+   "ret": -1
+  },
+  "note": "at_parse_clcc. Non-digit number chars accepted. Missing <type> -> ret -1 (the test also compares the other outputs to zero/empty on failure; omitted as not meaningful).",
+  "group": "+CLCC",
+  "codec": [
+   {
+    "command": "AT+CLCC",
+    "raw": "AT+CLCC\r\r\n+CLCC: 1,1,4,0,0,\"+7913913ABCA\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLCC: 1,1,4,0,0,\"+7913913ABCA\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CLCC",
+    "raw": "+CLCC: 1,1,4,0,0,\"+7913913ABCA\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CLCC: 1,1,4,0,0,\"+7913913ABCA\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CLCC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4642",
+  "license": "GPL-2.0-or-later",
+  "name": "test_clcc_response_empty",
+  "input": {
+   "response": "\r\n"
+  },
+  "expected": {
+   "calls": []
+  },
+  "note": "voice calls only (mode 0,3,4,5 accepted; others skipped); order-insensitive; number null = absent",
+  "group": "+CLCC",
+  "codec": [
+   {
+    "command": "AT+CLCC",
+    "raw": "AT+CLCC\r\r\n\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   },
+   {
+    "command": "AT+CLCC",
+    "raw": "\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CLCC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2148",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cmer_response_cinterion_pls8",
+  "input": {
+   "response": "+CMER: (0-3),(0),(0),(0-1),(0-1)"
+  },
+  "expected": {
+   "modes": [
+    "discard_urcs",
+    "discard_urcs_if_link_reserved",
+    "buffer_urcs_if_link_reserved",
+    "forward_urcs"
+   ],
+   "ind": [
+    "disable",
+    "enable_not_caused_by_cind"
+   ]
+  },
+  "note": "modes = supported <mode> values (0 discard_urcs,1 ..if_link_reserved,2 buffer..,3 forward); ind = supported <ind> values (0 disable, 1 enable_not_caused_by_cind, 2 enable_all)",
+  "group": "+CMER=?",
+  "codec": [
+   {
+    "command": "AT+CMER=?",
+    "raw": "AT+CMER=?\r\r\n+CMER: (0-3),(0),(0),(0-1),(0-1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: (0-3),(0),(0),(0-1),(0-1)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMER=?",
+    "raw": "+CMER: (0-3),(0),(0),(0-1),(0-1)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: (0-3),(0),(0),(0-1),(0-1)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMER"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2164",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cmer_response_sierra_em7345",
+  "input": {
+   "response": "+CMER: 1,0,0,(0-1),0"
+  },
+  "expected": {
+   "modes": [
+    "discard_urcs_if_link_reserved"
+   ],
+   "ind": [
+    "disable",
+    "enable_not_caused_by_cind"
+   ]
+  },
+  "note": "modes = supported <mode> values (0 discard_urcs,1 ..if_link_reserved,2 buffer..,3 forward); ind = supported <ind> values (0 disable, 1 enable_not_caused_by_cind, 2 enable_all)",
+  "group": "+CMER=?",
+  "codec": [
+   {
+    "command": "AT+CMER=?",
+    "raw": "AT+CMER=?\r\r\n+CMER: 1,0,0,(0-1),0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: 1,0,0,(0-1),0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMER=?",
+    "raw": "+CMER: 1,0,0,(0-1),0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: 1,0,0,(0-1),0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMER"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:2177",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cmer_response_cinterion_ehs5",
+  "input": {
+   "response": "+CMER: (1,2),0,0,(0-1),0"
+  },
+  "expected": {
+   "modes": [
+    "discard_urcs_if_link_reserved",
+    "buffer_urcs_if_link_reserved"
+   ],
+   "ind": [
+    "disable",
+    "enable_not_caused_by_cind"
+   ]
+  },
+  "note": "modes = supported <mode> values (0 discard_urcs,1 ..if_link_reserved,2 buffer..,3 forward); ind = supported <ind> values (0 disable, 1 enable_not_caused_by_cind, 2 enable_all)",
+  "group": "+CMER=?",
+  "codec": [
+   {
+    "command": "AT+CMER=?",
+    "raw": "AT+CMER=?\r\r\n+CMER: (1,2),0,0,(0-1),0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: (1,2),0,0,(0-1),0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMER=?",
+    "raw": "+CMER: (1,2),0,0,(0-1),0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMER: (1,2),0,0,(0-1),0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMER"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:284",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cmgl_response_generic",
+  "input": {
+   "response": "+CMGL: 0,1,,147\r\n07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07"
+  },
+  "expected": {
+   "messages": [
+    {
+     "index": 0,
+     "status": 1,
+     "pdu": "07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07"
+    }
+   ]
+  },
+  "note": "PDU mode +CMGL; parser matches results by index (order-insensitive), asserts stat and pdu",
+  "group": "+CMGL",
+  "codec": [
+   {
+    "command": "AT+CMGL",
+    "raw": "AT+CMGL\r\r\n+CMGL: 0,1,,147\r\n07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGL: 0,1,,147",
+     "07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMGL",
+    "raw": "+CMGL: 0,1,,147\r\n07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGL: 0,1,,147",
+     "07914306073011F00405812261F700003130916191314095C274D96D2FBBD3E437280CB2BEC961F3DB5D76818EF2F0381D9E83E06F39A8CC2E9FD372F77BEE0249CBE37A594E0E83E2F532085E2F93CB73D0B93CA7A7DFEEB01C447F93DF7310BD3E07CDCB727B7A9C7ECF41E432C8FC96B7C32079189E26874179D0F8DD7E93C3A0B21B246AA641D637396C7EBBCB22D0FD7E77B5D376B3AB3C07"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMGL"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1788",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_listStoredSms_text",
+  "input": {
+   "command": "AT+CMGL=\"ALL\"",
+   "mode": "text",
+   "lines": [
+    "+CMGL: 0,\"REC UNREAD\",\"+10000000001\",,\"13/01/28,14:51:42+08\"",
+    "Hello raspberry pi",
+    "+CMGL: 1,\"REC READ\",\"+10000000002\",,\"13/02/07,01:31:44+08\"",
+    "New and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C",
+    "+CMGL: 2,\"REC READ\",\"+10000000003\",,\"13/02/07,06:24:02+08\"",
+    "Example Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000.",
+    "OK"
+   ]
+  },
+  "expected": {
+   "messages": [
+    {
+     "number": "+10000000001",
+     "status": {
+      "const": "Sms.STATUS_RECEIVED_UNREAD",
+      "value": 0
+     },
+     "time": "2013-01-28T14:51:42+02:00",
+     "text": "Hello raspberry pi"
+    },
+    {
+     "number": "+10000000002",
+     "status": {
+      "const": "Sms.STATUS_RECEIVED_READ",
+      "value": 1
+     },
+     "time": "2013-02-07T01:31:44+02:00",
+     "text": "New and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C"
+    },
+    {
+     "number": "+10000000003",
+     "status": {
+      "const": "Sms.STATUS_RECEIVED_READ",
+      "value": 1
+     },
+     "time": "2013-02-07T06:24:02+02:00",
+     "text": "Example Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000."
+    }
+   ]
+  },
+  "note": "ALL response = REC UNREAD list + REC READ list (test concatenates them). Filter counts asserted: REC UNREAD 1, REC READ 2, STO SENT 0, STO UNSENT 0. PII?: real-looking number(s) (phone/IMEI/ICCID) +10000000001, +10000000003 (heuristic flag). [numbers anonymized for serial-codec fixtures]",
+  "group": "+CMGL",
+  "codec": [
+   {
+    "command": "AT+CMGL=\"ALL\"",
+    "raw": "AT+CMGL=\"ALL\"\r\r\n+CMGL: 0,\"REC UNREAD\",\"+10000000001\",,\"13/01/28,14:51:42+08\"\r\n\r\nHello raspberry pi\r\n\r\n+CMGL: 1,\"REC READ\",\"+10000000002\",,\"13/02/07,01:31:44+08\"\r\n\r\nNew and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C\r\n\r\n+CMGL: 2,\"REC READ\",\"+10000000003\",,\"13/02/07,06:24:02+08\"\r\n\r\nExample Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000.\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGL: 0,\"REC UNREAD\",\"+10000000001\",,\"13/01/28,14:51:42+08\"",
+     "Hello raspberry pi",
+     "+CMGL: 1,\"REC READ\",\"+10000000002\",,\"13/02/07,01:31:44+08\"",
+     "New and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C",
+     "+CMGL: 2,\"REC READ\",\"+10000000003\",,\"13/02/07,06:24:02+08\"",
+     "Example Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000."
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMGL=\"ALL\"",
+    "raw": "\r\n+CMGL: 0,\"REC UNREAD\",\"+10000000001\",,\"13/01/28,14:51:42+08\"\r\n\r\nHello raspberry pi\r\n\r\n+CMGL: 1,\"REC READ\",\"+10000000002\",,\"13/02/07,01:31:44+08\"\r\n\r\nNew and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C\r\n\r\n+CMGL: 2,\"REC READ\",\"+10000000003\",,\"13/02/07,06:24:02+08\"\r\n\r\nExample Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000.\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGL: 0,\"REC UNREAD\",\"+10000000001\",,\"13/01/28,14:51:42+08\"",
+     "Hello raspberry pi",
+     "+CMGL: 1,\"REC READ\",\"+10000000002\",,\"13/02/07,01:31:44+08\"",
+     "New and here to stay! Don't just recharge SUPACHARGE and get your recharged airtime+FREE CellC to CellC mins & SMSs+Free data to use anytime. T&C apply. Cell C",
+     "+CMGL: 2,\"REC READ\",\"+10000000003\",,\"13/02/07,06:24:02+08\"",
+     "Example Bank: Your accounts are no longer compliant. Please bring ID & proof of residence to any branch to reactivate your accounts. Queries? 0000000000."
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMGL"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:236",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_cmgr/0",
+  "input": {
+   "at_response": "+CMGR: 0,,106\r\n07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C",
+   "pdu": "07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C",
+   "has_smsc": true,
+   "cmgr_header": "+CMGR: 0,,106"
+  },
+  "expected": {
+   "ret": 0,
+   "oa": "+11111111112",
+   "text": "111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999000000000"
+  },
+  "note": "at_parse_cmgr (PDU mode) on '+CMGR: ...\\r\\n<pdu>'. Asserted: return code, originator address, decoded UTF-8 text. For concatenated parts (UDH present) text is the part's own text only. The test's .str (raw UD hex) is NOT compared and therefore omitted. Numbers are dummy (1111../2222../3360000..).",
+  "group": "+CMGR",
+  "codec": [
+   {
+    "command": "AT+CMGR=0",
+    "raw": "AT+CMGR=0\r\r\n+CMGR: 0,,106\r\n07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGR: 0,,106",
+     "07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CMGR=0",
+    "raw": "+CMGR: 0,,106\r\n07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGR: 0,,106",
+     "07911111111100F3040B911111111111F200000121702214952163B1582C168BC562B1984C2693C96432994C369BCD66B3D96C369BD168341A8D46A3D168B55AAD56ABD56AB59ACD66B3D96C369BCD76BBDD6EB7DBED76BBE170381C0E87C3E170B95C2E97CBE572B91C0C0683C16030180C"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMGR"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-sms-txt/motorola-l7.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "sms-at-parse-txt-motorola-l7",
+  "input": {
+   "at_response": "AT+CMGR=3864\n+CMGR: \"REC READ\", \"+4123456789132\", \"2009/8/18,19:11:45\"\nHoewfliepl jookfotu oediutocou noabd fjumuywuncuzx lqutyehw. Joifdykojgdh pyigypaslp jomxuauxosiau arhi ludiqigitoda rivwitumaxy jyokigebxeqir zxeuluhp isluqlinushceg Styonwy jy uhu ibwypejkenobuo zitkizaruamim jbis dytiuiryuzil jeisviz zuoyrs. Leay agjyicify dojip-yfucqoguwx soxujdeh qyg R ginyea jpae ryk huywxeqyraeo enyvkymyscepae jeweimqizp afu fiysy noytaj. \nOK\n\n",
+   "mode": "text",
+   "csdh": false,
+   "charset": "GSM"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "Text-mode (+CMGF=1) +CMGR reply; short header (SMSTextDetails=FALSE). sms-at-parse asserts only successful parse (ERR_NONE), no field values asserted.",
+  "group": "+CMGR",
+  "codec": [
+   {
+    "command": "AT+CMGR=3864",
+    "raw": "AT+CMGR=3864\n+CMGR: \"REC READ\", \"+4123456789132\", \"2009/8/18,19:11:45\"\nHoewfliepl jookfotu oediutocou noabd fjumuywuncuzx lqutyehw. Joifdykojgdh pyigypaslp jomxuauxosiau arhi ludiqigitoda rivwitumaxy jyokigebxeqir zxeuluhp isluqlinushceg Styonwy jy uhu ibwypejkenobuo zitkizaruamim jbis dytiuiryuzil jeisviz zuoyrs. Leay agjyicify dojip-yfucqoguwx soxujdeh qyg R ginyea jpae ryk huywxeqyraeo enyvkymyscepae jeweimqizp afu fiysy noytaj. \nOK\n\n",
+    "matched": "ok",
+    "body": [
+     "+CMGR: \"REC READ\", \"+4123456789132\", \"2009/8/18,19:11:45\"",
+     "Hoewfliepl jookfotu oediutocou noabd fjumuywuncuzx lqutyehw. Joifdykojgdh pyigypaslp jomxuauxosiau arhi ludiqigitoda rivwitumaxy jyokigebxeqir zxeuluhp isluqlinushceg Styonwy jy uhu ibwypejkenobuo zitkizaruamim jbis dytiuiryuzil jeisviz zuoyrs. Leay agjyicify dojip-yfucqoguwx soxujdeh qyg R ginyea jpae ryk huywxeqyraeo enyvkymyscepae jeweimqizp afu fiysy noytaj."
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1462",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_sendSmsTextMode",
+  "input": {
+   "op": "send_sms_text",
+   "number": "+0123456789",
+   "text": "Hello world!",
+   "lines": [
+    "> ",
+    "+CMGS: 142",
+    "OK"
+   ]
+  },
+  "expected": {
+   "commands": [
+    "AT+CMGS=\"+0123456789\"",
+    "Hello world!\u001a"
+   ],
+   "reference": 142,
+   "status": {
+    "const": "gsmmodem.modem.SentSms.ENROUTE",
+    "value": 0
+   }
+  },
+  "note": "Text mode: command line, wait for '> ' prompt, then text terminated by Ctrl-Z (0x1A).",
+  "group": "+CMGS",
+  "codec": [
+   {
+    "command": "AT+CMGS=\"+0123456789\"",
+    "raw": "AT+CMGS=\"+0123456789\"\r\r\n> ",
+    "matched": {
+     "intermediate": {
+      "line": ">"
+     }
+    },
+    "body": [],
+    "urc": [],
+    "completion": "intermediate"
+   },
+   {
+    "command": "",
+    "raw": "\r\n+CMGS: 142\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGS: 142"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CMGS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1713",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_sendSms_waitForDeliveryReport",
+  "input": {
+   "op": "send_sms_wait_report",
+   "lines": [
+    "> ",
+    "+CMGS: 183",
+    "OK",
+    "+CDSI: \"SM\",3"
+   ],
+   "cmgr_lines": [
+    "+CMGR: 0,,24",
+    "07917248014000F506B70AA18092020000317071518590803170715185418000",
+    "OK"
+   ]
+  },
+  "expected": {
+   "reference": 183,
+   "status": {
+    "const": "gsmmodem.modem.SentSms.DELIVERED",
+    "value": 1
+   }
+  },
+  "note": "Status report with matching MR=183 marks the sent SMS delivered.",
+  "group": "+CMGS",
+  "codec": [
+   {
+    "command": "AT+CMGS=\"+0123456789\"",
+    "raw": "AT+CMGS=\"+0123456789\"\r\r\n> ",
+    "matched": {
+     "intermediate": {
+      "line": ">"
+     }
+    },
+    "body": [],
+    "urc": [],
+    "completion": "intermediate"
+   },
+   {
+    "command": "",
+    "raw": "\r\n+CMGS: 183\r\n\r\nOK\r\n\r\n+CDSI: \"SM\",3\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGS: 183"
+    ],
+    "urc": [
+     "+CDSI: \"SM\",3"
+    ],
+    "solicited_prefixes": [
+     "+CMGS"
+    ]
+   },
+   {
+    "command": "AT+CMGR=3",
+    "raw": "AT+CMGR=3\r\r\n+CMGR: 0,,24\r\n\r\n07917248014000F506B70AA18092020000317071518590803170715185418000\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CMGR: 0,,24",
+     "07917248014000F506B70AA18092020000317071518590803170715185418000"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-cnmi/01.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-cnmi-reply-01",
+  "input": {
+   "at_response": "AT+CNMI=?\n+CNMI: (2),(0-1,3),(0,2),(0-1),(0)\nOK\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetCNMIMode asserts only ERR_NONE.",
+  "group": "+CNMI=?",
+  "codec": [
+   {
+    "command": "AT+CNMI=?",
+    "raw": "AT+CNMI=?\n+CNMI: (2),(0-1,3),(0,2),(0-1),(0)\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CNMI: (2),(0-1,3),(0,2),(0-1),(0)"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-cnmi/02.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-cnmi-reply-02",
+  "input": {
+   "at_response": "AT+CNMI=?\n+CNMI: (0-2),(0,1,3),(0),(0,1),(0,1)\nOK\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetCNMIMode asserts only ERR_NONE.",
+  "group": "+CNMI=?",
+  "codec": [
+   {
+    "command": "AT+CNMI=?",
+    "raw": "AT+CNMI=?\n+CNMI: (0-2),(0,1,3),(0),(0,1),(0,1)\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CNMI: (0-2),(0,1,3),(0),(0,1),(0,1)"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-cnmi/03.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-cnmi-reply-03",
+  "input": {
+   "at_response": "AT+CNMI=?\n+CNMI:(0-3),(0-3),(0-3),(0,1),(0,1)\nOK\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "ATGEN_ReplyGetCNMIMode asserts only ERR_NONE.",
+  "group": "+CNMI=?",
+  "codec": [
+   {
+    "command": "AT+CNMI=?",
+    "raw": "AT+CNMI=?\n+CNMI:(0-3),(0-3),(0-3),(0,1),(0,1)\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CNMI:(0-3),(0-3),(0-3),(0,1),(0,1)"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:27",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_cnum",
+  "input": {
+   "line": "+CNUM: \"*Subscriber Number\",\"+10000000006\",145"
+  },
+  "expected": {
+   "number": "+10000000006"
+  },
+  "note": "at_parse_cnum returns the subscriber number (2nd field); tolerant of empty/missing fields and missing quotes.",
+  "group": "+CNUM",
+  "codec": [
+   {
+    "command": "AT+CNUM",
+    "raw": "AT+CNUM\r\r\n+CNUM: \"*Subscriber Number\",\"+10000000006\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"*Subscriber Number\",\"+10000000006\",145"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CNUM",
+    "raw": "+CNUM: \"*Subscriber Number\",\"+10000000006\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"*Subscriber Number\",\"+10000000006\",145"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CNUM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:34",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_cnum",
+  "input": {
+   "line": "+CNUM: \"\",+10000000006,145"
+  },
+  "expected": {
+   "number": "+10000000006"
+  },
+  "note": "at_parse_cnum returns the subscriber number (2nd field); tolerant of empty/missing fields and missing quotes.",
+  "group": "+CNUM",
+  "codec": [
+   {
+    "command": "AT+CNUM",
+    "raw": "AT+CNUM\r\r\n+CNUM: \"\",+10000000006,145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"\",+10000000006,145"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CNUM",
+    "raw": "+CNUM: \"\",+10000000006,145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"\",+10000000006,145"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CNUM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3402",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cnum_response_generic",
+  "input": {
+   "response": "+CNUM: \"something\",\"1234567890\",161"
+  },
+  "expected": {
+   "numbers": [
+    "1234567890"
+   ]
+  },
+  "note": "order-insensitive",
+  "group": "+CNUM",
+  "codec": [
+   {
+    "command": "AT+CNUM",
+    "raw": "AT+CNUM\r\r\n+CNUM: \"something\",\"1234567890\",161\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"something\",\"1234567890\",161"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CNUM",
+    "raw": "+CNUM: \"something\",\"1234567890\",161\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CNUM: \"something\",\"1234567890\",161"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CNUM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:541",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cops_response_tm506",
+  "input": {
+   "response": "+COPS: (2,\"\",\"T-Mobile\",\"31026\",0),(2,\"T - Mobile\",\"T - Mobile\",\"310260\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)",
+   "charset": "gsm",
+   "device": "TM-506"
+  },
+  "expected": {
+   "networks": [
+    {
+     "status": "current",
+     "long": null,
+     "short": "T-Mobile",
+     "numeric": "31026",
+     "act": "gsm"
+    },
+    {
+     "status": "current",
+     "long": "T - Mobile",
+     "short": "T - Mobile",
+     "numeric": "310260",
+     "act": "umts"
+    },
+    {
+     "status": "available",
+     "long": "AT&T",
+     "short": "AT&T",
+     "numeric": "310410",
+     "act": "gsm"
+    }
+   ]
+  },
+  "note": "matched by (numeric, act), order-insensitive; long/short null = asserted absent; act when <AcT> missing defaults to gsm",
+  "group": "+COPS=?",
+  "codec": [
+   {
+    "command": "AT+COPS=?",
+    "raw": "AT+COPS=?\r\r\n+COPS: (2,\"\",\"T-Mobile\",\"31026\",0),(2,\"T - Mobile\",\"T - Mobile\",\"310260\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (2,\"\",\"T-Mobile\",\"31026\",0),(2,\"T - Mobile\",\"T - Mobile\",\"310260\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS=?",
+    "raw": "+COPS: (2,\"\",\"T-Mobile\",\"31026\",0),(2,\"T - Mobile\",\"T - Mobile\",\"310260\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (2,\"\",\"T-Mobile\",\"31026\",0),(2,\"T - Mobile\",\"T - Mobile\",\"310260\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:733",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cops_response_f3607gw",
+  "input": {
+   "response": "+COPS: (2,\"T - Mobile\",\"T - Mobile\",\"31026\",0),(1,\"AT&T\",\"AT&T\",\"310410\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)",
+   "charset": "gsm",
+   "device": "Ericsson F3607gw"
+  },
+  "expected": {
+   "networks": [
+    {
+     "status": "current",
+     "long": "T - Mobile",
+     "short": "T - Mobile",
+     "numeric": "31026",
+     "act": "gsm"
+    },
+    {
+     "status": "available",
+     "long": "AT&T",
+     "short": "AT&T",
+     "numeric": "310410",
+     "act": "umts"
+    },
+    {
+     "status": "available",
+     "long": "AT&T",
+     "short": "AT&T",
+     "numeric": "310410",
+     "act": "gsm"
+    }
+   ]
+  },
+  "note": "matched by (numeric, act), order-insensitive; long/short null = asserted absent; act when <AcT> missing defaults to gsm",
+  "group": "+COPS=?",
+  "codec": [
+   {
+    "command": "AT+COPS=?",
+    "raw": "AT+COPS=?\r\r\n+COPS: (2,\"T - Mobile\",\"T - Mobile\",\"31026\",0),(1,\"AT&T\",\"AT&T\",\"310410\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (2,\"T - Mobile\",\"T - Mobile\",\"31026\",0),(1,\"AT&T\",\"AT&T\",\"310410\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS=?",
+    "raw": "+COPS: (2,\"T - Mobile\",\"T - Mobile\",\"31026\",0),(1,\"AT&T\",\"AT&T\",\"310410\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (2,\"T - Mobile\",\"T - Mobile\",\"31026\",0),(1,\"AT&T\",\"AT&T\",\"310410\"),2),(1,\"AT&T\",\"AT&T\",\"310410\"),0)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:952",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cops_response_umts_invalid",
+  "input": {
+   "response": "+COPS: (0,1,2,3,4),(1,2,3,4,5)",
+   "charset": "gsm"
+  },
+  "expected": {
+   "networks": null,
+   "error": false
+  },
+  "note": "only the mode/format ranges, no operators: returns no list and no error",
+  "group": "+COPS=?",
+  "codec": [
+   {
+    "command": "AT+COPS=?",
+    "raw": "AT+COPS=?\r\r\n+COPS: (0,1,2,3,4),(1,2,3,4,5)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (0,1,2,3,4),(1,2,3,4,5)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS=?",
+    "raw": "+COPS: (0,1,2,3,4),(1,2,3,4,5)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: (0,1,2,3,4),(1,2,3,4,5)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:65",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_cops",
+  "input": {
+   "line": "+COPS: 0,0,\"TELE2\",0"
+  },
+  "expected": {
+   "operator": "TELE2"
+  },
+  "note": "at_parse_cops returns the operator name (3rd field); tolerant of unterminated/missing quotes.",
+  "group": "+COPS?",
+  "codec": [
+   {
+    "command": "AT+COPS?",
+    "raw": "AT+COPS?\r\r\n+COPS: 0,0,\"TELE2\",0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 0,0,\"TELE2\",0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS?",
+    "raw": "+COPS: 0,0,\"TELE2\",0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 0,0,\"TELE2\",0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:999",
+  "license": "GPL-2.0-or-later",
+  "name": "cops_query_data",
+  "input": {
+   "response": "+COPS: 1,0,\"CHINA MOBILE\""
+  },
+  "expected": {
+   "mode": 1,
+   "format": 0,
+   "operator": "CHINA MOBILE",
+   "act": "unknown"
+  },
+  "note": "",
+  "group": "+COPS?",
+  "codec": [
+   {
+    "command": "AT+COPS?",
+    "raw": "AT+COPS?\r\r\n+COPS: 1,0,\"CHINA MOBILE\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 1,0,\"CHINA MOBILE\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS?",
+    "raw": "+COPS: 1,0,\"CHINA MOBILE\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 1,0,\"CHINA MOBILE\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:192",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_networkName",
+  "input": {
+   "command": "AT+COPS?",
+   "lines": [
+    "+COPS: 0,0,\"MTN\",2",
+    "OK"
+   ]
+  },
+  "expected": {
+   "network_name": "MTN"
+  },
+  "note": "",
+  "group": "+COPS?",
+  "codec": [
+   {
+    "command": "AT+COPS?",
+    "raw": "AT+COPS?\r\r\n+COPS: 0,0,\"MTN\",2\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 0,0,\"MTN\",2"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+COPS?",
+    "raw": "\r\n+COPS: 0,0,\"MTN\",2\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+COPS: 0,0,\"MTN\",2"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+COPS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-getmemory/nokia-2730.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-getmemory-reply-nokia-2730",
+  "input": {
+   "at_response": "AT+CPBR=16\n+CPBR: 16,\"\",,\"005300740065007600650020002000560069006E0073006F006E\",,,,,,,\nOK\n",
+   "at_charset": "UCS2"
+  },
+  "expected": {
+   "ok": true,
+   "output_contains": "Steve  Vinson"
+  },
+  "note": "ATGEN_ReplyGetMemory (Manufacturer=Motorola) then PrintMemoryEntry; PASS_REGULAR_EXPRESSION only checks this substring of the printed entry (name or number).",
+  "group": "+CPBR",
+  "codec": [
+   {
+    "command": "AT+CPBR=16",
+    "raw": "AT+CPBR=16\n+CPBR: 16,\"\",,\"005300740065007600650020002000560069006E0073006F006E\",,,,,,,\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CPBR: 16,\"\",,\"005300740065007600650020002000560069006E0073006F006E\",,,,,,,"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:5223",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cpin_responses",
+  "input": {
+   "response": "+CME ERROR: 100",
+   "expect_prefix": true
+  },
+  "expected": {
+   "lock": "unknown"
+  },
+  "note": "+CME ERROR -> unknown lock",
+  "group": "+CPIN?",
+  "codec": [
+   {
+    "command": "AT+CPIN?",
+    "raw": "AT+CPIN?\r\r\n+CME ERROR: 100\r\n",
+    "matched": {
+     "cmeError": {
+      "code": 100
+     }
+    },
+    "body": [],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:5223",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cpin_responses",
+  "input": {
+   "response": "+CPIN: PH-NET PIN",
+   "expect_prefix": true
+  },
+  "expected": {
+   "lock": "ph_net_pin"
+  },
+  "note": "+CME ERROR -> unknown lock",
+  "group": "+CPIN?",
+  "codec": [
+   {
+    "command": "AT+CPIN?",
+    "raw": "AT+CPIN?\r\r\n+CPIN: PH-NET PIN\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPIN: PH-NET PIN"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPIN?",
+    "raw": "+CPIN: PH-NET PIN\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPIN: PH-NET PIN"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPIN"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-cpms/alcatel-s320.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-get-smsmemories-alcatel-s320",
+  "input": {
+   "at_response": "AT+CPMS=?\n\n+CPMS: (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\")\nOK\n"
+  },
+  "expected": {
+   "read": {
+    "ME": true,
+    "SM": true,
+    "SR": false
+   },
+   "save": {
+    "ME": true,
+    "SM": true,
+    "SR": false
+   }
+  },
+  "note": "Asserted via PASS_REGULAR_EXPRESSION 'read: ME : ok, SM : ok, SR : N/A save: ME : ok, SM : ok, SR : N/A' (ME/SM/SR availability for read=mem1 and save=mem2 lists). Parser state had Manufacturer=Samsung. samsung-j700 has an empty '+CPMS: ' reply and still yields ME+SM; sr/generic has a broken quote.",
+  "group": "+CPMS=?",
+  "codec": [
+   {
+    "command": "AT+CPMS=?",
+    "raw": "AT+CPMS=?\n\n+CPMS: (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\")\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\"), (\"SM\", \"ME\", \"SM_P\", \"ME_P\", \"MT\")"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-cpms-sr/generic.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-get-smsmemories-generic",
+  "input": {
+   "at_response": "AT+CPMS=?\n+CPMS: (ME\", \"SR\"), (\"ME\", \"SR\"), (\"ME\")\nOK\n\n"
+  },
+  "expected": {
+   "read": {
+    "ME": true,
+    "SM": false,
+    "SR": true
+   },
+   "save": {
+    "ME": true,
+    "SM": false,
+    "SR": true
+   }
+  },
+  "note": "Asserted via PASS_REGULAR_EXPRESSION 'read: ME : ok, SM : N/A, SR : ok save: ME : ok, SM : N/A, SR : ok' (ME/SM/SR availability for read=mem1 and save=mem2 lists). Parser state had Manufacturer=Samsung. samsung-j700 has an empty '+CPMS: ' reply and still yields ME+SM; sr/generic has a broken quote.",
+  "group": "+CPMS=?",
+  "codec": [
+   {
+    "command": "AT+CPMS=?",
+    "raw": "AT+CPMS=?\n+CPMS: (ME\", \"SR\"), (\"ME\", \"SR\"), (\"ME\")\nOK\n\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: (ME\", \"SR\"), (\"ME\", \"SR\"), (\"ME\")"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3172",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cpms_response_cinterion",
+  "input": {
+   "response": "+CPMS: (\"ME\",\"MT\"),(\"ME\",\"SM\",\"MT\"),(\"SM\",\"MT\")"
+  },
+  "expected": {
+   "mem1": [
+    "me",
+    "mt"
+   ],
+   "mem2": [
+    "me",
+    "sm",
+    "mt"
+   ],
+   "mem3": [
+    "sm",
+    "mt"
+   ]
+  },
+  "note": "set semantics (order-insensitive); groups may be (..) lists or bare items",
+  "group": "+CPMS=?",
+  "codec": [
+   {
+    "command": "AT+CPMS=?",
+    "raw": "AT+CPMS=?\r\r\n+CPMS: (\"ME\",\"MT\"),(\"ME\",\"SM\",\"MT\"),(\"SM\",\"MT\")\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: (\"ME\",\"MT\"),(\"ME\",\"SM\",\"MT\"),(\"SM\",\"MT\")"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPMS=?",
+    "raw": "+CPMS: (\"ME\",\"MT\"),(\"ME\",\"SM\",\"MT\"),(\"SM\",\"MT\")\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: (\"ME\",\"MT\"),(\"ME\",\"SM\",\"MT\"),(\"SM\",\"MT\")"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPMS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3338",
+  "license": "GPL-2.0-or-later",
+  "name": "cpms_query_test",
+  "input": {
+   "response": "+CPMS: \"ME\",1,100,\"MT\",5,100,\"TA\",1,100"
+  },
+  "expected": {
+   "mem1": "me",
+   "mem2": "mt"
+  },
+  "note": "test table holds MMSmsStorage ints (0 unknown,1 SM,2 ME,3 MT,4 SR,5 BM,6 TA per include/ModemManager-enums.h); unknown memory name -> unknown; mem3 not asserted",
+  "group": "+CPMS?",
+  "codec": [
+   {
+    "command": "AT+CPMS?",
+    "raw": "AT+CPMS?\r\r\n+CPMS: \"ME\",1,100,\"MT\",5,100,\"TA\",1,100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"ME\",1,100,\"MT\",5,100,\"TA\",1,100"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPMS?",
+    "raw": "+CPMS: \"ME\",1,100,\"MT\",5,100,\"TA\",1,100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"ME\",1,100,\"MT\",5,100,\"TA\",1,100"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPMS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3338",
+  "license": "GPL-2.0-or-later",
+  "name": "cpms_query_test",
+  "input": {
+   "response": "+CPMS: \"XX\",100,100,\"BM\",5,10,\"TA\",1,100"
+  },
+  "expected": {
+   "mem1": "unknown",
+   "mem2": "bm"
+  },
+  "note": "test table holds MMSmsStorage ints (0 unknown,1 SM,2 ME,3 MT,4 SR,5 BM,6 TA per include/ModemManager-enums.h); unknown memory name -> unknown; mem3 not asserted",
+  "group": "+CPMS?",
+  "codec": [
+   {
+    "command": "AT+CPMS?",
+    "raw": "AT+CPMS?\r\r\n+CPMS: \"XX\",100,100,\"BM\",5,10,\"TA\",1,100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"XX\",100,100,\"BM\",5,10,\"TA\",1,100"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPMS?",
+    "raw": "+CPMS: \"XX\",100,100,\"BM\",5,10,\"TA\",1,100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"XX\",100,100,\"BM\",5,10,\"TA\",1,100"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPMS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3338",
+  "license": "GPL-2.0-or-later",
+  "name": "cpms_query_test",
+  "input": {
+   "response": "+CPMS: \"MT\", 0, 100, \"MT\", 0, 100, \"MT\", 0, 100"
+  },
+  "expected": {
+   "mem1": "mt",
+   "mem2": "mt"
+  },
+  "note": "test table holds MMSmsStorage ints (0 unknown,1 SM,2 ME,3 MT,4 SR,5 BM,6 TA per include/ModemManager-enums.h); unknown memory name -> unknown; mem3 not asserted",
+  "group": "+CPMS?",
+  "codec": [
+   {
+    "command": "AT+CPMS?",
+    "raw": "AT+CPMS?\r\r\n+CPMS: \"MT\", 0, 100, \"MT\", 0, 100, \"MT\", 0, 100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"MT\", 0, 100, \"MT\", 0, 100, \"MT\", 0, 100"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPMS?",
+    "raw": "+CPMS: \"MT\", 0, 100, \"MT\", 0, 100, \"MT\", 0, 100\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPMS: \"MT\", 0, 100, \"MT\", 0, 100, \"MT\", 0, 100"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPMS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:5008",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cpol",
+  "input": {
+   "response": "+CPOL: 1,2,\"24412\",0,0,0,0"
+  },
+  "expected": {
+   "index": 1,
+   "operator": "24412",
+   "gsm": false,
+   "gsm_compact": false,
+   "utran": false,
+   "eutran": false,
+   "ngran": false,
+   "act_count": 4
+  },
+  "note": "",
+  "group": "+CPOL?",
+  "codec": [
+   {
+    "command": "AT+CPOL?",
+    "raw": "AT+CPOL?\r\r\n+CPOL: 1,2,\"24412\",0,0,0,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPOL: 1,2,\"24412\",0,0,0,0"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPOL?",
+    "raw": "+CPOL: 1,2,\"24412\",0,0,0,0\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPOL: 1,2,\"24412\",0,0,0,0"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPOL"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:5008",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cpol",
+  "input": {
+   "response": "+CPOL:1, 2, 12345, 1, 1, 1, 1, 1"
+  },
+  "expected": {
+   "index": 1,
+   "operator": "12345",
+   "gsm": true,
+   "gsm_compact": true,
+   "utran": true,
+   "eutran": true,
+   "ngran": true,
+   "act_count": 5
+  },
+  "note": "",
+  "group": "+CPOL?",
+  "codec": [
+   {
+    "command": "AT+CPOL?",
+    "raw": "AT+CPOL?\r\r\n+CPOL:1, 2, 12345, 1, 1, 1, 1, 1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPOL:1, 2, 12345, 1, 1, 1, 1, 1"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CPOL?",
+    "raw": "+CPOL:1, 2, 12345, 1, 1, 1, 1, 1\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CPOL:1, 2, 12345, 1, 1, 1, 1, 1"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CPOL"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "chan_dongle/test/parse.c:105",
+  "license": "GPL-2.0-only",
+  "name": "test_parse_creg",
+  "input": {
+   "line": "+CREG: 2,1,9110,7E6"
+  },
+  "expected": {
+   "ret": 0,
+   "gsm_reg": true,
+   "gsm_reg_status": 1,
+   "lac": "9110",
+   "ci": "7E6"
+  },
+  "note": "at_parse_creg (line passed with its length). gsm_reg = registered flag derived from <stat>; LAC/CI returned verbatim (no hex validation: 'XXXX' accepted). Unquoted LAC/CI as some Huawei dongles send.",
+  "group": "+CREG?",
+  "codec": [
+   {
+    "command": "AT+CREG?",
+    "raw": "AT+CREG?\r\r\n+CREG: 2,1,9110,7E6\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CREG: 2,1,9110,7E6"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CREG?",
+    "raw": "+CREG: 2,1,9110,7E6\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CREG: 2,1,9110,7E6"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-creg/empty.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "at-creg-reply-empty",
+  "input": {
+   "at_response": "AT+CREG?\nOK\n\n\n"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "at-creg-reply asserts only ERR_NONE from ATGEN_ReplyGetNetworkLAC_CID (prints state/LAC/CID, not asserted). Covers <n>=0/2, unquoted hex LAC/CI, optional <AcT>, empty reply.",
+  "group": "+CREG?",
+  "codec": [
+   {
+    "command": "AT+CREG?",
+    "raw": "AT+CREG?\nOK\n\n\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1183",
+  "license": "GPL-2.0-or-later",
+  "name": "test_creg1_solicited",
+  "input": {
+   "line": "+CREG: 1,3",
+   "solicited": true,
+   "device": "CREG=1"
+  },
+  "expected": {
+   "state": "denied",
+   "lac": 0,
+   "ci": 0,
+   "act": "unknown",
+   "cgreg": false,
+   "cereg": false,
+   "c5greg": false
+  },
+  "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+  "group": "+CREG?",
+  "codec": [
+   {
+    "command": "AT+CREG?",
+    "raw": "AT+CREG?\r\r\n+CREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CREG: 1,3"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CREG?",
+    "raw": "+CREG: 1,3\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CREG: 1,3"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CREG"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3869",
+  "license": "GPL-2.0-or-later",
+  "name": "crsm_tests",
+  "input": {
+   "response": "+CRSM: 144, 0, 0054485552415941FFFFFFFFFFFFFFFFFF"
+  },
+  "expected": {
+   "ok": true,
+   "sw1": 144,
+   "sw2": 0,
+   "hex": "0054485552415941FFFFFFFFFFFFFFFFFF"
+  },
+  "note": "response data may be quoted or not",
+  "group": "+CRSM",
+  "codec": [
+   {
+    "command": "AT+CRSM",
+    "raw": "AT+CRSM\r\r\n+CRSM: 144, 0, 0054485552415941FFFFFFFFFFFFFFFFFF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0, 0054485552415941FFFFFFFFFFFFFFFFFF"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CRSM",
+    "raw": "+CRSM: 144, 0, 0054485552415941FFFFFFFFFFFFFFFFFF\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0, 0054485552415941FFFFFFFFFFFFFFFFFF"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CRSM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3869",
+  "license": "GPL-2.0-or-later",
+  "name": "crsm_tests",
+  "input": {
+   "response": "+CRSM: 144, 0, \"0054485552415941FFFFFFFFFFFFFFFFFF\""
+  },
+  "expected": {
+   "ok": true,
+   "sw1": 144,
+   "sw2": 0,
+   "hex": "0054485552415941FFFFFFFFFFFFFFFFFF"
+  },
+  "note": "response data may be quoted or not",
+  "group": "+CRSM",
+  "codec": [
+   {
+    "command": "AT+CRSM",
+    "raw": "AT+CRSM\r\r\n+CRSM: 144, 0, \"0054485552415941FFFFFFFFFFFFFFFFFF\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0, \"0054485552415941FFFFFFFFFFFFFFFFFF\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CRSM",
+    "raw": "+CRSM: 144, 0, \"0054485552415941FFFFFFFFFFFFFFFFFF\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0, \"0054485552415941FFFFFFFFFFFFFFFFFF\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CRSM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:3869",
+  "license": "GPL-2.0-or-later",
+  "name": "crsm_tests",
+  "input": {
+   "response": "+CRSM: 144, 0,\"0054485552415941FFFFFFFFFFFFFFFFFF\""
+  },
+  "expected": {
+   "ok": true,
+   "sw1": 144,
+   "sw2": 0,
+   "hex": "0054485552415941FFFFFFFFFFFFFFFFFF"
+  },
+  "note": "response data may be quoted or not",
+  "group": "+CRSM",
+  "codec": [
+   {
+    "command": "AT+CRSM",
+    "raw": "AT+CRSM\r\r\n+CRSM: 144, 0,\"0054485552415941FFFFFFFFFFFFFFFFFF\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0,\"0054485552415941FFFFFFFFFFFFFFFFFF\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CRSM",
+    "raw": "+CRSM: 144, 0,\"0054485552415941FFFFFFFFFFFFFFFFFF\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CRSM: 144, 0,\"0054485552415941FFFFFFFFFFFFFFFFFF\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CRSM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-smsc/01.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "get-smsc-at-01",
+  "input": {
+   "at_response": "AT+CSCA?\n+CSCA: 002B00390037003200350034003100320030003000330032,145\nOK\n",
+   "at_charset": "UCS2"
+  },
+  "expected": {
+   "ok": true
+  },
+  "note": "get-smsc-at: ATGEN_ReplyGetSMSC must succeed (exit code only). Charset UCS2; number may be UCS2-hex quoted, unquoted or plain.",
+  "group": "+CSCA?",
+  "codec": [
+   {
+    "command": "AT+CSCA?",
+    "raw": "AT+CSCA?\n+CSCA: 002B00390037003200350034003100320030003000330032,145\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CSCA: 002B00390037003200350034003100320030003000330032,145"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-smsc-failing/04.dump:1",
+  "license": "GPL-2.0-only",
+  "name": "get-smsc-at-04",
+  "input": {
+   "at_response": "AT+CSCA?\n+CSCA: \"\",129\nOK\n",
+   "at_charset": "UCS2"
+  },
+  "expected": {
+   "ok": false
+  },
+  "note": "get-smsc-at: ATGEN_ReplyGetSMSC must FAIL (empty SMSC) (exit code only). Charset UCS2; number may be UCS2-hex quoted, unquoted or plain.",
+  "group": "+CSCA?",
+  "codec": [
+   {
+    "command": "AT+CSCA?",
+    "raw": "AT+CSCA?\n+CSCA: \"\",129\nOK\n",
+    "matched": "ok",
+    "body": [
+     "+CSCA: \"\",129"
+    ],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:235",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_smsc",
+  "input": {
+   "command": "AT+CSCA?",
+   "lines": [
+    "+CSCA: \"+12345678\",145",
+    "OK"
+   ]
+  },
+  "expected": {
+   "smsc": "+12345678"
+  },
+  "note": "",
+  "group": "+CSCA?",
+  "codec": [
+   {
+    "command": "AT+CSCA?",
+    "raw": "AT+CSCA?\r\r\n+CSCA: \"+12345678\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCA: \"+12345678\",145"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCA?",
+    "raw": "\r\n+CSCA: \"+12345678\",145\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCA: \"+12345678\",145"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCA"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4557",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cscb",
+  "input": {
+   "response": "\r\n+CSCB: 0, \"0\",\"\"\r\n\r\nOK\r\n"
+  },
+  "expected": {
+   "channels": [
+    [
+     0,
+     0
+    ]
+   ]
+  },
+  "note": "channel ranges [start,end] in order",
+  "group": "+CSCB?",
+  "codec": [
+   {
+    "command": "AT+CSCB?",
+    "raw": "AT+CSCB?\r\r\n\r\n+CSCB: 0, \"0\",\"\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCB: 0, \"0\",\"\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCB?",
+    "raw": "\r\n+CSCB: 0, \"0\",\"\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCB: 0, \"0\",\"\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCB"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4557",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cscb",
+  "input": {
+   "response": "+CSCB: 0,\"0-\",\"\"\r\n"
+  },
+  "expected": {
+   "error": true
+  },
+  "note": "channel ranges [start,end] in order",
+  "group": "+CSCB?",
+  "codec": [
+   {
+    "command": "AT+CSCB?",
+    "raw": "AT+CSCB?\r\r\n+CSCB: 0,\"0-\",\"\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCB: 0,\"0-\",\"\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCB?",
+    "raw": "+CSCB: 0,\"0-\",\"\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCB: 0,\"0-\",\"\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCB"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1767",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cscs_icon225_support_response",
+  "input": {
+   "response": "\r\n+CSCS: (\"IRA\",\"GSM\",\"UCS2\")\r\n"
+  },
+  "expected": {
+   "charsets": [
+    "ira",
+    "gsm",
+    "ucs2"
+   ]
+  },
+  "note": "\"ASCII\" maps to IRA",
+  "group": "+CSCS=?",
+  "codec": [
+   {
+    "command": "AT+CSCS=?",
+    "raw": "AT+CSCS=?\r\r\n\r\n+CSCS: (\"IRA\",\"GSM\",\"UCS2\")\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: (\"IRA\",\"GSM\",\"UCS2\")"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCS=?",
+    "raw": "\r\n+CSCS: (\"IRA\",\"GSM\",\"UCS2\")\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: (\"IRA\",\"GSM\",\"UCS2\")"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:1815",
+  "license": "GPL-2.0-or-later",
+  "name": "test_cscs_blackberry_support_response",
+  "input": {
+   "response": "\r\n+CSCS: \"IRA\"\r\n"
+  },
+  "expected": {
+   "charsets": [
+    "ira"
+   ]
+  },
+  "note": "\"ASCII\" maps to IRA",
+  "group": "+CSCS=?",
+  "codec": [
+   {
+    "command": "AT+CSCS=?",
+    "raw": "AT+CSCS=?\r\r\n\r\n+CSCS: \"IRA\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: \"IRA\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCS=?",
+    "raw": "\r\n+CSCS: \"IRA\"\r\n\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: \"IRA\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:389",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_smsSupportedEncoding",
+  "input": {
+   "command": "AT+CSCS=?",
+   "lines": [
+    "+CSCS: (\"GSM\")",
+    "OK"
+   ]
+  },
+  "expected": {
+   "encodings": [
+    "GSM"
+   ]
+  },
+  "note": "Missing comma between items: only first item parsed (asserted).",
+  "group": "+CSCS=?",
+  "codec": [
+   {
+    "command": "AT+CSCS=?",
+    "raw": "AT+CSCS=?\r\r\n+CSCS: (\"GSM\")\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: (\"GSM\")"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCS=?",
+    "raw": "\r\n+CSCS: (\"GSM\")\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCS: (\"GSM\")"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:372",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_smsEncoding",
+  "input": {
+   "command": "AT+CSCS?",
+   "lines": [
+    "+CSCSERROR",
+    "OK"
+   ]
+  },
+  "expected": {
+   "encoding": "UNKNOWN"
+  },
+  "note": "",
+  "group": "+CSCS?",
+  "codec": [
+   {
+    "command": "AT+CSCS?",
+    "raw": "AT+CSCS?\r\r\n+CSCSERROR\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCSERROR"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSCS?",
+    "raw": "\r\n+CSCSERROR\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSCSERROR"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSCS"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4307",
+  "license": "GPL-2.0-or-later",
+  "name": "csim_response_test_list",
+  "input": {
+   "response": "+CSIM:8,\"000063C1\""
+  },
+  "expected": {
+   "retries": 1
+  },
+  "note": "PIN retry count from '63Cx' status word; -1 with error otherwise (MM error text)",
+  "group": "+CSIM",
+  "codec": [
+   {
+    "command": "AT+CSIM",
+    "raw": "AT+CSIM\r\r\n+CSIM:8,\"000063C1\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSIM:8,\"000063C1\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSIM",
+    "raw": "+CSIM:8,\"000063C1\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSIM:8,\"000063C1\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSIM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:4307",
+  "license": "GPL-2.0-or-later",
+  "name": "csim_response_test_list",
+  "input": {
+   "response": "+CSIM: 4, \"63D0\""
+  },
+  "expected": {
+   "retries": -1,
+   "error_message": "Unknown error returned '0x63d0'"
+  },
+  "note": "PIN retry count from '63Cx' status word; -1 with error otherwise (MM error text)",
+  "group": "+CSIM",
+  "codec": [
+   {
+    "command": "AT+CSIM",
+    "raw": "AT+CSIM\r\r\n+CSIM: 4, \"63D0\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSIM: 4, \"63D0\""
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSIM",
+    "raw": "+CSIM: 4, \"63D0\"\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSIM: 4, \"63D0\""
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSIM"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:269",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_signalStrength",
+  "input": {
+   "command": "AT+CSQ",
+   "lines": [
+    "+CSQ: 18,99",
+    "OK"
+   ]
+  },
+  "expected": {
+   "rssi": 18
+  },
+  "note": "99 -> -1 (unknown).",
+  "group": "+CSQ",
+  "codec": [
+   {
+    "command": "AT+CSQ",
+    "raw": "AT+CSQ\r\r\n+CSQ: 18,99\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSQ: 18,99"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+CSQ",
+    "raw": "\r\n+CSQ: 18,99\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+CSQ: 18,99"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSQ"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:276",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_signalStrength",
+  "input": {
+   "command": "AT+CSQ",
+   "lines": [
+    "OK"
+   ]
+  },
+  "expected": {
+   "error": "CommandError"
+  },
+  "note": "",
+  "group": "+CSQ",
+  "codec": [
+   {
+    "command": "AT+CSQ",
+    "raw": "AT+CSQ\r\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   },
+   {
+    "command": "AT+CSQ",
+    "raw": "\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": [],
+    "solicited_prefixes": [
+     "+CSQ"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:49",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ifc_response_all_simple",
+  "input": {
+   "line": "+IFC (0,1,2),(0,1,2)"
+  },
+  "expected": {
+   "flow_control": [
+    "none",
+    "xon_xoff",
+    "rts_cts"
+   ]
+  },
+  "note": "flow_control = set of supported modes (TE and TA lists intersected)",
+  "group": "+IFC=?",
+  "codec": [
+   {
+    "command": "AT+IFC=?",
+    "raw": "AT+IFC=?\r\r\n+IFC (0,1,2),(0,1,2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0,1,2),(0,1,2)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+IFC=?",
+    "raw": "+IFC (0,1,2),(0,1,2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0,1,2),(0,1,2)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+IFC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:85",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ifc_response_no_xon_xoff_in_ta",
+  "input": {
+   "line": "+IFC (0,1,2),(0,2)"
+  },
+  "expected": {
+   "flow_control": [
+    "none",
+    "rts_cts"
+   ]
+  },
+  "note": "flow_control = set of supported modes (TE and TA lists intersected)",
+  "group": "+IFC=?",
+  "codec": [
+   {
+    "command": "AT+IFC=?",
+    "raw": "AT+IFC=?\r\r\n+IFC (0,1,2),(0,2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0,1,2),(0,2)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+IFC=?",
+    "raw": "+IFC (0,1,2),(0,2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0,1,2),(0,2)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+IFC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:115",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ifc_response_all_groups_and_unknown",
+  "input": {
+   "line": "+IFC (0-3),(0-2)"
+  },
+  "expected": {
+   "flow_control": [
+    "none",
+    "xon_xoff",
+    "rts_cts"
+   ]
+  },
+  "note": "flow_control = set of supported modes (TE and TA lists intersected)",
+  "group": "+IFC=?",
+  "codec": [
+   {
+    "command": "AT+IFC=?",
+    "raw": "AT+IFC=?\r\r\n+IFC (0-3),(0-2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0-3),(0-2)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+IFC=?",
+    "raw": "+IFC (0-3),(0-2)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+IFC (0-3),(0-2)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+IFC"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:157",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ws46_response_generic_2g3g4g",
+  "input": {
+   "line": "+WS46: (12,22,25,28,29)"
+  },
+  "expected": {
+   "modes": [
+    [
+     "2g"
+    ],
+    [
+     "3g"
+    ],
+    [
+     "2g",
+     "3g",
+     "4g"
+    ],
+    [
+     "4g"
+    ],
+    [
+     "2g",
+     "3g"
+    ]
+   ]
+  },
+  "note": "each item is an allowed mode combination; order-insensitive (test searches)",
+  "group": "+WS46=?",
+  "codec": [
+   {
+    "command": "AT+WS46=?",
+    "raw": "AT+WS46=?\r\r\n+WS46: (12,22,25,28,29)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+WS46: (12,22,25,28,29)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+WS46=?",
+    "raw": "+WS46: (12,22,25,28,29)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+WS46: (12,22,25,28,29)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+WS46"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-modem-helpers.c:239",
+  "license": "GPL-2.0-or-later",
+  "name": "test_ws46_response_range_2",
+  "input": {
+   "line": "+WS46: (12,22,25,28-31)"
+  },
+  "expected": {
+   "modes": [
+    [
+     "2g"
+    ],
+    [
+     "3g"
+    ],
+    [
+     "2g",
+     "3g",
+     "4g"
+    ],
+    [
+     "4g"
+    ],
+    [
+     "2g",
+     "3g"
+    ],
+    [
+     "2g",
+     "4g"
+    ],
+    [
+     "3g",
+     "4g"
+    ]
+   ]
+  },
+  "note": "each item is an allowed mode combination; order-insensitive (test searches)",
+  "group": "+WS46=?",
+  "codec": [
+   {
+    "command": "AT+WS46=?",
+    "raw": "AT+WS46=?\r\r\n+WS46: (12,22,25,28-31)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+WS46: (12,22,25,28-31)"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+WS46=?",
+    "raw": "+WS46: (12,22,25,28-31)\r\n\r\nOK\r\n",
+    "matched": "ok",
+    "body": [
+     "+WS46: (12,22,25,28-31)"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+WS46"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-dispatch.c:67",
+  "license": "GPL-2.0-only",
+  "name": "at-dispatch",
+  "input": {
+   "response": "AT+CPIN?\r\n+CPIN: READY\r\n",
+   "request": "ID_GetSecurityStatus",
+   "cpin_no_ok": true
+  },
+  "expected": {
+   "dispatch_error": "ERR_NONE"
+  },
+  "note": "ATGEN_DispatchMessage on a full reply buffer (echo included). Only the returned error is asserted; the reply state (AT_Reply_OK) is passed but not checked by do_test.",
+  "group": "final",
+  "codec": [
+   {
+    "command": "AT+CPIN?",
+    "raw": "AT+CPIN?\r\n+CPIN: READY\r\n",
+    "matched": null,
+    "body": [],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "modemmanager/src/tests/test-at-serial-port.c:53",
+  "license": "GPL-2.0-or-later",
+  "name": "parse_ok_tests",
+  "input": {
+   "buffer": "\r\nOK\r\n"
+  },
+  "expected": {
+   "final_found": true,
+   "is_error": false
+  },
+  "note": "mm_serial_parser_v1: final result detection; trailing URCs after OK/ERROR allowed; +CME/+CMS ERROR need a space after ':' (text or number, may be empty); MODEM ERROR needs a number",
+  "group": "final",
+  "codec": [
+   {
+    "command": "AT",
+    "raw": "\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": []
+   }
+  ]
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:611",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_commandNotSupported",
+  "input": {
+   "command": "AT+WIND?",
+   "lines": [
+    "COMMAND NOT SUPPORT"
+   ]
+  },
+  "expected": {
+   "error": "CommandError"
+  },
+  "note": "Non-standard final error result (Huawei E1752 style) must be treated as an error.",
+  "known_disagreement": "serial-codec recognises only standard result codes (V.250, 27.007, 27.005): this vendor text is not final, the exchange ends by timeout.",
+  "group": "final",
+  "codec": [
+   {
+    "command": "AT+WIND?",
+    "raw": "AT+WIND?\r\r\nCOMMAND NOT SUPPORT\r\n",
+    "matched": null,
+    "body": [
+     "COMMAND NOT SUPPORT"
+    ],
+    "urc": []
+   },
+   {
+    "command": "AT+WIND?",
+    "raw": "\r\nCOMMAND NOT SUPPORT\r\n",
+    "matched": null,
+    "body": [
+     "COMMAND NOT SUPPORT"
+    ],
+    "urc": [],
+    "solicited_prefixes": [
+     "+WIND"
+    ]
+   }
+  ]
+ },
+ {
+  "source": "gammu/tests/at-statemachine.c:13",
+  "license": "GPL-2.0-only",
+  "name": "test_data",
+  "input": {
+   "stream": "+CUSD: 2,\"Maaf, permintaan Anda tidak dapat kami proses. Silakan coba beberapa saat lagi.\",0\r\nAT+CSCS=\"HEX\"\r\nOK\r\n"
+  },
+  "expected": {
+   "messages_count": 2
+  },
+  "note": "+CUSD URC followed by AT+CSCS echo+OK fed byte-by-byte to AT_StateMachine while RequestID=ID_SetMemoryCharset: framed into 2 messages (URC, command reply).",
+  "group": "lines",
+  "codec": [
+   {
+    "command": "AT+CSCS=\"HEX\"",
+    "raw": "+CUSD: 2,\"Maaf, permintaan Anda tidak dapat kami proses. Silakan coba beberapa saat lagi.\",0\r\nAT+CSCS=\"HEX\"\r\nOK\r\n",
+    "matched": "ok",
+    "body": [],
+    "urc": [
+     "+CUSD: 2,\"Maaf, permintaan Anda tidak dapat kami proses. Silakan coba beberapa saat lagi.\",0"
+    ]
+   }
+  ]
+ }
+]

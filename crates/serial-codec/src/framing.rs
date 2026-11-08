@@ -8,10 +8,20 @@
 //!   read loop drives timeouts with [`Framer::poll`] / [`Framer::deadline`].
 //! - Frames are bytes. Node's `encoding` option (readline, regex) only changes how
 //!   Node renders a frame as a string; decoding is left to the caller.
-//! - Buffers are bounded (`maxBufferSize`, default 64 KiB; SLIP uses the default):
-//!   a stream that never completes a frame cannot grow memory forever. Delimiter,
-//!   readline, regex, inter-byte timeout and SLIP emit the full buffer as a frame;
-//!   start/end drops the overlong open frame (keeping a later start marker).
+//! - Buffers are bounded (`maxBufferSize`, default 64 KiB; SLIP uses the default,
+//!   byteLength and ccTalk are bounded by their frame size, ready keeps only a
+//!   marker-sized tail): a stream that never completes a frame cannot grow memory
+//!   forever. Delimiter, readline, regex, inter-byte timeout, packetLength and SLIP
+//!   emit the full buffer as a frame; start/end drops the overlong open frame
+//!   (keeping a later start marker).
+//! - Work per pushed byte is bounded: no parser rescans its whole buffer on every
+//!   push, so a stream without delimiters fed byte by byte stays linear. `regex`
+//!   looks back [`REGEX_LOOKBACK`] bytes for a match that started in earlier data,
+//!   and rescans the whole buffer only each time it has doubled: a longer match
+//!   that arrives in pieces is still found, at the latest when the buffered text
+//!   has doubled (or with the next match).
+//! - Unknown option names are rejected (a typo would otherwise silently fall back
+//!   to a default); the Node names and the aliases listed on each field are accepted.
 //! - `ready` finds its marker after a false start: Node resets its match on a
 //!   mismatching byte without re-checking that byte, so `"RREADY"` never matches
 //!   `"READY"`.
@@ -34,6 +44,10 @@ use std::time::{Duration, Instant};
 
 /// Default cap on buffered, not yet framed bytes.
 pub const DEFAULT_MAX_BUFFER: usize = 65_536;
+
+/// How far back (in bytes) the `regex` framer re-scans old text on every push for
+/// a match that may end in newly pushed data.
+pub const REGEX_LOOKBACK: usize = 32;
 
 /// A stateful framer fed with read chunks.
 pub trait Framer: Send {
@@ -136,7 +150,8 @@ fn take_flush(buf: &mut Vec<u8>) -> Option<Vec<u8>> {
 #[serde(
     tag = "type",
     rename_all = "camelCase",
-    rename_all_fields = "camelCase"
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
 )]
 pub enum FramerConfig {
     /// Split on a byte sequence (`@serialport/parser-delimiter`).
@@ -155,6 +170,9 @@ pub enum FramerConfig {
         include_delimiter: bool,
         #[serde(default)]
         max_buffer_size: Option<usize>,
+        /// Node's string-rendering option; accepted and ignored (frames are bytes).
+        #[serde(default)]
+        encoding: Option<String>,
     },
     /// Fixed-size frames (`@serialport/parser-byte-length`).
     ByteLength { length: usize },
@@ -180,6 +198,8 @@ pub enum FramerConfig {
         length_offset: Option<usize>,
         #[serde(default)]
         max_len: Option<usize>,
+        #[serde(default)]
+        max_buffer_size: Option<usize>,
     },
     /// Drop everything until a marker, then pass data through (`@serialport/parser-ready`).
     Ready { delimiter: ByteSeq },
@@ -188,6 +208,9 @@ pub enum FramerConfig {
         regex: String,
         #[serde(default)]
         max_buffer_size: Option<usize>,
+        /// Node's string-rendering option; accepted and ignored (frames are bytes).
+        #[serde(default)]
+        encoding: Option<String>,
     },
     /// Frames between a start and an end marker (`@serialport/parser-start-end`).
     StartEnd {
@@ -235,6 +258,7 @@ impl FramerConfig {
                 delimiter,
                 include_delimiter,
                 max_buffer_size,
+                encoding: _,
             } => {
                 let delimiter = match delimiter {
                     Some(d) => non_empty(d, "delimiter")?,
@@ -276,6 +300,7 @@ impl FramerConfig {
                 length_bytes,
                 length_offset,
                 max_len,
+                max_buffer_size,
             } => {
                 let p = PacketLengthFramer {
                     delimiters: match delimiter {
@@ -288,6 +313,7 @@ impl FramerConfig {
                     length_bytes: length_bytes.unwrap_or(1),
                     length_offset: length_offset.unwrap_or(1),
                     max_len: max_len.unwrap_or(0xff),
+                    max: max_buf(*max_buffer_size)?,
                     buf: Vec::new(),
                     started: false,
                 };
@@ -300,6 +326,13 @@ impl FramerConfig {
                 if p.length_offset < p.delimiter_bytes {
                     return bad("\"lengthOffset\" overlaps the delimiter");
                 }
+                // The header must fit in the buffer, or no packet could ever start.
+                if p.length_offset
+                    .checked_add(p.length_bytes)
+                    .is_none_or(|end| end > p.max)
+                {
+                    return bad("\"lengthOffset\" + \"lengthBytes\" exceeds \"maxBufferSize\"");
+                }
                 Box::new(p)
             }
             FramerConfig::Ready { delimiter } => Box::new(ReadyFramer {
@@ -310,12 +343,15 @@ impl FramerConfig {
             FramerConfig::Regex {
                 regex,
                 max_buffer_size,
+                encoding: _,
             } => Box::new(RegexFramer {
                 regex: regex_lite::Regex::new(regex)
                     .map_err(|e| ConfigError(format!("\"regex\": {e}")))?,
                 max: max_buf(*max_buffer_size)?,
                 text: String::new(),
                 pending: Vec::new(),
+                scanned: 0,
+                full_scan: 0,
             }),
             FramerConfig::StartEnd {
                 start_delimiter,
@@ -330,6 +366,8 @@ impl FramerConfig {
                 include_end: *include_end_delimiter,
                 max: max_buf(*max_buffer_size)?,
                 buf: Vec::new(),
+                open: None,
+                scan_from: 0,
             }),
             FramerConfig::Slip(o) => Box::new(SlipDecoder::new(o.clone())),
             FramerConfig::CcTalk { max_delay_ms } => Box::new(CcTalkFramer {
@@ -456,6 +494,7 @@ struct PacketLengthFramer {
     length_bytes: usize,
     length_offset: usize,
     max_len: usize,
+    max: usize,
     buf: Vec<u8>,
     started: bool,
 }
@@ -486,7 +525,13 @@ impl Framer for PacketLengthFramer {
                 if self.buf.len() as u64 >= total || len > self.max_len as u64 {
                     out.push(std::mem::take(&mut self.buf));
                     self.started = false;
+                    continue;
                 }
+            }
+            if self.buf.len() >= self.max {
+                // A packet that can never complete within maxBufferSize.
+                out.push(std::mem::take(&mut self.buf));
+                self.started = false;
             }
         }
     }
@@ -534,6 +579,10 @@ struct RegexFramer {
     text: String,
     /// Incomplete UTF-8 sequence at the end of the last chunk.
     pending: Vec<u8>,
+    /// Length of `text` at the last search.
+    scanned: usize,
+    /// Length of `text` at the last search from its start.
+    full_scan: usize,
 }
 
 impl RegexFramer {
@@ -570,18 +619,39 @@ impl RegexFramer {
 impl Framer for RegexFramer {
     fn push(&mut self, data: &[u8], _now: Instant, out: &mut Vec<Vec<u8>>) {
         self.decode(data);
-        let mut parts: Vec<&str> = self.regex.split(&self.text).collect();
-        let last = parts.pop().unwrap_or_default().to_string();
-        for p in parts {
-            emit(out, p.as_bytes());
+        // Matches that ended in old text were split off by an earlier push, so only
+        // a match reaching into the new text can be missing. Look for one from a
+        // short lookback, and from the start each time the text has doubled (linear
+        // in total). The full split runs only when there is something to split, and
+        // then consumes everything before the last match.
+        let mut from = self.scanned.saturating_sub(REGEX_LOOKBACK);
+        if self.text.len() >= 2 * self.full_scan {
+            from = 0;
+            self.full_scan = self.text.len();
         }
-        self.text = last;
+        while !self.text.is_char_boundary(from) {
+            from -= 1;
+        }
+        if self.regex.find_at(&self.text, from).is_some() {
+            let mut parts: Vec<&str> = self.regex.split(&self.text).collect();
+            let last = parts.pop().unwrap_or_default().to_string();
+            for p in parts {
+                emit(out, p.as_bytes());
+            }
+            self.text = last;
+            self.full_scan = self.text.len();
+        }
+        self.scanned = self.text.len();
         if self.text.len() >= self.max {
             out.push(std::mem::take(&mut self.text).into_bytes());
+            self.scanned = 0;
+            self.full_scan = 0;
         }
     }
 
     fn flush(&mut self) -> Option<Vec<u8>> {
+        self.scanned = 0;
+        self.full_scan = 0;
         let mut rest = std::mem::take(&mut self.text).into_bytes();
         rest.append(&mut self.pending);
         (!rest.is_empty()).then_some(rest)
@@ -595,14 +665,34 @@ struct StartEndFramer {
     include_end: bool,
     max: usize,
     buf: Vec<u8>,
+    /// Start of the open frame (a start marker found, no end yet).
+    open: Option<usize>,
+    /// Where the next search (for a start marker, or for the end of the open
+    /// frame) resumes; everything before it has been searched.
+    scan_from: usize,
 }
 
 impl Framer for StartEndFramer {
     fn push(&mut self, data: &[u8], _now: Instant, out: &mut Vec<Vec<u8>>) {
         self.buf.extend_from_slice(data);
         let mut consumed = 0;
-        while let Some(s) = find(&self.buf, &self.start, consumed) {
-            let Some(e) = find(&self.buf, &self.end, s + self.start.len()) else {
+        loop {
+            let s = match self.open {
+                Some(s) => s,
+                None => {
+                    let Some(s) = find(&self.buf, &self.start, self.scan_from) else {
+                        let tail = self.buf.len().saturating_sub(self.start.len() - 1);
+                        self.scan_from = tail.max(consumed);
+                        break;
+                    };
+                    self.open = Some(s);
+                    self.scan_from = s + self.start.len();
+                    s
+                }
+            };
+            let Some(e) = find(&self.buf, &self.end, self.scan_from) else {
+                let tail = self.buf.len().saturating_sub(self.end.len() - 1);
+                self.scan_from = tail.max(s + self.start.len());
                 break;
             };
             let from = if self.include_start {
@@ -617,11 +707,16 @@ impl Framer for StartEndFramer {
             };
             emit(out, &self.buf[from..to]);
             consumed = e + self.end.len();
+            self.open = None;
+            self.scan_from = consumed;
         }
-        // ponytail: rescans the open frame from its start on every push (Node does
-        // too); O(n^2) only for frames near max_buffer_size fed in tiny chunks.
         self.buf.drain(..consumed);
+        self.open = self.open.map(|s| s - consumed);
+        self.scan_from -= consumed;
         if self.buf.len() >= self.max {
+            // Rescanned from scratch: once per max bytes at most.
+            self.open = None;
+            self.scan_from = 0;
             // An open frame that never ends: keep only from the last start marker.
             match self
                 .buf
@@ -637,13 +732,15 @@ impl Framer for StartEndFramer {
     }
 
     fn flush(&mut self) -> Option<Vec<u8>> {
+        self.open = None;
+        self.scan_from = 0;
         take_flush(&mut self.buf)
     }
 }
 
 /// SLIP framing bytes (RFC 1055 defaults; `start`/`esc_start` optional).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct SlipOptions {
     #[serde(alias = "START")]
     pub start: Option<u8>,

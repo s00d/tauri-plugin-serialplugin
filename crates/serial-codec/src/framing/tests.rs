@@ -363,6 +363,7 @@ mod readline {
             delimiter: Some(ByteSeq::from(&b"a"[..])),
             include_delimiter: false,
             max_buffer_size: None,
+            encoding: None,
         }
         .build()
         .unwrap();
@@ -553,6 +554,7 @@ mod regex {
         let mut p = FramerConfig::Regex {
             regex,
             max_buffer_size: None,
+            encoding: None,
         }
         .build()
         .unwrap();
@@ -1558,5 +1560,128 @@ mod chunk_boundaries {
                 2, 2, 1, 254, 1, 1, 217, 2, 0, 1, 254, 217, 2, 2, 1, 251, 1, 1, 217,
             ]],
         );
+    }
+}
+
+/// Regression tests: per-byte work and buffered memory stay bounded, and option
+/// typos are errors.
+mod bounded {
+    use super::*;
+
+    /// Push `data` one byte at a time; returns the frames and the elapsed time.
+    fn bytewise(f: &mut dyn Framer, data: &[u8]) -> (Vec<Vec<u8>>, Duration) {
+        let t = now();
+        let mut out = Vec::new();
+        for b in data.chunks(1) {
+            f.push(b, t, &mut out);
+        }
+        (out, t.elapsed())
+    }
+
+    // The old framers rescanned the whole buffer on every push: 128 KiB of
+    // marker-less input took 15 s (startEnd) and 166 s (regex) in release.
+    const LIMIT: Duration = Duration::from_secs(5);
+
+    #[test]
+    fn start_end_without_markers_is_linear() {
+        let mut p =
+            build(json!({"type": "startEnd", "startDelimiter": "<<", "endDelimiter": ">>"}));
+        let (out, took) = bytewise(&mut *p, &vec![b'x'; 1 << 20]);
+        assert!(out.is_empty());
+        assert!(took < LIMIT, "1 MiB of garbage took {took:?}");
+    }
+
+    #[test]
+    fn start_end_long_open_frame_is_linear() {
+        let mut p = build(json!({
+            "type": "startEnd", "startDelimiter": "<<", "endDelimiter": ">>",
+            "maxBufferSize": 4 << 20,
+        }));
+        let mut data = b"junk<<".to_vec();
+        data.extend(vec![b'x'; 1 << 20]);
+        data.extend(b">><<a>");
+        let (out, took) = bytewise(&mut *p, &data);
+        assert_eq!(out, vec![vec![b'x'; 1 << 20]]);
+        assert!(took < LIMIT, "1 MiB open frame took {took:?}");
+        assert_eq!(p.flush(), Some(b"<<a>".to_vec()));
+    }
+
+    #[test]
+    fn start_end_markers_split_across_pushes_after_garbage() {
+        same_bytewise(
+            json!({"type": "startEnd", "startDelimiter": "<<<", "endDelimiter": ">>>"}),
+            &[b"<<x<", b"<<a>>", b">b<<", b"<c>>>>>", b"<<<"],
+        );
+    }
+
+    #[test]
+    fn regex_without_matches_is_linear() {
+        let mut p = build(json!({"type": "regex", "regex": "\\r\\n"}));
+        let (out, took) = bytewise(&mut *p, &vec![b'x'; 128 << 10]);
+        // Only the maxBufferSize cuts.
+        assert_eq!(out.len(), 2);
+        assert!(took < LIMIT, "128 KiB without a match took {took:?}");
+    }
+
+    #[test]
+    fn regex_match_spanning_pushes_is_found() {
+        same_bytewise(
+            json!({"type": "regex", "regex": "END[0-9]+;"}),
+            &[b"aaaEND1", b"23;bbbEN", b"D4;", b"ccc"],
+        );
+        // Longer than REGEX_LOOKBACK and fed byte by byte: found by a doubling rescan.
+        let long = format!("<{}>", "-".repeat(3 * REGEX_LOOKBACK));
+        let cfg = json!({"type": "regex", "regex": "<-+>"});
+        let mut data = b"head".to_vec();
+        data.extend(long.as_bytes());
+        data.extend(b"tail");
+        data.extend(vec![b'.'; 8 * REGEX_LOOKBACK]);
+        let (out, _) = bytewise(&mut *build(cfg), &data);
+        assert_eq!(out, frames(&[b"head"]));
+    }
+
+    #[test]
+    fn packet_length_huge_offset_is_rejected_not_a_panic() {
+        assert!(rejects(
+            json!({"type": "packetLength", "lengthOffset": u64::MAX})
+        ));
+        assert!(rejects(
+            json!({"type": "packetLength", "lengthOffset": 70000})
+        ));
+        assert!(rejects(json!({
+            "type": "packetLength", "lengthOffset": 10, "maxBufferSize": 8,
+        })));
+    }
+
+    #[test]
+    fn packet_length_buffer_is_bounded() {
+        let mut p = build(json!({
+            "type": "packetLength", "packetOverhead": u64::MAX, "maxLen": u64::MAX,
+            "maxBufferSize": 1024,
+        }));
+        let mut data = vec![0xaa, 0xff];
+        data.extend(vec![0u8; 4096]);
+        let out = write(&mut *p, &[&data]);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].len(), 1024);
+        assert!(
+            p.flush().is_none(),
+            "bytes after the cut are outside a packet"
+        );
+    }
+
+    #[test]
+    fn unknown_fields_are_rejected() {
+        assert!(rejects(json!({"type": "readline", "delimter": "\r\n"})));
+        assert!(rejects(
+            json!({"type": "byteLength", "length": 4, "lenght": 4})
+        ));
+        assert!(rejects(json!({"type": "slip", "ESCAPE": 1})));
+        assert!(rejects(json!({"type": "packetLength", "maxLength": 4})));
+        // Node names and aliases keep working.
+        build(json!({"type": "interByteTimeout", "interval": 5}));
+        build(json!({"type": "ccTalk", "maxDelayBetweenBytesMs": 5}));
+        build(json!({"type": "slip", "ESC_END": 1, "escEsc": 2}));
+        build(json!({"type": "readline", "encoding": "utf8"}));
     }
 }

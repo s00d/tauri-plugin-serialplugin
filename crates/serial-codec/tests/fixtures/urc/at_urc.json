@@ -1,0 +1,1507 @@
+{
+ "+C5GREG": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1735",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+C5GREG: 3\r\n",
+    "solicited": false,
+    "device": "C5GREG=1"
+   },
+   "expected": {
+    "state": "denied",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": true
+   },
+   "name": "test_c5greg1_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1755",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+C5GREG: 1,1F00,79D903,11,6,ABCDEF\r\n",
+    "solicited": false,
+    "device": "C5GREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 7936,
+    "ci": 7985411,
+    "act": "5gnr",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": true
+   },
+   "name": "test_c5greg2_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  }
+ ],
+ "+CCWA": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:4406",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CCWA: \"123456789\",129,1\r\n"
+   },
+   "expected": {
+    "number": "123456789",
+    "type": 129,
+    "class": 1
+   },
+   "name": "ccwa_urc_tests",
+   "note": ""
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:4406",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CCWA: \"123456789\",129,1,,0\r\n"
+   },
+   "expected": {
+    "number": "123456789",
+    "type": 129,
+    "class": 1
+   },
+   "name": "ccwa_urc_tests",
+   "note": ""
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:4406",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CCWA: \"123456789\",129,1,,0,,,\r\n"
+   },
+   "expected": {
+    "number": "123456789",
+    "type": 129,
+    "class": 1
+   },
+   "name": "ccwa_urc_tests",
+   "note": ""
+  }
+ ],
+ "+CDS": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:3568",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "buffer": "\r\n+CDS: 24\r\n07914356060013F1065A098110325476F8219011700463802190117004638030\r\n"
+   },
+   "expected": {
+    "length": 24,
+    "pdu": "07914356060013F1065A098110325476F8219011700463802190117004638030"
+   },
+   "name": "test_parse_cds",
+   "note": "recipient address replaced with the fake 012345678 (same length, so the TPDU length 24 holds)"
+  }
+ ],
+ "+CDSI": [
+  {
+   "source": "python-gsmmodem/test/test_modem.py:2121",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "line": "+CDSI: \"SR\",57"
+   },
+   "expected": {
+    "memory": "SR",
+    "index": 57
+   },
+   "name": "test_receiveStatusReportTextMode",
+   "note": "Library then reads with AT+CMGR=<index>."
+  }
+ ],
+ "+CEREG": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1484",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG:  2\r\n\r\n+CNSMOD: 8\r\n\r\n+CEREG: 1,AAAA,01234567,7\r\n",
+    "solicited": false,
+    "device": "Multi CEREG"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 43690,
+    "ci": 19088743,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg_multi_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted; several URCs in one buffer: expected is the state after parsing all matches (last one wins)"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1595",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 3\r\n",
+    "solicited": false,
+    "device": "CEREG=1"
+   },
+   "expected": {
+    "state": "denied",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg1_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1615",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 1, 1F00, 79D903 ,7\r\n",
+    "solicited": false,
+    "device": "CEREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 7936,
+    "ci": 7985411,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg2_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1645",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 11, 78FE, 20 ,14419E ,7\r\n",
+    "solicited": false,
+    "device": "CEREG=2 with multidigit \"stat\" value and RAC"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 30974,
+    "ci": 1327518,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg2_multidigit_stat_with_rac_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+   "known_disagreement": "vendor-specific (Novatel E362 style): an extra RAC-like field sits between <tac> and <ci>; 27.007 10.1.22 defines <stat>[,[<tac>],[<ci>],[<AcT>]...], so the parser reads 20 as <ci>"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1655",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 1, 2, 0001, 00000100, 7\r\n",
+    "solicited": false,
+    "device": "Altair LTE CEREG=2"
+   },
+   "expected": {
+    "state": "searching",
+    "lac": 1,
+    "ci": 256,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg2_altair_lte_solicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1665",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 2, 0001, 00000100, 7\r\n",
+    "solicited": false,
+    "device": "Altair LTE CEREG=2"
+   },
+   "expected": {
+    "state": "searching",
+    "lac": 1,
+    "ci": 256,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg2_altair_lte_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1685",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CEREG: 1, 1F00, 20 ,79D903 ,7\r\n",
+    "solicited": false,
+    "device": "Novatel LTE E362 CEREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 7936,
+    "ci": 7985411,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": true,
+    "c5greg": false
+   },
+   "name": "test_cereg2_novatel_lte_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted",
+   "known_disagreement": "vendor-specific (Novatel E362 style): an extra RAC-like field sits between <tac> and <ci>; 27.007 10.1.22 defines <stat>[,[<tac>],[<ci>],[<AcT>]...], so the parser reads 20 as <ci>"
+  }
+ ],
+ "+CGEV": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: REJECT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "reject",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "REJECT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "reject",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW REACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "nw_react",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW REACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "nw_react",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW REACT IP, 123.123.123.123, 1"
+   },
+   "expected": {
+    "type": "nw_react",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW DEACT IP, 123.123.123.123, 1"
+   },
+   "expected": {
+    "type": "nw_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW DEACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "nw_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW DEACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "nw_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW DEACT IP, 123.123.123.123, 1"
+   },
+   "expected": {
+    "type": "nw_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME DEACT IP, 123.123.123.123, 1"
+   },
+   "expected": {
+    "type": "me_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME DEACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "me_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME DEACT IP, 123.123.123.123"
+   },
+   "expected": {
+    "type": "me_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 0
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME DEACT IP, 123.123.123.123, 1"
+   },
+   "expected": {
+    "type": "me_deact_pdp",
+    "pdp_type": "IP",
+    "pdp_addr": "123.123.123.123",
+    "cid": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME PDN ACT 2"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME PDN ACT 2"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME PDN ACT 2, 3"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME PDN ACT 2, 3"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME PDN ACT 2, 3, 4"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME PDN ACT 2, 3, 4"
+   },
+   "expected": {
+    "type": "me_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME PDN DEACT 2"
+   },
+   "expected": {
+    "type": "me_deact_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME PDN DEACT 2"
+   },
+   "expected": {
+    "type": "me_deact_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME ACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "me_act_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME ACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "me_act_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME DEACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "me_deact_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME DEACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "me_deact_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW PDN ACT 2"
+   },
+   "expected": {
+    "type": "nw_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW PDN ACT 2"
+   },
+   "expected": {
+    "type": "nw_act_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW PDN DEACT 2"
+   },
+   "expected": {
+    "type": "nw_deact_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW PDN DEACT 2"
+   },
+   "expected": {
+    "type": "nw_deact_primary",
+    "cid": 2
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW ACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "nw_act_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW ACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "nw_act_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW DEACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "nw_deact_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW DEACT 3, 2, 1"
+   },
+   "expected": {
+    "type": "nw_deact_secondary",
+    "cid": 2,
+    "parent_cid": 3,
+    "event_type": 1
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW DETACH"
+   },
+   "expected": {
+    "type": "nw_detach"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW DETACH"
+   },
+   "expected": {
+    "type": "nw_detach"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME DETACH"
+   },
+   "expected": {
+    "type": "me_detach"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME DETACH"
+   },
+   "expected": {
+    "type": "me_detach"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: NW CLASS A"
+   },
+   "expected": {
+    "type": "nw_class"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "NW CLASS A"
+   },
+   "expected": {
+    "type": "nw_class"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "+CGEV: ME CLASS A"
+   },
+   "expected": {
+    "type": "me_class"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:2327",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "ME CLASS A"
+   },
+   "expected": {
+    "type": "me_class"
+   },
+   "name": "cgev_indication_tests",
+   "note": "input may or may not carry the '+CGEV: ' prefix; only fields relevant to the type are asserted; secondary form '... ACT <p_cid>, <cid>, <event_type>'"
+  }
+ ],
+ "+CGREG": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1414",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 3\r\n",
+    "solicited": false,
+    "device": "CGREG=1"
+   },
+   "expected": {
+    "state": "denied",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg1_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1434",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 1,\"8BE3\",\"00002B5D\",3\r\n",
+    "solicited": false,
+    "device": "Ericsson F3607gw CGREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 35811,
+    "ci": 11101,
+    "act": "edge",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_f3607gw_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1454",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 5,\"0502\",\"0404736D\",2\r\n",
+    "solicited": false,
+    "device": "Sony-Ericsson MD400 CGREG=2"
+   },
+   "expected": {
+    "state": "roaming",
+    "lac": 1282,
+    "ci": 67400557,
+    "act": "umts",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_md400_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1474",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 0\r\n\r\n+CREG: 5\r\n",
+    "solicited": false,
+    "device": "Multi CREG/CGREG #2"
+   },
+   "expected": {
+    "state": "roaming",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg_cgreg_multi2_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted; several URCs in one buffer: expected is the state after parsing all matches (last one wins)"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1494",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 2,1, 81ED, 1A9CEB\r\n",
+    "solicited": false,
+    "device": "Alcatel One-Touch X220D CGREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 33261,
+    "ci": 1744107,
+    "act": "unknown",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_x220_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1525",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 2,11,003F,8FE3, 10, C2816\r\n",
+    "solicited": false,
+    "device": "Samsung Wave S8500 CREG=2 with act value"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 63,
+    "ci": 36835,
+    "act": "lte",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_s8500_wave_act_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1545",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 1,\"1422\",\"00000142\",3,\"00\"\r\n",
+    "solicited": false,
+    "device": "CGREG=2 with RAC"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 5154,
+    "ci": 322,
+    "act": "edge",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_unsolicited_with_rac",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1555",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 11,\"B092\",\"00000697\",3,\"00\"\r\n",
+    "solicited": false,
+    "device": "CGREG=2 with multidigit \"stat\" value and RAC"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 45202,
+    "ci": 1687,
+    "act": "edge",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_multidigit_stat_with_rac_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1705",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CGREG: 1, \"0426\", \"F00F\"\r\n",
+    "solicited": false,
+    "device": "Thuraya unsolicited CREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 1062,
+    "ci": 61455,
+    "act": "unknown",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_cgreg2_thuraya_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  }
+ ],
+ "+CLIP": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:4367",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CLIP: \"123456789\",129\r\n"
+   },
+   "expected": {
+    "number": "123456789",
+    "type": 129
+   },
+   "name": "clip_urc_tests",
+   "note": ""
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:4367",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CLIP: \"123456789\",129,,,,0\r\n"
+   },
+   "expected": {
+    "number": "123456789",
+    "type": 129
+   },
+   "name": "clip_urc_tests",
+   "note": ""
+  }
+ ],
+ "+CMTI": [
+  {
+   "source": "chan_dongle/test/parse.c:142",
+   "license": "GPL-2.0-only",
+   "input": {
+    "line": "+CMTI: \"ME\",41"
+   },
+   "expected": {
+    "index": 41
+   },
+   "name": "test_parse_cmti",
+   "note": "at_parse_cmti returns the message index, -1 on failure. Numeric <mem> ('0') accepted."
+  },
+  {
+   "source": "chan_dongle/test/parse.c:143",
+   "license": "GPL-2.0-only",
+   "input": {
+    "line": "+CMTI: 0,111"
+   },
+   "expected": {
+    "index": 111
+   },
+   "name": "test_parse_cmti",
+   "note": "at_parse_cmti returns the message index, -1 on failure. Numeric <mem> ('0') accepted."
+  },
+  {
+   "source": "chan_dongle/test/parse.c:144",
+   "license": "GPL-2.0-only",
+   "input": {
+    "line": "+CMTI: "
+   },
+   "expected": {
+    "index": -1
+   },
+   "name": "test_parse_cmti",
+   "note": "at_parse_cmti returns the message index, -1 on failure. Numeric <mem> ('0') accepted."
+  },
+  {
+   "source": "python-gsmmodem/test/test_modem.py:1612",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "line": "+CMTI: \"SM\",1"
+   },
+   "expected": {
+    "memory": "SM",
+    "index": 1
+   },
+   "name": "test_receiveSmsTextMode",
+   "note": "Asserted indirectly: the library then writes AT+CPMS=\"<mem>\" (if needed) and AT+CMGR=<index>. Values from table at line 1315."
+  },
+  {
+   "source": "python-gsmmodem/test/test_modem.py:1612",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "line": "+CMTI: \"SM\",4"
+   },
+   "expected": {
+    "memory": "SM",
+    "index": 4
+   },
+   "name": "test_receiveSmsTextMode",
+   "note": "Asserted indirectly: the library then writes AT+CPMS=\"<mem>\" (if needed) and AT+CMGR=<index>. Values from table at line 1321."
+  },
+  {
+   "source": "python-gsmmodem/test/test_modem.py:1612",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "line": "+CMTI: \"ME\",13"
+   },
+   "expected": {
+    "memory": "ME",
+    "index": 13
+   },
+   "name": "test_receiveSmsTextMode",
+   "note": "Asserted indirectly: the library then writes AT+CPMS=\"<mem>\" (if needed) and AT+CMGR=<index>. Values from table at line 1328."
+  }
+ ],
+ "+CREG": [
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1193",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 3\r\n",
+    "solicited": false,
+    "device": "CREG=1"
+   },
+   "expected": {
+    "state": "denied",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg1_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1203",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 11\r\n",
+    "solicited": false,
+    "device": "CREG=1 with multidigit \"stat\" value"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg1_multidigit_stat_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1223",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 1,84CD,00D30156\r\n",
+    "solicited": false,
+    "device": "Sierra Mercury CREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 33997,
+    "ci": 13828438,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_mercury_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1233",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 11,\"33FE\",\"a3fb477\"\r\n",
+    "solicited": false,
+    "device": "CREG=2 with multidigit \"stat\" value"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 13310,
+    "ci": 171947127,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_multidigit_stat_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1253",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 1,\"CE00\",\"00005449\"\r\n",
+    "solicited": false,
+    "device": "Sony Ericsson K850i CREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 52736,
+    "ci": 21577,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_sek850i_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1283",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 1,8BE3,2BAF\r\n",
+    "solicited": false,
+    "device": "Huawei E160G CREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 35811,
+    "ci": 11183,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_e160g_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1304",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 2,,\r\n",
+    "solicited": false,
+    "device": "Novatel XU870 unregistered CREG=2"
+   },
+   "expected": {
+    "state": "searching",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_xu870_unsolicited_unregistered",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1344",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 1,0001,0010,0\r\n",
+    "solicited": false,
+    "device": "unsolicited CREG=2 with no leading zeros in integer fields"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 1,
+    "ci": 16,
+    "act": "gsm",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_no_leading_zeros_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1354",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 001,\"0001\",\"0010\",000\r\n",
+    "solicited": false,
+    "device": "unsolicited CREG=2 with leading zeros in integer fields"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 1,
+    "ci": 16,
+    "act": "gsm",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_leading_zeros_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1364",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 10,0001,0010,0\r\n",
+    "solicited": false,
+    "device": "unsolicited CREG=2 with no leading zeros in integer fields and multidigit \"stat\" value"
+   },
+   "expected": {
+    "state": "roaming_csfb_not_preferred",
+    "lac": 1,
+    "ci": 16,
+    "act": "gsm",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_multidigit_stat_no_leading_zeros_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1374",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 0011,\"0001\",\"0010\",000\r\n",
+    "solicited": false,
+    "device": "unsolicited CREG=2 with leading zeros in integer fields and multidigit \"stat\" value"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 1,
+    "ci": 16,
+    "act": "gsm",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_multidigit_stat_leading_zeros_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1394",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 6,\"8B37\",\"0A265185\",7\r\n",
+    "solicited": false,
+    "device": "Ublox Toby-L2 unsolicited while on LTE"
+   },
+   "expected": {
+    "state": "home_sms_only",
+    "lac": 35639,
+    "ci": 170283397,
+    "act": "lte",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_ublox_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1444",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 2,5,\"0502\",\"0404736D\"\r\n",
+    "solicited": false,
+    "device": "Sony-Ericsson MD400 CREG=2"
+   },
+   "expected": {
+    "state": "roaming",
+    "lac": 1282,
+    "ci": 67400557,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_md400_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1464",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 5\r\n\r\n+CGREG: 0\r\n",
+    "solicited": false,
+    "device": "Multi CREG/CGREG"
+   },
+   "expected": {
+    "state": "idle",
+    "lac": 0,
+    "ci": 0,
+    "act": "unknown",
+    "cgreg": true,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg_cgreg_multi_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted; several URCs in one buffer: expected is the state after parsing all matches (last one wins)"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1505",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 2,1,000B,2816, B, C2816\r\n",
+    "solicited": false,
+    "device": "Samsung Wave S8500 CREG=2"
+   },
+   "expected": {
+    "state": "home",
+    "lac": 11,
+    "ci": 10262,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_s8500_wave_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  },
+  {
+   "source": "modemmanager/src/tests/test-modem-helpers.c:1515",
+   "license": "GPL-2.0-or-later",
+   "input": {
+    "line": "\r\n+CREG: 2,11,003F,8FE3, B, C2816\r\n",
+    "solicited": false,
+    "device": "Samsung Wave S8500 CREG=2 with multidigit \"stat\" value"
+   },
+   "expected": {
+    "state": "attached_rlos",
+    "lac": 63,
+    "ci": 36835,
+    "act": "unknown",
+    "cgreg": false,
+    "cereg": false,
+    "c5greg": false
+   },
+   "name": "test_creg2_s8500_wave_multidigit_stat_unsolicited",
+   "note": "lac/ci/act 0/unknown = not present; regex_num field in the C struct is not asserted"
+  }
+ ],
+ "+CRING": [
+  {
+   "source": "python-gsmmodem/test/fakemodems.py:150",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "lines": [
+     "+CRING: VOICE",
+     "+CLIP: \"+10000000004\",145,,,,0"
+    ]
+   },
+   "expected": {
+    "number": "+10000000004",
+    "call_type": 0
+   },
+   "name": "test_incomingCallAnswer (GenericTestModem etc.)",
+   "note": "Lines from fakemodems getIncomingCallNotification(number, 'VOICE'); test asserts call.number and call.type (0 = voice)."
+  },
+  {
+   "source": "python-gsmmodem/test/fakemodems.py:217",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "lines": [
+     "+CRING: VOICE",
+     "+CLIP: \"+10000000004\",145"
+    ]
+   },
+   "expected": {
+    "number": "+10000000004",
+    "call_type": 0
+   },
+   "name": "test_incomingCallAnswer (Wavecom)",
+   "note": "Short +CLIP form without trailing fields."
+  },
+  {
+   "source": "python-gsmmodem/test/test_modem.py:1213",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "lines": [
+     "+CRING: VOICE",
+     "+CLIP: \"+10000000005\",145,,,,0"
+    ]
+   },
+   "expected": {
+    "incoming_call": true
+   },
+   "name": "test_incomingCallCrcChangedExternally",
+   "note": ""
+  }
+ ],
+ "RING": [
+  {
+   "source": "python-gsmmodem/test/test_modem.py:1193",
+   "license": "LGPL-3.0-or-later",
+   "input": {
+    "lines": [
+     "RING",
+     "+CLIP: \"+10000000005\",145,,,,0"
+    ]
+   },
+   "expected": {
+    "incoming_call": true,
+    "call_type": null
+   },
+   "name": "test_incomingCallCrcNotSupported",
+   "note": "Basic RING (no +CRC) -> call type unknown."
+  }
+ ]
+}

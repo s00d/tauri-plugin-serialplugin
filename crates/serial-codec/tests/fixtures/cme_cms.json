@@ -1,0 +1,3523 @@
+[
+ {
+  "source": "gammu/tests/at-dispatch.c:76",
+  "license": "GPL-2.0-only",
+  "name": "at-dispatch",
+  "input": {
+   "response": "AT+CSQ\r\nAT+CSQ\r\n+CME ERROR: 515",
+   "request": "ID_GetSignalQuality"
+  },
+  "expected": {
+   "dispatch_error": "ERR_UNKNOWN"
+  },
+  "note": "ATGEN_DispatchMessage on a full reply buffer (echo included). Only the returned error is asserted; the reply state (AT_Reply_CMEError) is passed but not checked by do_test."
+ },
+ {
+  "source": "gammu/tests/at-dispatch.c:79",
+  "license": "GPL-2.0-only",
+  "name": "at-dispatch",
+  "input": {
+   "response": "AT+CUSD=1,\"002A003900390023\",15\r\n+CME ERROR: 132",
+   "request": "ID_GetUSSD"
+  },
+  "expected": {
+   "dispatch_error": "ERR_NOTSUPPORTED"
+  },
+  "note": "ATGEN_DispatchMessage on a full reply buffer (echo included). Only the returned error is asserted; the reply state (AT_Reply_CMEError) is passed but not checked by do_test."
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:328",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 0
+  },
+  "expected": {
+   "name": "phone_failure",
+   "nick": "PhoneFailure",
+   "description": "Phone failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:329",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 1
+  },
+  "expected": {
+   "name": "no_connection",
+   "nick": "NoConnection",
+   "description": "No connection to phone."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:330",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 2
+  },
+  "expected": {
+   "name": "link_reserved",
+   "nick": "LinkReserved",
+   "description": "Phone-adaptor link reserved."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:331",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 3
+  },
+  "expected": {
+   "name": "not_allowed",
+   "nick": "NotAllowed",
+   "description": "Operation not allowed."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:332",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 4
+  },
+  "expected": {
+   "name": "not_supported",
+   "nick": "NotSupported",
+   "description": "Operation not supported."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:333",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 5
+  },
+  "expected": {
+   "name": "ph_sim_pin",
+   "nick": "PhSimPin",
+   "description": "PH-SIM PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:334",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 6
+  },
+  "expected": {
+   "name": "ph_fsim_pin",
+   "nick": "PhFsimPin",
+   "description": "PH-FSIM PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:335",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 7
+  },
+  "expected": {
+   "name": "ph_fsim_puk",
+   "nick": "PhFsimPuk",
+   "description": "PH-FSIM PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:336",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 10
+  },
+  "expected": {
+   "name": "sim_not_inserted",
+   "nick": "SimNotInserted",
+   "description": "SIM not inserted."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:337",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 11
+  },
+  "expected": {
+   "name": "sim_pin",
+   "nick": "SimPin",
+   "description": "SIM PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:338",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 12
+  },
+  "expected": {
+   "name": "sim_puk",
+   "nick": "SimPuk",
+   "description": "SIM PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:339",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 13
+  },
+  "expected": {
+   "name": "sim_failure",
+   "nick": "SimFailure",
+   "description": "SIM failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:340",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 14
+  },
+  "expected": {
+   "name": "sim_busy",
+   "nick": "SimBusy",
+   "description": "SIM busy."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:341",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 15
+  },
+  "expected": {
+   "name": "sim_wrong",
+   "nick": "SimWrong",
+   "description": "SIM wrong."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:342",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 16
+  },
+  "expected": {
+   "name": "incorrect_password",
+   "nick": "IncorrectPassword",
+   "description": "Incorrect password."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:343",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 17
+  },
+  "expected": {
+   "name": "sim_pin2",
+   "nick": "SimPin2",
+   "description": "SIM PIN2 required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:344",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 18
+  },
+  "expected": {
+   "name": "sim_puk2",
+   "nick": "SimPuk2",
+   "description": "SIM PUK2 required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:345",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 20
+  },
+  "expected": {
+   "name": "memory_full",
+   "nick": "MemoryFull",
+   "description": "Memory full."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:346",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 21
+  },
+  "expected": {
+   "name": "invalid_index",
+   "nick": "InvalidIndex",
+   "description": "Invalid index."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:347",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 22
+  },
+  "expected": {
+   "name": "not_found",
+   "nick": "NotFound",
+   "description": "Not found."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:348",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 23
+  },
+  "expected": {
+   "name": "memory_failure",
+   "nick": "MemoryFailure",
+   "description": "Memory failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:349",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 24
+  },
+  "expected": {
+   "name": "text_too_long",
+   "nick": "TextTooLong",
+   "description": "Text string too long."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:350",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 25
+  },
+  "expected": {
+   "name": "invalid_chars",
+   "nick": "InvalidChars",
+   "description": "Invalid characters in text string."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:351",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 26
+  },
+  "expected": {
+   "name": "dial_string_too_long",
+   "nick": "DialStringTooLong",
+   "description": "Dial string too long."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:352",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 27
+  },
+  "expected": {
+   "name": "dial_string_invalid",
+   "nick": "DialStringInvalid",
+   "description": "Invalid characters in dial string."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:353",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 30
+  },
+  "expected": {
+   "name": "no_network",
+   "nick": "NoNetwork",
+   "description": "No network service."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:354",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 31
+  },
+  "expected": {
+   "name": "network_timeout",
+   "nick": "NetworkTimeout",
+   "description": "Network timeout."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:355",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 32
+  },
+  "expected": {
+   "name": "network_not_allowed",
+   "nick": "NetworkNotAllowed",
+   "description": "Network not allowed - Emergency calls only."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:356",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 40
+  },
+  "expected": {
+   "name": "network_pin",
+   "nick": "NetworkPin",
+   "description": "Network personalisation PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:357",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 41
+  },
+  "expected": {
+   "name": "network_puk",
+   "nick": "NetworkPuk",
+   "description": "Network personalisation PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:358",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 42
+  },
+  "expected": {
+   "name": "network_subset_pin",
+   "nick": "NetworkSubsetPin",
+   "description": "Network subset personalisation PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:359",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 43
+  },
+  "expected": {
+   "name": "network_subset_puk",
+   "nick": "NetworkSubsetPuk",
+   "description": "Network subset personalisation PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:360",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 44
+  },
+  "expected": {
+   "name": "service_pin",
+   "nick": "ServicePin",
+   "description": "Service provider personalisation PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:361",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 45
+  },
+  "expected": {
+   "name": "service_puk",
+   "nick": "ServicePuk",
+   "description": "Service provider personalisation PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:362",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 46
+  },
+  "expected": {
+   "name": "corp_pin",
+   "nick": "CorpPin",
+   "description": "Corporate personalisation PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:363",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 47
+  },
+  "expected": {
+   "name": "corp_puk",
+   "nick": "CorpPuk",
+   "description": "Corporate personalisation PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:364",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 48
+  },
+  "expected": {
+   "name": "hidden_key_required",
+   "nick": "HiddenKeyRequired",
+   "description": "Hidden key required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:365",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 49
+  },
+  "expected": {
+   "name": "eap_method_not_supported",
+   "nick": "EapMethodNotSupported",
+   "description": "EAP method not supported."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:366",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 50
+  },
+  "expected": {
+   "name": "incorrect_parameters",
+   "nick": "IncorrectParameters",
+   "description": "Incorrect parameters."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:367",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 51
+  },
+  "expected": {
+   "name": "command_disabled",
+   "nick": "CommandDisabled",
+   "description": "Command implemented but currently disabled."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:368",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 52
+  },
+  "expected": {
+   "name": "command_aborted",
+   "nick": "CommandAborted",
+   "description": "Command aborted by user."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:369",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 53
+  },
+  "expected": {
+   "name": "not_attached_restricted",
+   "nick": "NotAttachedRestricted",
+   "description": "Not attached to network due to MT functionality restrictions."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:370",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 54
+  },
+  "expected": {
+   "name": "not_allowed_emergency_only",
+   "nick": "NotAllowedEmergencyOnly",
+   "description": "Modem not allowed, MT restricted to emergency calls only."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:371",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 55
+  },
+  "expected": {
+   "name": "not_allowed_restricted",
+   "nick": "NotAllowedRestricted",
+   "description": "Operation not allowed because of MT functionality restrictions."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:372",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 56
+  },
+  "expected": {
+   "name": "fixed_dial_number_only",
+   "nick": "FixedDialNumberOnly",
+   "description": "Fixed dial number only allowed; called number is not a fixed dial number."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:373",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 57
+  },
+  "expected": {
+   "name": "temporarily_out_of_service",
+   "nick": "TemporarilyOutOfService",
+   "description": "Temporarily out of service due to other MT usage."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:374",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 58
+  },
+  "expected": {
+   "name": "language_or_alphabet_not_supported",
+   "nick": "LanguageOrAlphabetNotSupported",
+   "description": "Language or alphabet not supported."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:375",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 59
+  },
+  "expected": {
+   "name": "unexpected_data_value",
+   "nick": "UnexpectedDataValue",
+   "description": "Unexpected data value."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:376",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 60
+  },
+  "expected": {
+   "name": "system_failure",
+   "nick": "SystemFailure",
+   "description": "System failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:377",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 61
+  },
+  "expected": {
+   "name": "data_missing",
+   "nick": "DataMissing",
+   "description": "Data missing."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:378",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 62
+  },
+  "expected": {
+   "name": "call_barred",
+   "nick": "CallBarred",
+   "description": "Call barred."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:379",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 63
+  },
+  "expected": {
+   "name": "message_waiting_indication_subscription_failure",
+   "nick": "MessageWaitingIndicationSubscriptionFailure",
+   "description": "Message waiting indication subscription failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:380",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 100
+  },
+  "expected": {
+   "name": "unknown",
+   "nick": "Unknown",
+   "description": "Unknown."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:381",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 102
+  },
+  "expected": {
+   "name": "imsi_unknown_in_hss",
+   "nick": "ImsiUnknownInHss",
+   "description": "IMSI unknown in HLR (CS, GPRS, UMTS); IMSI unknown in HSS (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:382",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 103
+  },
+  "expected": {
+   "name": "illegal_ue",
+   "nick": "IllegalUe",
+   "description": "Illegal MS (CS, GPRS, UMTS); Illegal UE (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:383",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 104
+  },
+  "expected": {
+   "name": "imsi_unknown_in_vlr",
+   "nick": "ImsiUnknownInVlr",
+   "description": "IMSI unknown in VLR."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:384",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 105
+  },
+  "expected": {
+   "name": "imei_not_accepted",
+   "nick": "ImeiNotAccepted",
+   "description": "IMEI not accepted (CS, GPRS, UMTS, EPS); PEI not accepted (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:385",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 106
+  },
+  "expected": {
+   "name": "illegal_me",
+   "nick": "IllegalMe",
+   "description": "Illegal ME (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:386",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 107
+  },
+  "expected": {
+   "name": "ps_services_not_allowed",
+   "nick": "PsServicesNotAllowed",
+   "description": "GPRS services not allowed (CS, GPRS, UMTS); EPS services not allowed (EPS); 5GS services not allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:387",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 108
+  },
+  "expected": {
+   "name": "ps_and_non_ps_services_not_allowed",
+   "nick": "PsAndNonPsServicesNotAllowed",
+   "description": "GPRS and non-GPRS services not allowed (CS, GPRS, UMTS); EPS and non-EPS services not allowed (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:388",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 109
+  },
+  "expected": {
+   "name": "ue_identity_not_derived_from_network",
+   "nick": "UeIdentityNotDerivedFromNetwork",
+   "description": "MS identity cannot be derived from network (CS, GPRS, UMTS; UE identity cannot be derived from network (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:389",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 110
+  },
+  "expected": {
+   "name": "implicitly_detached",
+   "nick": "ImplicitlyDetached",
+   "description": "Implicitly detached (CS, GPRS, UMTS, EPS); implicitly degistered (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:390",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 111
+  },
+  "expected": {
+   "name": "plmn_not_allowed",
+   "nick": "PlmnNotAllowed",
+   "description": "PLMN not allowed (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:391",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 112
+  },
+  "expected": {
+   "name": "area_not_allowed",
+   "nick": "AreaNotAllowed",
+   "description": "Location area not allowed (CS, GPRS, UMTS); Tracking area not allowed (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:392",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 113
+  },
+  "expected": {
+   "name": "roaming_not_allowed_in_area",
+   "nick": "RoamingNotAllowedInArea",
+   "description": "Roaming not allowed in this location area (CS, GPRS, UMTS); Roaming not allowed in this tracking area (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:393",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 114
+  },
+  "expected": {
+   "name": "ps_services_not_allowed_in_plmn",
+   "nick": "PsServicesNotAllowedInPlmn",
+   "description": "GPRS services not allowed in this PLMN (CS, GPRS, UMTS); EPS services not allowed in this PLMN (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:394",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 115
+  },
+  "expected": {
+   "name": "no_cells_in_area",
+   "nick": "NoCellsInArea",
+   "description": "No suitable cells in this location area (CS, GPRS, UMTS); no suitable cells in this tracking area (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:395",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 116
+  },
+  "expected": {
+   "name": "msc_temporarily_not_reachable",
+   "nick": "MscTemporarilyNotReachable",
+   "description": "MSC temporarily not reachable (CS, GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:396",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 117
+  },
+  "expected": {
+   "name": "network_failure_attach",
+   "nick": "NetworkFailureAttach",
+   "description": "Network failure during attach (CS, GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:397",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 118
+  },
+  "expected": {
+   "name": "cs_domain_unavailable",
+   "nick": "CsDomainUnavailable",
+   "description": "CS domain not available (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:398",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 119
+  },
+  "expected": {
+   "name": "esm_failure",
+   "nick": "EsmFailure",
+   "description": "ESM failure (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:399",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 122
+  },
+  "expected": {
+   "name": "congestion",
+   "nick": "Congestion",
+   "description": "Congestion (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:400",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 124
+  },
+  "expected": {
+   "name": "mbms_bearer_capabilities_insufficient_for_service",
+   "nick": "MbmsBearerCapabilitiesInsufficientForService",
+   "description": "MBMS bearer capabilities insufficient for service (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:401",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 125
+  },
+  "expected": {
+   "name": "not_authorized_for_csg",
+   "nick": "NotAuthorizedForCsg",
+   "description": "Not authorized for this CSG (CS, GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:402",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 126
+  },
+  "expected": {
+   "name": "insufficient_resources",
+   "nick": "InsufficientResources",
+   "description": "Insufficient resources (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:403",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 127
+  },
+  "expected": {
+   "name": "missing_or_unknown_apn",
+   "nick": "MissingOrUnknownApn",
+   "description": "Missing or unknown APN (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:404",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 128
+  },
+  "expected": {
+   "name": "unknown_pdp_address_or_type",
+   "nick": "UnknownPdpAddressOrType",
+   "description": "Unknown PDP address or PDP type (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:405",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 129
+  },
+  "expected": {
+   "name": "user_authentication_failed",
+   "nick": "UserAuthenticationFailed",
+   "description": "User authentication or authorization failed (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:406",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 130
+  },
+  "expected": {
+   "name": "activation_rejected_by_ggsn_or_gw",
+   "nick": "ActivationRejectedByGgsnOrGw",
+   "description": "Activation rejected by GGSN, Serving GW or PDN GW (GPRS, UMTS); activation rejected by Serving GW or PDN GW (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:407",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 131
+  },
+  "expected": {
+   "name": "activation_rejected_unspecified",
+   "nick": "ActivationRejectedUnspecified",
+   "description": "Activation rejected, unspecified (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:408",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 132
+  },
+  "expected": {
+   "name": "service_option_not_supported",
+   "nick": "ServiceOptionNotSupported",
+   "description": "Service option not supported (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:409",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 133
+  },
+  "expected": {
+   "name": "service_option_not_subscribed",
+   "nick": "ServiceOptionNotSubscribed",
+   "description": "Requested service option not subscribed (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:410",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 134
+  },
+  "expected": {
+   "name": "service_option_out_of_order",
+   "nick": "ServiceOptionOutOfOrder",
+   "description": "Service option temporarily out of order (CS, GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:411",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 135
+  },
+  "expected": {
+   "name": "nsapi_or_pti_already_in_use",
+   "nick": "NsapiOrPtiAlreadyInUse",
+   "description": "NSAPI out of order (GPRS, UMTS); PTI out of order (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:412",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 136
+  },
+  "expected": {
+   "name": "regular_deactivation",
+   "nick": "RegularDeactivation",
+   "description": "Regular deactivation (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:413",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 137
+  },
+  "expected": {
+   "name": "qos_not_accepted",
+   "nick": "QosNotAccepted",
+   "description": "EPS Qos not accepted (EPS); 5GS QoS not accepted (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:414",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 138
+  },
+  "expected": {
+   "name": "call_cannot_be_identified",
+   "nick": "CallCannotBeIdentified",
+   "description": "Call cannot be identified (CS, GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:415",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 139
+  },
+  "expected": {
+   "name": "cs_service_temporarily_unavailable",
+   "nick": "CsServiceTemporarilyUnavailable",
+   "description": "CS service temporarily unavailable (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:416",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 140
+  },
+  "expected": {
+   "name": "feature_not_supported",
+   "nick": "FeatureNotSupported",
+   "description": "Feature not supported (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:417",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 141
+  },
+  "expected": {
+   "name": "semantic_error_in_tft_operation",
+   "nick": "SemanticErrorInTftOperation",
+   "description": "Semantic error in TFT operation (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:418",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 142
+  },
+  "expected": {
+   "name": "syntactical_error_in_tft_operation",
+   "nick": "SyntacticalErrorInTftOperation",
+   "description": "Syntactical error in TFT operation (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:419",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 143
+  },
+  "expected": {
+   "name": "unknown_pdp_context",
+   "nick": "UnknownPdpContext",
+   "description": "Unknown PDP context (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:420",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 144
+  },
+  "expected": {
+   "name": "semantic_errors_in_packet_filter",
+   "nick": "SemanticErrorsInPacketFilter",
+   "description": "Semantic errors in packet filter (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:421",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 145
+  },
+  "expected": {
+   "name": "syntactical_error_in_packet_filter",
+   "nick": "SyntacticalErrorsInPacketFilter",
+   "description": "Syntactical error in packet filter (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:422",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 146
+  },
+  "expected": {
+   "name": "pdp_context_without_tft_already_activated",
+   "nick": "PdpContextWithoutTftAlreadyActivated",
+   "description": "PDP context without TFT already activated (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:423",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 147
+  },
+  "expected": {
+   "name": "multicast_group_membership_timeout",
+   "nick": "MulticastGroupMembershipTimeout",
+   "description": "Multicast group membership timeout (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:424",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 148
+  },
+  "expected": {
+   "name": "gprs_unknown",
+   "nick": "GprsUnknown",
+   "description": "Unspecified GPRS error (CS, GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:425",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 149
+  },
+  "expected": {
+   "name": "pdp_auth_failure",
+   "nick": "PdpAuthFailure",
+   "description": "PDP authentication failure (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:426",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 150
+  },
+  "expected": {
+   "name": "invalid_mobile_class",
+   "nick": "InvalidMobileClass",
+   "description": "Invalid mobile class (CS, GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:427",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 151
+  },
+  "expected": {
+   "name": "last_pdn_disconnection_not_allowed_legacy",
+   "nick": "LastPdnDisconnectionNotAllowedLegacy",
+   "description": "Last PDN disconnection not allowed, legacy value defined before 3GPP Rel-11 (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:428",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 171
+  },
+  "expected": {
+   "name": "last_pdn_disconnection_not_allowed",
+   "nick": "LastPdnDisconnectionNotAllowed",
+   "description": "Last PDN disconnection not allowed (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:429",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 172
+  },
+  "expected": {
+   "name": "semantically_incorrect_message",
+   "nick": "SemanticallyIncorrectMessage",
+   "description": "Semantically incorrect message (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:430",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 173
+  },
+  "expected": {
+   "name": "invalid_mandatory_information",
+   "nick": "InvalidMandatoryInformation",
+   "description": "Invalid mandatory information (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:431",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 174
+  },
+  "expected": {
+   "name": "message_type_not_implemented",
+   "nick": "MessageTypeNotImplemented",
+   "description": "Message type non-existent or not implemented (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:432",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 175
+  },
+  "expected": {
+   "name": "conditional_ie_error",
+   "nick": "ConditionalIeError",
+   "description": "Conditional IE error (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:433",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 176
+  },
+  "expected": {
+   "name": "unspecified_protocol_error",
+   "nick": "UnspecifiedProtocolError",
+   "description": "Unspecified protocol error (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:434",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 177
+  },
+  "expected": {
+   "name": "operator_determined_barring",
+   "nick": "OperatorDeterminedBarring",
+   "description": "Operator determined barring (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:435",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 178
+  },
+  "expected": {
+   "name": "maximum_number_of_bearers_reached",
+   "nick": "MaximumNumberOfBearersReached",
+   "description": "Maximum number of PDP contexts reached (GPRS, UMTS); maximum number of EPS bearers reached (EPS); maximum number of PDU sessions reached (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:436",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 179
+  },
+  "expected": {
+   "name": "requested_apn_not_supported",
+   "nick": "RequestedApnNotSupported",
+   "description": "Requested APN not supported in current RAT and PLMN combination (GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:437",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 180
+  },
+  "expected": {
+   "name": "request_rejected_bcm_violation",
+   "nick": "RequestRejectedBcmViolation",
+   "description": "Request rejected, bearer control mode violation (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:438",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 181
+  },
+  "expected": {
+   "name": "unsupported_qci_or_5qi_value",
+   "nick": "UnsupportedQciOr5qiValue",
+   "description": "Unsupported QCI value (EPS); unsupported 5QI value (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:439",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 182
+  },
+  "expected": {
+   "name": "user_data_via_control_plane_congested",
+   "nick": "UserDataViaControlPlaneCongested",
+   "description": "User data transmission via control plane is congested (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:440",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 183
+  },
+  "expected": {
+   "name": "sms_provided_via_gprs_in_routing_area",
+   "nick": "SmsProvidedViaGprsInRoutingArea",
+   "description": "SMS provided via GPRS in routing area (CS, GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:441",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 184
+  },
+  "expected": {
+   "name": "invalid_pti_value",
+   "nick": "InvalidPtiValue",
+   "description": "Invalid PTI value (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:442",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 185
+  },
+  "expected": {
+   "name": "no_bearer_activated",
+   "nick": "NoBearerActivated",
+   "description": "No PDP context activated (CS, GPRS, UMTS); no bearer context activated (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:443",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 186
+  },
+  "expected": {
+   "name": "message_not_compatible_with_protocol_state",
+   "nick": "MessageNotCompatibleWithProtocolState",
+   "description": "Message not compatible with protocol state (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:444",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 187
+  },
+  "expected": {
+   "name": "recovery_on_timer_expiry",
+   "nick": "RecoveryOnTimerExpiry",
+   "description": "Recovery on timer expiry (CS, GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:445",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 188
+  },
+  "expected": {
+   "name": "invalid_transaction_id_value",
+   "nick": "InvalidTransactionIdValue",
+   "description": "Invalid transaction identifier value (GPRS, UMTS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:446",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 189
+  },
+  "expected": {
+   "name": "service_option_not_authorized_in_plmn",
+   "nick": "ServiceOptionNotAuthorizedInPlmn",
+   "description": "Requested service option is not authorized in this PLMN (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:447",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 190
+  },
+  "expected": {
+   "name": "network_failure_activation",
+   "nick": "NetworkFailureActivation",
+   "description": "Network failure during context activation (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:448",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 191
+  },
+  "expected": {
+   "name": "reactivation_requested",
+   "nick": "ReactivationRequested",
+   "description": "Reactivation requested (GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:449",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 192
+  },
+  "expected": {
+   "name": "ipv4_only_allowed",
+   "nick": "Ipv4OnlyAllowed",
+   "description": "PDP type IPv4 only allowed (GPRS, UMTS); PDN type IPv4 only allowed (EPS); PDU session type IPv4 only allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:450",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 193
+  },
+  "expected": {
+   "name": "ipv6_only_allowed",
+   "nick": "Ipv6OnlyAllowed",
+   "description": "PDP type IPv6 only allowed (GPRS, UMTS); PDN type IPv6 only allowed (EPS); PDU session type IPv6 only allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:451",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 194
+  },
+  "expected": {
+   "name": "single_address_bearers_only_allowed",
+   "nick": "SingleAddressBearersOnlyAllowed",
+   "description": "Single address bearers only allowed (GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:452",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 195
+  },
+  "expected": {
+   "name": "collision_with_network_initiated_request",
+   "nick": "CollisionWithNetworkInitiatedRequest",
+   "description": "Collision with network initiated request (GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:453",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 196
+  },
+  "expected": {
+   "name": "ipv4v6_only_allowed",
+   "nick": "Ipv4v6OnlyAllowed",
+   "description": "PDP type IPv4v6 only allowed (GPRS, UMTS); PDN type IPv4v6 only allowed (EPS); PDU session type IPv4v6 only allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:454",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 197
+  },
+  "expected": {
+   "name": "non_ip_only_allowed",
+   "nick": "NonIpOnlyAllowed",
+   "description": "PDP type non-IP only allowed (GPRS, UMTS); PDN type non-IP only allowed (EPS); PDU session type unstructured only allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:455",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 198
+  },
+  "expected": {
+   "name": "bearer_handling_unsupported",
+   "nick": "BearerHandlingUnsupported",
+   "description": "Bearer handling not supported (GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:456",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 199
+  },
+  "expected": {
+   "name": "apn_restriction_incompatible",
+   "nick": "ApnRestrictionIncompatible",
+   "description": "APN restriction value incompatible with active PDP context (GPRS, UMTS); APN restriction value incompatible with active EPS bearer context (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:457",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 200
+  },
+  "expected": {
+   "name": "multiple_access_to_pdn_connection_not_allowed",
+   "nick": "MultipleAccessToPdnConnectionNotAllowed",
+   "description": "Multiple accesses to PDN connection not allowed (GPRS, UMTS, EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:458",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 201
+  },
+  "expected": {
+   "name": "esm_information_not_received",
+   "nick": "EsmInformationNotReceived",
+   "description": "ESM information not received (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:459",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 202
+  },
+  "expected": {
+   "name": "pdn_connection_nonexistent",
+   "nick": "PdnConnectionNonexistent",
+   "description": "PDN connection does not exist (EPS); PDU session does not exist (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:460",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 203
+  },
+  "expected": {
+   "name": "multiple_pdn_connection_same_apn_not_allowed",
+   "nick": "MultiplePdnConnectionSameApnNotAllowed",
+   "description": "Multiple PDN connections for a given APN not allowed (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:461",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 204
+  },
+  "expected": {
+   "name": "severe_network_failure",
+   "nick": "SevereNetworkFailure",
+   "description": "Severe network failure (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:462",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 205
+  },
+  "expected": {
+   "name": "insufficient_resources_for_slice_and_dnn",
+   "nick": "InsufficientResourcesForSliceAndDnn",
+   "description": "Insufficient resources for specific slice and DNN (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:463",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 206
+  },
+  "expected": {
+   "name": "unsupported_ssc_mode",
+   "nick": "UnsupportedSscMode",
+   "description": "Not supported SSC mode (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:464",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 207
+  },
+  "expected": {
+   "name": "insufficient_resources_for_slice",
+   "nick": "InsufficientResourcesForSlice",
+   "description": "Insufficient resources for specific slice (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:465",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 208
+  },
+  "expected": {
+   "name": "message_type_not_compatible_with_protocol_state",
+   "nick": "MessageTypeNotCompatibleWithProtocolState",
+   "description": "Message type not compatible with protocol state (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:466",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 209
+  },
+  "expected": {
+   "name": "ie_not_implemented",
+   "nick": "IeNotImplemented",
+   "description": "Information element non-existent or not implemented (CS, GPRS, UMTS, EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:467",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 210
+  },
+  "expected": {
+   "name": "n1_mode_not_allowed",
+   "nick": "N1ModeNotAllowed",
+   "description": "N1 mode not allowed. (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:468",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 211
+  },
+  "expected": {
+   "name": "restricted_service_area",
+   "nick": "RestrictedServiceArea",
+   "description": "Restricted service area (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:469",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 212
+  },
+  "expected": {
+   "name": "ladn_unavailable",
+   "nick": "LadnUnavailable",
+   "description": "LADN not available (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:470",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 213
+  },
+  "expected": {
+   "name": "missing_or_unknown_dnn_in_slice",
+   "nick": "MissingOrUnknownDnnInSlice",
+   "description": "Missing or unknown DNN in a slice (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:471",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 214
+  },
+  "expected": {
+   "name": "ngksi_already_in_use",
+   "nick": "NkgsiAlreadyInUse",
+   "description": "ngKSI already in use (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:472",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 215
+  },
+  "expected": {
+   "name": "payload_not_forwarded",
+   "nick": "PayloadNotForwarded",
+   "description": "Payload was not forwarded (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:473",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 216
+  },
+  "expected": {
+   "name": "non_3gpp_access_to_5gcn_not_allowed",
+   "nick": "Non3gppAccessTo5gcnNotAllowed",
+   "description": "Non-3GPP access to 5GCN not allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:474",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 217
+  },
+  "expected": {
+   "name": "serving_network_not_authorized",
+   "nick": "ServingNetworkNotAuthorized",
+   "description": "Serving network not authorized (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:475",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 218
+  },
+  "expected": {
+   "name": "dnn_not_supported_in_slice",
+   "nick": "DnnNotSupportedInSlice",
+   "description": "DNN not supported or not subscribed in the slice (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:476",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 219
+  },
+  "expected": {
+   "name": "insufficient_user_plane_resources_for_pdu_session",
+   "nick": "InsufficientUserPlaneResourcesForPduSession",
+   "description": "Insufficient user plane resources for PDU session (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:477",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 220
+  },
+  "expected": {
+   "name": "out_of_ladn_service_area",
+   "nick": "OutOfLadnServiceArea",
+   "description": "Out of LADN service area (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:478",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 221
+  },
+  "expected": {
+   "name": "pti_mismatch",
+   "nick": "PtiMismatch",
+   "description": "PTI mismatch (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:479",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 222
+  },
+  "expected": {
+   "name": "max_data_rate_for_user_plane_integrity_too_low",
+   "nick": "MaxDataRateForUserPlaneIntegrityTooLow",
+   "description": "Maximum data rate per UE for user-plane integrity protection is too low (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:480",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 223
+  },
+  "expected": {
+   "name": "semantic_error_in_qos_operation",
+   "nick": "SemanticErrorInQosOperation",
+   "description": "Semantic error in QoS operation (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:481",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 224
+  },
+  "expected": {
+   "name": "syntactical_error_in_qos_operation",
+   "nick": "SyntacticalErrorInQosOperation",
+   "description": "Semantic error in QoS operation (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:482",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 225
+  },
+  "expected": {
+   "name": "invalid_mapped_eps_bearer_identity",
+   "nick": "InvalidMappedEpsBearerIdentity",
+   "description": "Invalid mapped EPS bearer identity (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:483",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 226
+  },
+  "expected": {
+   "name": "redirection_to_5gcn_required",
+   "nick": "RedirectionTo5gcnRequired",
+   "description": "Redirection to 5GCN required (EPS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:484",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 227
+  },
+  "expected": {
+   "name": "redirection_to_epc_required",
+   "nick": "RedirectionToEpcRequired",
+   "description": "Redirection to EPC required (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:485",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 228
+  },
+  "expected": {
+   "name": "temporarily_unauthorized_for_snpn",
+   "nick": "TemporarilyUnauthorizedForSnpn",
+   "description": "Temporarily not authorized for this SNPN (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:486",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 229
+  },
+  "expected": {
+   "name": "permanently_unauthorized_for_snpn",
+   "nick": "PermanentlyUnauthorizedForSnpn",
+   "description": "Permanently not authorized for this SNPN (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:487",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 230
+  },
+  "expected": {
+   "name": "ethernet_only_allowed",
+   "nick": "EthernetOnlyAllowed",
+   "description": "PDN type Ethernet only allowed (EPS, 5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:488",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 231
+  },
+  "expected": {
+   "name": "unauthorized_for_cag",
+   "nick": "UnauthorizedForCag",
+   "description": "Not authorized for this CAG or authorized for CAG cells only (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:489",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 232
+  },
+  "expected": {
+   "name": "no_network_slices_available",
+   "nick": "NoNetworkSlicesAvailable",
+   "description": "No network slices available (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:490",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 233
+  },
+  "expected": {
+   "name": "wireline_access_area_not_allowed",
+   "nick": "WirelineAccessAreaNotAllowed",
+   "description": "Wireline access area not allowed (5GS)."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:576",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 300
+  },
+  "expected": {
+   "name": "me_failure",
+   "nick": "MeFailure",
+   "description": "ME failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:577",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 301
+  },
+  "expected": {
+   "name": "sms_service_reserved",
+   "nick": "SmsServiceReserved",
+   "description": "SMS service reserved."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:578",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 302
+  },
+  "expected": {
+   "name": "not_allowed",
+   "nick": "NotAllowed",
+   "description": "Operation not allowed."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:579",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 303
+  },
+  "expected": {
+   "name": "not_supported",
+   "nick": "NotSupported",
+   "description": "Operation not supported."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:580",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 304
+  },
+  "expected": {
+   "name": "invalid_pdu_parameter",
+   "nick": "InvalidPduParameter",
+   "description": "Invalid PDU mode parameter."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:581",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 305
+  },
+  "expected": {
+   "name": "invalid_text_parameter",
+   "nick": "InvalidTextParameter",
+   "description": "Invalid text mode parameter."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:582",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 310
+  },
+  "expected": {
+   "name": "sim_not_inserted",
+   "nick": "SimNotInserted",
+   "description": "SIM not inserted."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:583",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 311
+  },
+  "expected": {
+   "name": "sim_pin",
+   "nick": "SimPin",
+   "description": "SIM PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:584",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 312
+  },
+  "expected": {
+   "name": "ph_sim_pin",
+   "nick": "PhSimPin",
+   "description": "PH-SIM PIN required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:585",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 313
+  },
+  "expected": {
+   "name": "sim_failure",
+   "nick": "SimFailure",
+   "description": "SIM failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:586",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 314
+  },
+  "expected": {
+   "name": "sim_busy",
+   "nick": "SimBusy",
+   "description": "SIM busy."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:587",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 315
+  },
+  "expected": {
+   "name": "sim_wrong",
+   "nick": "SimWrong",
+   "description": "SIM wrong."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:588",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 316
+  },
+  "expected": {
+   "name": "sim_puk",
+   "nick": "SimPuk",
+   "description": "SIM PUK required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:589",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 317
+  },
+  "expected": {
+   "name": "sim_pin2",
+   "nick": "SimPin2",
+   "description": "SIM PIN2 required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:590",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 318
+  },
+  "expected": {
+   "name": "sim_puk2",
+   "nick": "SimPuk2",
+   "description": "SIM PUK2 required."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:591",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 320
+  },
+  "expected": {
+   "name": "memory_failure",
+   "nick": "MemoryFailure",
+   "description": "Memory failure."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:592",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 321
+  },
+  "expected": {
+   "name": "invalid_index",
+   "nick": "InvalidIndex",
+   "description": "Invalid index."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:593",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 322
+  },
+  "expected": {
+   "name": "memory_full",
+   "nick": "MemoryFull",
+   "description": "Memory full."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:594",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 330
+  },
+  "expected": {
+   "name": "smsc_address_unknown",
+   "nick": "SmscAddressUnknown",
+   "description": "SMSC address unknown."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:595",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 331
+  },
+  "expected": {
+   "name": "no_network",
+   "nick": "NoNetwork",
+   "description": "No network."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:596",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 332
+  },
+  "expected": {
+   "name": "network_timeout",
+   "nick": "NetworkTimeout",
+   "description": "Network timeout."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:597",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 340
+  },
+  "expected": {
+   "name": "no_cnma_ack_expected",
+   "nick": "NoCnmaAckExpected",
+   "description": "No CNMA Acknowledgement expected."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/include/ModemManager-errors.h:598",
+  "license": "LGPL-2.0-or-later",
+  "name": "error_enum",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 500
+  },
+  "expected": {
+   "name": "unknown",
+   "nick": "Unknown",
+   "description": "Unknown error."
+  },
+  "note": "test-error-helpers.c asserts error_for_code(code) keeps every enum code; name/description are ModemManager's (from 27.007 9.2 / 27.005 3.2.5 per header doc)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:70",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 0
+  },
+  "expected": {
+   "name": "phone_failure"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:76",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 233
+  },
+  "expected": {
+   "name": "wireline_access_area_not_allowed"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:80",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CME ERROR",
+   "code": 256
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:91",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 300
+  },
+  "expected": {
+   "name": "me_failure"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:96",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 500
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:101",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 299
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:106",
+  "license": "GPL-2.0-or-later",
+  "name": "for_code",
+  "input": {
+   "kind": "+CMS ERROR",
+   "code": 501
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": "out-of-table codes fall back to unknown (100 for CME, 500 for CMS)"
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:119",
+  "license": "GPL-2.0-or-later",
+  "name": "for_string",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "operationnotallowed"
+  },
+  "expected": {
+   "name": "not_allowed"
+  },
+  "note": ""
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:123",
+  "license": "GPL-2.0-or-later",
+  "name": "for_string",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "arratsaldeon"
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": ""
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:133",
+  "license": "GPL-2.0-or-later",
+  "name": "for_string",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "operationnotallowed"
+  },
+  "expected": {
+   "name": "not_allowed"
+  },
+  "note": ""
+ },
+ {
+  "source": "modemmanager/src/tests/test-error-helpers.c:137",
+  "license": "GPL-2.0-or-later",
+  "name": "for_string",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "arratsaldeon"
+  },
+  "expected": {
+   "name": "unknown"
+  },
+  "note": ""
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "phonefailure"
+  },
+  "expected": {
+   "name": "phone_failure"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "noconnection"
+  },
+  "expected": {
+   "name": "no_connection"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "linkreserved"
+  },
+  "expected": {
+   "name": "link_reserved"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "operationnotsupported"
+  },
+  "expected": {
+   "name": "not_supported"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simnotinserted"
+  },
+  "expected": {
+   "name": "sim_not_inserted"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simpinrequired"
+  },
+  "expected": {
+   "name": "sim_pin"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simpukrequired"
+  },
+  "expected": {
+   "name": "sim_puk"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simfailure"
+  },
+  "expected": {
+   "name": "sim_failure"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simbusy"
+  },
+  "expected": {
+   "name": "sim_busy"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "simwrong"
+  },
+  "expected": {
+   "name": "sim_wrong"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "incorrectpassword"
+  },
+  "expected": {
+   "name": "incorrect_password"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "notfound"
+  },
+  "expected": {
+   "name": "not_found"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "nonetwork"
+  },
+  "expected": {
+   "name": "no_network"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "timeout"
+  },
+  "expected": {
+   "name": "network_timeout"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:416",
+  "license": "GPL-2.0-or-later",
+  "name": "me_error_strings",
+  "input": {
+   "kind": "+CME ERROR",
+   "text": "incorrectparameters"
+  },
+  "expected": {
+   "name": "incorrect_parameters"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "mefailure"
+  },
+  "expected": {
+   "name": "me_failure"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "smsservicereserved"
+  },
+  "expected": {
+   "name": "sms_service_reserved"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "operationnotsupported"
+  },
+  "expected": {
+   "name": "not_supported"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "invalidpduparameter"
+  },
+  "expected": {
+   "name": "invalid_pdu_parameter"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "invalidtextparameter"
+  },
+  "expected": {
+   "name": "invalid_text_parameter"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simnotinserted"
+  },
+  "expected": {
+   "name": "sim_not_inserted"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simpinrequired"
+  },
+  "expected": {
+   "name": "sim_pin"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simfailure"
+  },
+  "expected": {
+   "name": "sim_failure"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simbusy"
+  },
+  "expected": {
+   "name": "sim_busy"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simwrong"
+  },
+  "expected": {
+   "name": "sim_wrong"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "simpukrequired"
+  },
+  "expected": {
+   "name": "sim_puk"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "memoryfailure"
+  },
+  "expected": {
+   "name": "memory_failure"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "invalidindex"
+  },
+  "expected": {
+   "name": "invalid_index"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "memoryfull"
+  },
+  "expected": {
+   "name": "memory_full"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "smscaddressunknown"
+  },
+  "expected": {
+   "name": "smsc_address_unknown"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "nonetwork"
+  },
+  "expected": {
+   "name": "no_network"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "modemmanager/src/mm-error-helpers.c:458",
+  "license": "GPL-2.0-or-later",
+  "name": "msg_error_strings",
+  "input": {
+   "kind": "+CMS ERROR",
+   "text": "networktimeout"
+  },
+  "expected": {
+   "name": "network_timeout"
+  },
+  "note": "verbose-text lookup table (source, not test); text is normalized before lookup: keep only alnum, lowercase (e.g. 'SIM PIN required' -> simpinrequired)"
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:339",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_errorTypes",
+  "input": {
+   "line": "ERROR"
+  },
+  "expected": {
+   "exception": "CommandError",
+   "type": null,
+   "code": null
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:348",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_errorTypes",
+  "input": {
+   "line": "+CME ERROR: 22"
+  },
+  "expected": {
+   "exception": "CmeError",
+   "type": "CME",
+   "code": 22
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:357",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_errorTypes",
+  "input": {
+   "line": "+CMS ERROR: 310"
+  },
+  "expected": {
+   "exception": "CmsError",
+   "type": "CMS",
+   "code": 310
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1061",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_connectPin",
+  "input": {
+   "line": "+CME ERROR: 16",
+   "command": "AT+CPIN=\"1234\""
+  },
+  "expected": {
+   "exception": "IncorrectPinError"
+  },
+  "note": "CME 16 = incorrect password, CME 12 = SIM PUK required."
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1076",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_connectPin",
+  "input": {
+   "line": "+CME ERROR: 12",
+   "command": "AT+CPIN=\"1234\""
+  },
+  "expected": {
+   "exception": "PukRequiredError"
+  },
+  "note": "CME 16 = incorrect password, CME 12 = SIM PUK required."
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:516",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_sendUssdError",
+  "input": {
+   "line": "+CME ERROR: 30",
+   "command": "AT+CUSD=1,...,15"
+  },
+  "expected": {
+   "exception": "CmeError"
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:518",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_sendUssdError",
+  "input": {
+   "line": "+CMS ERROR: 500",
+   "command": "AT+CUSD=1,...,15"
+  },
+  "expected": {
+   "exception": "CmsError"
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:520",
+  "license": "LGPL-3.0-or-later",
+  "name": "test_sendUssdError",
+  "input": {
+   "line": "ERROR",
+   "command": "AT+CUSD=1,...,15"
+  },
+  "expected": {
+   "exception": "CommandError"
+  },
+  "note": ""
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1286",
+  "license": "LGPL-3.0-or-later",
+  "name": "testDtmfInterrupted",
+  "input": {
+   "line": "+CME ERROR: 30",
+   "command": "AT+VTS=5"
+  },
+  "expected": {
+   "exception": "InterruptedException"
+  },
+  "note": "During DTMF: CME 30 (no network service) / 3 (operation not allowed) mean the call ended. Command shown is GenericTestModem's DTMF form (+VTS=)."
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1289",
+  "license": "LGPL-3.0-or-later",
+  "name": "testDtmfInterrupted",
+  "input": {
+   "line": "+CME ERROR: 3",
+   "command": "AT+VTS=5"
+  },
+  "expected": {
+   "exception": "InterruptedException"
+  },
+  "note": "During DTMF: CME 30 (no network service) / 3 (operation not allowed) mean the call ended. Command shown is GenericTestModem's DTMF form (+VTS=)."
+ },
+ {
+  "source": "python-gsmmodem/test/test_modem.py:1292",
+  "license": "LGPL-3.0-or-later",
+  "name": "testDtmfInterrupted",
+  "input": {
+   "line": "+CME ERROR: 1234",
+   "command": "AT+VTS=5"
+  },
+  "expected": {
+   "exception": "CmeError"
+  },
+  "note": "During DTMF: CME 30 (no network service) / 3 (operation not allowed) mean the call ended. Command shown is GenericTestModem's DTMF form (+VTS=)."
+ }
+]

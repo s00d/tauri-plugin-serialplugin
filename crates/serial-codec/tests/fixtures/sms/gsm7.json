@@ -1,0 +1,3252 @@
+[
+ {
+  "id": "g7-000",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:273",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length",
+   "text": "1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
+   "use_7bit_only": false
+  },
+  "expected": {
+   "msg_count": 1,
+   "code_unit_count": 160,
+   "code_unit_size": "7bit",
+   "language_table": 0,
+   "language_shift_table": 0,
+   "fragments": [
+    160
+   ]
+  },
+  "name": "testFragmentText",
+  "note": "fragments asserted only on GSM phones with messaging."
+ },
+ {
+  "id": "g7-001",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:288",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length",
+   "text": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901",
+   "use_7bit_only": false
+  },
+  "expected": {
+   "msg_count": 2,
+   "code_unit_count": 161,
+   "code_unit_size": "7bit",
+   "language_table": 0,
+   "language_shift_table": 0,
+   "fragments": [
+    153,
+    8
+   ]
+  },
+  "name": "testFragmentText",
+  "note": "fragment lengths in chars; asserted only on GSM phones with messaging."
+ },
+ {
+  "id": "g7-002",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:332",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length",
+   "text": "ĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşı",
+   "use_7bit_only": false,
+   "enabled_single_shift_tables": [
+    1
+   ],
+   "enabled_locking_shift_tables": []
+  },
+  "expected": {
+   "msg_count": 2,
+   "code_unit_count": 156,
+   "code_unit_size": "7bit",
+   "language_table": 0,
+   "language_shift_table": 1,
+   "fragments": [
+    74,
+    4
+   ]
+  },
+  "name": "testFragmentTurkishText",
+  "note": "Turkish single shift table enabled: every char is ESC+code (2 septets); UDH carries the single-shift IE. Fragment lengths (chars) asserted only on GSM phones."
+ },
+ {
+  "id": "g7-003",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:349",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length",
+   "text": "ĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşıĞŞİğşı",
+   "use_7bit_only": false,
+   "enabled_single_shift_tables": [
+    1
+   ],
+   "enabled_locking_shift_tables": []
+  },
+  "expected": {
+   "msg_count": 3,
+   "code_unit_count": 320,
+   "code_unit_size": "7bit",
+   "language_table": 0,
+   "language_shift_table": 1,
+   "fragments": [
+    74,
+    74,
+    12
+   ]
+  },
+  "name": "testFragmentTurkishText",
+  "note": "Turkish single shift table enabled: every char is ESC+code (2 septets); UDH carries the single-shift IE. Fragment lengths (chars) asserted only on GSM phones."
+ },
+ {
+  "id": "g7-004",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:246",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "locking_shift_table",
+   "language": "default",
+   "language_code": 0
+  },
+  "expected": {
+   "table": {
+    "00": "@",
+    "01": "£",
+    "02": "$",
+    "03": "¥",
+    "04": "è",
+    "05": "é",
+    "06": "ù",
+    "07": "ì",
+    "08": "ò",
+    "09": "Ç",
+    "0A": "\n",
+    "0B": "Ø",
+    "0C": "ø",
+    "0D": "\r",
+    "0E": "Å",
+    "0F": "å",
+    "10": "Δ",
+    "11": "_",
+    "12": "Φ",
+    "13": "Γ",
+    "14": "Λ",
+    "15": "Ω",
+    "16": "Π",
+    "17": "Ψ",
+    "18": "Σ",
+    "19": "Θ",
+    "1A": "Ξ",
+    "1C": "Æ",
+    "1D": "æ",
+    "1E": "ß",
+    "1F": "É",
+    "20": " ",
+    "21": "!",
+    "22": "\"",
+    "23": "#",
+    "24": "¤",
+    "25": "%",
+    "26": "&",
+    "27": "'",
+    "28": "(",
+    "29": ")",
+    "2A": "*",
+    "2B": "+",
+    "2C": ",",
+    "2D": "-",
+    "2E": ".",
+    "2F": "/",
+    "30": "0",
+    "31": "1",
+    "32": "2",
+    "33": "3",
+    "34": "4",
+    "35": "5",
+    "36": "6",
+    "37": "7",
+    "38": "8",
+    "39": "9",
+    "3A": ":",
+    "3B": ";",
+    "3C": "<",
+    "3D": "=",
+    "3E": ">",
+    "3F": "?",
+    "40": "¡",
+    "41": "A",
+    "42": "B",
+    "43": "C",
+    "44": "D",
+    "45": "E",
+    "46": "F",
+    "47": "G",
+    "48": "H",
+    "49": "I",
+    "4A": "J",
+    "4B": "K",
+    "4C": "L",
+    "4D": "M",
+    "4E": "N",
+    "4F": "O",
+    "50": "P",
+    "51": "Q",
+    "52": "R",
+    "53": "S",
+    "54": "T",
+    "55": "U",
+    "56": "V",
+    "57": "W",
+    "58": "X",
+    "59": "Y",
+    "5A": "Z",
+    "5B": "Ä",
+    "5C": "Ö",
+    "5D": "Ñ",
+    "5E": "Ü",
+    "5F": "§",
+    "60": "¿",
+    "61": "a",
+    "62": "b",
+    "63": "c",
+    "64": "d",
+    "65": "e",
+    "66": "f",
+    "67": "g",
+    "68": "h",
+    "69": "i",
+    "6A": "j",
+    "6B": "k",
+    "6C": "l",
+    "6D": "m",
+    "6E": "n",
+    "6F": "o",
+    "70": "p",
+    "71": "q",
+    "72": "r",
+    "73": "s",
+    "74": "t",
+    "75": "u",
+    "76": "v",
+    "77": "w",
+    "78": "x",
+    "79": "y",
+    "7A": "z",
+    "7B": "ä",
+    "7C": "ö",
+    "7D": "ñ",
+    "7E": "ü",
+    "7F": "à"
+   },
+   "chars_in_order": "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ@ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+  },
+  "name": "testDecode",
+  "note": "Septet value -> char (decodeSingle). Index 0x1B is the escape; the test encodes 0x00 there so the string has '@' at 0x1B (omitted from 'table'). Re-encoding the decoded string must reproduce the same packed septets (asserted)."
+ },
+ {
+  "id": "g7-005",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:261",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "locking_shift_table",
+   "language": "portuguese",
+   "language_code": 3
+  },
+  "expected": {
+   "table": {
+    "00": "@",
+    "01": "£",
+    "02": "$",
+    "03": "¥",
+    "04": "ê",
+    "05": "é",
+    "06": "ú",
+    "07": "í",
+    "08": "ó",
+    "09": "ç",
+    "0A": "\n",
+    "0B": "Ô",
+    "0C": "ô",
+    "0D": "\r",
+    "0E": "Á",
+    "0F": "á",
+    "10": "Δ",
+    "11": "_",
+    "12": "ª",
+    "13": "Ç",
+    "14": "À",
+    "15": "∞",
+    "16": "^",
+    "17": "\\",
+    "18": "€",
+    "19": "Ó",
+    "1A": "|",
+    "1C": "Â",
+    "1D": "â",
+    "1E": "Ê",
+    "1F": "É",
+    "20": " ",
+    "21": "!",
+    "22": "\"",
+    "23": "#",
+    "24": "º",
+    "25": "%",
+    "26": "&",
+    "27": "'",
+    "28": "(",
+    "29": ")",
+    "2A": "*",
+    "2B": "+",
+    "2C": ",",
+    "2D": "-",
+    "2E": ".",
+    "2F": "/",
+    "30": "0",
+    "31": "1",
+    "32": "2",
+    "33": "3",
+    "34": "4",
+    "35": "5",
+    "36": "6",
+    "37": "7",
+    "38": "8",
+    "39": "9",
+    "3A": ":",
+    "3B": ";",
+    "3C": "<",
+    "3D": "=",
+    "3E": ">",
+    "3F": "?",
+    "40": "Í",
+    "41": "A",
+    "42": "B",
+    "43": "C",
+    "44": "D",
+    "45": "E",
+    "46": "F",
+    "47": "G",
+    "48": "H",
+    "49": "I",
+    "4A": "J",
+    "4B": "K",
+    "4C": "L",
+    "4D": "M",
+    "4E": "N",
+    "4F": "O",
+    "50": "P",
+    "51": "Q",
+    "52": "R",
+    "53": "S",
+    "54": "T",
+    "55": "U",
+    "56": "V",
+    "57": "W",
+    "58": "X",
+    "59": "Y",
+    "5A": "Z",
+    "5B": "Ã",
+    "5C": "Õ",
+    "5D": "Ú",
+    "5E": "Ü",
+    "5F": "§",
+    "60": "~",
+    "61": "a",
+    "62": "b",
+    "63": "c",
+    "64": "d",
+    "65": "e",
+    "66": "f",
+    "67": "g",
+    "68": "h",
+    "69": "i",
+    "6A": "j",
+    "6B": "k",
+    "6C": "l",
+    "6D": "m",
+    "6E": "n",
+    "6F": "o",
+    "70": "p",
+    "71": "q",
+    "72": "r",
+    "73": "s",
+    "74": "t",
+    "75": "u",
+    "76": "v",
+    "77": "w",
+    "78": "x",
+    "79": "y",
+    "7A": "z",
+    "7B": "ã",
+    "7C": "õ",
+    "7D": "`",
+    "7E": "ü",
+    "7F": "à"
+   },
+   "chars_in_order": "@£$¥êéúíóç\nÔô\rÁáΔ_ªÇÀ∞^\\€Ó|@ÂâÊÉ !\"#º%&'()*+,-./0123456789:;<=>?ÍABCDEFGHIJKLMNOPQRSTUVWXYZÃÕÚÜ§~abcdefghijklmnopqrstuvwxyzãõ`üà"
+  },
+  "name": "testDecode",
+  "note": "Septet value -> char (decodeSingle). Index 0x1B is the escape; the test encodes 0x00 there so the string has '@' at 0x1B (omitted from 'table'). Re-encoding the decoded string must reproduce the same packed septets (asserted)."
+ },
+ {
+  "id": "g7-006",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:421",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "single_shift_table",
+   "language": "default",
+   "language_code": 0
+  },
+  "expected": {
+   "table": {
+    "0A": "\f",
+    "14": "^",
+    "28": "{",
+    "29": "}",
+    "2F": "\\",
+    "3C": "[",
+    "3D": "~",
+    "3E": "]",
+    "40": "|",
+    "65": "€"
+   }
+  },
+  "name": "testDecodeExtended",
+  "note": "ESC (0x1B) + index -> char, decoded with default locking table. Re-encode asserted."
+ },
+ {
+  "id": "g7-007",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:424",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "single_shift_table",
+   "language": "turkish",
+   "language_code": 1
+  },
+  "expected": {
+   "table": {
+    "0A": "\f",
+    "14": "^",
+    "28": "{",
+    "29": "}",
+    "2F": "\\",
+    "3C": "[",
+    "3D": "~",
+    "3E": "]",
+    "40": "|",
+    "47": "Ğ",
+    "49": "İ",
+    "53": "Ş",
+    "63": "ç",
+    "65": "€",
+    "67": "ğ",
+    "69": "ı",
+    "73": "ş"
+   }
+  },
+  "name": "testDecodeExtended",
+  "note": "ESC (0x1B) + index -> char, decoded with default locking table. Re-encode asserted."
+ },
+ {
+  "id": "g7-008",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:430",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "single_shift_table",
+   "language": "portuguese",
+   "language_code": 3
+  },
+  "expected": {
+   "table": {
+    "05": "ê",
+    "09": "ç",
+    "0A": "\f",
+    "0B": "Ô",
+    "0C": "ô",
+    "0E": "Á",
+    "0F": "á",
+    "12": "Φ",
+    "13": "Γ",
+    "14": "^",
+    "15": "Ω",
+    "16": "Π",
+    "17": "Ψ",
+    "18": "Σ",
+    "19": "Θ",
+    "1F": "Ê",
+    "28": "{",
+    "29": "}",
+    "2F": "\\",
+    "3C": "[",
+    "3D": "~",
+    "3E": "]",
+    "40": "|",
+    "41": "À",
+    "49": "Í",
+    "4F": "Ó",
+    "55": "Ú",
+    "5B": "Ã",
+    "5C": "Õ",
+    "61": "Â",
+    "65": "€",
+    "69": "í",
+    "6F": "ó",
+    "75": "ú",
+    "7B": "ã",
+    "7C": "õ",
+    "7F": "â"
+   }
+  },
+  "name": "testDecodeExtended",
+  "unasserted": true,
+  "note": "ESC (0x1B) + index -> char, decoded with default locking table. Re-encode asserted. NOT EXERCISED: testDecodeExtended loops language 0..2 only, so this Portuguese row is declared but never asserted."
+ },
+ {
+  "id": "g7-009",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmSmsTest.java:497",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "single_shift_fallback",
+   "single_shift_languages": [
+    0,
+    1,
+    2
+   ],
+   "locking_languages": [
+    0,
+    1,
+    3
+   ]
+  },
+  "expected": {
+   "rule": "ESC + index not present in the single-shift table decodes as the locking-shift table char at that index; ESC ESC decodes as ' '"
+  },
+  "name": "testDecodeExtendedFallback",
+  "note": "testDecodeExtendedFallback: asserted for every unmapped index across single-shift 0..2 x locking 0/1/3. Use the tables above to expand."
+ },
+ {
+  "id": "g7-010",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:53",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "char_to_gsm",
+   "char": "@"
+  },
+  "expected": {
+   "septet": 0
+  },
+  "name": "GsmAlphabetTest",
+  "note": ""
+ },
+ {
+  "id": "g7-011",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:84",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "ext_roundtrip",
+   "chars": "{|}\\[~]\f€"
+  },
+  "expected": {
+   "roundtrip": true
+  },
+  "name": "GsmAlphabetTest",
+  "note": "charToGsmExtended then gsmExtendedToChar returns the char."
+ },
+ {
+  "id": "g7-012",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:108",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "gsm_to_char",
+   "septet": 128
+  },
+  "expected": {
+   "char": " "
+  },
+  "name": "GsmAlphabetTest",
+  "note": "Out of range -> space."
+ },
+ {
+  "id": "g7-013",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:125",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "gsm_extended_to_char",
+   "septet": 127
+  },
+  "expected": {
+   "char": "à"
+  },
+  "name": "GsmAlphabetTest",
+  "note": "Unmapped -> default table char."
+ },
+ {
+  "id": "g7-014",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:219",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "9B0D",
+   "septets": 2
+  },
+  "expected": {
+   "text": " "
+  },
+  "name": "GsmAlphabetTest",
+  "note": "ESC ESC -> space."
+ },
+ {
+  "id": "g7-015",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:246",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "pack_8bit",
+   "text": "{|}\\[~]\f€"
+  },
+  "expected": {
+   "octets": 18,
+   "roundtrip": true
+  },
+  "name": "GsmAlphabetTest",
+  "note": "Two bytes (1B xx) per extension char."
+ },
+ {
+  "id": "g7-017",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/GsmAlphabetTest.java:328",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "unpack_8bit",
+   "hex": "1B1B"
+  },
+  "expected": {
+   "text": " "
+  },
+  "name": "GsmAlphabetTest",
+  "note": ""
+ },
+ {
+  "id": "g7-019",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/SmsMessageBodyTest.java:160",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length_table",
+   "alphabet": "@$_ !\"#%&'()*+,-./0123456789:;<=>?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\n\r",
+   "build": "cycle alphabet to length",
+   "use_7bit_only": [
+    false,
+    true
+   ]
+  },
+  "expected": {
+   "rows": [
+    {
+     "length": 0,
+     "msg_count": 1,
+     "code_unit_count": 0,
+     "code_units_remaining": 160,
+     "encoding": "7bit"
+    },
+    {
+     "length": 1,
+     "msg_count": 1,
+     "code_unit_count": 1,
+     "code_units_remaining": 159,
+     "encoding": "7bit"
+    },
+    {
+     "length": 2,
+     "msg_count": 1,
+     "code_unit_count": 2,
+     "code_units_remaining": 158,
+     "encoding": "7bit"
+    },
+    {
+     "length": 80,
+     "msg_count": 1,
+     "code_unit_count": 80,
+     "code_units_remaining": 80,
+     "encoding": "7bit"
+    },
+    {
+     "length": 159,
+     "msg_count": 1,
+     "code_unit_count": 159,
+     "code_units_remaining": 1,
+     "encoding": "7bit"
+    },
+    {
+     "length": 160,
+     "msg_count": 1,
+     "code_unit_count": 160,
+     "code_units_remaining": 0,
+     "encoding": "7bit"
+    },
+    {
+     "length": 161,
+     "msg_count": 2,
+     "code_unit_count": 161,
+     "code_units_remaining": 145,
+     "encoding": "7bit"
+    },
+    {
+     "length": 240,
+     "msg_count": 2,
+     "code_unit_count": 240,
+     "code_units_remaining": 66,
+     "encoding": "7bit"
+    },
+    {
+     "length": 305,
+     "msg_count": 2,
+     "code_unit_count": 305,
+     "code_units_remaining": 1,
+     "encoding": "7bit"
+    },
+    {
+     "length": 306,
+     "msg_count": 2,
+     "code_unit_count": 306,
+     "code_units_remaining": 0,
+     "encoding": "7bit"
+    },
+    {
+     "length": 307,
+     "msg_count": 3,
+     "code_unit_count": 307,
+     "code_units_remaining": 152,
+     "encoding": "7bit"
+    },
+    {
+     "length": 320,
+     "msg_count": 3,
+     "code_unit_count": 320,
+     "code_units_remaining": 139,
+     "encoding": "7bit"
+    }
+   ]
+  },
+  "name": "testCalcLengthAscii",
+  "note": "testCalcLengthAscii; values tables at SmsMessageBodyTest.java:160-170, all chars 1 septet. No language tables enabled (defaults)."
+ },
+ {
+  "id": "g7-020",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/SmsMessageBodyTest.java:163",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length_table",
+   "alphabet": "一丁丂七丄丅丆万丈三上下丌不与丏ぁあぃいぅうぇえァアィイゥウェエ０１２３４５６７８ｰｱｲｳｴｵｶｷｸЀЁЂЃЄЅІЇЈ¢©®™",
+   "build": "cycle alphabet to length",
+   "use_7bit_only": false
+  },
+  "expected": {
+   "rows": [
+    {
+     "length": 1,
+     "msg_count": 1,
+     "code_unit_count": 1,
+     "code_units_remaining": 69,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 2,
+     "msg_count": 1,
+     "code_unit_count": 2,
+     "code_units_remaining": 68,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 35,
+     "msg_count": 1,
+     "code_unit_count": 35,
+     "code_units_remaining": 35,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 69,
+     "msg_count": 1,
+     "code_unit_count": 69,
+     "code_units_remaining": 1,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 70,
+     "msg_count": 1,
+     "code_unit_count": 70,
+     "code_units_remaining": 0,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 71,
+     "msg_count": 2,
+     "code_unit_count": 71,
+     "code_units_remaining": 63,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 100,
+     "msg_count": 2,
+     "code_unit_count": 100,
+     "code_units_remaining": 34,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 133,
+     "msg_count": 2,
+     "code_unit_count": 133,
+     "code_units_remaining": 1,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 134,
+     "msg_count": 2,
+     "code_unit_count": 134,
+     "code_units_remaining": 0,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 135,
+     "msg_count": 3,
+     "code_unit_count": 135,
+     "code_units_remaining": 66,
+     "encoding": "ucs2"
+    },
+    {
+     "length": 160,
+     "msg_count": 3,
+     "code_unit_count": 160,
+     "code_units_remaining": 41,
+     "encoding": "ucs2"
+    }
+   ]
+  },
+  "name": "testCalcLengthUnicode",
+  "note": "testCalcLengthUnicode (starts at length 1: empty string is 7bit). UCS2 code units; 70 per single part, 67 per concat part."
+ },
+ {
+  "id": "g7-021",
+  "source": "aosp-telephony/tests/telephonytests/src/com/android/internal/telephony/SmsMessageBodyTest.java:298",
+  "license": "Apache-2.0",
+  "input": {
+   "op": "calculate_length_table",
+   "alphabet": "一丁丂七丄丅丆万丈三上下丌不与丏ぁあぃいぅうぇえァアィイゥウェエ０１２３４５６７８ｰｱｲｳｴｵｶｷｸЀЁЂЃЄЅІЇЈ¢©®™",
+   "build": "cycle alphabet to length",
+   "use_7bit_only": true
+  },
+  "expected": {
+   "rows": [
+    {
+     "length": 1,
+     "msg_count": 1,
+     "code_unit_count": 1,
+     "code_units_remaining": 159,
+     "encoding": "7bit"
+    },
+    {
+     "length": 2,
+     "msg_count": 1,
+     "code_unit_count": 2,
+     "code_units_remaining": 158,
+     "encoding": "7bit"
+    },
+    {
+     "length": 35,
+     "msg_count": 1,
+     "code_unit_count": 35,
+     "code_units_remaining": 125,
+     "encoding": "7bit"
+    },
+    {
+     "length": 69,
+     "msg_count": 1,
+     "code_unit_count": 69,
+     "code_units_remaining": 91,
+     "encoding": "7bit"
+    },
+    {
+     "length": 70,
+     "msg_count": 1,
+     "code_unit_count": 70,
+     "code_units_remaining": 90,
+     "encoding": "7bit"
+    },
+    {
+     "length": 71,
+     "msg_count": 1,
+     "code_unit_count": 71,
+     "code_units_remaining": 89,
+     "encoding": "7bit"
+    },
+    {
+     "length": 100,
+     "msg_count": 1,
+     "code_unit_count": 100,
+     "code_units_remaining": 60,
+     "encoding": "7bit"
+    },
+    {
+     "length": 133,
+     "msg_count": 1,
+     "code_unit_count": 133,
+     "code_units_remaining": 27,
+     "encoding": "7bit"
+    },
+    {
+     "length": 134,
+     "msg_count": 1,
+     "code_unit_count": 134,
+     "code_units_remaining": 26,
+     "encoding": "7bit"
+    },
+    {
+     "length": 135,
+     "msg_count": 1,
+     "code_unit_count": 135,
+     "code_units_remaining": 25,
+     "encoding": "7bit"
+    },
+    {
+     "length": 160,
+     "msg_count": 1,
+     "code_unit_count": 160,
+     "code_units_remaining": 0,
+     "encoding": "7bit"
+    }
+   ]
+  },
+  "name": "testCalcLengthUnicode",
+  "note": "use7bitOnly: unmappable chars become space (1 septet each); remaining = MAX_USER_DATA_SEPTETS(160) - len, msg_count fixed 1 (values7bit)."
+ },
+ {
+  "id": "g7-022",
+  "source": "chan_dongle/test/parse.c:183",
+  "license": "GPL-2.0-only",
+  "input": {
+   "texts": [
+    "0",
+    "01",
+    "012",
+    "0123",
+    "01234",
+    "012345",
+    "0123456",
+    "01234567",
+    "012345678",
+    "0123456789"
+   ],
+   "padding_bits": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "pipeline": "utf8_to_ucs2 -> gsm7_encode -> gsm7_pack(padding) -> hexify -> unhex -> gsm7_unpack_decode(padding) -> ucs2_to_utf8"
+  },
+  "expected": {
+   "roundtrip_equal": true
+  },
+  "name": "test_gsm7",
+  "note": "Property test only: every prefix of '0123456789' packed with each septet padding 0..6 must unpack back to itself. No packed bytes are asserted."
+ },
+ {
+  "id": "g7-028",
+  "source": "gammu/tests/at-charset.c:127",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text": "íěášýřčýíčřě",
+   "at_charset": "UCS2",
+   "direction": "encode+decode"
+  },
+  "expected": {
+   "text": "00ED011B00E1016100FD0159010D00FD00ED010D0159011B"
+  },
+  "name": "Encode/Decode-6",
+  "note": "AT +CSCS charset conversion (ATGEN_EncodeText then ATGEN_DecodeText round-trip back to the same unicode text). Not GSM 03.38; table = AT charset named. Cases 3-5 only when built with iconv."
+ },
+ {
+  "id": "g7-029",
+  "source": "gammu/tests/at-charset.c:136",
+  "license": "GPL-2.0-only",
+  "input": {
+   "text": "íííáááááééééé",
+   "at_charset": "UCS2",
+   "direction": "encode+decode"
+  },
+  "expected": {
+   "text": "00ED00ED00ED00E100E100E100E100E100E900E900E900E900E9"
+  },
+  "name": "Encode/Decode-7",
+  "note": "AT +CSCS charset conversion (ATGEN_EncodeText then ATGEN_DecodeText round-trip back to the same unicode text). Not GSM 03.38; table = AT charset named. Cases 3-5 only when built with iconv."
+ },
+ {
+  "id": "g7-030",
+  "source": "libosmocore/tests/sms/sms_test.c:45",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text": "test text"
+  },
+  "expected": {
+   "hex": "F4F29C0EA297F174",
+   "septets": 9,
+   "octets": 8
+  },
+  "name": "test_encode/simple",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:2",
+  "note": "gsm_7bit_encode_n, default alphabet + default extension table (ESC 0x1B counts as a septet). Asserted at sms_test.c:350-353; .ok line 2."
+ },
+ {
+  "id": "g7-031",
+  "source": "libosmocore/tests/sms/sms_test.c:47",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "F4F29C0EA297F174",
+   "septets": 9,
+   "udh_ind": 0
+  },
+  "expected": {
+   "text": "test text",
+   "chars": 9
+  },
+  "name": "test_decode/simple",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:6",
+  "note": "gsm_7bit_decode_n_hdr; asserted sms_test.c:423-424; .ok line 6 (chars returned = 9)."
+ },
+ {
+  "id": "g7-032",
+  "source": "libosmocore/tests/sms/sms_test.c:51",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text": "!$ a more#^- complicated test@@?_%! case"
+  },
+  "expected": {
+   "hex": "2101280C6ABFE5E5D186D2028DDF6D383B3D0ED3CB6410BD3CA70300BF4829041A87E765",
+   "septets": 41,
+   "octets": 36
+  },
+  "name": "test_encode/escape",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:3",
+  "note": "gsm_7bit_encode_n, default alphabet + default extension table (ESC 0x1B counts as a septet). Asserted at sms_test.c:350-353; .ok line 3."
+ },
+ {
+  "id": "g7-033",
+  "source": "libosmocore/tests/sms/sms_test.c:53",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "2101280C6ABFE5E5D186D2028DDF6D383B3D0ED3CB6410BD3CA70300BF4829041A87E765",
+   "septets": 41,
+   "udh_ind": 0
+  },
+  "expected": {
+   "text": "!$ a more#^- complicated test@@?_%! case",
+   "chars": 40
+  },
+  "name": "test_decode/escape",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:7",
+  "note": "gsm_7bit_decode_n_hdr; asserted sms_test.c:423-424; .ok line 7 (chars returned = 40)."
+ },
+ {
+  "id": "g7-034",
+  "source": "libosmocore/tests/sms/sms_test.c:60",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text": "enhanced ^ {][} test |+~ ^ test"
+  },
+  "expected": {
+   "hex": "65373AEC1E97C9A00D05B4416D7C1BDE2605A297E774D006B8DAF4401B0A885E9ED301",
+   "septets": 39,
+   "octets": 35
+  },
+  "name": "test_encode/enhanced",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:4",
+  "note": "gsm_7bit_encode_n, default alphabet + default extension table (ESC 0x1B counts as a septet). Asserted at sms_test.c:350-353; .ok line 4."
+ },
+ {
+  "id": "g7-035",
+  "source": "libosmocore/tests/sms/sms_test.c:62",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "65373AEC1E97C9A00D05B4416D7C1BDE2605A297E774D006B8DAF4401B0A885E9ED301",
+   "septets": 39,
+   "udh_ind": 0
+  },
+  "expected": {
+   "text": "enhanced ^ {][} test |+~ ^ test",
+   "chars": 31
+  },
+  "name": "test_decode/enhanced",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:8",
+  "note": "gsm_7bit_decode_n_hdr; asserted sms_test.c:423-424; .ok line 8 (chars returned = 31)."
+ },
+ {
+  "id": "g7-036",
+  "source": "libosmocore/tests/sms/sms_test.c:69",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text": "enhanced ^ {][} test |+~ ^ tests"
+  },
+  "expected": {
+   "hex": "65373AEC1E97C9A00D05B4416D7C1BDE2605A297E774D006B8DAF4401B0A885E9ED3E7",
+   "septets": 40,
+   "octets": 35
+  },
+  "name": "test_encode/enhancedV2",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:5",
+  "note": "gsm_7bit_encode_n, default alphabet + default extension table (ESC 0x1B counts as a septet). Asserted at sms_test.c:350-353; .ok line 5."
+ },
+ {
+  "id": "g7-037",
+  "source": "libosmocore/tests/sms/sms_test.c:71",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "65373AEC1E97C9A00D05B4416D7C1BDE2605A297E774D006B8DAF4401B0A885E9ED3E7",
+   "septets": 40,
+   "udh_ind": 0
+  },
+  "expected": {
+   "text": "enhanced ^ {][} test |+~ ^ tests",
+   "chars": 32
+  },
+  "name": "test_decode/enhancedV2",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:9",
+  "note": "gsm_7bit_decode_n_hdr; asserted sms_test.c:423-424; .ok line 9 (chars returned = 32)."
+ },
+ {
+  "id": "g7-038",
+  "source": "libosmocore/tests/sms/sms_test.c:380",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_septets_with_fill",
+   "text": "this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. cut here .....:",
+   "septets": 153,
+   "fill_bits": 1
+  },
+  "expected": {
+   "hex": "E8E8F41C949E83C2207A794E6F97E7F3F0B9EC02D1D1E939283D078541F4F29CDE2ECFE7E173D905A2A3D373507A0E0A83E8E539BD5D9ECFC3E7B20B4447A7E7A0F41C1406D1CB737ABB3C9F87CF6517888E4ECF41E939280CA297E7F476793E0F9FCB2E101D9D9E83D2735018442FCFE9EDF27C1E3E975DA0719D0E4297E56590CBE572B974",
+   "octets": 134,
+   "udh_hex": "0500036F0201"
+  },
+  "name": "test_multiple_encode/part1",
+  "note": "gsm_septet_pack2(..., padding=1) after gsm_septet_encode of the full text; octet count asserted (line 384). The test memcmp's only the first 134 bytes of UDH+packed, so the last 6 packed bytes are only covered by the decode case."
+ },
+ {
+  "id": "g7-039",
+  "source": "libosmocore/tests/sms/sms_test.c:203",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "0500036F0201E8E8F41C949E83C2207A794E6F97E7F3F0B9EC02D1D1E939283D078541F4F29CDE2ECFE7E173D905A2A3D373507A0E0A83E8E539BD5D9ECFC3E7B20B4447A7E7A0F41C1406D1CB737ABB3C9F87CF6517888E4ECF41E939280CA297E7F476793E0F9FCB2E101D9D9E83D2735018442FCFE9EDF27C1E3E975DA0719D0E4297E56590CBE572B974",
+   "septets": 160,
+   "udh_ind": 1
+  },
+  "expected": {
+   "text": "this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. this is a testmessage. cut here .....:",
+   "chars": 153
+  },
+  "name": "test_decode/concatenated_part1",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:10",
+  "note": "gsm_7bit_decode_n_hdr with UDH indicator: septet count includes the 6-octet UDH (7 septets incl. fill); decoder skips the UDH. .ok line 10."
+ },
+ {
+  "id": "g7-040",
+  "source": "libosmocore/tests/sms/sms_test.c:399",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_septets_with_fill",
+   "text": " this is a second testmessage. end here.",
+   "septets": 40,
+   "fill_bits": 1
+  },
+  "expected": {
+   "hex": "4074747A0E4ACF4161D0BC3C7EBBC9207A794E6F97E7F3F0B9EC0295DD6410BA2C2FBB00",
+   "octets": 36,
+   "udh_hex": "0500036F0202"
+  },
+  "name": "test_multiple_encode/part2",
+  "note": "gsm_septet_pack2(..., padding=1) after gsm_septet_encode of the full text; octet count asserted (line 403). The test memcmp's only the first 36 bytes of UDH+packed, so the last 6 packed bytes are only covered by the decode case."
+ },
+ {
+  "id": "g7-041",
+  "source": "libosmocore/tests/sms/sms_test.c:209",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack_7bit",
+   "hex": "0500036F02024074747A0E4ACF4161D0BC3C7EBBC9207A794E6F97E7F3F0B9EC0295DD6410BA2C2FBB00",
+   "septets": 47,
+   "udh_ind": 1
+  },
+  "expected": {
+   "text": " this is a second testmessage. end here.",
+   "chars": 40
+  },
+  "name": "test_decode/concatenated_part2",
+  "ok_line": "libosmocore/tests/sms/sms_test.ok:11",
+  "note": "gsm_7bit_decode_n_hdr with UDH indicator: septet count includes the 6-octet UDH (7 septets incl. fill); decoder skips the UDH. .ok line 11."
+ },
+ {
+  "id": "g7-042",
+  "source": "libosmocore/tests/sms/sms_test.c:225",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text": "test1234"
+  },
+  "expected": {
+   "septets": 8,
+   "octets": 7
+  },
+  "name": "test_octet_return",
+  "note": "test_octet_return; .ok line 13 (no bytes printed)."
+ },
+ {
+  "id": "g7-043",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 2048
+   }
+  },
+  "expected": {
+   "septets": 2048,
+   "octets": 1792,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/2048",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 23-24."
+ },
+ {
+  "id": "g7-044",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 1024
+   }
+  },
+  "expected": {
+   "septets": 1024,
+   "octets": 896,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/1024",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 25-26."
+ },
+ {
+  "id": "g7-045",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 555
+   }
+  },
+  "expected": {
+   "septets": 555,
+   "octets": 486,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/555",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 27-28."
+ },
+ {
+  "id": "g7-046",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 512
+   }
+  },
+  "expected": {
+   "septets": 512,
+   "octets": 448,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/512",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 29-30."
+ },
+ {
+  "id": "g7-047",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 260
+   }
+  },
+  "expected": {
+   "septets": 260,
+   "octets": 228,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/260",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 31-32."
+ },
+ {
+  "id": "g7-048",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 255
+   }
+  },
+  "expected": {
+   "septets": 255,
+   "octets": 224,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/255",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 33-34."
+ },
+ {
+  "id": "g7-049",
+  "source": "libosmocore/tests/sms/sms_test.c:276",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack_7bit",
+   "text_repeat": {
+    "char": "A",
+    "count": 250
+   }
+  },
+  "expected": {
+   "septets": 250,
+   "octets": 219,
+   "repeating_chunk_hex": "C16030180C0683"
+  },
+  "name": "test_enc_large_msg/250",
+  "note": "test_enc_large_msg; packed output is the 7-byte chunk repeated (last partial octet not compared). .ok lines 35-36."
+ },
+ {
+  "id": "g7-056",
+  "source": "modemmanager/src/tests/test-charsets.c:75",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "roundtrip",
+   "text": "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà",
+   "table": "GSM 03.38 default + extension"
+  },
+  "expected": {
+   "roundtrip_equal": true
+  },
+  "name": "test_gsm7_default_chars",
+  "note": "utf8 -> GSM unpacked -> pack(offset 0) -> unpack -> utf8 must equal input; packed length <= unpacked length; intermediate bytes not asserted"
+ },
+ {
+  "id": "g7-057",
+  "source": "modemmanager/src/tests/test-charsets.c:97",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "roundtrip",
+   "text": "@£$¥èéùìø\fΩΠΨΣΘ{ΞÆæß(})789\\:;<=>[?¡QRS]TUÖ|ÑÜ§¿abpqrstuvöñüà€",
+   "table": "GSM 03.38 default + extension"
+  },
+  "expected": {
+   "roundtrip_equal": true
+  },
+  "name": "test_gsm7_mixed_chars",
+  "note": "utf8 -> GSM unpacked -> pack(offset 0) -> unpack -> utf8 must equal input; packed length <= unpacked length; intermediate bytes not asserted"
+ },
+ {
+  "id": "g7-058",
+  "source": "modemmanager/src/tests/test-charsets.c:143",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "unpack",
+   "packed": "8080604028180E888462C168381E90886442A9582E988C66C3E9783EA09068442A994EA8946AC56AB95EB0986C46ABD96EB89C6EC7EBF97EC0A070482C1A8FC8A472C96C3A9FD0A8744AAD5AAFD8AC76CBED7ABFE0B0784C2E9BCFE8B47ACD6EBBDFF0B87C4EAFDBEFF8BC7ECFEFFBFF1BC586B2416D529BD786B7E96D7C1BE0A60C",
+   "septets": 148,
+   "offset_bits": 0
+  },
+  "expected": {
+   "septets_hex": "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F303132333435363738393A3B3C3D3E3F404142434445464748494A4B4C4D4E4F505152535455565758595A5B5C5D5E5F606162636465666768696A6B6C6D6E6F707172737475767778797A7B7C7D7E7F1B0A1B141B281B291B2F1B3C1B3D1B3E1B401B65",
+   "count": 148
+  },
+  "name": "test_gsm7_unpack_all_chars",
+  "note": "expected = septets 0x00..0x7F followed by the 10 ESC (0x1B) extension pairs, as built by the test"
+ },
+ {
+  "id": "g7-059",
+  "source": "modemmanager/src/tests/test-charsets.c:197",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack",
+   "septets_hex": "71776572747975",
+   "offset_bits": 0
+  },
+  "expected": {
+   "packed": "F17B594ECFD701"
+  },
+  "name": "test_gsm7_pack_7_chars",
+  "note": "7 septets -> trailing octet with 7 spare zero bits is emitted"
+ },
+ {
+  "id": "g7-060",
+  "source": "modemmanager/src/tests/test-charsets.c:280",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "pack",
+   "septets_hex": "54686973206973207265616C6C7920636F6F6C201010101010",
+   "offset_bits": 0
+  },
+  "expected": {
+   "packed_len": 22
+  },
+  "name": "test_gsm7_pack_last_septet_alone",
+  "note": "only the packed LENGTH is asserted (memcmp missing in test); the C expected bytes are 54747A0E4ACF41F27298CDCE83C6EF371B0481402010 but are NOT asserted"
+ },
+ {
+  "id": "g7-061",
+  "source": "modemmanager/src/tests/test-charsets.c:321",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "ucs2_hex<->utf8",
+   "ucs2_hex": "0054002D004D006F00620069006C0065"
+  },
+  "expected": {
+   "text": "T-Mobile",
+   "roundtrip": true
+  },
+  "name": "test_str_ucs2_to_from_utf8",
+  "note": "AT +CSCS=\"UCS2\" hex string form both directions"
+ },
+ {
+  "id": "g7-062",
+  "source": "modemmanager/src/tests/test-charsets.c:360",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "gsm_bytes->utf8",
+   "gsm_hex": "542D4D006F6269006C6500"
+  },
+  "expected": {
+   "text": "T-M@obi@le",
+   "from_utf8_strict": {
+    "error": true
+   },
+   "from_utf8_translit": "T-M?obi?le"
+  },
+  "name": "test_str_gsm_to_from_utf8_with_at",
+  "note": "GSM 0x00 is '@'; trailing 0x00 of the 11-byte array is taken as end-of-string; converting '@' back to a C string without transliteration errors (NUL), with translit '@'->'?'"
+ },
+ {
+  "id": "g7-063",
+  "source": "modemmanager/src/tests/test-charsets.c:401",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "can_convert_to",
+   "text": " "
+  },
+  "expected": {
+   "gsm": true,
+   "ira": true,
+   "8859_1": true,
+   "ucs2": true,
+   "utf16": true,
+   "pccp437": true,
+   "pcdn": true
+  },
+  "name": "charset_can_convert_to_test",
+  "note": "per target charset: gsm (incl. extension table), ira (ASCII), 8859_1, ucs2, utf16, pccp437, pcdn (CP850)"
+ },
+ {
+  "id": "g7-064",
+  "source": "modemmanager/src/tests/test-charsets.c:401",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "can_convert_to",
+   "text": "Some from the GSM7 basic set: a % Ψ Ω ñ ö è æ"
+  },
+  "expected": {
+   "gsm": true,
+   "ira": false,
+   "8859_1": false,
+   "ucs2": true,
+   "utf16": true,
+   "pccp437": false,
+   "pcdn": false
+  },
+  "name": "charset_can_convert_to_test",
+  "note": "per target charset: gsm (incl. extension table), ira (ASCII), 8859_1, ucs2, utf16, pccp437, pcdn (CP850)"
+ },
+ {
+  "id": "g7-065",
+  "source": "modemmanager/src/tests/test-charsets.c:401",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "can_convert_to",
+   "text": "patín cannot be encoded in GSM7 or IRA, but is valid UCS2, ISO-8859-1, CP437 and CP850"
+  },
+  "expected": {
+   "gsm": false,
+   "ira": false,
+   "8859_1": true,
+   "ucs2": true,
+   "utf16": true,
+   "pccp437": true,
+   "pcdn": true
+  },
+  "name": "charset_can_convert_to_test",
+  "note": "per target charset: gsm (incl. extension table), ira (ASCII), 8859_1, ucs2, utf16, pccp437, pcdn (CP850)"
+ },
+ {
+  "id": "g7-066",
+  "source": "modemmanager/src/tests/test-charsets.c:477",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "Hello"
+  },
+  "expected": {
+   "parts": [
+    "Hello"
+   ],
+   "charset": "gsm"
+  },
+  "name": "test_text_split_short_gsm7",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-067",
+  "source": "modemmanager/src/tests/test-charsets.c:513",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+  },
+  "expected": {
+   "parts": [
+    "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+   ],
+   "charset": "gsm"
+  },
+  "name": "test_text_split_max_single_pdu_gsm7",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-068",
+  "source": "modemmanager/src/tests/test-charsets.c:554",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好"
+  },
+  "expected": {
+   "parts": [
+    "你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好你好"
+   ],
+   "charset": "utf16"
+  },
+  "name": "test_text_split_max_single_pdu_ucs2",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-069",
+  "source": "modemmanager/src/tests/test-charsets.c:587",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890"
+  },
+  "expected": {
+   "parts": [
+    "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012",
+    "34567890"
+   ],
+   "charset": "gsm"
+  },
+  "name": "test_text_split_two_pdu_gsm7",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-070",
+  "source": "modemmanager/src/tests/test-charsets.c:653",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901]3456789"
+  },
+  "expected": {
+   "parts": [
+    "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901",
+    "]3456789"
+   ],
+   "charset": "gsm"
+  },
+  "name": "test_text_split_two_pdu_gsm7_extended_chars_middle2",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-071",
+  "source": "modemmanager/src/tests/test-charsets.c:705",
+  "license": "GPL-2.0-or-later",
+  "input": {
+   "op": "split_text_for_sms",
+   "text": "𑰀𑰁𑰂𑰃𑰄𑰅𑰆𑰇𑰈𑰊𑰋𑰌𑰍𑰎𑰏𑰐𑰑𑰒𑰓𑰔𑰕𑰖𑰗𑰘𑰙𑰚𑰛𑰜𑰝𑰞𑰟𑰠𑰡𑰢𑰣a"
+  },
+  "expected": {
+   "parts": [
+    "𑰀𑰁𑰂𑰃𑰄𑰅𑰆𑰇𑰈𑰊𑰋𑰌𑰍𑰎𑰏𑰐𑰑𑰒𑰓𑰔𑰕𑰖𑰗𑰘𑰙𑰚𑰛𑰜𑰝𑰞𑰟𑰠𑰡",
+    "𑰢𑰣a"
+   ],
+   "charset": "utf16"
+  },
+  "name": "test_text_split_two_pdu_utf16",
+  "note": "SMS text split into per-PDU chunks (see test comments: extension chars take 2 septets and are not split; UTF-16 surrogate pairs kept together). charset is the test's expected_charset arg, which the helper does NOT assert (only != unknown)"
+ },
+ {
+  "id": "g7-072",
+  "source": "ofono/unit/test-sms.c:568",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B915310101010100000808080604028180E888462C168381E90886442A9582E988C06C4E9783EA09068442A994EA8946AC56AB95EB0986C46ABD96EB89C6EC7EBF97EC0A070482C1A8FC8A472C96C3A9FD0A8744AAD5AAFD8AC76CBED7ABFE0B0784C2E9BCFE8B47ACD6EBBDFF0B87C4EAFDBEFF8BC7ECFEFFBFF",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "default",
+   "single_shift": "default"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 112,
+   "text": "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+  },
+  "name": "test_sms_charset/sms_charset_default",
+  "table": "default",
+  "note": "GSM 7 bit Default Alphabet Decode (all 128 basic chars). sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-073",
+  "source": "ofono/unit/test-sms.c:598",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B915310101010100000151BC58602DAA036A9CD6BC3DBF436BE0D705306",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "default",
+   "single_shift": "default"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 19,
+   "text": "\f^ {}\\[~]|€"
+  },
+  "name": "test_sms_charset/sms_charset_default_ext",
+  "table": "default",
+  "note": "GSM 7 bit Default Alphabet Extension Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-074",
+  "source": "ofono/unit/test-sms.c:609",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B915310101010100000808080604028180E888462C168381E90886442A9582E988C06C4E9783EA09068442A994EA8946AC56AB95EB0986C46ABD96EB89C6EC7EBF97EC0A070482C1A8FC8A472C96C3A9FD0A8744AAD5AAFD8AC76CBED7ABFE0B0784C2E9BCFE8B47ACD6EBBDFF0B87C4EAFDBEFF8BC7ECFEFFBFF",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "turkish",
+   "single_shift": "default"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 112,
+   "text": "@£$¥€éùıòÇ\nĞğ\rÅåΔ_ΦΓΛΩΠΨΣΘΞ ŞşßÉ !\"#¤%&'()*+,-./0123456789:;<=>?İABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§çabcdefghijklmnopqrstuvwxyzäöñüà"
+  },
+  "name": "test_sms_charset/sms_charset_turkey",
+  "table": "turkish-locking/default-single",
+  "note": "Turkish National Language Locking Shift Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-075",
+  "source": "ofono/unit/test-sms.c:640",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B9153101010101000001A1BC586B2416D529BD786B7E96D7C1BE002C8011318870E",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "turkish",
+   "single_shift": "turkish"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 23,
+   "text": "\f^{}\\[~]|ĞİŞç€ğış"
+  },
+  "name": "test_sms_charset/sms_charset_turkey_ext",
+  "table": "turkish",
+  "note": "Turkish National Language Single Shift Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-076",
+  "source": "ofono/unit/test-sms.c:654",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B915310101010100000808080604028180E888462C168381E90886442A9582E988C06C4E9783EA09068442A994EA8946AC56AB95EB0986C46ABD96EB89C6EC7EBF97EC0A070482C1A8FC8A472C96C3A9FD0A8744AAD5AAFD8AC76CBED7ABFE0B0784C2E9BCFE8B47ACD6EBBDFF0B87C4EAFDBEFF8BC7ECFEFFBFF",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "portuguese",
+   "single_shift": "default"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 112,
+   "text": "@£$¥êéúíóç\nÔô\rÁáΔ_ªÇÀ∞^\\€Ó| ÂâÊÉ !\"#º%&'()*+,-./0123456789:;<=>?ÍABCDEFGHIJKLMNOPQRSTUVWXYZÃÕÚÜ§~abcdefghijklmnopqrstuvwxyzãõ`üà"
+  },
+  "name": "test_sms_charset/sms_charset_portugal",
+  "table": "portuguese-locking/default-single",
+  "note": "Portuguese National Language Locking Shift Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-077",
+  "source": "ofono/unit/test-sms.c:685",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B9153101010101000003184C446B160381E1BC96662D9543696CD6583D9643C1BD42675D9F0C01B9F8602CC74B75C0EE68030ECF91D",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "portuguese",
+   "single_shift": "portuguese"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 43,
+   "text": "êç\fÔôÁáΦΓ^ΩΠΨΣΘÊ{}\\[~]|ÀÍÓÚÃÕÂ€íóúãõâ"
+  },
+  "name": "test_sms_charset/sms_charset_portugal_ext",
+  "table": "portuguese",
+  "note": "Portuguese National Language Single Shift Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted."
+ },
+ {
+  "id": "g7-078",
+  "source": "ofono/unit/test-sms.c:704",
+  "license": "GPL-2.0-only",
+  "input": {
+   "pdu": "0001000B915310101010100000269BC446B1A16C509BD4E6B5E16D7A1BDF06B8096E929BE7A6BA096FCA9BF4E6BDA903",
+   "has_smsc": false,
+   "direction": "deliver",
+   "locking_shift": "spanish",
+   "single_shift": "spanish"
+  },
+  "expected": {
+   "dcs_charset": "7bit",
+   "compressed": false,
+   "ud_bytes": 34,
+   "text": "ç\f^{}\\[~]|ÁÍÓÚá€íóú"
+  },
+  "name": "test_sms_charset/sms_charset_spain",
+  "table": "spanish",
+  "note": "Spanish National Language Single Shift Table Decode. sms_decode with tpdu_len == pdu_len (no SMSC octets, outgoing=FALSE); text via unpack_7bit + convert_gsm_to_utf8_with_lang(locking, single). Only DCS charset, data_len and text asserted. Note: Spanish has no locking-shift table in 23.038; test passes GSM_DIALECT_SPANISH for both."
+ },
+ {
+  "id": "g7-079",
+  "source": "ofono/unit/test-util.c:35",
+  "license": "GPL-2.0-only",
+  "input": {
+   "table": "default",
+   "map_gsm_to_unicode": [
+    [
+     "00",
+     "U+0040"
+    ],
+    [
+     "01",
+     "U+00A3"
+    ],
+    [
+     "02",
+     "U+0024"
+    ],
+    [
+     "03",
+     "U+00A5"
+    ],
+    [
+     "04",
+     "U+00E8"
+    ],
+    [
+     "05",
+     "U+00E9"
+    ],
+    [
+     "06",
+     "U+00F9"
+    ],
+    [
+     "07",
+     "U+00EC"
+    ],
+    [
+     "08",
+     "U+00F2"
+    ],
+    [
+     "09",
+     "U+00C7"
+    ],
+    [
+     "0A",
+     "U+000A"
+    ],
+    [
+     "0B",
+     "U+00D8"
+    ],
+    [
+     "0C",
+     "U+00F8"
+    ],
+    [
+     "0D",
+     "U+000D"
+    ],
+    [
+     "0E",
+     "U+00C5"
+    ],
+    [
+     "0F",
+     "U+00E5"
+    ],
+    [
+     "10",
+     "U+0394"
+    ],
+    [
+     "11",
+     "U+005F"
+    ],
+    [
+     "12",
+     "U+03A6"
+    ],
+    [
+     "13",
+     "U+0393"
+    ],
+    [
+     "14",
+     "U+039B"
+    ],
+    [
+     "15",
+     "U+03A9"
+    ],
+    [
+     "16",
+     "U+03A0"
+    ],
+    [
+     "17",
+     "U+03A8"
+    ],
+    [
+     "18",
+     "U+03A3"
+    ],
+    [
+     "19",
+     "U+0398"
+    ],
+    [
+     "1A",
+     "U+039E"
+    ],
+    [
+     "1B0A",
+     "U+000C"
+    ],
+    [
+     "1B14",
+     "U+005E"
+    ],
+    [
+     "1B28",
+     "U+007B"
+    ],
+    [
+     "1B29",
+     "U+007D"
+    ],
+    [
+     "1B2F",
+     "U+005C"
+    ],
+    [
+     "1B3C",
+     "U+005B"
+    ],
+    [
+     "1B3D",
+     "U+007E"
+    ],
+    [
+     "1B3E",
+     "U+005D"
+    ],
+    [
+     "1B40",
+     "U+007C"
+    ],
+    [
+     "1B65",
+     "U+20AC"
+    ],
+    [
+     "1C",
+     "U+00C6"
+    ],
+    [
+     "1D",
+     "U+00E6"
+    ],
+    [
+     "1E",
+     "U+00DF"
+    ],
+    [
+     "1F",
+     "U+00C9"
+    ],
+    [
+     "20",
+     "U+0020"
+    ],
+    [
+     "21",
+     "U+0021"
+    ],
+    [
+     "22",
+     "U+0022"
+    ],
+    [
+     "23",
+     "U+0023"
+    ],
+    [
+     "24",
+     "U+00A4"
+    ],
+    [
+     "25",
+     "U+0025"
+    ],
+    [
+     "26",
+     "U+0026"
+    ],
+    [
+     "27",
+     "U+0027"
+    ],
+    [
+     "28",
+     "U+0028"
+    ],
+    [
+     "29",
+     "U+0029"
+    ],
+    [
+     "2A",
+     "U+002A"
+    ],
+    [
+     "2B",
+     "U+002B"
+    ],
+    [
+     "2C",
+     "U+002C"
+    ],
+    [
+     "2D",
+     "U+002D"
+    ],
+    [
+     "2E",
+     "U+002E"
+    ],
+    [
+     "2F",
+     "U+002F"
+    ],
+    [
+     "30",
+     "U+0030"
+    ],
+    [
+     "31",
+     "U+0031"
+    ],
+    [
+     "32",
+     "U+0032"
+    ],
+    [
+     "33",
+     "U+0033"
+    ],
+    [
+     "34",
+     "U+0034"
+    ],
+    [
+     "35",
+     "U+0035"
+    ],
+    [
+     "36",
+     "U+0036"
+    ],
+    [
+     "37",
+     "U+0037"
+    ],
+    [
+     "38",
+     "U+0038"
+    ],
+    [
+     "39",
+     "U+0039"
+    ],
+    [
+     "3A",
+     "U+003A"
+    ],
+    [
+     "3B",
+     "U+003B"
+    ],
+    [
+     "3C",
+     "U+003C"
+    ],
+    [
+     "3D",
+     "U+003D"
+    ],
+    [
+     "3E",
+     "U+003E"
+    ],
+    [
+     "3F",
+     "U+003F"
+    ],
+    [
+     "40",
+     "U+00A1"
+    ],
+    [
+     "41",
+     "U+0041"
+    ],
+    [
+     "42",
+     "U+0042"
+    ],
+    [
+     "43",
+     "U+0043"
+    ],
+    [
+     "44",
+     "U+0044"
+    ],
+    [
+     "45",
+     "U+0045"
+    ],
+    [
+     "46",
+     "U+0046"
+    ],
+    [
+     "47",
+     "U+0047"
+    ],
+    [
+     "48",
+     "U+0048"
+    ],
+    [
+     "49",
+     "U+0049"
+    ],
+    [
+     "4A",
+     "U+004A"
+    ],
+    [
+     "4B",
+     "U+004B"
+    ],
+    [
+     "4C",
+     "U+004C"
+    ],
+    [
+     "4D",
+     "U+004D"
+    ],
+    [
+     "4E",
+     "U+004E"
+    ],
+    [
+     "4F",
+     "U+004F"
+    ],
+    [
+     "50",
+     "U+0050"
+    ],
+    [
+     "51",
+     "U+0051"
+    ],
+    [
+     "52",
+     "U+0052"
+    ],
+    [
+     "53",
+     "U+0053"
+    ],
+    [
+     "54",
+     "U+0054"
+    ],
+    [
+     "55",
+     "U+0055"
+    ],
+    [
+     "56",
+     "U+0056"
+    ],
+    [
+     "57",
+     "U+0057"
+    ],
+    [
+     "58",
+     "U+0058"
+    ],
+    [
+     "59",
+     "U+0059"
+    ],
+    [
+     "5A",
+     "U+005A"
+    ],
+    [
+     "5B",
+     "U+00C4"
+    ],
+    [
+     "5C",
+     "U+00D6"
+    ],
+    [
+     "5D",
+     "U+00D1"
+    ],
+    [
+     "5E",
+     "U+00DC"
+    ],
+    [
+     "5F",
+     "U+00A7"
+    ],
+    [
+     "60",
+     "U+00BF"
+    ],
+    [
+     "61",
+     "U+0061"
+    ],
+    [
+     "62",
+     "U+0062"
+    ],
+    [
+     "63",
+     "U+0063"
+    ],
+    [
+     "64",
+     "U+0064"
+    ],
+    [
+     "65",
+     "U+0065"
+    ],
+    [
+     "66",
+     "U+0066"
+    ],
+    [
+     "67",
+     "U+0067"
+    ],
+    [
+     "68",
+     "U+0068"
+    ],
+    [
+     "69",
+     "U+0069"
+    ],
+    [
+     "6A",
+     "U+006A"
+    ],
+    [
+     "6B",
+     "U+006B"
+    ],
+    [
+     "6C",
+     "U+006C"
+    ],
+    [
+     "6D",
+     "U+006D"
+    ],
+    [
+     "6E",
+     "U+006E"
+    ],
+    [
+     "6F",
+     "U+006F"
+    ],
+    [
+     "70",
+     "U+0070"
+    ],
+    [
+     "71",
+     "U+0071"
+    ],
+    [
+     "72",
+     "U+0072"
+    ],
+    [
+     "73",
+     "U+0073"
+    ],
+    [
+     "74",
+     "U+0074"
+    ],
+    [
+     "75",
+     "U+0075"
+    ],
+    [
+     "76",
+     "U+0076"
+    ],
+    [
+     "77",
+     "U+0077"
+    ],
+    [
+     "78",
+     "U+0078"
+    ],
+    [
+     "79",
+     "U+0079"
+    ],
+    [
+     "7A",
+     "U+007A"
+    ],
+    [
+     "7B",
+     "U+00E4"
+    ],
+    [
+     "7C",
+     "U+00F6"
+    ],
+    [
+     "7D",
+     "U+00F1"
+    ],
+    [
+     "7E",
+     "U+00FC"
+    ],
+    [
+     "7F",
+     "U+00E0"
+    ]
+   ]
+  },
+  "expected": {
+   "property": "for each pair: convert_gsm_to_utf8(gsm) == unicode (nread == gsm len, nwritten == utf8 len) and convert_utf8_to_gsm(utf8) == gsm bytes (test_valid); and convert_ucs2_to_gsm(UCS2BE(unicode)) writes 1 byte (2 if escape) and utf8->gsm gives back gsm (test_unicode_to_gsm)"
+  },
+  "name": "test_valid+test_unicode_to_gsm/gsm_to_unicode_map",
+  "note": "Literal table from the test: GSM 03.38 default alphabet + extension table (keys 1Bxx = escape + xx). 0x1B itself (NBSP) is commented out."
+ },
+ {
+  "id": "g7-080",
+  "source": "ofono/unit/test-util.c:343",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "gsm_to_utf8",
+   "gsm": "1B15",
+   "len": 0
+  },
+  "expected": {
+   "text": "",
+   "nread": 0,
+   "nwritten": 0
+  },
+  "name": "test_invalid",
+  "note": "Zero length input."
+ },
+ {
+  "id": "g7-081",
+  "source": "ofono/unit/test-util.c:376",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "ucs2_to_gsm",
+   "ucs2": "03930000"
+  },
+  "expected": {
+   "result": null,
+   "nread": 2
+  },
+  "name": "test_invalid",
+  "note": "U+0393 ok, then U+0000 -> failure at nread 2."
+ },
+ {
+  "id": "g7-082",
+  "source": "ofono/unit/test-util.c:511",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "unpack_7bit+gsm_to_utf8 and back",
+   "packed": "493A283D0795C3F33C88FE06C9CB6132885EC6D341EDF27C1E3E97E7207B3A0C0A5241E377BB1D7693E72E",
+   "septets": 49,
+   "byte_offset": 0,
+   "cbs": false
+  },
+  "expected": {
+   "text": "It is easy to read text messages via AT commands.",
+   "repack_identical": true
+  },
+  "name": "test_decode_encode",
+  "note": "Full round trip: unpack -> utf8 -> gsm (same septets) -> pack_7bit == original hex."
+ },
+ {
+  "id": "g7-083",
+  "source": "ofono/unit/test-util.c:608",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "ab",
+   "byte_offset": 0,
+   "cbs": false
+  },
+  "expected": {
+   "packed_len": 2
+  },
+  "name": "test_pack_size",
+  "note": "Packed bytes not asserted, only size"
+ },
+ {
+  "id": "g7-084",
+  "source": "ofono/unit/test-util.c:608",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "abcde",
+   "byte_offset": 0,
+   "cbs": false
+  },
+  "expected": {
+   "packed_len": 5
+  },
+  "name": "test_pack_size",
+  "note": "Packed bytes not asserted, only size"
+ },
+ {
+  "id": "g7-085",
+  "source": "ofono/unit/test-util.c:608",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "abcdefg",
+   "byte_offset": 0,
+   "cbs": false
+  },
+  "expected": {
+   "packed_len": 7,
+   "last_byte_high7_bits": 0
+  },
+  "name": "test_pack_size",
+  "note": "Packed bytes not asserted, only size; (packed[6] & 0xFE) == 0 (no CR padding in SMS mode)"
+ },
+ {
+  "id": "g7-086",
+  "source": "ofono/unit/test-util.c:658",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "abcdefg",
+   "byte_offset": 0,
+   "cbs": true
+  },
+  "expected": {
+   "packed_len": 7,
+   "last_byte_septet": "0D"
+  },
+  "name": "test_pack_size",
+  "note": "CBS/USSD mode: 7 chars leave 7 spare bits -> filled with CR ((packed[6] & 0xFE) >> 1 == '\\r')."
+ },
+ {
+  "id": "g7-087",
+  "source": "ofono/unit/test-util.c:742",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "abcdefg",
+   "byte_offset": 0,
+   "cbs": false
+  },
+  "expected": {
+   "packed_len": 7,
+   "then_unpack_sms": [
+    {
+     "max": 8,
+     "out_len": 8,
+     "out_byte7": "00",
+     "terminator_after": "FF"
+    },
+    {
+     "max": 7,
+     "out_len": 7,
+     "terminator_after": "FF"
+    }
+   ]
+  },
+  "name": "test_sms_handling",
+  "note": "SMS mode: zero fill bits decode as '@' (0x00) when asking for 8 septets."
+ },
+ {
+  "id": "g7-088",
+  "source": "ofono/unit/test-util.c:811",
+  "license": "GPL-2.0-only",
+  "input": {
+   "op": "pack_7bit",
+   "gsm_ascii": "abcdefgh",
+   "byte_offset": 6,
+   "cbs": false
+  },
+  "expected": {
+   "packed_len": 8,
+   "then_unpack": {
+    "len": 8,
+    "offset": 6,
+    "max": 8,
+    "out_len": 8,
+    "first": "a",
+    "last": "h"
+   }
+  },
+  "name": "test_offset_handling",
+  "note": "Offset 6: one char fits in the first byte, 7 in the next 7 bytes."
+ },
+ {
+  "id": "g7-094",
+  "source": "python-gsmmodem/test/test_pdu.py:50",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": ""
+  },
+  "expected": {
+   "septets": "",
+   "packed": ""
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-095",
+  "source": "python-gsmmodem/test/test_pdu.py:51",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "123"
+  },
+  "expected": {
+   "septets": "313233",
+   "packed": "31D90C"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-096",
+  "source": "python-gsmmodem/test/test_pdu.py:52",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "12345678"
+  },
+  "expected": {
+   "septets": "3132333435363738",
+   "packed": "31D98C56B3DD70"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-097",
+  "source": "python-gsmmodem/test/test_pdu.py:53",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "123456789"
+  },
+  "expected": {
+   "septets": "313233343536373839",
+   "packed": "31D98C56B3DD7039"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-098",
+  "source": "python-gsmmodem/test/test_pdu.py:54",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "Hello World!"
+  },
+  "expected": {
+   "septets": "48656C6C6F20576F726C6421",
+   "packed": "C8329BFD065DDF72363904"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-099",
+  "source": "python-gsmmodem/test/test_pdu.py:55",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "[{abc}]~"
+  },
+  "expected": {
+   "septets": "1B3C1B286162631B291B3E1B3D",
+   "packed": "1BDE0615168F37A98D6FD303"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-100",
+  "source": "python-gsmmodem/test/test_pdu.py:56",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "123456789012345678901234567890"
+  },
+  "expected": {
+   "septets": "313233343536373839303132333435363738393031323334353637383930",
+   "packed": "31D98C56B3DD7039584C36A3D56C375C0E1693CD6835DB0D978301"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-101",
+  "source": "python-gsmmodem/test/test_pdu.py:58",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "{åΦΓΛΩΠΨΣΘ€}"
+  },
+  "expected": {
+   "septets": "1B280F12131415161718191B651B29",
+   "packed": "1BD44332A1542C174C6653DEA400"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-102",
+  "source": "python-gsmmodem/test/test_pdu.py:59",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_text",
+   "text": "a[]{}€"
+  },
+  "expected": {
+   "septets": "611B3C1B3E1B281B291B65",
+   "packed": "E10D6FE3DBA036A94D19"
+  },
+  "name": "TestGsm7",
+  "note": "encodeGsm7(text)==septets (one GSM default-alphabet code per octet, 0x1B escape for extension table), decodeGsm7(septets)==text, packSeptets(septets)==packed, unpackSeptets(packed[, len])==septets (no fill bits)."
+ },
+ {
+  "id": "g7-103",
+  "source": "python-gsmmodem/test/test_pdu.py:106",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "gsm7_encode",
+   "text": "世界您好！",
+   "discardInvalid": false
+  },
+  "expected": {
+   "error": "ValueError"
+  },
+  "name": "TestGsm7.test_encodeInvalid",
+  "note": ""
+ },
+ {
+  "id": "g7-105",
+  "source": "python-gsmmodem/test/test_pdu.py:120",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "ucs2",
+   "text": "あ叶葉"
+  },
+  "expected": {
+   "hex": "304253F68449"
+  },
+  "name": "TestUcs2",
+  "note": "Both encodeUcs2 and decodeUcs2 asserted."
+ },
+ {
+  "id": "g7-106",
+  "source": "python-gsmmodem/test/test_pdu.py:121",
+  "license": "LGPL-3.0-or-later",
+  "input": {
+   "op": "ucs2",
+   "text": "はい"
+  },
+  "expected": {
+   "hex": "306F3044"
+  },
+  "name": "TestUcs2",
+  "note": "Both encodeUcs2 and decodeUcs2 asserted."
+ },
+ {
+  "id": "g7-107",
+  "source": "smspdudecoder/tests/test_codecs.py:11",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "hello"
+  },
+  "expected": {
+   "hex": "E8329BFD06"
+  },
+  "name": "test_hello",
+  "note": "Returns packed septets as uppercase hex, default alphabet + extension table."
+ },
+ {
+  "id": "g7-108",
+  "source": "smspdudecoder/tests/test_codecs.py:16",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "31D98C56B3DD70"
+  },
+  "expected": {
+   "text": "12345678"
+  },
+  "name": "test_8chars",
+  "note": ""
+ },
+ {
+  "id": "g7-109",
+  "source": "smspdudecoder/tests/test_codecs.py:20",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "1B5E0CB6296F7C"
+  },
+  "expected": {
+   "text": "[10€]"
+  },
+  "name": "test_extended",
+  "note": ""
+ },
+ {
+  "id": "g7-110",
+  "source": "smspdudecoder/tests/test_codecs.py:24",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "",
+   "with_padding": true
+  },
+  "expected": {
+   "hex": ""
+  },
+  "name": "test_empty",
+  "note": "Test is assertEqual(encode(''), decode(''), '') -- third arg is the failure message, so only encode('') == decode('') is asserted (both empty strings implied)."
+ },
+ {
+  "id": "g7-111",
+  "source": "smspdudecoder/tests/test_codecs.py:37",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "CCB7BCDC06A5E1F37A1B447EB3DF72D03C4D0785DB653A0B347EBBE7E531BD4CAFCB4161721A9E9E8FD3EE33A8CC4ED359A079990C22BF41E5747DDE7E9341F4721BFE9683D2EE719A9C26D7DD74509D0E6287C56F791954A683C86FF65B5E06B5C36777181466A7E3F5B00B"
+  },
+  "expected": {
+   "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+  },
+  "name": "test_long",
+  "note": ""
+ },
+ {
+  "id": "g7-112",
+  "source": "smspdudecoder/tests/test_codecs.py:44",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "1234567\r",
+   "encode_with_padding": true,
+   "decode_strip_padding": true
+  },
+  "expected": {
+   "text": "1234567\r\r"
+  },
+  "name": "test_double_cr",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-113",
+  "source": "smspdudecoder/tests/test_codecs.py:47",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "1234567\r",
+   "encode_with_padding": false,
+   "decode_strip_padding": true
+  },
+  "expected": {
+   "text": "1234567"
+  },
+  "name": "test_double_cr",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-114",
+  "source": "smspdudecoder/tests/test_codecs.py:51",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "123456\r",
+   "encode_with_padding": true,
+   "decode_strip_padding": false
+  },
+  "expected": {
+   "text": "123456\r\r"
+  },
+  "name": "test_double_cr",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-115",
+  "source": "smspdudecoder/tests/test_codecs.py:56",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "123456\r\r",
+   "encode_with_padding": true,
+   "decode_strip_padding": true
+  },
+  "expected": {
+   "text": "123456\r\r\r"
+  },
+  "name": "test_double_cr",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-116",
+  "source": "smspdudecoder/tests/test_codecs.py:62",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "0123456789ABCDE",
+   "with_padding": true
+  },
+  "expected": {
+   "hex": "B0986C46ABD96EB85C503824161B"
+  },
+  "name": "test_8n_1_encode",
+  "note": "Returns packed septets as uppercase hex, default alphabet + extension table."
+ },
+ {
+  "id": "g7-117",
+  "source": "smspdudecoder/tests/test_codecs.py:65",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "12345^",
+   "encode_with_padding": true,
+   "decode_strip_padding": true
+  },
+  "expected": {
+   "text": "12345^"
+  },
+  "name": "test_8n_1_encode",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-118",
+  "source": "smspdudecoder/tests/test_codecs.py:68",
+  "license": "MIT",
+  "input": {
+   "op": "roundtrip",
+   "text": "123456^",
+   "encode_with_padding": true,
+   "decode_strip_padding": false
+  },
+  "expected": {
+   "text": "123456^"
+  },
+  "name": "test_8n_1_encode",
+  "note": "decode(encode(text, with_padding), strip_padding) == expected (GSM 7-bit packed hex; padding = CR fill per 23.038 for USSD/CBS-style 8n-1 lengths)."
+ },
+ {
+  "id": "g7-119",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:52",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "C8F71D14969741F977FD07"
+  },
+  "expected": {
+   "text": "How are you?"
+  },
+  "name": "doctest GSM.decode('C8F71D14969741F977FD07')",
+  "note": ""
+ },
+ {
+  "id": "g7-120",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:55",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "32D0A60C8287E5A0F63B3D07"
+  },
+  "expected": {
+   "text": "2 € par mois"
+  },
+  "name": "doctest GSM.decode('32D0A60C8287E5A0F63B3D07')",
+  "note": ""
+ },
+ {
+  "id": "g7-121",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:60",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "AA58ACA6AA8D1A"
+  },
+  "expected": {
+   "text": "*115*5#\r"
+  },
+  "name": "doctest GSM.decode('AA58ACA6AA8D1A')",
+  "note": ""
+ },
+ {
+  "id": "g7-122",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:65",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_unpack",
+   "hex": "AA58ACA6AA8D1A",
+   "strip_padding": true
+  },
+  "expected": {
+   "text": "*115*5#"
+  },
+  "name": "doctest GSM.decode('AA58ACA6AA8D1A', True)",
+  "note": ""
+ },
+ {
+  "id": "g7-123",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:105",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "hellohello"
+  },
+  "expected": {
+   "hex": "E8329BFD4697D9EC37"
+  },
+  "name": "doctest GSM.encode(\"hellohello\")",
+  "note": ""
+ },
+ {
+  "id": "g7-124",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:110",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "2 € par mois"
+  },
+  "expected": {
+   "hex": "32D0A60C8287E5A0F63B3D07"
+  },
+  "name": "doctest GSM.encode(\"2 € par mois\")",
+  "note": ""
+ },
+ {
+  "id": "g7-125",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:115",
+  "license": "MIT",
+  "input": {
+   "op": "gsm7_pack",
+   "text": "1234567"
+  },
+  "expected": {
+   "hex": "31D98C56B3DD00"
+  },
+  "name": "doctest GSM.encode('1234567')",
+  "note": ""
+ },
+ {
+  "id": "g7-127",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:173",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_encode",
+   "text": "Je pompe donc je suis."
+  },
+  "expected": {
+   "hex": "004A006500200070006F006D0070006500200064006F006E00630020006A006500200073007500690073002E"
+  },
+  "name": "doctest UCS2.encode(\"Je pompe donc je suis.\")",
+  "note": ""
+ },
+ {
+  "id": "g7-128",
+  "source": "smspdudecoder/smspdudecoder/codecs.py:185",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_decode",
+   "hex": "004C006F00720065006D00200049007000730075006D"
+  },
+  "expected": {
+   "text": "Lorem Ipsum"
+  },
+  "name": "doctest UCS2.decode('004C006F00720065006D00200049007000730075006D')",
+  "note": ""
+ },
+ {
+  "id": "g7-129",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:23",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": null,
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": null
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/nil",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-130",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:41",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": "0D",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "0D"
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/cr",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-131",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:65",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": "7061747465726E00",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "F0309D5E96BB01"
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/seven",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-132",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:83",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": "612076657279206C6F6E672074657374207061747465726E",
+   "pad_bits": 0
+  },
+  "expected": {
+   "packed": "6190BD2CCF83D86FF719442FCFE92078984E2FCBDD"
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/long",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-133",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:110",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": "7F",
+   "pad_bits": 3
+  },
+  "expected": {
+   "packed": "F803"
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/fill3",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-134",
+  "source": "warthog-sms/encoding/gsm7/7bit_test.go:128",
+  "license": "MIT",
+  "input": {
+   "op": "pack7",
+   "septets": "7F",
+   "pad_bits": 6
+  },
+  "expected": {
+   "packed": "C01F"
+  },
+  "name": "TestPack7Bit+TestUnpack7Bit/fill6",
+  "note": "Both directions asserted: Pack7Bit(septets, padBits) == packed and Unpack7Bit(packed, padBits) == septets. pad_bits = fill bits before first septet (after UDH)."
+ },
+ {
+  "id": "g7-135",
+  "source": "warthog-sms/encoding/gsm7/gsm7_test.go:55",
+  "license": "MIT",
+  "input": {
+   "op": "septets_to_utf8",
+   "charset": "default",
+   "septets": null
+  },
+  "expected": {
+   "text": null,
+   "error": null
+  },
+  "name": "TestDecode/empty",
+  "note": "Unpacked septets -> UTF-8. 'default' = 23.038 default alphabet + default extension table."
+ },
+ {
+  "id": "g7-138",
+  "source": "warthog-sms/encoding/gsm7/gsm7_test.go:107",
+  "license": "MIT",
+  "input": {
+   "op": "utf8_to_septets",
+   "charset": "default",
+   "text": "{}"
+  },
+  "expected": {
+   "septets": "1B281B29",
+   "error": null
+  },
+  "name": "TestEncode/ext",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "g7-141",
+  "source": "warthog-sms/encoding/gsm7/charset/charset_test.go:268",
+  "license": "MIT",
+  "input": {
+   "op": "charset_map",
+   "table": "Bengali",
+   "nli": 4,
+   "set": "locking",
+   "septet": "7C"
+  },
+  "expected": {
+   "char": "ড়",
+   "codepoint": "U+09DC"
+  },
+  "name": "charset Bengali locking x7c",
+  "note": "Asserted both directions (decoder[septet]==char, encoder[char]==septet). Line is the language block start."
+ },
+ {
+  "id": "g7-142",
+  "source": "warthog-sms/encoding/gsm7/charset/charset_test.go:373",
+  "license": "MIT",
+  "input": {
+   "op": "charset_map",
+   "table": "Kannada",
+   "nli": 7,
+   "set": "single-shift",
+   "septet": "1E"
+  },
+  "expected": {
+   "char": "೨",
+   "codepoint": "U+0CE8"
+  },
+  "name": "charset Kannada single-shift x1e",
+  "note": "Asserted both directions (decoder[septet]==char, encoder[char]==septet). Line is the language block start."
+ },
+ {
+  "id": "g7-143",
+  "source": "warthog-sms/encoding/gsm7/charset/charset_test.go:482",
+  "license": "MIT",
+  "input": {
+   "op": "charset_map",
+   "table": "Punjabi",
+   "nli": 10,
+   "set": "single-shift",
+   "septet": "2A"
+  },
+  "expected": {
+   "char": "ਜ਼",
+   "codepoint": "U+0A5B"
+  },
+  "name": "charset Punjabi single-shift x2a",
+  "note": "Asserted both directions (decoder[septet]==char, encoder[char]==septet). Line is the language block start."
+ },
+ {
+  "id": "g7-144",
+  "source": "warthog-sms/encoding/gsm7/charset/charset_test.go:593",
+  "license": "MIT",
+  "input": {
+   "op": "charset_map",
+   "table": "Urdu",
+   "nli": 13,
+   "set": "single-shift",
+   "septet": "65"
+  },
+  "expected": {
+   "char": "€",
+   "codepoint": "U+20AC"
+  },
+  "name": "charset Urdu single-shift x65",
+  "note": "Asserted both directions (decoder[septet]==char, encoder[char]==septet). Line is the language block start."
+ },
+ {
+  "id": "g7-145",
+  "source": "warthog-sms/encoding/ucs2/ucs2_test.go:24",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_decode",
+   "hex": null
+  },
+  "expected": {
+   "text": null,
+   "error": null
+  },
+  "name": "ucs2.TestDecode/nil",
+  "note": "UCS2/UTF-16BE incl. surrogate pairs."
+ },
+ {
+  "id": "g7-146",
+  "source": "warthog-sms/encoding/ucs2/ucs2_test.go:36",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_decode",
+   "hex": "0102030405"
+  },
+  "expected": {
+   "text": null,
+   "error": {
+    "go": "ucs2.ErrInvalidLength"
+   }
+  },
+  "name": "ucs2.TestDecode/odd",
+  "note": "UCS2/UTF-16BE incl. surrogate pairs."
+ },
+ {
+  "id": "g7-147",
+  "source": "warthog-sms/encoding/ucs2/ucs2_test.go:51",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_decode",
+   "hex": "D83DDE01"
+  },
+  "expected": {
+   "text": "😁",
+   "error": null
+  },
+  "name": "ucs2.TestDecode/grin",
+  "note": "UCS2/UTF-16BE incl. surrogate pairs."
+ },
+ {
+  "id": "g7-148",
+  "source": "warthog-sms/encoding/ucs2/ucs2_test.go:90",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_encode",
+   "text": ""
+  },
+  "expected": {
+   "hex": null
+  },
+  "name": "ucs2.TestEncode/empty",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ },
+ {
+  "id": "g7-149",
+  "source": "warthog-sms/encoding/ucs2/ucs2_test.go:103",
+  "license": "MIT",
+  "input": {
+   "op": "ucs2_encode",
+   "text": "😁"
+  },
+  "expected": {
+   "hex": "D83DDE01"
+  },
+  "name": "ucs2.TestEncode/grin",
+  "note": "Go struct literal rendered with Go field names; omitted fields are Go zero values. Byte slices are uppercase hex. {\"const\":name,\"value\":n} = library constant; {\"go\":src} = unevaluated Go expression (errors, options)."
+ }
+]

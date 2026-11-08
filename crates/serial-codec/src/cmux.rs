@@ -16,8 +16,14 @@ pub const UIH: u8 = 0xEF;
 pub const UI: u8 = 0x03;
 pub const PF: u8 = 0x10;
 
-/// Largest info field we accept on receive (27.010 N1 upper bound).
-const MAX_INFO: usize = 32_768;
+/// Largest info field the basic option can describe: the 2-octet length field holds
+/// 15 bits (27.010 §5.2.1.5).
+pub const MAX_INFO: usize = 32_767;
+/// Default receive limit for the info field: room for a 1500-byte IP packet in PPP
+/// framing. A corrupt length octet (noise, a lost flag) then costs one dropped frame,
+/// not a stall until 32 KiB more arrive. Raise it with [`Deframer::with_max_info`] when
+/// `AT+CMUX` sets a larger N1.
+pub const DEFAULT_MAX_RX_INFO: usize = 1_509;
 /// Info bytes per transmitted frame. Basic option defaults N1 to 31 unless `AT+CMUX`
 /// sets it, so 31 is the only size every modem accepts.
 // ponytail: fixed N1=31; parse N1 from the AT+CMUX command if throughput matters.
@@ -61,6 +67,9 @@ pub fn decode_address(addr: u8) -> (u8, bool) {
 }
 
 /// One frame. `cr` is the address C/R bit; as initiator we set it on commands and UIH.
+///
+/// # Panics
+/// If `info` is longer than [`MAX_INFO`] (use [`encode_uih`] to split data).
 pub fn encode_frame(dlci: u8, cr: bool, control: u8, info: &[u8]) -> Vec<u8> {
     assert!(info.len() <= MAX_INFO, "cmux info field too long");
     let mut header = vec![encode_address(dlci, cr), control];
@@ -107,49 +116,61 @@ pub struct DecodedFrame {
 }
 
 /// Streaming deframer: keeps partial frames across reads and resyncs on garbage.
-#[derive(Default)]
 pub struct Deframer {
     buf: Vec<u8>,
+    max_info: usize,
+}
+
+impl Default for Deframer {
+    fn default() -> Self {
+        Self::with_max_info(DEFAULT_MAX_RX_INFO)
+    }
 }
 
 impl Deframer {
+    /// Frames whose length field exceeds `max_info` (the N1 given to `AT+CMUX`, at most
+    /// [`MAX_INFO`]) are dropped as corrupt.
+    pub fn with_max_info(max_info: usize) -> Self {
+        Self {
+            buf: Vec::new(),
+            max_info: max_info.clamp(1, MAX_INFO),
+        }
+    }
+
     pub fn feed(&mut self, chunk: &[u8]) -> Vec<DecodedFrame> {
         self.buf.extend_from_slice(chunk);
         let mut out = Vec::new();
+        // Read offset into `buf`; consumed bytes are dropped once, at the end.
+        let mut pos = 0;
         loop {
-            // Drop everything before the first flag.
-            match self.buf.iter().position(|&b| b == FLAG) {
-                Some(0) => {}
-                Some(i) => {
-                    self.buf.drain(..i);
-                }
+            // Skip everything before the next flag.
+            match self.buf[pos..].iter().position(|&b| b == FLAG) {
+                Some(i) => pos += i,
                 None => {
-                    self.buf.clear();
-                    return out;
+                    pos = self.buf.len();
+                    break;
                 }
             }
             // Collapse runs of flags (closing flag + opening flag, or idle fill).
-            let flags = self.buf.iter().take_while(|&&b| b == FLAG).count();
-            if flags > 1 {
-                self.buf.drain(..flags - 1);
-            }
-            match self.parse_one() {
-                Parse::Need => return out,
-                Parse::Bad => {
-                    // Not a frame start after all: skip this flag and rescan.
-                    self.buf.remove(0);
-                }
+            let flags = self.buf[pos..].iter().take_while(|&&b| b == FLAG).count();
+            pos += flags - 1;
+            match self.parse_one(pos) {
+                Parse::Need => break,
+                // Not a frame start after all: skip this flag and rescan.
+                Parse::Bad => pos += 1,
                 Parse::Frame(frame, used) => {
                     // Keep the closing flag: it may also open the next frame.
-                    self.buf.drain(..used - 1);
+                    pos += used - 1;
                     out.push(frame);
                 }
             }
         }
+        self.buf.drain(..pos);
+        out
     }
 
-    fn parse_one(&self) -> Parse {
-        let b = &self.buf;
+    fn parse_one(&self, pos: usize) -> Parse {
+        let b = &self.buf[pos..];
         if b.len() < 4 {
             return Parse::Need;
         }
@@ -165,7 +186,7 @@ impl Deframer {
             }
             (((b[3] >> 1) as usize) | ((b[4] as usize) << 7), 2)
         };
-        if len > MAX_INFO {
+        if len > self.max_info {
             return Parse::Bad;
         }
         let header_end = 3 + len_octets;
@@ -267,5 +288,30 @@ mod tests {
         let frames = Deframer::default().feed(&stream);
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].payload, b"good");
+    }
+
+    /// The old resync did `Vec::remove(0)` per bad flag: 1 MiB of `F9 00` took 17 s.
+    #[test]
+    fn resync_over_a_large_noise_read_is_linear() {
+        let mut stream: Vec<u8> = [FLAG, 0x00].repeat(1 << 19);
+        stream.extend_from_slice(&encode_uih(1, b"good"));
+        let t = std::time::Instant::now();
+        let frames = Deframer::default().feed(&stream);
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(5),
+            "{:?}",
+            t.elapsed()
+        );
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].payload, b"good");
+    }
+
+    #[test]
+    fn info_field_is_limited_to_15_bits() {
+        let info = vec![0x55u8; MAX_INFO];
+        let frames = Deframer::with_max_info(MAX_INFO).feed(&encode_frame(1, true, UIH, &info));
+        assert_eq!(frames[0].payload, info);
+        let too_long = std::panic::catch_unwind(|| encode_frame(1, true, UIH, &[0; MAX_INFO + 1]));
+        assert!(too_long.is_err(), "32768 bytes would encode as length 0");
     }
 }

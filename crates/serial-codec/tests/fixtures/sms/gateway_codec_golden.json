@@ -1,0 +1,58 @@
+[
+ {
+  "id": "sms_pdu_decoder_codec_how_are_you",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "C8F71D14969741F977FD07",
+  "encoding": "gsm",
+  "text": "How are you?"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_hellohello",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "E8329BFD4697D9EC37",
+  "encoding": "gsm",
+  "text": "hellohello"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_euro_bracket",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "1B5E0CB6296F7C",
+  "encoding": "gsm",
+  "text": "[10€]"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_ussd",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "AA58ACA6AA8D1A",
+  "encoding": "gsm",
+  "text": "*115*5#"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_hello",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "E8329BFD06",
+  "encoding": "gsm",
+  "text": "hello"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_digits8",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "31D98C56B3DD70",
+  "encoding": "gsm",
+  "text": "12345678"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_digits7",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "31D98C56B3DD1A",
+  "encoding": "gsm",
+  "text": "1234567"
+ },
+ {
+  "id": "sms_pdu_decoder_codec_lorem_ucs2",
+  "source": "fazalrasel/sms-pdu-decoder codecs.rs",
+  "hex": "004C006F00720065006D00200049007000730075006D",
+  "encoding": "ucs2",
+  "text": "Lorem Ipsum"
+ }
+]

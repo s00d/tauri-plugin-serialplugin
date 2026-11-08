@@ -1,0 +1,348 @@
+[
+ {
+  "id": "warthog_woot_gsm7",
+  "source": "warthog618/sms README",
+  "pdu": "07910100000010F1040B910100000010F000008140806113912304D7F79B0E",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "gsm",
+  "text": "Woot",
+  "sender": "10000000010",
+  "tags": [
+   "external",
+   "gsm7",
+   "deliver"
+  ]
+ },
+ {
+  "id": "warthog_empty_smsc_woot",
+  "source": "warthog618/sms README",
+  "pdu": "00040B910100000010F000008140806113912304D7F79B0E",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "gsm",
+  "text": "Woot",
+  "sender": "10000000010",
+  "tags": [
+   "external",
+   "gsm7",
+   "empty-smsc"
+  ]
+ },
+ {
+  "id": "sms_pdu_decoder_deliver",
+  "source": "fazalrasel/sms-pdu-decoder README",
+  "pdu": "07910100000010F3040B910100000010F200008921222140140004D4E2940A",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "gsm",
+  "text": "TEST",
+  "sender": "10000000012",
+  "tags": [
+   "external",
+   "gsm7",
+   "deliver"
+  ]
+ },
+ {
+  "id": "diafaan_deliver_gsm7",
+  "source": "diafaan.com PDU decoder",
+  "pdu": "0791010000000041240DD0E474D81C0EBB010000111011315214000BE474D81C0EBB5DE3771B",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "gsm",
+  "text": "diafaan.com",
+  "sender": "diafaan",
+  "tags": [
+   "external",
+   "gsm7",
+   "alphanumeric-oa"
+  ]
+ },
+ {
+  "id": "rfc_nop_submit_hellohello",
+  "source": "rfc.nop.hu/sms",
+  "pdu": "0011000B910100000010F50000AA0AE8329BFD4697D9EC37",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "hellohello",
+  "destination": "10000000015",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit"
+  ]
+ },
+ {
+  "id": "warthog_submit_hello_world",
+  "source": "warthog618/sms README",
+  "pdu": "07910100000010F1010105912143f500000bc8329bfd06dddf723619",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "Hello world",
+  "destination": "12345",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit"
+  ]
+ },
+ {
+  "id": "warthog_modem_deliver_20",
+  "source": "warthog618/modem gsm_test.go",
+  "pdu": "00040B911234567890F000000250100173832305C8329BFD06",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "gsm",
+  "text": "Hello",
+  "sender": "21436587090",
+  "tags": [
+   "external",
+   "gsm7",
+   "deliver"
+  ]
+ },
+ {
+  "id": "warthog_status_report_minimal",
+  "source": "gs-pdu pdu_parser.rs",
+  "pdu": "07917750000022F102000000000000",
+  "tpdu_type": "SMS-STATUS-REPORT",
+  "encoding": "unknown",
+  "tags": [
+   "external",
+   "status-report"
+  ]
+ },
+ {
+  "id": "warthog_pdumode_roundtrip",
+  "source": "warthog618/sms encoding/pdumode",
+  "pdu": "0791010000000092010203040506070809",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "ucs2",
+  "destination": "506",
+  "tags": [
+   "external",
+   "pdumode"
+  ]
+ },
+ {
+  "id": "warthog_ucs2_concat_part1",
+  "source": "warthog618/sms README",
+  "pdu": "00400B910100000010F00008814080611373238C050003C00301007400680069007300200069007300200061002000760065007200790020006C006F006E00670020006D0065007300730061006700650020007400680061007400200064006F006500730020006E006F0074002000660069007400200069006E00200061002000730069006E0067006C006500200053004D00530020006D0065007300730061",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "ucs2",
+  "text": "this is a very long message that does not fit in a single SMS messa",
+  "sender": "10000000010",
+  "tags": [
+   "external",
+   "ucs2",
+   "multipart"
+  ]
+ },
+ {
+  "id": "warthog_ucs2_concat_part2",
+  "source": "warthog618/sms README",
+  "pdu": "00400B910100000010F00008814080611373238C050003C0030200670065002C0020006100740020006C0065006100730074002000690074002000770069006C006C002000690066002000490020006B00650065007000200061006400640069006E00670020006D006F0072006500200074006F0020006900740020006100730020003100360030002000630068006100720061006300740065007200730020",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "ucs2",
+  "text": "ge, at least it will if I keep adding more to it as 160 characters ",
+  "sender": "10000000010",
+  "tags": [
+   "external",
+   "ucs2",
+   "multipart"
+  ]
+ },
+ {
+  "id": "warthog_ucs2_concat_part3",
+  "source": "warthog618/sms README",
+  "pdu": "00440B910100000010F000088140806113832344050003C00303006900730020006D006F007200650020007400680061006E00200079006F00750020006D00690067006800740020007400680069006E006B0020D83DDE01",
+  "tpdu_type": "SMS-DELIVER",
+  "encoding": "ucs2",
+  "text": "is more than you might think 😁",
+  "sender": "10000000010",
+  "tags": [
+   "external",
+   "ucs2",
+   "multipart"
+  ]
+ },
+ {
+  "id": "morgverd_submit_how_are_you",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110CC8F71D14969741F977FD07",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "How are you?",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_hellohello",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110AE8329BFD4697D9EC37",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "hellohello",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_euro_bracket",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F70011081B5E0CB6296F7C",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "[10€]",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode",
+   "extended-gsm"
+  ]
+ },
+ {
+  "id": "morgverd_submit_ussd_star",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F7001107AA58ACA6AA8D00",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "*115*5#",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode",
+   "extended-gsm"
+  ]
+ },
+ {
+  "id": "morgverd_submit_digits7",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110731D98C56B3DD00",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "1234567",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_digits8",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110831D98C56B3DD70",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "12345678",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_hello",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F7001105E8329BFD06",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "hello",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_caret",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110731D98C56DB5000",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "12345^",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode",
+   "extended-gsm"
+  ]
+ },
+ {
+  "id": "morgverd_submit_lorem_ucs2",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110BCCB7BCDC0625E1F37A1B",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "Lorem Ipsum",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "ucs2",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_french_ucs2",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F7001116CA3208FE6EC3CB20F2DB3D06A9CBA0793D3D7701",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "Je pompe donc je suis.",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "ucs2",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_cyrillic_ucs2",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700190C041F04400438043204350442",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "ucs2",
+  "text": "Привет",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "ucs2",
+   "submit",
+   "morgverd-encode"
+  ]
+ },
+ {
+  "id": "morgverd_submit_symbols_gsm",
+  "source": "morgverd/sms-pdu encode_message",
+  "pdu": "0001000B919700214365F700110780806040281800",
+  "tpdu_type": "SMS-SUBMIT",
+  "encoding": "gsm",
+  "text": "@£$¥èéù",
+  "destination": "79001234567",
+  "tags": [
+   "external",
+   "gsm7",
+   "submit",
+   "morgverd-encode"
+  ]
+ }
+]
