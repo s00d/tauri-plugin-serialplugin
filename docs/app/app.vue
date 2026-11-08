@@ -27,7 +27,6 @@ useSeoMeta({
         <NuxtPage />
       </NuxtLayout>
     </UMain>
-    <AppFooter />
     <ClientOnly>
       <LazyUContentSearch :files="files" :navigation="navigation" />
     </ClientOnly>
