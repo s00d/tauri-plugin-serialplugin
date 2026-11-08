@@ -18,7 +18,7 @@ tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
 tauri = { version = "2.12.5", features = [] }
-tauri-plugin-serialplugin = { path = "../../../" }
+tauri-plugin-serialplugin = { path = "../../../", features = ["ble"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

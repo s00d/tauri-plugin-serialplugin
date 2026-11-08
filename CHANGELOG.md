@@ -18,6 +18,8 @@ Full audit release. See "Migrating to v4" in the README for the breaking changes
 
 * Serial over TCP: `tcp://host:port` on every platform (ser2net, ESP-Link, device servers).
 * The plugin builds for iOS (it did not compile there at all); TCP is the transport.
+* Serial over Bluetooth LE (Nordic UART Service): `ble://<id>` paths and
+  `SerialPort.scanBlePorts()`, behind the `ble` cargo feature (desktop + iOS).
 
 ### Bug Fixes
 

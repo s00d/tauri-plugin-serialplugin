@@ -53,6 +53,7 @@ mod tests {
         "enable_mux",
         "open_mux_channel",
         "disable_mux",
+        "ble_scan",
     ];
 
     fn repo_root() -> PathBuf {

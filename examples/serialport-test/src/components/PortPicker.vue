@@ -16,6 +16,8 @@ const emit = defineEmits<{
 const manualPath = ref('');
 const available = ref<Record<string, { type: string }>>({});
 const managed = ref<string[]>([]);
+const ble = ref<Record<string, { type: string }>>({});
+const scanning = ref(false);
 const loading = ref(false);
 const watching = ref(false);
 const lastEvent = ref<string | null>(null);
@@ -25,6 +27,9 @@ const entries = computed<PortListEntry[]>(() => {
   const map = new Map<string, PortListEntry>();
 
   for (const [path, info] of Object.entries(available.value)) {
+    map.set(path, { path, meta: info.type, source: 'available' });
+  }
+  for (const [path, info] of Object.entries(ble.value)) {
     map.set(path, { path, meta: info.type, source: 'available' });
   }
   for (const path of managed.value) {
@@ -58,6 +63,23 @@ async function refresh() {
     console.error('[PortPicker] refresh failed', e);
   } finally {
     loading.value = false;
+  }
+}
+
+/** BLE UART (Nordic UART Service) devices; needs the plugin's `ble` feature. */
+async function scanBle() {
+  scanning.value = true;
+  lastEvent.value = 'BLE scan…';
+  try {
+    const found = await SerialPort.scanBlePorts({ timeoutMs: 4000 });
+    ble.value = Object.fromEntries(
+      Object.entries(found).map(([path, info]) => [path, { type: `BLE ${info.product ?? ''}`.trim() }]),
+    );
+    lastEvent.value = `BLE: ${Object.keys(found).length} device(s)`;
+  } catch (e) {
+    lastEvent.value = `BLE: ${e}`;
+  } finally {
+    scanning.value = false;
   }
 }
 
@@ -130,6 +152,9 @@ onUnmounted(() => {
         <button type="button" class="ghost" :disabled="loading" @click="refresh">
           {{ loading ? '…' : '↻' }}
         </button>
+        <button type="button" class="ghost" :disabled="scanning" title="Scan BLE UART devices" @click="scanBle">
+          {{ scanning ? '…' : 'BLE' }}
+        </button>
         <button type="button" class="ghost mobile-close" aria-label="Close" @click="emit('close')">✕</button>
       </div>
     </div>
@@ -140,7 +165,7 @@ onUnmounted(() => {
       <input
         v-model="manualPath"
         type="text"
-        placeholder="COM3 / /dev/ttyUSB0 / tcp://host:port"
+        placeholder="COM3 / /dev/ttyUSB0 / tcp://host:port / ble://id"
         autocapitalize="off"
         autocorrect="off"
         autocomplete="off"

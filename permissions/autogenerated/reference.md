@@ -50,6 +50,7 @@ port hotplug, AT session, exchange, and configure serial ports on desktop and An
 - `allow-enable-mux`
 - `allow-open-mux-channel`
 - `allow-disable-mux`
+- `allow-ble-scan`
 
 ## Permission Table
 
@@ -134,6 +135,32 @@ Enables the available_ports command without any pre-configured scope.
 <td>
 
 Denies the available_ports command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:allow-ble-scan`
+
+</td>
+<td>
+
+Enables the ble_scan command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`serialplugin:deny-ble-scan`
+
+</td>
+<td>
+
+Denies the ble_scan command without any pre-configured scope.
 
 </td>
 </tr>

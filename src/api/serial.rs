@@ -83,6 +83,26 @@ fn platform_open(
     stop_bits: StopBits,
     timeout: Duration,
 ) -> Result<(String, Box<dyn SerialPortTrait>), Error> {
+    if path.starts_with("ble://") {
+        #[cfg(all(feature = "ble", not(target_os = "android")))]
+        {
+            let port = crate::port::ble::BleSerialPort::connect(
+                path,
+                baud_rate,
+                data_bits.into(),
+                flow_control.into(),
+                parity.into(),
+                stop_bits.into(),
+                timeout,
+            )
+            .map_err(|e| Error::String(format!("Failed to open {path}: {e}")))?;
+            return Ok((path.to_string(), Box::new(port)));
+        }
+        #[cfg(not(all(feature = "ble", not(target_os = "android"))))]
+        return Err(Error::String(format!(
+            "{path}: BLE needs the plugin's `ble` cargo feature (desktop and iOS; not Android yet)"
+        )));
+    }
     if crate::port::tcp::tcp_address(path).is_some() {
         let port = crate::port::tcp::TcpSerialPort::connect(
             path,

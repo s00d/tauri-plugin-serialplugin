@@ -48,6 +48,7 @@ const HANDLER_COMMANDS = [
   'enable_mux',
   'open_mux_channel',
   'disable_mux',
+  'ble_scan',
 ] as const;
 
 function guestJsInvokeCommands(source: string): Set<string> {

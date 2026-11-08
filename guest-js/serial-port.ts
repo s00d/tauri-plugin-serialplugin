@@ -249,6 +249,17 @@ export class SerialPort {
     };
   }
 
+  /**
+   * Scan for Bluetooth LE devices that advertise the Nordic UART Service (desktop and
+   * iOS; the Rust side needs the plugin's `ble` feature). Keys are `ble://<id>` paths
+   * that `new SerialPort({ path })` can open.
+   */
+  static async scanBlePorts(options?: { timeoutMs?: number }): Promise<Record<string, PortInfo>> {
+    return invoke<Record<string, PortInfo>>('plugin:serialplugin|ble_scan', {
+      timeoutMs: options?.timeoutMs,
+    });
+  }
+
   static async managed_ports(): Promise<string[]> {
     return invoke<string[]>('plugin:serialplugin|managed_ports');
   }

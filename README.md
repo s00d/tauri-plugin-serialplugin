@@ -102,7 +102,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 ## Table of Contents
 
 0. [Migrating to v4](#migrating-to-v4) · [v3](#migrating-to-v3)
-1. [Installation](#installation) — incl. [iOS](#ios) and [Serial over TCP](#serial-over-tcp-all-platforms)
+1. [Installation](#installation) — incl. [iOS](#ios), [Serial over TCP](#serial-over-tcp-all-platforms) and [Bluetooth LE](#serial-over-bluetooth-le-desktop--ios)
 2. [Basic Usage](#basic-usage)
 3. [TypeScript Support](#typescript-support)
 4. [Log Level Control](#log-level-control)
@@ -208,6 +208,32 @@ await port.watch({ onData: (text) => console.log(text) });
 Line settings (`setBaudRate`, parity, …) and modem lines (RTS/DTR, CTS/DSR) are kept
 locally and not sent: configure the serial side on the bridge itself (RFC 2217 is
 not implemented).
+
+### Serial over Bluetooth LE (desktop + iOS)
+
+With the plugin's `ble` cargo feature, paths like `ble://<device id or name>` talk to
+devices that expose the **Nordic UART Service** (NUS, `6E400001-…`): nRF52 boards,
+ESP32 BLE-UART sketches, HM-10-style modules, Adafruit Bluefruit, micro:bit. Writes
+go to the NUS RX characteristic in MTU-sized chunks; TX notifications become read
+data, so `watch`, `exchange` and AT commands work unchanged. A dropped link ends in
+`disconnect`.
+
+```toml
+tauri-plugin-serialplugin = { version = "4", features = ["ble"] }
+```
+
+```ts
+const found = await SerialPort.scanBlePorts({ timeoutMs: 4000 }); // { "ble://<id>": { product: "MyBoard", rssi: "-60", … } }
+const port = new SerialPort({ path: Object.keys(found)[0], baudRate: 115200 });
+await port.open();
+```
+
+- **macOS / iOS:** add `NSBluetoothAlwaysUsageDescription` to `src-tauri/Info.plist`
+  (macOS) and `src-tauri/Info.ios.plist` (iOS) — without it the OS kills the app on
+  the first Bluetooth call. See the example app.
+- **Linux:** needs BlueZ and `libdbus-1-dev` to build.
+- **Android:** not yet — use USB serial or `tcp://` there.
+- Baud rate, parity and modem lines have no meaning over BLE and are only stored.
 
 Use **one client per bridge**. A serial line has a single reader: if two apps talk
 to the same device through a forking bridge (`socat …,fork`), each reply goes to

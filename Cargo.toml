@@ -45,6 +45,9 @@ exclude = [
 
 [features]
 android-test-harness = ["android-usb-serial/fake-transport"]
+# Serial over Bluetooth LE (Nordic UART Service), desktop + iOS. Off by default:
+# on Linux it needs libdbus (BlueZ).
+ble = ["dep:btleplug", "dep:tokio", "dep:futures", "dep:uuid"]
 
 [package.metadata.docs.rs]
 rustc-args = [ "--cfg", "docsrs" ]
@@ -66,6 +69,12 @@ tauri-plugin = { version = "2", features = [ "build" ] }
 tauri = { version = "2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+btleplug = { version = "0.13", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"], optional = true }
+futures = { version = "0.3", optional = true }
+uuid = { version = "1", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Stay on 0.21 — 0.22 EnvUnowned / GlobalRef<T> breaks our JNI bridge.

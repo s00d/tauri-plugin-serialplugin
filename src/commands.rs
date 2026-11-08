@@ -592,3 +592,26 @@ pub async fn disable_mux<R: Runtime>(
 ) -> Result<(), Error> {
     blocking(&serial, move |s| s.disable_mux(path)).await
 }
+
+/// Scan for Bluetooth LE devices advertising the Nordic UART Service.
+/// Returns `ble://<id>` paths (open them like any port). Needs the `ble` feature.
+#[tauri::command]
+pub async fn ble_scan(
+    timeout_ms: Option<u64>,
+) -> Result<HashMap<String, HashMap<String, String>>, Error> {
+    let duration = Duration::from_millis(timeout_ms.unwrap_or(3000).clamp(500, 30_000));
+    #[cfg(all(feature = "ble", not(target_os = "android")))]
+    {
+        tauri::async_runtime::spawn_blocking(move || crate::port::ble::scan(duration))
+            .await
+            .map_err(|e| Error::String(format!("BLE scan task failed: {e}")))?
+            .map_err(|e| Error::String(e.to_string()))
+    }
+    #[cfg(not(all(feature = "ble", not(target_os = "android"))))]
+    {
+        let _ = duration;
+        Err(Error::String(
+            "BLE needs the plugin's `ble` cargo feature (desktop and iOS; not Android yet)".into(),
+        ))
+    }
+}

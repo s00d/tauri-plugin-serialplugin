@@ -48,6 +48,7 @@ const COMMANDS: &[&str] = &[
     "enable_mux",
     "open_mux_channel",
     "disable_mux",
+    "ble_scan",
 ];
 
 fn main() {

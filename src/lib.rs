@@ -148,6 +148,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             enable_mux,
             open_mux_channel,
             disable_mux,
+            ble_scan,
         ])
         .setup(|app, _api| {
             #[cfg(target_os = "android")]

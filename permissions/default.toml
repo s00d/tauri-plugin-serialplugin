@@ -50,4 +50,5 @@ permissions = [
     "allow-enable-mux",
     "allow-open-mux-channel",
     "allow-disable-mux",
+    "allow-ble-scan",
 ]
