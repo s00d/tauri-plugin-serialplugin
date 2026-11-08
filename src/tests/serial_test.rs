@@ -744,11 +744,9 @@ mod tests {
             Some(StopBits::One),
             Some(1000),
         );
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No such file or directory"));
+        // The OS wording differs (ENOENT on Unix, "cannot find the file" on Windows).
+        let err = result.expect_err("missing port must fail").to_string();
+        assert!(err.contains("Failed to open serial port"), "{err}");
     }
 
     #[test]
