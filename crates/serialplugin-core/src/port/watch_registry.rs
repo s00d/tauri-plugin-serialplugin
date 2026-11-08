@@ -12,6 +12,12 @@ fn registry() -> &'static Mutex<HashMap<u32, String>> {
 
 pub fn register(channel_id: u32, path: String) -> Result<(), crate::error::Error> {
     let mut map = crate::sync_util::lock_or_recover(registry());
+    if map.contains_key(&channel_id) {
+        return Err(crate::error::Error::new(format!(
+            "watch id {} is already in use",
+            channel_id
+        )));
+    }
     if map.values().any(|p| p == &path) {
         return Err(crate::error::Error::new(format!(
             "A watch is already active for port {}",
@@ -20,6 +26,10 @@ pub fn register(channel_id: u32, path: String) -> Result<(), crate::error::Error
     }
     map.insert(channel_id, path);
     Ok(())
+}
+
+pub fn contains(channel_id: u32) -> bool {
+    crate::sync_util::lock_or_recover(registry()).contains_key(&channel_id)
 }
 
 pub fn unregister(channel_id: u32) -> Option<String> {
@@ -34,8 +44,28 @@ pub fn paths_for_port(path: &str) -> Vec<u32> {
         .collect()
 }
 
-pub fn send_event(channel: &EventSink, event: SerialEvent) {
+/// 4.0.0 API (feature `tauri`): send one event on a Tauri channel.
+#[cfg(feature = "tauri")]
+pub fn send_event(channel: &tauri::ipc::Channel<SerialEvent>, event: SerialEvent) {
+    if let Err(e) = channel.send(event) {
+        crate::log_warn!("Failed to send serial event on channel: {}", e);
+    }
+}
+
+pub fn send_event_to(channel: &EventSink, event: SerialEvent) {
     if !channel(event) {
         crate::log_warn!("Failed to send serial event: receiver is gone");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn duplicate_watch_id_is_rejected() {
+        let id = 0xD0D0_0001;
+        super::register(id, "dup-a".into()).unwrap();
+        assert!(super::contains(id));
+        assert!(super::register(id, "dup-b".into()).is_err());
+        assert_eq!(super::unregister(id).as_deref(), Some("dup-a"));
     }
 }

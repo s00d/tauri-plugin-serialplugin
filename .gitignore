@@ -21,3 +21,5 @@ docs/.output
 docs/.data
 docs/content/3.reference/
 docs/content/9.changelog.md
+# nitro symlinks docs/dist to the generated output
+docs/dist

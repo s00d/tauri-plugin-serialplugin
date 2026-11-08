@@ -25,14 +25,10 @@ fn main() -> Result<(), serialplugin_core::Error> {
         }
         true
     });
-    let options = WatchOptions {
-        parser: Some(
-            serde_json::from_value(serde_json::json!({"type": "readline", "delimiter": "\r\n"}))
-                .expect("parser config"),
-        ),
-        ..Default::default()
-    };
-    serial.watch(path, options, sink)?;
+    let parser =
+        serde_json::from_value(serde_json::json!({"type": "readline", "delimiter": "\r\n"}))
+            .expect("parser config");
+    serial.watch_framed(path, WatchOptions::default(), Some(parser), sink)?;
     loop {
         std::thread::park();
     }

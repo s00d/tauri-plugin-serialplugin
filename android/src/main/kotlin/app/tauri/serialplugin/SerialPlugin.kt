@@ -9,31 +9,40 @@ import android.util.Log
 import android.webkit.WebView
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Plugin
+import app.tauri.serialplugin.manager.BleGattBridge
 import app.tauri.serialplugin.manager.UsbFdBridge
 
 @TauriPlugin
 class SerialPlugin(private val activity: Activity) : Plugin(activity) {
     private lateinit var usb: UsbFdBridge
+    private lateinit var ble: BleGattBridge
     private var destroyCb: Application.ActivityLifecycleCallbacks? = null
 
     override fun load(webView: WebView) {
         super.load(webView)
-        Log.i(TAG, "load: binding UsbFdBridge")
+        Log.i(TAG, "load: binding UsbFdBridge + BleGattBridge")
         usb = UsbFdBridge(activity.applicationContext)
         UsbNative.bind(usb)
+        ble = BleGattBridge(activity.applicationContext, activity)
+        BleNative.bind(ble)
         val app = activity.application
         destroyCb = object : Application.ActivityLifecycleCallbacks {
             override fun onActivityDestroyed(a: Activity) {
                 if (a !== activity) return
                 usb.shutdown()
+                ble.shutdown()
                 MobileBridge.onAppDestroy()
                 app.unregisterActivityLifecycleCallbacks(this)
                 destroyCb = null
             }
             override fun onActivityCreated(a: Activity, s: Bundle?) {}
             override fun onActivityStarted(a: Activity) {}
-            override fun onActivityResumed(a: Activity) {}
-            override fun onActivityPaused(a: Activity) {}
+            override fun onActivityResumed(a: Activity) {
+                if (a === activity) ble.onActivityResumed()
+            }
+            override fun onActivityPaused(a: Activity) {
+                if (a === activity) ble.onActivityPaused()
+            }
             override fun onActivityStopped(a: Activity) {}
             override fun onActivitySaveInstanceState(a: Activity, s: Bundle) {}
         }

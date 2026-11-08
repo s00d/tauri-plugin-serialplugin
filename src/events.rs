@@ -37,17 +37,6 @@ const fn current_platform() -> &'static str {
     }
 }
 
-/// Forward core events to a Tauri IPC channel (serialized to JSON per event).
-/// The sink reports `false` once the webview side of the channel is gone.
-pub(crate) fn channel_sink<E>(
-    channel: tauri::ipc::Channel<E>,
-) -> std::sync::Arc<dyn Fn(E) -> bool + Send + Sync>
-where
-    E: tauri::ipc::IpcResponse + Send + Sync + 'static,
-{
-    std::sync::Arc::new(move |event| channel.send(event).is_ok())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

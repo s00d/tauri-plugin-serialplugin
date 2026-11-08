@@ -8,7 +8,7 @@ resolver = "2"
 
 [package]
 name = "tauri-plugin-serialplugin"
-version = "4.0.0"
+version = "4.1.0"
 description = "Tauri plugin for serial port access (desktop and Android)."
 edition = "2021"
 authors = ["s00d"]
@@ -34,18 +34,26 @@ exclude = [
     "test-results/**",
     "android/src/test/**",
     "android/BUILD_INSTRUCTIONS.md",
-    "jest.config.js",
-    ".jestignore",
-    ".versionrc.json",
+    # Rust unit tests (src/lib.rs only declares them under #[cfg(test)]).
+    "src/tests/**",
+    # npm package and JS tooling.
+    "guest-js/**",
+    "dist-js/**",
+    "node_modules/**",
+    "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
-    "tsconfig.json",
-    "rollup.config.mjs",
+    ".npmrc",
+    ".release-it.json",
+    "tsconfig*.json",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "PUBLISHING.md",
 ]
 
 [features]
 android-test-harness = ["serialplugin-core/android-test-harness"]
-# Serial over Bluetooth LE (Nordic UART Service), desktop + iOS. Off by default:
+# Serial over Bluetooth LE (Nordic UART Service), desktop, iOS and Android. Off by default:
 # on Linux it needs libdbus (BlueZ).
 ble = ["serialplugin-core/ble"]
 
@@ -54,6 +62,8 @@ rustc-args = [ "--cfg", "docsrs" ]
 rustdoc-args = [ "--cfg", "docsrs" ]
 # Desktop APIs are the common docs.rs surface; Android JNI is cfg-gated.
 targets = ["x86_64-unknown-linux-gnu"]
+# Document the ble:// API too (btleplug builds on docs.rs: libdbus is installed there).
+features = ["ble"]
 
 [package.metadata.platforms.support]
 windows = { level = "full", notes = "" }
@@ -71,7 +81,9 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serial-codec = { path = "crates/serial-codec", version = "0.1.0" }
 # Everything that is not Tauri glue lives here (usable from plain Rust).
-serialplugin-core = { path = "crates/serialplugin-core", version = "0.1.0" }
+# `tauri`: the 4.0.0 API of the re-exported core modules (Tauri `Channel` helpers,
+# `From<PluginInvokeError>` on Android).
+serialplugin-core = { path = "crates/serialplugin-core", version = "0.1.0", features = ["tauri"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The core's log_* macros expand to `::log::…` on Android; android_log.rs installs the logcat sink.

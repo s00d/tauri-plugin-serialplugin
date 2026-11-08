@@ -12,7 +12,7 @@ pub trait RxHubHandle: Send + Sync {
     fn set_exchange_waiter(&self, waiter: Arc<ExchangeWaiter>);
     fn clear_exchange_waiter(&self);
     fn cancel_active_exchange(&self);
-    fn attach_watch(
+    fn attach_watch_with(
         &self,
         channel: EventSink,
         batch_timeout_ms: u64,
@@ -20,6 +20,18 @@ pub trait RxHubHandle: Send + Sync {
         route_urc: bool,
         framer: Option<Box<dyn Framer>>,
     );
+    /// 4.0.0 API (feature `tauri`): [`Self::attach_watch_with`] for a Tauri channel.
+    #[cfg(feature = "tauri")]
+    fn attach_watch(
+        &self,
+        channel: tauri::ipc::Channel<crate::events::SerialEvent>,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+    ) {
+        let sink = crate::events::channel_sink(channel);
+        self.attach_watch_with(sink, batch_timeout_ms, read_size, route_urc, None);
+    }
     fn detach_watch(&self);
     fn attach_cmux(&self, session: Arc<CmuxSession>);
     fn detach_cmux(&self);

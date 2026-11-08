@@ -45,7 +45,7 @@ impl From<JniError> for Error {
 }
 
 #[cfg(any(target_os = "android", test))]
-fn with_env<T, F>(f: F) -> Result<T, Error>
+pub(crate) fn with_env<T, F>(f: F) -> Result<T, Error>
 where
     F: FnOnce(&mut JNIEnv) -> Result<T, Error>,
 {
@@ -58,7 +58,7 @@ where
         // the operation failed, before the attached native thread is detached.
         // Otherwise an expected USB unplug becomes an uncaught Java exception.
         let out = f(env);
-        map_exception(env, "USB fd operation failed")?;
+        map_exception(env, "JNI call failed")?;
         out
     })
 }

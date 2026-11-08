@@ -1,4 +1,5 @@
 // watch({ parser }): native framing passthrough, per-frame onData, reconnect keeps it.
+import type { ParserOptions } from '../guest-js';
 import { MockChannel } from './setup';
 import { setupTestMocks, createTestSerialPort, wire } from './test-utils';
 
@@ -24,7 +25,7 @@ const emitData = (data: number[]) =>
 describe('watch parser', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('sends the parser with Uint8Array fields as byte arrays', async () => {
+  it('sends the parser as a top-level argument with Uint8Array fields as byte arrays', async () => {
     const mockInvoke = mockPort();
     const port = createTestSerialPort();
     await port.open();
@@ -39,7 +40,7 @@ describe('watch parser', () => {
         },
       },
     );
-    expect(watchCalls(mockInvoke)[0][1].options.parser).toEqual({
+    expect(watchCalls(mockInvoke)[0][1].parser).toEqual({
       type: 'startEnd',
       startDelimiter: [0x02],
       endDelimiter: [0x03],
@@ -52,6 +53,7 @@ describe('watch parser', () => {
     const port = createTestSerialPort();
     await port.open();
     await port.watch({ onData: vi.fn() });
+    expect(watchCalls(mockInvoke)[0][1]).not.toHaveProperty('parser');
     expect(watchCalls(mockInvoke)[0][1].options).not.toHaveProperty('parser');
   });
 
@@ -109,6 +111,42 @@ describe('watch parser', () => {
     await vi.runOnlyPendingTimersAsync();
     const calls = watchCalls(mockInvoke);
     expect(calls).toHaveLength(2);
-    expect(calls[1][1].options.parser).toEqual(parser);
+    expect(calls[1][1].parser).toEqual(parser);
+  });
+
+  it('interByteTimeout takes exactly one of intervalMs / interval', async () => {
+    const mockInvoke = mockPort();
+    const ok: ParserOptions[] = [
+      { type: 'interByteTimeout', intervalMs: 30 },
+      { type: 'interByteTimeout', interval: 30, maxBufferSize: 64 },
+    ];
+    // Rust rejects these (missing field / duplicate field), so the types must too.
+    // @ts-expect-error neither field
+    const none: ParserOptions = { type: 'interByteTimeout' };
+    // @ts-expect-error both fields
+    const both: ParserOptions = { type: 'interByteTimeout', intervalMs: 30, interval: 30 };
+    void none;
+    void both;
+    for (const parser of ok) {
+      const port = createTestSerialPort();
+      await port.open();
+      await port.watch({ onData: vi.fn() }, { parser });
+    }
+    expect(watchCalls(mockInvoke).map((c) => c[1].parser)).toEqual(ok);
+  });
+
+  it('passes the Node options packetLength.maxBufferSize and readline/regex encoding through', async () => {
+    const mockInvoke = mockPort();
+    const parsers: ParserOptions[] = [
+      { type: 'packetLength', lengthOffset: 2, maxBufferSize: 1024 },
+      { type: 'readline', delimiter: '\r\n', encoding: 'utf8' },
+      { type: 'regex', regex: '\\r?\\n', encoding: 'hex' },
+    ];
+    for (const parser of parsers) {
+      const port = createTestSerialPort();
+      await port.open();
+      await port.watch({ onData: vi.fn() }, { parser });
+    }
+    expect(watchCalls(mockInvoke).map((c) => c[1].parser)).toEqual(parsers);
   });
 });

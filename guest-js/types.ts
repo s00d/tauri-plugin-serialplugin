@@ -13,6 +13,12 @@ export interface PortInfo {
   vid: 'Unknown' | string;
 }
 
+/** A `SerialPort.scanBlePorts()` result; the `ble://…` path is the record key. */
+export interface BlePortInfo extends PortInfo {
+  /** Signal strength in dBm as a decimal string; empty when the platform did not report it. */
+  rssi: string;
+}
+
 export interface Capabilities {
   transport: 'desktop' | 'mobile';
   platform: string;
@@ -37,7 +43,8 @@ export interface WatchOptions {
   /**
    * When `true`, native hub line-routes idle RX so AT URC lines become `onUrc` events
    * (and are removed from `onData`). Default: `true` if `onUrc` is provided, else `false`
-   * (raw byte stream — required for binary / NMEA).
+   * (raw byte stream — required for binary / NMEA). Ignored on CMUX channels
+   * (`openMuxChannel()`), as is `size`.
    */
   routeUrc?: boolean;
   /**
@@ -63,25 +70,33 @@ export type ByteSeq = string | number[] | Uint8Array;
 /**
  * Native parser selection for `watch({ parser })`. `maxBufferSize` (default 65536) caps
  * bytes buffered without a complete frame; see each variant for what happens at the cap.
+ * Unknown keys make `watch` fail (a typo would otherwise fall back to a default).
  */
 export type ParserOptions =
   /** Split on a byte sequence (`@serialport/parser-delimiter`). Full buffer is emitted as a frame. */
   | { type: 'delimiter'; delimiter: ByteSeq; includeDelimiter?: boolean; maxBufferSize?: number }
   /** Split on `delimiter`, default `"\n"` (`@serialport/parser-readline`). */
-  | { type: 'readline'; delimiter?: ByteSeq; includeDelimiter?: boolean; maxBufferSize?: number }
+  | {
+      type: 'readline';
+      delimiter?: ByteSeq;
+      includeDelimiter?: boolean;
+      maxBufferSize?: number;
+      /** Node's string-rendering option: accepted and ignored (frames are decoded by `watch`). */
+      encoding?: string;
+    }
   /** Fixed-size frames of `length` bytes (`@serialport/parser-byte-length`). */
   | { type: 'byteLength'; length: number }
-  /** A frame ends after `intervalMs` (alias `interval`) of silence (`@serialport/parser-inter-byte-timeout`). */
-  | {
-      type: 'interByteTimeout';
-      intervalMs?: number;
-      interval?: number;
-      maxBufferSize?: number;
-    }
+  /**
+   * A frame ends after `intervalMs` (alias `interval`) of silence (`@serialport/parser-inter-byte-timeout`).
+   * Give exactly one of `intervalMs` / `interval`.
+   */
+  | { type: 'interByteTimeout'; intervalMs: number; interval?: never; maxBufferSize?: number }
+  | { type: 'interByteTimeout'; interval: number; intervalMs?: never; maxBufferSize?: number }
   /**
    * Delimiter + little-endian length field (`@serialport/parser-packet-length`).
    * Defaults: delimiter 0xaa, delimiterBytes 1, packetOverhead 2, lengthBytes 1,
-   * lengthOffset 1, maxLen 0xff.
+   * lengthOffset 1, maxLen 0xff, maxBufferSize 65536 (a packet that cannot complete
+   * within it is emitted as a frame).
    */
   | {
       type: 'packetLength';
@@ -91,11 +106,18 @@ export type ParserOptions =
       lengthBytes?: number;
       lengthOffset?: number;
       maxLen?: number;
+      maxBufferSize?: number;
     }
   /** Drop everything until `delimiter`, then pass data through (`@serialport/parser-ready`). */
   | { type: 'ready'; delimiter: ByteSeq }
   /** Split UTF-8 text on a regular expression (Rust `regex-lite` syntax, not a JS `RegExp`). */
-  | { type: 'regex'; regex: string; maxBufferSize?: number }
+  | {
+      type: 'regex';
+      regex: string;
+      maxBufferSize?: number;
+      /** Node's string-rendering option: accepted and ignored. */
+      encoding?: string;
+    }
   /** Frames between a start and an end marker (`@serialport/parser-start-end`). */
   | {
       type: 'startEnd';
@@ -277,10 +299,13 @@ export type ExchangeMatch =
   | 'noDialtone'
   | 'sendOk'
   | 'sendFail'
-  /** `code` is `null` when the modem only sent text (`AT+CMEE=2`); `message` is that text, absent for numeric codes. */
-  | { cmeError: { code?: number | null; message?: string } }
+  /**
+   * Verbose texts (`AT+CMEE=2`) are mapped to their numeric `code` (`"SIM busy"` → 14);
+   * `code` is `null` only for text the parser does not know.
+   */
+  | { cmeError: { code?: number | null } }
   /** Same shape as `cmeError`, for `+CMS ERROR`. */
-  | { cmsError: { code?: number | null; message?: string } }
+  | { cmsError: { code?: number | null } }
   | { intermediate: { line: string } }
   | { substring: { term: string } };
 

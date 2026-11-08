@@ -75,8 +75,13 @@ for bad in \
   '^\.versionrc\.json$' \
   '^pnpm-lock\.yaml$' \
   '^pnpm-workspace\.yaml$' \
-  '^tsconfig\.json$' \
-  '^vite\.config\.ts$'
+  '^tsconfig.*\.json$' \
+  '^vite\.config\.ts$' \
+  '^vitest\.config\.ts$' \
+  '^package\.json$' \
+  '^\.npmrc$' \
+  '^guest-js/' \
+  '^src/tests/'
 do
   if rg -q "$bad" "$LIST"; then
     echo "error: cargo package still includes: $bad" >&2

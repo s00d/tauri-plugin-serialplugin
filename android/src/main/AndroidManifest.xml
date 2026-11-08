@@ -6,6 +6,12 @@
     <!-- USB permissions -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <!-- Bluetooth LE serial (ble://, Nordic UART). The BLE permissions are NOT declared here:
+         the manifest merger would fold their maxSdkVersion / usesPermissionFlags into the app's
+         own declarations. build.rs writes them into the app manifest, only with the `ble`
+         cargo feature (docs: platforms/ble). -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
     <application>
         <!-- USB device filter for automatic detection -->
         <meta-data

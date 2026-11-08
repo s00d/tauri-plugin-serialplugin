@@ -15,14 +15,22 @@ categories = ["hardware-support", "api-bindings"]
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
+features = ["ble"]
 
 [features]
-# Serial over Bluetooth LE (Nordic UART Service), desktop + iOS. On Linux it needs libdbus (BlueZ).
+# Serial over Bluetooth LE (Nordic UART Service): btleplug on desktop + iOS (Linux needs
+# libdbus/BlueZ), the Kotlin GATT bridge on Android (btleplug is not built there).
 ble = ["dep:btleplug", "dep:tokio", "dep:futures", "dep:uuid"]
 # In-memory USB transport for the Android JNI test harness (debug builds only).
 android-test-harness = ["android-usb-serial/fake-transport"]
+# The plugin's 4.0.0 API on core items: Tauri `Channel` variants of the watch / URC
+# helpers (`RxHubShared::attach_watch`, `list_monitor::subscribe`, …), `channel_sink`
+# and, on Android, `From<PluginInvokeError> for Error`. The plugin enables it; plain
+# Rust users leave it off (no Tauri in the dependency tree).
+tauri = ["dep:tauri"]
 
 [dependencies]
+tauri = { version = "2", default-features = false, optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serial-codec = { path = "../serial-codec", version = "0.1.0" }

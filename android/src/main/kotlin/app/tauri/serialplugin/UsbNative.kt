@@ -1,10 +1,13 @@
 package app.tauri.serialplugin
 
+import android.annotation.SuppressLint
 import app.tauri.serialplugin.manager.UsbFdBridge
 import org.json.JSONObject
 
 /** Static JNI facade: Rust calls fd + enumerate only. */
 object UsbNative {
+    // Not a leak: the bridge is built with the application context.
+    @SuppressLint("StaticFieldLeak")
     @Volatile
     private var bridge: UsbFdBridge? = null
 

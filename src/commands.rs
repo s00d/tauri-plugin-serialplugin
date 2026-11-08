@@ -177,9 +177,9 @@ pub fn capabilities() -> Result<Capabilities, Error> {
     Ok(Capabilities::current())
 }
 
-/// Streams serial port events through a Tauri IPC channel.
+/// Streams serial port events through a Tauri IPC channel (the 4.0.0 entry point, no
+/// parser). The IPC `watch` command is [`framed::watch`], which also takes `parser`.
 /// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
-#[tauri::command]
 pub async fn watch<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
@@ -188,6 +188,31 @@ pub async fn watch<R: Runtime>(
     channel: Channel<SerialEvent>,
 ) -> Result<u32, Error> {
     blocking(&serial, move |s| s.watch(path, options, channel)).await
+}
+
+/// The handler registered as the `watch` IPC command: [`watch`] plus the optional
+/// native `parser` (a top-level argument, so [`WatchOptions`] keeps its 4.0.0 fields).
+// The IPC `watch` command's hidden macros, at their 4.0.0 path.
+#[doc(hidden)]
+pub use framed::{__cmd__watch, __tauri_command_name_watch};
+
+pub mod framed {
+    use super::*;
+
+    #[tauri::command]
+    pub async fn watch<R: Runtime>(
+        _app: AppHandle<R>,
+        serial: State<'_, SerialPort<R>>,
+        path: String,
+        options: WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
+        channel: Channel<SerialEvent>,
+    ) -> Result<u32, Error> {
+        blocking(&serial, move |s| {
+            s.watch_framed(path, options, parser, channel)
+        })
+        .await
+    }
 }
 
 /// Stops a watch session by channel id.
@@ -603,18 +628,22 @@ pub async fn ble_scan(
     timeout_ms: Option<u64>,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
     let duration = Duration::from_millis(timeout_ms.unwrap_or(3000).clamp(500, 30_000));
-    #[cfg(all(feature = "ble", not(target_os = "android")))]
+    #[cfg(feature = "ble")]
     {
-        tauri::async_runtime::spawn_blocking(move || crate::port::ble::scan(duration))
+        #[cfg(not(target_os = "android"))]
+        use crate::port::ble::scan;
+        #[cfg(target_os = "android")]
+        use crate::port::ble_android::scan;
+        tauri::async_runtime::spawn_blocking(move || scan(duration))
             .await
             .map_err(|e| Error::String(format!("BLE scan task failed: {e}")))?
             .map_err(|e| Error::String(e.to_string()))
     }
-    #[cfg(not(all(feature = "ble", not(target_os = "android"))))]
+    #[cfg(not(feature = "ble"))]
     {
         let _ = duration;
         Err(Error::String(
-            "BLE needs the plugin's `ble` cargo feature (desktop and iOS; not Android yet)".into(),
+            "BLE needs the plugin's `ble` cargo feature".into(),
         ))
     }
 }

@@ -51,7 +51,7 @@ mod io_errors {
                 true
             });
             let hub = super::super::PortRxHub::start(port, "unplugged".into());
-            hub.attach_watch(channel, 10, 64, false, None);
+            hub.attach_watch_with(channel, 10, 64, false, None);
             rx.recv_timeout(Duration::from_secs(3))
                 .expect("no Disconnect after persistent read errors");
             hub.stop();
@@ -91,7 +91,7 @@ use io_errors::{is_benign_read_error, is_disconnect_read_error};
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::hub::shared::{
-    finish_drain, tick_read_slot, try_complete_drain, ExchangeWaiter, HubRoutingState, RxHubShared,
+    finish_drain, try_complete_drain, ExchangeWaiter, HubRoutingState, RxHubShared,
 };
 use serial_codec::framing::Framer;
 use serialport::SerialPort;
@@ -143,7 +143,7 @@ const MAX_CONSECUTIVE_READ_ERRORS: u32 = 5;
 fn shutdown_hub_state(shared: &RxHubShared, routing: &mut HubRoutingState) {
     shared.fail_all_waiters("port closed");
     shared.finish_watch_stream(routing);
-    shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+    shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
 }
 
 /// Single RX consumer on the main serial fd (desktop).
@@ -177,7 +177,20 @@ impl PortRxHub {
             .unwrap_or(true)
     }
 
+    /// 4.0.0 API (feature `tauri`): [`Self::attach_watch_with`] for a Tauri channel, no parser.
+    #[cfg(feature = "tauri")]
     pub fn attach_watch(
+        &self,
+        channel: tauri::ipc::Channel<SerialEvent>,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+    ) {
+        self.shared
+            .attach_watch(channel, batch_timeout_ms, read_size, route_urc);
+    }
+
+    pub fn attach_watch_with(
         &self,
         channel: crate::events::EventSink,
         batch_timeout_ms: u64,
@@ -186,7 +199,7 @@ impl PortRxHub {
         framer: Option<Box<dyn Framer>>,
     ) {
         self.shared
-            .attach_watch(channel, batch_timeout_ms, read_size, route_urc, framer);
+            .attach_watch_with(channel, batch_timeout_ms, read_size, route_urc, framer);
     }
 
     pub fn detach_watch(&self) {
@@ -250,7 +263,7 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
     fn cancel_active_exchange(&self) {
         self.cancel_active_exchange();
     }
-    fn attach_watch(
+    fn attach_watch_with(
         &self,
         channel: crate::events::EventSink,
         batch_timeout_ms: u64,
@@ -258,7 +271,7 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
         route_urc: bool,
         framer: Option<Box<dyn Framer>>,
     ) {
-        self.attach_watch(channel, batch_timeout_ms, read_size, route_urc, framer);
+        self.attach_watch_with(channel, batch_timeout_ms, read_size, route_urc, framer);
     }
     fn detach_watch(&self) {
         self.detach_watch();
@@ -314,10 +327,12 @@ fn hub_loop(
                 // feed_bytes retries drain then falls through to exchange/watch/idle
                 // if reclaim won during poll_read_port — never drop the chunk.
                 shared.feed_bytes(&buf[..n], &mut routing);
-                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
             }
-            try_complete_drain(&shared);
-            tick_read_slot(&shared);
+            // Full tick (drain completion, read deadline, watch batch and parser timers):
+            // a time-based parser frame must not wait for the drain to end.
+            shared.tick(&path, &mut routing);
+            shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
             continue;
         }
 
@@ -346,7 +361,7 @@ fn hub_loop(
             }
             Ok(Some(n)) if n > 0 => {
                 shared.feed_bytes(&buf[..n], &mut routing);
-                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
             }
             Ok(Some(_)) => {
                 thread::sleep(Duration::from_millis(1));
@@ -354,7 +369,7 @@ fn hub_loop(
             Err(e) => {
                 consecutive_errors += 1;
                 shared.flush_watch_now(&mut routing);
-                shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
                 if is_disconnect_read_error(&e) || consecutive_errors >= MAX_CONSECUTIVE_READ_ERRORS
                 {
                     let reason = format!("Serial port disconnected: {}", e);
@@ -371,21 +386,57 @@ fn hub_loop(
                 }
                 if last_error_emit.elapsed() >= Duration::from_secs(1) {
                     last_error_emit = Instant::now();
-                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
-                        .as_ref()
-                        .map(|watch| watch.channel.clone());
-                    if let Some(channel) = channel {
-                        let _ = (channel)(SerialEvent::Error {
-                            path: path.clone(),
-                            message: format!("Serial read error: {}", e),
-                        });
-                    }
+                    shared.emit(SerialEvent::Error {
+                        path: path.clone(),
+                        message: format!("Serial read error: {}", e),
+                    });
                 }
                 thread::sleep(Duration::from_millis(50));
             }
         }
 
         shared.tick(&path, &mut routing);
-        shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+    }
+}
+
+#[cfg(all(test, unix, not(any(target_os = "android", target_os = "ios"))))]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// The hub skipped `tick` while a drain was active, so an inter-byte-timeout frame
+    /// waited for the whole drain window.
+    #[test]
+    fn parser_timer_fires_during_drain() {
+        let (_guard, mut master, slave) = crate::sync_util::pty_pair_locked();
+        let port: Arc<Mutex<Box<dyn SerialPort>>> = Arc::new(Mutex::new(Box::new(slave)));
+        let hub = PortRxHub::start(port, "pty".into());
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
+            if let SerialEvent::Data { data, .. } = event {
+                let _ = tx.lock().unwrap().send(data);
+            }
+            true
+        });
+        let cfg: serial_codec::framing::FramerConfig = serde_json::from_value(
+            serde_json::json!({"type": "interByteTimeout", "interval": 150}),
+        )
+        .unwrap();
+        hub.attach_watch_with(channel, 10_000, 64, false, Some(cfg.build().unwrap()));
+        master.write_all(&[1, 2]).unwrap();
+        thread::sleep(Duration::from_millis(50)); // bytes reach the parser
+        let shared = hub.shared();
+        let drainer = thread::spawn(move || {
+            shared.drain(2_000, 3_000, Arc::new(AtomicBool::new(false)), vec![])
+        });
+        let frame = rx
+            .recv_timeout(Duration::from_millis(1_000))
+            .expect("parser frame held back by the drain");
+        assert_eq!(frame, vec![1, 2]);
+        assert!(!drainer.is_finished(), "drain should still be running");
+        let _ = drainer.join();
+        hub.stop();
     }
 }

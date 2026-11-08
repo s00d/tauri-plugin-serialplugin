@@ -6,6 +6,8 @@ pub mod shared;
 
 pub use desktop::PortRxHub;
 pub use handle::RxHubHandle;
+#[cfg(feature = "tauri")]
+pub use shared::emit_urc;
 pub use shared::{
-    emit_urc, ExchangeWaiter, HubRoutingState, LineRouter, RxHubShared, RxRouteAction,
+    emit_urc_to, ExchangeWaiter, HubRoutingState, LineRouter, RxHubShared, RxRouteAction,
 };

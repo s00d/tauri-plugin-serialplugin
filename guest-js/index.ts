@@ -10,6 +10,7 @@ export {
 export { LogLevel } from './logger.js';
 export type {
   PortInfo,
+  BlePortInfo,
   Capabilities,
   SerialEvent,
   WatchOptions,
@@ -37,5 +38,6 @@ export type {
   AtCommandResult,
   AtPhase,
   AtResultFormat,
+  ExchangeCompletionMode,
   SendSmsPduOptions,
 } from './types.js';

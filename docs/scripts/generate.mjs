@@ -358,10 +358,7 @@ function commandsPage() {
 function changelogPage() {
   let body = read('CHANGELOG.md').replace(/^# .*\n/, '')
   // Relative links would 404 on the site.
-  body = body.replace(/\]\((?!https?:|#|\/|mailto:)([^)]+)\)/g, (_, target) => {
-    if (target === 'docs/migration.md') return '](/migration)'
-    return `](${repo}${target})`
-  })
+  body = body.replace(/\]\((?!https?:|#|\/|mailto:)([^)]+)\)/g, (_, target) => `](${repo}${target})`)
   return page('Changelog', 'All notable changes to tauri-plugin-serialplugin and tauri-plugin-serialplugin-api.', 'CHANGELOG.md', body)
 }
 

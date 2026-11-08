@@ -131,7 +131,7 @@ mod parity_tests {
             }
         }
 
-        let session = CmuxSession::new("mock".into(), Arc::new(NoopIo));
+        let session = CmuxSession::with_n1("mock".into(), Arc::new(NoopIo), 31);
         session.register_dlci(2, "mock#dlci=2".into());
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ExchangeOptions {

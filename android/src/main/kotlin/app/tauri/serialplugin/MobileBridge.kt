@@ -17,6 +17,14 @@ object MobileBridge {
     @JvmStatic
     external fun onAppDestroy()
 
+    /** Notification bytes from the Nordic UART TX characteristic of BLE port [handle]. */
+    @JvmStatic
+    external fun onBleData(handle: Long, data: ByteArray)
+
+    /** BLE port [handle] lost its link (not a close Rust asked for). */
+    @JvmStatic
+    external fun onBleDisconnected(handle: Long, reason: String)
+
     /** Debug-only: reset Rust port registry between integration tests. */
     @JvmStatic
     external fun testHarnessReset()

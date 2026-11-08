@@ -1,6 +1,30 @@
 # Changelog
 
-## Unreleased
+## [4.1.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.0.0...v4.1.0) (2026-11-08)
+
+No breaking API changes: Rust and JS code written for 4.0.0 keeps compiling and the
+invoke payloads are unchanged; the API additions and the behaviour changes are below.
+
+### Behaviour changes (AT parser)
+
+* URCs are no longer de-duplicated: two identical URCs in one read are both reported.
+* V.250 numeric result codes (`ATV0` mode: `0`, `3`, `4`, …) are recognised as final results;
+  result codes match case-insensitively.
+* Verbose `+CME ERROR:` / `+CMS ERROR:` texts are mapped to their numeric codes
+  (`"+CME ERROR: SIM busy"` gives `code: 14`); `code` is `null` only for text the parser
+  does not know.
+* Trailing lines after the final result code no longer hide it and are reported as URCs; a final
+  `OK` glued to a following `+CUSD:` is split; quoted multi-line `+CUSD` is one URC.
+* Two-line `+CMT` / `+CDS` / `+CBM` URCs keep their PDU line; `+CMGS:` in the PDU phase
+  of `send_sms_pdu` is treated as solicited; text-mode SMS bodies stay data.
+* `ATV0` replies whose result code ends with CR only (V.250 §5.7.1) complete instead of
+  timing out; echo and result are no longer glued into one line.
+* Basic commands in front of an extended one (`ATE1+CSQ`, `AT&F+CSQ`) no longer turn the
+  reply line into a URC; with `ATE0` the lines of a known command (`AT+CLAC`) are body.
+* `CONNECT` or `OK` followed by data in the same read (PPP, CMUX) completes the exchange.
+* A reply without a final result keeps its last line in `solicitedBody`.
+* The non-standard `COMMAND NOT SUPPORT` line is no longer a final result (only V.250,
+  27.007 and 27.005 codes are; `SEND OK` / `SEND FAIL` stay for compatibility).
 
 ### Features
 
@@ -8,24 +32,85 @@
   (RX hub, watch with parsers, exchange / AT / SMS PDU, CMUX, TCP, BLE, Android USB)
   without Tauri. `SerialManager` takes closure sinks (`EventSink`, `PortListSink`)
   instead of IPC channels, so headless Rust apps can drive many ports directly. The
-  plugin is now a thin layer: `api::SerialPort<R>` derefs to `SerialManager` and the
-  moved modules are re-exported at their old paths (`state`, `events`, `error`, `at`,
-  `hub`, …). Only Android loses `From<PluginInvokeError> for error::Error`.
-* New `serial-codec` crate (`crates/serial-codec`): byte stream framing with Node
-  serialport parser parity (delimiter, readline, byteLength, interByteTimeout,
-  packetLength, ready, regex, startEnd, SLIP, ccTalk), AT response parsing and
-  27.010 CMUX frames, usable without Tauri.
-* `watch({ parser })` (Rust `WatchOptions::parser`): native framing, each complete
+  plugin is now a thin layer over it: `api::SerialPort<R>` keeps its 4.0.0 methods
+  (delegating to `SerialManager`, which it also derefs to) and the moved modules are
+  re-exported at their old paths (`state`, `events`, `error`, `at`, `hub`, …).
+* New `serial-codec` crate (`crates/serial-codec`, MPL-2.0), usable without Tauri:
+  `framing` (Node serialport parser parity: delimiter, readline, byteLength,
+  interByteTimeout, packetLength, ready, regex, startEnd, SLIP, ccTalk), `at` (AT
+  response parsing), `args` (V.250 / 27.007 argument splitting), `urc` (typed 27.007 /
+  27.005 information lines and URCs, e.g. `+CSQ`, `+CREG`), `sms` (SMS PDU decode/encode,
+  GSM 7-bit with national shift tables, UCS-2, concatenated SMS reassembly), `ussd`
+  (`+CUSD` parsing, USSD 7-bit packing, CBS DCS) and `cmux` (27.010 basic-mode frames).
+* `watch({ parser })` (Rust `SerialPort::watch_framed` / `SerialManager::watch_framed`;
+  the parser is a top-level `parser` argument of the `watch` command): native framing, each complete
   frame is one `data` event with no batching; time-based parsers fire without further
   bytes; the buffered remainder is emitted on unwatch, close or disconnect. Works on
   every transport and on CMUX channels, and survives auto-reconnect. See the
   [parsers guide](https://s00d.github.io/tauri-plugin-serialplugin/guides/parsers).
+* JS: new exported types `BlePortInfo` (`scanBlePorts()` results with `rssi`) and
+  `ExchangeCompletionMode`.
+* Documentation site: https://s00d.github.io/tauri-plugin-serialplugin/ (guides,
+  platform notes, and an API reference generated from the sources).
+* **Android BLE:** `ble://<MAC or name>` ports and `scanBlePorts()` now work on Android
+  (feature `ble`) through a Kotlin `BluetoothGatt` bridge: Nordic UART Service, MTU 247,
+  serialized chunked writes, notifications as read data, link loss as `onDisconnect`,
+  one retry on GATT 133/62/129. Runtime permission is requested on first use
+  (Nearby devices on Android 12+, location on 11 and older). GATT callbacks complete only
+  the step that waits for them (a peripheral-initiated MTU exchange or a late callback no
+  longer finishes the wrong step); a MAC not seen before is found by a short address scan
+  (random static addresses); names are cached and Android's 5-scans-per-30 s limit is a
+  clear error; Bluetooth switched off ends open ports with `onDisconnect`; Location
+  services off (Android 11 and older) is a clear error; pairing-protected devices are
+  paired and retried once; one 20 s budget covers the whole `open()`; partial writes
+  return the bytes sent; the RX queue is capped at 1 MiB and counted by `bytesToRead()`.
+  The Bluetooth permissions are **not** in the library manifest (its merge would have
+  changed apps' own location / `BLUETOOTH_SCAN` declarations): with `ble`, `build.rs`
+  writes them into the app's generated `AndroidManifest.xml`, leaving out any the app
+  declares itself. Apps without `ble` get no new permissions (see
+  [BLE](https://s00d.github.io/tauri-plugin-serialplugin/platforms/ble#android)).
 
 ### Bug Fixes
 
 * **watch/URC:** URCs found while draining RX before an exchange were judged per read
   chunk, so a `+CMT:` / `+CDS:` header could go out without its PDU line; they are now
-  emitted when the drain completes, over the whole drained buffer.
+  emitted when the drain completes, over the whole drained buffer. A URC that arrives
+  during the pre-exchange drain is therefore delayed by up to the drain window
+  (`drainIdleMs` after the last byte, at most `drainMaxMs`, default 200 ms), and still
+  reaches the watch when the drain ends with an error (read error, close, USB error).
+* **watch:** `unwatch` / `close` racing the RX thread could drop frames the parser had
+  already decoded and deliver the later remainder; events now keep their sink from the
+  moment they are decoded, and the remainder always comes after them (also on CMUX
+  channels, where it could arrive first).
+* **core:** the watch sink is never called under a manager, hub, drain or CMUX lock, so
+  a sink may call back into `SerialManager` (`unwatch`, the parser remainder on
+  unwatch/close/re-watch and drain URCs used to run under them and could deadlock). The
+  sink runs on the RX thread, except the last events of a watch (remainder on
+  unwatch / close), which may run on the caller's thread; one call at a time, in order.
+* **CMUX:** the receive limit is the N1 from the `AT+CMUX=` command (4th parameter),
+  at least 1509 bytes; frames up to N1 bytes are no longer dropped as corrupt when N1 is
+  above 1509 (the default command keeps N1 = 31).
+* **CMUX:** a physical disconnect now flushes channel watches too: their parser
+  remainder, then `disconnect` with the channel's path.
+* **watch:** time-based parsers (`interByteTimeout`, ccTalk) and the batch timer kept
+  running only outside a pre-exchange drain; they now fire during it.
+* **core:** `watch` ids handed out by `SerialManager::watch` / `watch_ports` skip ids
+  already taken by plugin channels, and a duplicate id is rejected instead of silently
+  replacing the other watch. `force_close` joins the RX thread outside the port map lock.
+* **watch:** unknown keys inside `watch({ parser })` fail `watch` (a typo would fall back
+  to a default); the parsers are linear on input without delimiters (startEnd and regex
+  rescanned their whole buffer per read), and `packetLength` gained `maxBufferSize` and
+  rejects options that could overflow. Exchanges judge each reply line once (a long
+  reply re-ran completion over the whole buffer per read).
+* **BLE:** chunks are capped at 512 bytes (Android 14+ and some desktops negotiate
+  MTU 517+); `ble://<name>` lookups scan without the service filter (boards that do not
+  advertise the NUS UUID); every 8th chunk is written with response when the device
+  allows it. Desktop / iOS: `open()` times out after 20 s instead of waiting forever on
+  macOS, one Bluetooth adapter is shared and waited for until powered on, notifications
+  sent right after subscribing are kept, Linux ports are `ble://<MAC>` and MACs match in
+  any case, the RX queue is capped at 1 MiB like on Android. Android: bonded devices get
+  1.6 s before service discovery, a stale GATT cache is refreshed once, Service Changed
+  ends the port, high connection priority, indicate-only TX characteristics work.
 
 ## [4.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.9...v4.0.0) (2026-11-08)
 

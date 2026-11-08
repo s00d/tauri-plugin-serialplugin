@@ -26,10 +26,17 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 /// Ids handed out by [`SerialManager::watch`] / [`SerialManager::watch_ports`].
-/// The Tauri plugin passes its IPC channel ids through the `*_with_id` variants instead.
-fn next_watch_id() -> u32 {
+/// The Tauri plugin passes its IPC channel ids through the `*_with_id` variants instead;
+/// both share one registry, so an id already taken there is skipped (and `register`
+/// rejects a duplicate id outright).
+fn next_watch_id(taken: impl Fn(u32) -> bool) -> u32 {
     static NEXT: AtomicU32 = AtomicU32::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
+    loop {
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        if !taken(id) {
+            return id;
+        }
+    }
 }
 
 /// Platform seam: enumerate available ports.
@@ -83,9 +90,13 @@ fn platform_open(
     lines: crate::state::ModemLinesOnOpen,
 ) -> Result<(String, Box<dyn SerialPortTrait>), Error> {
     if path.starts_with("ble://") {
-        #[cfg(all(feature = "ble", not(target_os = "android")))]
+        #[cfg(feature = "ble")]
         {
-            let port = crate::port::ble::BleSerialPort::connect(
+            #[cfg(not(target_os = "android"))]
+            use crate::port::ble::BleSerialPort as Ble;
+            #[cfg(target_os = "android")]
+            use crate::port::ble_android::AndroidBleSerialPort as Ble;
+            let port = Ble::connect(
                 path,
                 baud_rate,
                 data_bits.into(),
@@ -97,9 +108,9 @@ fn platform_open(
             .map_err(|e| Error::String(format!("Failed to open {path}: {e}")))?;
             return Ok((path.to_string(), Box::new(port)));
         }
-        #[cfg(not(all(feature = "ble", not(target_os = "android"))))]
+        #[cfg(not(feature = "ble"))]
         return Err(Error::String(format!(
-            "{path}: BLE needs the plugin's `ble` cargo feature (desktop and iOS; not Android yet)"
+            "{path}: BLE needs the plugin's `ble` cargo feature"
         )));
     }
     if crate::port::tcp::tcp_address(path).is_some() {
@@ -357,7 +368,11 @@ impl SerialManager {
         options: crate::events::WatchPortsOptions,
         sink: PortListSink,
     ) -> Result<u32, Error> {
-        self.watch_ports_with_id(next_watch_id(), options, sink)
+        self.watch_ports_with_id(
+            next_watch_id(crate::port::list_monitor::is_subscribed),
+            options,
+            sink,
+        )
     }
 
     /// [`Self::watch_ports`] under a caller-chosen id (the plugin uses its IPC channel id).
@@ -367,7 +382,7 @@ impl SerialManager {
         options: crate::events::WatchPortsOptions,
         sink: PortListSink,
     ) -> Result<u32, Error> {
-        crate::port::list_monitor::subscribe(id, sink, options)?;
+        crate::port::list_monitor::subscribe_sink(id, sink, options)?;
         Ok(id)
     }
 
@@ -482,15 +497,15 @@ impl SerialManager {
             }
         }
 
-        match self.serialports.lock() {
-            Ok(mut map) => {
-                if let Some(serial) = map.remove(&path) {
-                    finish_serialport_info(&path, serial)?;
-                }
-                Ok(())
-            }
-            Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
+        // Remove under the lock, join the hub outside it (lock order, see the struct docs).
+        let removed = match self.serialports.lock() {
+            Ok(mut map) => map.remove(&path),
+            Err(error) => return Err(Error::String(format!("Failed to acquire lock: {}", error))),
+        };
+        if let Some(serial) = removed {
+            finish_serialport_info(&path, serial)?;
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -643,14 +658,16 @@ impl SerialManager {
     }
 
     /// Stream port events into `sink` (one watch per port). Returns the id for
-    /// [`Self::unwatch`]. `sink` runs on the port's RX thread: keep it short.
+    /// [`Self::unwatch`]. `sink` runs on the port's RX thread, keep it short; the last
+    /// events (parser remainder on unwatch / close) may run on the caller's thread. It
+    /// never runs under a manager lock, so it may call back into the manager.
     pub fn watch(
         &self,
         path: String,
         options: WatchOptions,
         sink: EventSink,
     ) -> Result<u32, Error> {
-        self.watch_with_id(next_watch_id(), path, options, sink)
+        self.watch_framed(path, options, None, sink)
     }
 
     /// [`Self::watch`] under a caller-chosen id (the plugin uses its IPC channel id).
@@ -659,11 +676,45 @@ impl SerialManager {
         channel_id: u32,
         path: String,
         options: WatchOptions,
+        sink: EventSink,
+    ) -> Result<u32, Error> {
+        self.watch_framed_with_id(channel_id, path, options, None, sink)
+    }
+
+    /// [`Self::watch`] with a native parser: each complete frame becomes exactly one
+    /// [`SerialEvent::Data`](crate::events::SerialEvent::Data) (the batch timer no longer
+    /// applies). An invalid config fails before the watch starts. With
+    /// [`WatchOptions::route_urc`] the URC split runs first and only non-URC lines reach
+    /// the parser. On unwatch, close or disconnect the parser's buffered remainder is
+    /// sent as a final `data` event (before `disconnect`), like Node serialport emits
+    /// on stream end.
+    pub fn watch_framed(
+        &self,
+        path: String,
+        options: WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
+        sink: EventSink,
+    ) -> Result<u32, Error> {
+        self.watch_framed_with_id(
+            next_watch_id(crate::port::watch_registry::contains),
+            path,
+            options,
+            parser,
+            sink,
+        )
+    }
+
+    /// [`Self::watch_framed`] under a caller-chosen id.
+    pub fn watch_framed_with_id(
+        &self,
+        channel_id: u32,
+        path: String,
+        options: WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
         channel: EventSink,
     ) -> Result<u32, Error> {
         // Validate the parser before anything is registered or attached.
-        let mut framer = options
-            .parser
+        let mut framer = parser
             .as_ref()
             .map(|p| p.build())
             .transpose()
@@ -692,27 +743,26 @@ impl SerialManager {
                     mux
                 };
                 ensure_rx_hub_on_physical(self, &vp.physical_path)?;
-                session.set_watch(vp.dlci, channel, batch_timeout, framer);
+                session.set_watch_with(vp.dlci, channel, batch_timeout, framer);
                 return Ok(channel_id);
             }
         }
 
-        if let Err(e) = self.with_connected_port(path.clone(), |cp| {
+        // A replaced watch's remainder is queued under the locks, delivered after.
+        let mut replaced = None;
+        let attached = self.with_connected_port(path.clone(), |cp| {
             if cp.virtual_dlci.is_some() {
                 return Err(Error::String("legacy virtual ConnectedPort".into()));
             }
-            if cp
+            if let Some(shared) = cp
                 .rx_hub
                 .lock()
                 .ok()
-                .and_then(|g| g.as_ref().map(|h| h.shared().has_watch()))
-                .unwrap_or(false)
+                .and_then(|g| g.as_ref().map(|h| h.shared()))
+                .filter(|s| s.has_watch())
             {
-                if let Ok(guard) = cp.rx_hub.lock() {
-                    if let Some(hub) = guard.as_ref() {
-                        hub.detach_watch();
-                    }
-                }
+                shared.detach_watch_queued();
+                replaced = Some(shared);
             }
             ensure_rx_hub(&cp.handle(), &path)?;
             let guard = cp
@@ -722,9 +772,13 @@ impl SerialManager {
             let hub = guard
                 .as_ref()
                 .ok_or_else(|| Error::String("RX hub missing after start".into()))?;
-            hub.attach_watch(channel, batch_timeout, read_size, route_urc, framer.take());
+            hub.attach_watch_with(channel, batch_timeout, read_size, route_urc, framer.take());
             Ok(())
-        }) {
+        });
+        if let Some(shared) = replaced {
+            shared.deliver_queued();
+        }
+        if let Err(e) = attached {
             crate::port::watch_registry::unregister(channel_id);
             return Err(e);
         }
@@ -739,32 +793,46 @@ impl SerialManager {
         self.stop_watch_thread(&path)
     }
 
+    /// Detach the watch of `path`. The remainder goes to the sink after every lock
+    /// here is released, so a sink calling back into the manager cannot deadlock.
     fn stop_watch_thread(&self, path: &str) -> Result<(), Error> {
-        if let Ok(virtuals) = self.virtual_ports.lock() {
-            if let Some(vp) = virtuals.get(path).cloned() {
-                drop(virtuals);
-                if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
-                    if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
-                        session.clear_watch(vp.dlci);
-                    }
+        let virtual_port = self
+            .virtual_ports
+            .lock()
+            .ok()
+            .and_then(|v| v.get(path).cloned());
+        if let Some(vp) = virtual_port {
+            if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
+                let session = crate::sync_util::lock_or_recover(&cp.mux).clone();
+                if let Some(session) = session {
+                    session.clear_watch(vp.dlci);
                 }
-                return Ok(());
             }
+            return Ok(());
         }
-        self.with_connected_port(path.to_string(), |cp| {
+        enum Detach {
+            Mux(Arc<CmuxSession>, u8),
+            Hub(Arc<crate::hub::RxHubShared>),
+            Nothing,
+        }
+        let detach = self.with_connected_port(path.to_string(), |cp| {
             if let Some(dlci) = cp.virtual_dlci {
-                if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
-                    session.clear_watch(dlci);
-                }
-                return Ok(());
+                let session = crate::sync_util::lock_or_recover(&cp.mux).clone();
+                return Ok(session.map_or(Detach::Nothing, |s| Detach::Mux(s, dlci)));
             }
-            if let Ok(guard) = cp.rx_hub.lock() {
-                if let Some(hub) = guard.as_ref() {
-                    hub.detach_watch();
-                }
-            }
-            Ok(())
-        })
+            let shared = cp
+                .rx_hub
+                .lock()
+                .ok()
+                .and_then(|g| g.as_ref().map(|h| h.shared()));
+            Ok(shared.map_or(Detach::Nothing, Detach::Hub))
+        })?;
+        match detach {
+            Detach::Mux(session, dlci) => session.clear_watch(dlci),
+            Detach::Hub(shared) => shared.detach_watch(),
+            Detach::Nothing => {}
+        }
+        Ok(())
     }
 
     pub fn read(
@@ -1225,9 +1293,10 @@ impl SerialManager {
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
             .clear(ClearBuffer::Input.into())
             .map_err(Error::from)?;
-        let session = CmuxSession::new(
+        let session = CmuxSession::with_n1(
             path.clone(),
             Arc::new(crate::cmux::SerialPortIo(cp.port.clone())),
+            crate::cmux::cmux_n1(&command),
         );
         ensure_rx_hub(&cp, &path)?;
         if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {

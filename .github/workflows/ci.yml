@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -18,7 +25,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Linux system deps (webkit for tauri, udev for serialport/nusb)
         if: runner.os == 'Linux'
@@ -39,11 +46,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # `--target all` also covers the Android / iOS-only dependencies.
       - name: serialplugin-core has no Tauri dependency
         shell: bash
         run: |
-          for f in "" "--features ble"; do
-            if cargo tree -p serialplugin-core -e normal,build --prefix none -f '{lib}' $f | grep -i tauri; then
+          for f in "" "--features ble" "--features android-test-harness,ble"; do
+            if cargo tree -p serialplugin-core --target all -e normal,build --prefix none -f '{lib}' $f | grep -i tauri; then
               echo "serialplugin-core must not depend on tauri"; exit 1
             fi
           done
@@ -73,29 +81,32 @@ jobs:
         run: cargo test --manifest-path tests/jni-bridge/Cargo.toml
 
       # --- Linux runner also covers Android and the MSRV (one job per OS) ---
-      - name: Android clippy (both ABIs, with and without the test harness)
+      - name: Android clippy (both ABIs; plain, `ble`, test harness)
         if: runner.os == 'Linux'
         run: |
           for t in aarch64-linux-android x86_64-linux-android; do
             cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core -p android-usb-serial --target $t --all-targets -- -D warnings
+            cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target $t --all-targets --features ble -- -D warnings
           done
           cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target aarch64-linux-android --all-targets --features android-test-harness -- -D warnings
+          cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target aarch64-linux-android --all-targets --features android-test-harness,ble -- -D warnings
 
-      - name: MSRV (plugin + serialplugin-core 1.90, android-usb-serial 1.85)
+      - name: MSRV (plugin + serialplugin-core 1.90, android-usb-serial + serial-codec 1.85)
         if: runner.os == 'Linux'
         run: |
           rustup toolchain install 1.90 1.85 --profile minimal
           cargo +1.90 check --workspace --all-targets
           cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
+          cargo +1.85 test -p serial-codec
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         if: runner.os == 'Linux'
         with:
           distribution: temurin
           java-version: 17
       # Keep the Gradle distribution between runs: its download host flakes (504s,
       # timeouts), and a cached copy needs no network at all.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: runner.os == 'Linux'
         with:
           path: |
@@ -111,8 +122,8 @@ jobs:
           ./gradlew --no-daemon lintDebug test
 
       # pnpm version comes from package.json `packageManager`.
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm

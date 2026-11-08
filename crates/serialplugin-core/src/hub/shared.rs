@@ -2,10 +2,11 @@
 
 use crate::at::parse::{classify_final_line, is_likely_urc, ExchangeDemux, ExchangeMatch};
 use crate::cmux::CmuxSession;
-use crate::events::SerialEvent;
-use crate::exchange::completion::check_exchange_complete;
+use crate::events::{EventSink, SerialEvent};
+use crate::exchange::completion::Completion;
 use crate::exchange::options::ResolvedExchangeOptions;
 use serial_codec::framing::Framer;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Condvar, Mutex};
@@ -29,7 +30,7 @@ pub enum RxRouteAction {
 /// Session waiting for an exchange to complete.
 pub struct ExchangeWaiter {
     pub options: ResolvedExchangeOptions,
-    buffer: Mutex<Vec<u8>>,
+    buffer: Mutex<(Vec<u8>, Completion)>,
     done: ExchangeDone,
     pub cancel: Arc<AtomicBool>,
 }
@@ -37,15 +38,16 @@ pub struct ExchangeWaiter {
 impl ExchangeWaiter {
     pub fn new(options: ResolvedExchangeOptions, cancel: Arc<AtomicBool>) -> Arc<Self> {
         Arc::new(Self {
+            buffer: Mutex::new((Vec::new(), Completion::new(&options))),
             options,
-            buffer: Mutex::new(Vec::new()),
             done: Arc::new((Mutex::new(None), Condvar::new())),
             cancel,
         })
     }
 
     pub fn push_bytes(&self, chunk: &[u8]) {
-        let mut buffer = crate::sync_util::lock_or_recover(&self.buffer);
+        let mut guard = crate::sync_util::lock_or_recover(&self.buffer);
+        let (buffer, completion) = &mut *guard;
         buffer.extend_from_slice(chunk);
         if self.cancel.load(Ordering::SeqCst) {
             self.finish(Err("exchange cancelled".into()));
@@ -58,8 +60,9 @@ impl ExchangeWaiter {
             )));
             return;
         }
-        if let Some(matched) = check_exchange_complete(&buffer, &self.options) {
-            let raw = std::mem::take(&mut *buffer);
+        if let Some(matched) = completion.push(buffer, chunk.len()) {
+            let raw = std::mem::take(buffer);
+            *completion = Completion::new(&self.options);
             self.finish(Ok((raw, matched)));
         }
     }
@@ -144,7 +147,82 @@ impl LineRouter {
     }
 }
 
-pub fn emit_urc(channel: &crate::events::EventSink, path: &str, line: &str) {
+/// An event and the sink it was produced for (captured when it was produced, so an
+/// `unwatch` racing the hub cannot drop frames that were already decoded).
+pub type QueuedEvent = (EventSink, SerialEvent);
+
+/// Ordered event delivery for one hub (or one CMUX session).
+///
+/// Sinks run with no hub or manager lock held, so a sink may call back into the
+/// manager. Events reach sinks in queue order whichever thread queued them: while the
+/// hub thread is between routing and dispatch (`begin_batch` .. `end_batch`), events
+/// queued by other threads (watch remainder on `unwatch`, `Disconnect` from a JNI
+/// callback) wait behind the hub's batch. One thread delivers at a time; a thread
+/// that finds delivery in progress leaves its events to it (also when a sink re-enters).
+#[derive(Default)]
+pub struct Outbox(Mutex<OutboxState>);
+
+#[derive(Default)]
+struct OutboxState {
+    queue: VecDeque<QueuedEvent>,
+    held: Vec<QueuedEvent>,
+    batch_open: bool,
+    delivering: bool,
+}
+
+impl Outbox {
+    /// The hub thread starts routing into its local `pending_events`.
+    fn begin_batch(&self) {
+        crate::sync_util::lock_or_recover(&self.0).batch_open = true;
+    }
+
+    /// The hub thread's batch, then what other threads queued while it was open.
+    fn end_batch(&self, batch: Vec<QueuedEvent>) {
+        let mut s = crate::sync_util::lock_or_recover(&self.0);
+        s.queue.extend(batch);
+        let held = std::mem::take(&mut s.held);
+        s.queue.extend(held);
+        s.batch_open = false;
+    }
+
+    pub(crate) fn push(&self, events: impl IntoIterator<Item = QueuedEvent>) {
+        let mut s = crate::sync_util::lock_or_recover(&self.0);
+        if s.batch_open {
+            s.held.extend(events);
+        } else {
+            s.queue.extend(events);
+        }
+    }
+
+    /// Deliver queued events. Call with no lock held.
+    // ponytail: whoever finds the queue idle delivers everything, including events
+    // the hub queues meanwhile; with a sink slower than the stream an `unwatch` caller
+    // keeps delivering for the new watch. Hand back to the hub thread if that matters.
+    pub(crate) fn deliver(&self) {
+        let mut s = crate::sync_util::lock_or_recover(&self.0);
+        if s.delivering {
+            return;
+        }
+        s.delivering = true;
+        while let Some((sink, ev)) = s.queue.pop_front() {
+            drop(s);
+            crate::port::watch_registry::send_event_to(&sink, ev);
+            s = crate::sync_util::lock_or_recover(&self.0);
+        }
+        s.delivering = false;
+    }
+}
+
+/// 4.0.0 API (feature `tauri`): [`emit_urc_to`] for a Tauri channel.
+#[cfg(feature = "tauri")]
+pub fn emit_urc(channel: &tauri::ipc::Channel<SerialEvent>, path: &str, line: &str) {
+    let _ = channel.send(SerialEvent::Urc {
+        path: path.to_string(),
+        line: line.to_string(),
+    });
+}
+
+pub fn emit_urc_to(channel: &crate::events::EventSink, path: &str, line: &str) {
     let _ = (channel)(SerialEvent::Urc {
         path: path.to_string(),
         line: line.to_string(),
@@ -159,8 +237,9 @@ pub struct HubRoutingState {
     pub exchange_demux: Option<(Arc<ExchangeWaiter>, ExchangeDemux)>,
     pub combined_buffer: Vec<u8>,
     pub flush_at: Instant,
-    /// Watch/URC events queued under routing lock; dispatched after the lock is released.
-    pub pending_events: Vec<SerialEvent>,
+    /// Watch/URC events (with their sink) queued under the routing locks; delivered by
+    /// [`RxHubShared::dispatch_queued_events`] once the locks are released.
+    pub pending_events: Vec<QueuedEvent>,
 }
 
 impl HubRoutingState {
@@ -200,7 +279,7 @@ impl WatchSlot {
             Some(f) => {
                 let mut frames = Vec::new();
                 f.push(bytes, Instant::now(), &mut frames);
-                push_frames(path, frames, &mut state.pending_events);
+                push_frames(path, &self.channel, frames, &mut state.pending_events);
             }
             None => state.combined_buffer.extend_from_slice(bytes),
         }
@@ -221,8 +300,17 @@ fn data_event(path: &str, data: Vec<u8>) -> SerialEvent {
     }
 }
 
-fn push_frames(path: &str, frames: Vec<Vec<u8>>, pending: &mut Vec<SerialEvent>) {
-    pending.extend(frames.into_iter().map(|f| data_event(path, f)));
+fn push_frames(
+    path: &str,
+    channel: &EventSink,
+    frames: Vec<Vec<u8>>,
+    pending: &mut Vec<QueuedEvent>,
+) {
+    pending.extend(
+        frames
+            .into_iter()
+            .map(|f| (channel.clone(), data_event(path, f))),
+    );
 }
 
 pub(crate) struct DrainSlot {
@@ -253,6 +341,7 @@ pub struct RxHubShared {
     pub(crate) read_slot: Mutex<Option<ReadSlot>>,
     pub(crate) idle: Mutex<Vec<u8>>,
     pub(crate) cmux: Mutex<Option<Arc<CmuxSession>>>,
+    outbox: Outbox,
     /// Port path, for events sent outside the hub thread (watch remainder on detach).
     path: String,
 }
@@ -277,10 +366,24 @@ impl RxHubShared {
             read_slot: Mutex::new(None),
             idle: Mutex::new(Vec::new()),
             cmux: Mutex::new(None),
+            outbox: Outbox::default(),
         }
     }
 
+    /// 4.0.0 API (feature `tauri`): [`Self::attach_watch_with`] for a Tauri channel, no parser.
+    #[cfg(feature = "tauri")]
     pub fn attach_watch(
+        &self,
+        channel: tauri::ipc::Channel<SerialEvent>,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+    ) {
+        let sink = crate::events::channel_sink(channel);
+        self.attach_watch_with(sink, batch_timeout_ms, read_size, route_urc, None);
+    }
+
+    pub fn attach_watch_with(
         &self,
         channel: crate::events::EventSink,
         batch_timeout_ms: u64,
@@ -298,14 +401,41 @@ impl RxHubShared {
         });
     }
 
-    /// Stop the watch; a parser's buffered remainder goes out as a last `Data` event.
+    /// Stop the watch; a parser's buffered remainder goes out as a last `Data` event,
+    /// after every frame the hub already decoded. Call with no lock held (the sink runs
+    /// here); under locks use [`Self::detach_watch_queued`] + [`Self::deliver_queued`].
     pub fn detach_watch(&self) {
+        self.detach_watch_queued();
+        self.deliver_queued();
+    }
+
+    /// [`Self::detach_watch`] without running the sink: the remainder is queued.
+    pub fn detach_watch_queued(&self) {
         let slot = crate::sync_util::lock_or_recover(&self.watch).take();
         if let Some(mut slot) = slot {
             if let Some(ev) = slot.take_remainder(&self.path) {
-                crate::port::watch_registry::send_event(&slot.channel, ev);
+                self.outbox.push([(slot.channel, ev)]);
             }
         }
+    }
+
+    /// Deliver events queued by `*_queued` calls. Call with no lock held.
+    pub fn deliver_queued(&self) {
+        self.outbox.deliver();
+    }
+
+    /// Queue `event` for the current watch (if any) and deliver.
+    pub fn emit(&self, event: SerialEvent) {
+        if let Some(channel) = self.watch_channel() {
+            self.outbox.push([(channel, event)]);
+            self.outbox.deliver();
+        }
+    }
+
+    fn watch_channel(&self) -> Option<EventSink> {
+        crate::sync_util::lock_or_recover(&self.watch)
+            .as_ref()
+            .map(|w| w.channel.clone())
     }
 
     pub fn attach_cmux(&self, session: Arc<CmuxSession>) {
@@ -342,8 +472,11 @@ impl RxHubShared {
         if chunk.is_empty() {
             return;
         }
+        self.outbox.begin_batch();
         let path = state.path.clone();
-        if let Some(session) = crate::sync_util::lock_or_recover(&self.cmux).clone() {
+        // Bound first: the guard must not live through the session's sink calls.
+        let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
+        if let Some(session) = session {
             session.feed_physical_rx(chunk);
             return;
         }
@@ -366,9 +499,11 @@ impl RxHubShared {
 
     /// Idle timers for push model: drain completion + watch batch flush + read deadlines.
     pub fn tick(&self, path: &str, state: &mut HubRoutingState) {
+        self.outbox.begin_batch();
         tick_read_slot(self);
         try_complete_drain(self);
-        if let Some(session) = crate::sync_util::lock_or_recover(&self.cmux).clone() {
+        let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
+        if let Some(session) = session {
             session.tick();
         }
 
@@ -388,11 +523,13 @@ impl RxHubShared {
                 if let Some(f) = w.framer.as_mut() {
                     f.poll(Instant::now(), &mut frames);
                 }
-                push_frames(path, frames, &mut state.pending_events);
+                push_frames(path, &w.channel, frames, &mut state.pending_events);
                 // Bytes batched before a parser watch replaced a plain one.
                 let stale = std::mem::take(&mut state.combined_buffer);
                 if !stale.is_empty() {
-                    state.pending_events.insert(0, data_event(path, stale));
+                    state
+                        .pending_events
+                        .insert(0, (w.channel.clone(), data_event(path, stale)));
                 }
                 return;
             }
@@ -525,6 +662,7 @@ impl RxHubShared {
     }
 
     pub fn flush_watch_now(&self, state: &mut HubRoutingState) {
+        self.outbox.begin_batch();
         let partial = state.line_router.take_partial();
         self.sink_watch(&partial, state);
         flush_watch_data(
@@ -536,19 +674,26 @@ impl RxHubShared {
     }
 
     /// Send `Disconnect` on the watch, after the parser's remainder as a last `Data`.
+    /// CMUX channel watches get the same (remainder, then `Disconnect` on their path).
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
-        let (channel, remainder) = match crate::sync_util::lock_or_recover(&self.watch).as_mut() {
-            Some(watch) => (Some(watch.channel.clone()), watch.take_remainder(path)),
-            None => (None, None),
-        };
-        if let Some(channel) = channel {
-            if let Some(ev) = remainder {
-                crate::port::watch_registry::send_event(&channel, ev);
+        let mut events = Vec::new();
+        if let Some(watch) = crate::sync_util::lock_or_recover(&self.watch).as_mut() {
+            if let Some(ev) = watch.take_remainder(path) {
+                events.push((watch.channel.clone(), ev));
             }
-            let _ = (channel)(SerialEvent::Disconnect {
-                path: path.to_string(),
-                reason: reason.to_string(),
-            });
+            events.push((
+                watch.channel.clone(),
+                SerialEvent::Disconnect {
+                    path: path.to_string(),
+                    reason: reason.to_string(),
+                },
+            ));
+        }
+        self.outbox.push(events);
+        self.outbox.deliver();
+        let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
+        if let Some(session) = session {
+            session.emit_disconnect(reason);
         }
     }
 
@@ -556,9 +701,9 @@ impl RxHubShared {
     pub fn finish_watch_stream(&self, state: &mut HubRoutingState) {
         self.flush_watch_now(state);
         if let Some(watch) = crate::sync_util::lock_or_recover(&self.watch).as_mut() {
-            state
-                .pending_events
-                .extend(watch.take_remainder(&state.path));
+            if let Some(ev) = watch.take_remainder(&state.path) {
+                state.pending_events.push((watch.channel.clone(), ev));
+            }
         }
     }
 
@@ -577,19 +722,23 @@ impl RxHubShared {
         crate::sync_util::lock_or_recover(&self.watch).is_some()
     }
 
-    /// Deliver events queued while holding the routing mutex (avoids channel.send under lock).
+    /// Deliver the hub thread's batch (`pending_events`), then events other threads
+    /// queued meanwhile. Each event goes to the sink it was produced for, even if the
+    /// watch was detached since. Call with no lock held, after every routing call.
+    /// 4.0.0 API (feature `tauri`): deliver `events` to the current watch.
+    #[cfg(feature = "tauri")]
     pub fn dispatch_pending_events(&self, events: Vec<SerialEvent>) {
         if events.is_empty() {
             return;
         }
-        let channel = crate::sync_util::lock_or_recover(&self.watch)
-            .as_ref()
-            .map(|watch| watch.channel.clone());
-        if let Some(channel) = channel {
-            for ev in events {
-                crate::port::watch_registry::send_event(&channel, ev);
-            }
+        if let Some(sink) = self.watch_channel() {
+            self.dispatch_queued_events(events.into_iter().map(|e| (sink.clone(), e)).collect());
         }
+    }
+
+    pub fn dispatch_queued_events(&self, events: Vec<QueuedEvent>) {
+        self.outbox.end_batch(events);
+        self.outbox.deliver();
     }
 
     /// Soft-drain via the hub thread (single reader); URC lines are emitted on the watch channel.
@@ -622,7 +771,8 @@ impl RxHubShared {
         match rx.recv_timeout(wait) {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
-                if let Some(slot) = crate::sync_util::lock_or_recover(&self.drain).take() {
+                let slot = crate::sync_util::lock_or_recover(&self.drain).take();
+                if let Some(slot) = slot {
                     emit_drain_urcs(self, &slot);
                     if slot.buffer.is_empty() {
                         Err("drain timed out waiting for hub".into())
@@ -665,16 +815,24 @@ pub(crate) fn route_exchange_chunk(
     let stale = !matches!(&state.exchange_demux, Some((w, _)) if Arc::ptr_eq(w, &waiter));
     if stale {
         let cmd = waiter.options.command.clone().unwrap_or_default();
-        let demux = ExchangeDemux::new(&cmd, &waiter.options.solicited_prefixes);
+        let demux = ExchangeDemux::with_format(
+            &cmd,
+            &waiter.options.solicited_prefixes,
+            waiter.options.result_format,
+        );
         state.exchange_demux = Some((waiter.clone(), demux));
     }
     if let Some((_, demux)) = state.exchange_demux.as_mut() {
+        let channel = shared.watch_channel();
         for line in demux.process_chunk(chunk) {
-            if shared.has_watch() {
-                state.pending_events.push(SerialEvent::Urc {
-                    path: path.to_string(),
-                    line,
-                });
+            if let Some(channel) = &channel {
+                state.pending_events.push((
+                    channel.clone(),
+                    SerialEvent::Urc {
+                        path: path.to_string(),
+                        line,
+                    },
+                ));
             }
         }
     }
@@ -702,10 +860,13 @@ pub(crate) fn route_watch_chunk(
     for action in state.line_router.route_streaming(chunk, &[]) {
         match action {
             RxRouteAction::UrcLine(line) => {
-                state.pending_events.push(SerialEvent::Urc {
-                    path: path.to_string(),
-                    line,
-                });
+                state.pending_events.push((
+                    watch.channel.clone(),
+                    SerialEvent::Urc {
+                        path: path.to_string(),
+                        line,
+                    },
+                ));
             }
             RxRouteAction::StreamData(bytes) => watch.sink(path, &bytes, state),
         }
@@ -785,19 +946,17 @@ pub(crate) fn try_complete_drain(shared: &RxHubShared) {
             }
             _ => None,
         };
-        kind.map(|k| {
-            let d = guard.take().unwrap();
-            emit_drain_urcs(shared, &d);
-            let result = match k {
-                DrainCompleteKind::Cancel => Err("exchange cancelled".into()),
-                DrainCompleteKind::Buffer => Ok(d.buffer),
-                DrainCompleteKind::Empty => Ok(Vec::new()),
-            };
-            (d.tx, result)
-        })
+        kind.map(|k| (k, guard.take().unwrap()))
     };
-    if let Some((tx, result)) = completed {
-        let _ = tx.send(result);
+    // The drain lock is released: the URC sink may touch the drain slot.
+    if let Some((k, d)) = completed {
+        emit_drain_urcs(shared, &d);
+        let result = match k {
+            DrainCompleteKind::Cancel => Err("exchange cancelled".into()),
+            DrainCompleteKind::Buffer => Ok(d.buffer),
+            DrainCompleteKind::Empty => Ok(Vec::new()),
+        };
+        let _ = d.tx.send(result);
     }
 }
 
@@ -828,46 +987,48 @@ pub(crate) fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     }
 }
 
+/// End the drain with `result`; URCs it collected still reach the watch.
 pub(crate) fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
-    if let Some(drain) = crate::sync_util::lock_or_recover(&shared.drain).take() {
+    let drain = crate::sync_util::lock_or_recover(&shared.drain).take();
+    if let Some(drain) = drain {
+        emit_drain_urcs(shared, &drain);
         let _ = drain.tx.send(result);
     }
 }
 
 /// Send the URC lines of a finished drain on the watch channel (if any).
+/// Call with the drain lock released.
 fn emit_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
     if drain.buffer.is_empty() {
         return;
     }
-    let channel = crate::sync_util::lock_or_recover(&shared.watch)
-        .as_ref()
-        .map(|watch| watch.channel.clone());
-    if let Some(channel) = channel {
-        let lines =
-            crate::at::parse::urc_lines_from_drain(&drain.buffer, &drain.solicited_prefixes);
-        for line in lines {
-            emit_urc(&channel, &shared.path, &line);
-        }
-    }
+    let Some(channel) = shared.watch_channel() else {
+        return;
+    };
+    let lines = crate::at::parse::urc_lines_from_drain(&drain.buffer, &drain.solicited_prefixes);
+    shared.outbox.push(lines.into_iter().map(|line| {
+        (
+            channel.clone(),
+            SerialEvent::Urc {
+                path: shared.path.clone(),
+                line,
+            },
+        )
+    }));
+    shared.outbox.deliver();
 }
 
 pub(crate) fn flush_watch_data(
     shared: &RxHubShared,
     path: &str,
     combined_buffer: &mut Vec<u8>,
-    pending: &mut Vec<SerialEvent>,
+    pending: &mut Vec<QueuedEvent>,
 ) {
     if combined_buffer.is_empty() {
         return;
     }
-    if shared.has_watch() {
-        let size = combined_buffer.len();
-        let data = std::mem::take(combined_buffer);
-        pending.push(SerialEvent::Data {
-            path: path.to_string(),
-            data,
-            size,
-        });
+    if let Some(channel) = shared.watch_channel() {
+        pending.push((channel, data_event(path, std::mem::take(combined_buffer))));
     } else {
         combined_buffer.clear();
     }
@@ -902,6 +1063,92 @@ mod tests {
         assert!(matches!(result.1, ExchangeMatch::Ok));
     }
 
+    fn waiter_options(
+        mode: ExchangeCompletionMode,
+        format: AtResultFormat,
+    ) -> ResolvedExchangeOptions {
+        ResolvedExchangeOptions {
+            timeout_ms: 5000,
+            max_bytes: 64 << 20,
+            terminators: crate::exchange::options::default_terminators(),
+            idle_ms: None,
+            rx_prepare: RxPrepareMode::Drain,
+            drain_idle_ms: 50,
+            drain_max_ms: 200,
+            completion_mode: mode,
+            result_format: format,
+            command: Some("AT+CSQ".into()),
+            solicited_prefixes: vec![],
+        }
+    }
+
+    /// Completion used to re-run over the whole buffer on every chunk (a 256 KiB reply
+    /// in 64-byte reads took 3.4 s in release).
+    #[test]
+    fn exchange_completion_is_linear_in_the_reply() {
+        let line = b"+CPBR: 1,\"+10000000001\",145,\"Name\"\r\n".repeat(2);
+        for mode in [
+            ExchangeCompletionMode::AtFinalLine,
+            ExchangeCompletionMode::AtIntermediate,
+            ExchangeCompletionMode::Substring,
+        ] {
+            let waiter = ExchangeWaiter::new(
+                waiter_options(mode.clone(), AtResultFormat::Verbose),
+                Arc::new(AtomicBool::new(false)),
+            );
+            let t = Instant::now();
+            waiter.push_bytes(b"AT+CPBR=1,9999\r\r\n");
+            for _ in 0..(1 << 13) {
+                for part in line.chunks(64) {
+                    waiter.push_bytes(part);
+                }
+            }
+            for part in b"\r\nOK\r\n".chunks(3) {
+                waiter.push_bytes(part);
+            }
+            let (raw, m) = waiter.wait(1000).expect("complete");
+            assert!(
+                matches!(m, ExchangeMatch::Ok | ExchangeMatch::Substring { .. }),
+                "{mode:?}: {m:?}"
+            );
+            assert!(raw.ends_with(b"OK\r\n"));
+            assert!(
+                t.elapsed() < Duration::from_secs(5),
+                "{mode:?}: {:?}",
+                t.elapsed()
+            );
+        }
+    }
+
+    /// The live URC demux judges result codes like the completion check: with `ATV0`
+    /// a lone `4` after a `+CMT` header is the ERROR result, not the URC's data line.
+    #[test]
+    fn exchange_demux_follows_the_result_format() {
+        for (format, want) in [
+            (AtResultFormat::Verbose, vec!["+CMT: ,5", "4"]),
+            (AtResultFormat::Numeric, vec!["+CMT: ,5"]),
+        ] {
+            let shared = RxHubShared::new();
+            let sink: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            shared.attach_watch_with(sink, 100, 1024, true, None);
+            let mut routing = HubRoutingState::new("p".into());
+            let waiter = ExchangeWaiter::new(
+                waiter_options(ExchangeCompletionMode::AtFinalLine, format),
+                Arc::new(AtomicBool::new(false)),
+            );
+            route_exchange_chunk(&shared, "p", b"+CMT: ,5\r\n4\r\n", &mut routing, waiter);
+            let urcs: Vec<String> = routing
+                .pending_events
+                .iter()
+                .filter_map(|(_, e)| match e {
+                    SerialEvent::Urc { line, .. } => Some(line.clone()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(urcs, want, "{format:?}");
+        }
+    }
+
     #[test]
     fn line_router_emits_vendor_urc() {
         let mut router = LineRouter::default();
@@ -918,7 +1165,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
         // MAVLink v2 HEARTBEAT: start 0xFD, payload contains 0x0A, CRC contains 0xFD.
         let frame: Vec<u8> = vec![
             0xFD, 0x09, 0x00, 0x00, 0x2A, 0x01, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x2B, 0x00, 0x00,
@@ -931,6 +1178,7 @@ mod tests {
             routing
                 .pending_events
                 .iter()
+                .map(|(_, e)| e)
                 .all(|e| !matches!(e, SerialEvent::Urc { .. })),
             "binary stream must not emit URC events"
         );
@@ -943,7 +1191,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
         let nmea = b"$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A\r\n";
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(nmea, &mut routing);
@@ -952,6 +1200,7 @@ mod tests {
             routing
                 .pending_events
                 .iter()
+                .map(|(_, e)| e)
                 .all(|e| !matches!(e, SerialEvent::Urc { .. })),
             "NMEA `$` lines must stay in onData when route_urc is off"
         );
@@ -964,15 +1213,15 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, true, None);
+        shared.attach_watch_with(channel, 100, 1024, true, None);
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"^CARDLOCK: 1\r\nOK\r\n", &mut routing);
         assert!(
-            routing.pending_events.iter().any(
+            routing.pending_events.iter().map(|(_, e)| e).any(
                 |e| matches!(e, SerialEvent::Urc { line, .. } if line.starts_with("^CARDLOCK"))
             ),
             "expected URC, got {:?}",
-            routing.pending_events
+            evs(&routing.pending_events)
         );
         assert!(
             routing.combined_buffer.windows(2).any(|w| w == b"OK"),
@@ -1008,7 +1257,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
 
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ResolvedExchangeOptions {
@@ -1036,6 +1285,7 @@ mod tests {
         let urcs: Vec<_> = routing
             .pending_events
             .iter()
+            .map(|(_, e)| e)
             .filter_map(|e| match e {
                 SerialEvent::Urc { line, .. } => Some(line.as_str()),
                 _ => None,
@@ -1165,7 +1415,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
         let err = shared.read_request(64, 100, false).unwrap_err();
         assert!(err.contains("watch"));
     }
@@ -1193,7 +1443,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
         assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
     }
 
@@ -1457,7 +1707,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 100, 1024, false, None);
+        shared.attach_watch_with(channel, 100, 1024, false, None);
         let mut options = at_csq_options();
         options.command = Some(command.to_string());
         let waiter = ExchangeWaiter::new(options, Arc::new(AtomicBool::new(false)));
@@ -1471,6 +1721,7 @@ mod tests {
         let urcs: Vec<_> = routing
             .pending_events
             .iter()
+            .map(|(_, e)| e)
             .filter_map(|e| match e {
                 SerialEvent::Urc { line, .. } => Some(line.clone()),
                 _ => None,
@@ -1547,6 +1798,10 @@ mod tests {
         (channel, events)
     }
 
+    fn evs(queued: &[QueuedEvent]) -> Vec<SerialEvent> {
+        queued.iter().map(|(_, e)| e.clone()).collect()
+    }
+
     fn data_frames(events: &[SerialEvent]) -> Vec<Vec<u8>> {
         events
             .iter()
@@ -1567,7 +1822,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(
+        shared.attach_watch_with(
             channel,
             10_000,
             1024,
@@ -1581,7 +1836,7 @@ mod tests {
         // Frames are ready at once: no batch timer, nothing left in the batch buffer.
         assert!(routing.combined_buffer.is_empty());
         assert_eq!(
-            data_frames(&routing.pending_events),
+            data_frames(&evs(&routing.pending_events)),
             vec![b"$GPGGA,123".to_vec(), b"$GPRMC".to_vec()]
         );
     }
@@ -1593,7 +1848,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(
+        shared.attach_watch_with(
             channel,
             10_000,
             1024,
@@ -1613,7 +1868,10 @@ mod tests {
             deadline.saturating_duration_since(Instant::now()) + Duration::from_millis(2),
         );
         shared.tick("p", &mut routing);
-        assert_eq!(data_frames(&routing.pending_events), vec![vec![1, 2, 3]]);
+        assert_eq!(
+            data_frames(&evs(&routing.pending_events)),
+            vec![vec![1, 2, 3]]
+        );
     }
 
     #[test]
@@ -1621,10 +1879,10 @@ mod tests {
         let shared = RxHubShared::for_path("p".into());
         let (channel, events) = recording_channel();
         let cfg = serde_json::json!({"type": "readline"});
-        shared.attach_watch(channel.clone(), 20, 1024, false, parser(cfg.clone()));
+        shared.attach_watch_with(channel.clone(), 20, 1024, false, parser(cfg.clone()));
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"done\ntail", &mut routing);
-        shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
         shared.detach_watch();
         assert_eq!(
             data_frames(&events.lock().unwrap()),
@@ -1632,8 +1890,9 @@ mod tests {
         );
 
         events.lock().unwrap().clear();
-        shared.attach_watch(channel, 20, 1024, false, parser(cfg));
+        shared.attach_watch_with(channel, 20, 1024, false, parser(cfg));
         shared.feed_bytes(b"half", &mut routing);
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
         shared.emit_disconnect("p", "gone");
         let got = events.lock().unwrap().clone();
         assert_eq!(got.len(), 2, "{got:?}");
@@ -1648,7 +1907,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(
+        shared.attach_watch_with(
             channel,
             10_000,
             1024,
@@ -1661,6 +1920,7 @@ mod tests {
         let urcs: Vec<_> = routing
             .pending_events
             .iter()
+            .map(|(_, e)| e)
             .filter_map(|e| match e {
                 SerialEvent::Urc { line, .. } => Some(line.as_str()),
                 _ => None,
@@ -1668,7 +1928,7 @@ mod tests {
             .collect();
         assert_eq!(urcs, vec!["+CREG: 0,1"]);
         assert_eq!(
-            data_frames(&routing.pending_events),
+            data_frames(&evs(&routing.pending_events)),
             vec![b"hello".to_vec(), b"world".to_vec()]
         );
     }
@@ -1679,7 +1939,7 @@ mod tests {
     fn drain_emits_two_line_urc_together_across_chunks() {
         let shared = Arc::new(RxHubShared::for_path("p".into()));
         let (channel, events) = recording_channel();
-        shared.attach_watch(channel, 20, 1024, false, None);
+        shared.attach_watch_with(channel, 20, 1024, false, None);
         let bg = shared.clone();
         let handle =
             thread::spawn(move || bg.drain(20, 2_000, Arc::new(AtomicBool::new(false)), vec![]));
@@ -1689,6 +1949,7 @@ mod tests {
         shared.feed_bytes(b"0791447758100650\r\nOK\r\n", &mut routing);
         thread::sleep(Duration::from_millis(30));
         shared.tick("p", &mut routing);
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
         handle.join().unwrap().expect("drain");
         let urcs: Vec<String> = events
             .lock()
@@ -1712,7 +1973,7 @@ mod tests {
             let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
             c
         };
-        shared.attach_watch(channel, 0, 1024, false, None);
+        shared.attach_watch_with(channel, 0, 1024, false, None);
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"a\nb", &mut routing);
         shared.feed_bytes(b"\nc", &mut routing);
@@ -1720,7 +1981,7 @@ mod tests {
         assert_eq!(routing.combined_buffer, b"a\nb\nc");
         shared.tick("p", &mut routing);
         assert_eq!(
-            data_frames(&routing.pending_events),
+            data_frames(&evs(&routing.pending_events)),
             vec![b"a\nb\nc".to_vec()]
         );
     }
@@ -1737,5 +1998,118 @@ mod tests {
         shared.tick("p", &mut HubRoutingState::new("p".into()));
         let err = handle.join().unwrap().expect_err("drain must cancel");
         assert!(err.contains("cancel"), "unexpected: {err}");
+    }
+
+    /// Audit p1: `unwatch` ran between the hub's `feed_bytes` (frame `a` decoded) and
+    /// its `dispatch_queued_events`. Frame `a` was dropped and remainder `b` delivered.
+    #[test]
+    fn detach_between_feed_and_dispatch_keeps_frames_before_remainder() {
+        let shared = RxHubShared::for_path("p".into());
+        let (channel, events) = recording_channel();
+        let cfg = serde_json::json!({"type": "delimiter", "delimiter": [10]});
+        shared.attach_watch_with(channel, 20, 1024, false, parser(cfg));
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"a\nb", &mut routing); // hub thread
+        shared.detach_watch(); // API thread, inside the window
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events)); // hub
+        assert_eq!(
+            data_frames(&events.lock().unwrap()),
+            vec![b"a".to_vec(), b"b".to_vec()]
+        );
+    }
+
+    /// Audit p3: drain-completion URCs went to the sink with the `drain` mutex held, so
+    /// a sink touching the drain slot hung the hub thread.
+    #[test]
+    fn drain_urc_sink_may_start_a_drain() {
+        let shared = Arc::new(RxHubShared::for_path("p".into()));
+        let weak = Arc::downgrade(&shared);
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
+            if let SerialEvent::Urc { line, .. } = event {
+                if let Some(shared) = weak.upgrade() {
+                    let _ = shared.drain(1, 1, Arc::new(AtomicBool::new(false)), vec![]);
+                }
+                let _ = tx.lock().unwrap().send(line);
+            }
+            true
+        });
+        shared.attach_watch_with(channel, 20, 1024, true, None);
+        let bg = shared.clone();
+        let drainer =
+            thread::spawn(move || bg.drain(10, 2_000, Arc::new(AtomicBool::new(false)), vec![]));
+        wait_until_drain_slot(&shared);
+        let hub = shared.clone();
+        thread::spawn(move || {
+            let mut routing = HubRoutingState::new("p".into());
+            hub.feed_bytes(b"\r\n+CREG: 1\r\n", &mut routing);
+            hub.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+            thread::sleep(Duration::from_millis(30));
+            hub.tick("p", &mut routing);
+            hub.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+        });
+        let line = rx
+            .recv_timeout(Duration::from_secs(3))
+            .expect("hub thread hung: URC sink ran under the drain lock");
+        assert_eq!(line, "+CREG: 1");
+        drainer.join().unwrap().expect("drain");
+    }
+
+    /// URCs collected by a drain that then ends with an error still reach the watch.
+    #[test]
+    fn drain_urcs_survive_a_failed_drain() {
+        let shared = Arc::new(RxHubShared::for_path("p".into()));
+        let (channel, events) = recording_channel();
+        shared.attach_watch_with(channel, 20, 1024, true, None);
+        let bg = shared.clone();
+        let drainer = thread::spawn(move || {
+            bg.drain(10_000, 5_000, Arc::new(AtomicBool::new(false)), vec![])
+        });
+        wait_until_drain_slot(&shared);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"\r\n+CMTI: \"SM\",3\r\n", &mut routing);
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+        shared.fail_all_waiters("usb error");
+        assert!(drainer.join().unwrap().is_err());
+        let got = events.lock().unwrap().clone();
+        assert!(
+            got.iter()
+                .any(|e| matches!(e, SerialEvent::Urc { line, .. } if line.starts_with("+CMTI"))),
+            "{got:?}"
+        );
+    }
+
+    /// A physical disconnect flushes CMUX channel watches too: remainder, then
+    /// `Disconnect` on the virtual path.
+    #[test]
+    fn physical_disconnect_flushes_cmux_channel_watches() {
+        struct NoopIo;
+        impl crate::cmux::CmuxPhysicalIo for NoopIo {
+            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        let shared = RxHubShared::for_path("phys".into());
+        let session = CmuxSession::with_n1("phys".into(), Arc::new(NoopIo), 31);
+        session.register_dlci(2, "phys#dlci=2".into());
+        let (channel, events) = recording_channel();
+        session.set_watch_with(
+            2,
+            channel,
+            10_000,
+            parser(serde_json::json!({"type": "readline"})),
+        );
+        shared.attach_cmux(session);
+        let mut routing = HubRoutingState::new("phys".into());
+        shared.feed_bytes(&crate::cmux::encode_uih(2, b"one\ntail"), &mut routing);
+        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+        shared.emit_disconnect("phys", "gone");
+        let got = events.lock().unwrap().clone();
+        assert_eq!(data_frames(&got), vec![b"one".to_vec(), b"tail".to_vec()]);
+        assert!(
+            matches!(got.last(), Some(SerialEvent::Disconnect { path, .. }) if path == "phys#dlci=2"),
+            "{got:?}"
+        );
     }
 }

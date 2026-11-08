@@ -2217,10 +2217,10 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`",
+          "description": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`\n- `allow-ble-scan`",
           "type": "string",
           "const": "serialplugin:default",
-          "markdownDescription": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`"
+          "markdownDescription": "Default permissions for the serialplugin: enumerate, open, read/write, watch/unwatch,\nport hotplug, AT session, exchange, and configure serial ports on desktop and Android.\n\n#### This default permission set includes:\n\n- `allow-managed-ports`\n- `allow-available-ports`\n- `allow-watch-ports`\n- `allow-unwatch-ports`\n- `allow-cancel-read`\n- `allow-close`\n- `allow-close-all`\n- `allow-force-close`\n- `allow-open`\n- `allow-read`\n- `allow-read-binary`\n- `allow-write`\n- `allow-write-binary`\n- `allow-capabilities`\n- `allow-watch`\n- `allow-unwatch`\n- `allow-bytes-to-read`\n- `allow-bytes-to-write`\n- `allow-clear-break`\n- `allow-clear-buffer`\n- `allow-read-carrier-detect`\n- `allow-read-clear-to-send`\n- `allow-read-data-set-ready`\n- `allow-read-ring-indicator`\n- `allow-set-baud-rate`\n- `allow-set-break`\n- `allow-set-data-bits`\n- `allow-set-flow-control`\n- `allow-set-parity`\n- `allow-set-stop-bits`\n- `allow-set-timeout`\n- `allow-write-data-terminal-ready`\n- `allow-write-request-to-send`\n- `allow-set-log-level`\n- `allow-get-log-level`\n- `allow-exchange`\n- `allow-exchange-binary`\n- `allow-cancel-exchange`\n- `allow-at`\n- `allow-at-phases`\n- `allow-send-sms-pdu`\n- `allow-configure-at-session`\n- `allow-enable-mux`\n- `allow-open-mux-channel`\n- `allow-disable-mux`\n- `allow-ble-scan`"
         },
         {
           "description": "Enables the at command without any pre-configured scope.",
@@ -2239,6 +2239,12 @@
           "type": "string",
           "const": "serialplugin:allow-available-ports",
           "markdownDescription": "Enables the available_ports command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ble_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:allow-ble-scan",
+          "markdownDescription": "Enables the ble_scan command without any pre-configured scope."
         },
         {
           "description": "Enables the bytes_to_read command without any pre-configured scope.",
@@ -2509,6 +2515,12 @@
           "type": "string",
           "const": "serialplugin:deny-available-ports",
           "markdownDescription": "Denies the available_ports command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ble_scan command without any pre-configured scope.",
+          "type": "string",
+          "const": "serialplugin:deny-ble-scan",
+          "markdownDescription": "Denies the ble_scan command without any pre-configured scope."
         },
         {
           "description": "Denies the bytes_to_read command without any pre-configured scope.",

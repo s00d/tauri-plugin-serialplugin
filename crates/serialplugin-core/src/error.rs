@@ -74,6 +74,14 @@ impl From<String> for Error {
     }
 }
 
+/// 4.0.0 API on Android (feature `tauri`, enabled by the plugin).
+#[cfg(all(target_os = "android", feature = "tauri"))]
+impl From<tauri::plugin::mobile::PluginInvokeError> for Error {
+    fn from(error: tauri::plugin::mobile::PluginInvokeError) -> Self {
+        Error::String(error.to_string())
+    }
+}
+
 impl From<Error> for io::Error {
     fn from(error: Error) -> io::Error {
         match error {

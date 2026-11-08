@@ -1,6 +1,6 @@
-//! Serial over Bluetooth LE: `ble://<device id or name>` using the Nordic UART
-//! Service (NUS), the de-facto "BLE serial" profile of nRF, ESP32, HM-10-style
-//! modules and Adafruit/BBC boards.
+//! Serial over Bluetooth LE: `ble://<device id, MAC or name>` using the Nordic UART
+//! Service (NUS), the de-facto "BLE serial" profile of nRF, ESP32 and Adafruit/BBC
+//! boards. (HM-10 / CC254x modules use service FFE0 instead and are not supported.)
 //!
 //! Built on `btleplug` behind the `ble` cargo feature (desktop + iOS). Bytes written
 //! go to the NUS RX characteristic in MTU-sized chunks; notifications on the TX
@@ -10,7 +10,8 @@
 #[cfg(target_os = "ios")]
 use crate::serialport;
 use btleplug::api::{
-    Central, CentralEvent, Characteristic, Manager as _, Peripheral as _, ScanFilter, WriteType,
+    Central, CentralEvent, CentralState, CharPropFlags, Characteristic, Manager as _,
+    Peripheral as _, ScanFilter, WriteType,
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::StreamExt;
@@ -18,22 +19,17 @@ use serialport::{ClearBuffer, DataBits, FlowControl, Parity, SerialPort, StopBit
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-pub const BLE_SCHEME: &str = "ble://";
+pub use super::ble_rx::{ble_target, BLE_SCHEME};
+use super::ble_rx::{chunk_size, rx_channel, target_matches, RxQueue, WritePacer, RX_QUEUE_CAP};
 pub const NUS_SERVICE: Uuid = Uuid::from_u128(0x6E400001_B5A3_F393_E0A9_E50E24DCCA9E);
 /// Central writes here.
 pub const NUS_RX: Uuid = Uuid::from_u128(0x6E400002_B5A3_F393_E0A9_E50E24DCCA9E);
 /// Peripheral notifies here.
 pub const NUS_TX: Uuid = Uuid::from_u128(0x6E400003_B5A3_F393_E0A9_E50E24DCCA9E);
-
-/// `ble://<id>` → `<id>`, or `None` for other paths.
-pub fn ble_target(path: &str) -> Option<&str> {
-    path.strip_prefix(BLE_SCHEME)
-}
 
 /// One runtime for all BLE work: btleplug's platform event loops live in it, and
 /// the sync serial API drives it with `block_on`.
@@ -53,22 +49,70 @@ fn ble_err(e: impl std::fmt::Display) -> io::Error {
     io::Error::other(format!("BLE: {e}"))
 }
 
-async fn first_adapter() -> io::Result<Adapter> {
-    let manager = Manager::new().await.map_err(ble_err)?;
-    manager
-        .adapters()
-        .await
-        .map_err(ble_err)?
-        .into_iter()
-        .next()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no Bluetooth adapter"))
+/// The whole `open()` (connect, service discovery, subscribe) must finish in this
+/// time: CoreBluetooth never times out a connect to an absent device by itself.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// How long a new adapter may stay in state Unknown before the first scan.
+const POWER_ON_WAIT: Duration = Duration::from_secs(2);
+
+/// One adapter for the process (one long-lived `CBCentralManager` on Apple, as Apple
+/// advises; a fresh one ignores scans until it reports its state).
+async fn adapter() -> io::Result<Adapter> {
+    static ADAPTER: OnceLock<Adapter> = OnceLock::new();
+    let adapter = match ADAPTER.get() {
+        Some(a) => a.clone(),
+        None => {
+            let manager = Manager::new().await.map_err(ble_err)?;
+            let first = manager
+                .adapters()
+                .await
+                .map_err(ble_err)?
+                .into_iter()
+                .next()
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no Bluetooth adapter"))?;
+            // A concurrent first call may have won; keep the stored one.
+            ADAPTER.get_or_init(|| first).clone()
+        }
+    };
+    let deadline = Instant::now() + POWER_ON_WAIT;
+    loop {
+        match adapter.adapter_state().await.map_err(ble_err)? {
+            CentralState::PoweredOn => return Ok(adapter),
+            CentralState::PoweredOff => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "Bluetooth is off",
+                ))
+            }
+            CentralState::Unknown if Instant::now() < deadline => {
+                tokio::time::sleep(Duration::from_millis(50)).await
+            }
+            CentralState::Unknown => {
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "Bluetooth is not available (off, or the app is not authorized to use it)",
+                ))
+            }
+        }
+    }
+}
+
+/// Port id of a scanned device: the MAC where the platform has one (Linux's own id is
+/// a D-Bus path), else the platform id (a per-host UUID on Apple).
+fn port_id(p: &Peripheral) -> String {
+    if cfg!(target_os = "linux") {
+        p.address().to_string()
+    } else {
+        p.id().to_string()
+    }
 }
 
 /// Scan for devices advertising the Nordic UART Service.
 /// Returns `ble://<id>` → port-info map (same shape as `available_ports`).
 pub fn scan(duration: Duration) -> io::Result<HashMap<String, HashMap<String, String>>> {
     runtime().block_on(async {
-        let adapter = first_adapter().await?;
+        let adapter = adapter().await?;
         adapter
             .start_scan(ScanFilter {
                 services: vec![NUS_SERVICE],
@@ -96,7 +140,7 @@ pub fn scan(duration: Duration) -> io::Result<HashMap<String, HashMap<String, St
                     "manufacturer".to_string(),
                     crate::state::UNKNOWN.to_string(),
                 ),
-                ("serial_number".to_string(), p.id().to_string()),
+                ("serial_number".to_string(), port_id(&p)),
                 ("vid".to_string(), crate::state::UNKNOWN.to_string()),
                 ("pid".to_string(), crate::state::UNKNOWN.to_string()),
                 (
@@ -104,55 +148,18 @@ pub fn scan(duration: Duration) -> io::Result<HashMap<String, HashMap<String, St
                     props.rssi.map(|r| r.to_string()).unwrap_or_default(),
                 ),
             ]);
-            out.insert(format!("{BLE_SCHEME}{}", p.id()), info);
+            out.insert(format!("{BLE_SCHEME}{}", port_id(&p)), info);
         }
         Ok(out)
     })
-}
-
-/// Notification chunks → `Read` with the serial timeout semantics the hub expects.
-struct RxQueue {
-    rx: Receiver<Vec<u8>>,
-    pending: Vec<u8>,
-}
-
-impl RxQueue {
-    fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<usize> {
-        if self.pending.is_empty() {
-            match self.rx.recv_timeout(timeout.max(Duration::from_millis(1))) {
-                Ok(chunk) => self.pending = chunk,
-                Err(RecvTimeoutError::Timeout) => {
-                    return Err(io::Error::new(io::ErrorKind::TimedOut, "BLE read timeout"))
-                }
-                Err(RecvTimeoutError::Disconnected) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::UnexpectedEof,
-                        "BLE device disconnected",
-                    ))
-                }
-            }
-        }
-        let n = buf.len().min(self.pending.len());
-        buf[..n].copy_from_slice(&self.pending[..n]);
-        self.pending.drain(..n);
-        Ok(n)
-    }
-
-    fn clear(&mut self) {
-        self.pending.clear();
-        while self.rx.try_recv().is_ok() {}
-    }
-
-    fn buffered(&self) -> usize {
-        self.pending.len()
-    }
 }
 
 pub struct BleSerialPort {
     path: String,
     peripheral: Peripheral,
     rx_char: Characteristic,
-    write_type: WriteType,
+    tx_char: Characteristic,
+    pacer: WritePacer,
     rx: Mutex<RxQueue>,
     connected: Arc<AtomicBool>,
     baud_rate: u32,
@@ -161,13 +168,6 @@ pub struct BleSerialPort {
     parity: Parity,
     stop_bits: StopBits,
     timeout: Duration,
-}
-
-/// Bytes per ATT write: MTU minus the 3-byte ATT header.
-// ponytail: chunks are sized from the negotiated MTU but sent one by one with no
-// flow control; add credit-based pacing if a peripheral drops write-without-response bursts.
-fn chunk_size(mtu: u16) -> usize {
-    usize::from(mtu.max(23)) - 3
 }
 
 impl BleSerialPort {
@@ -185,72 +185,36 @@ impl BleSerialPort {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "not a ble:// path"))?
             .to_string();
         runtime().block_on(async {
-            let adapter = first_adapter().await?;
+            let adapter = adapter().await?;
             let peripheral = find_peripheral(&adapter, &target, Duration::from_secs(10)).await?;
-            peripheral.connect().await.map_err(ble_err)?;
-            peripheral.discover_services().await.map_err(ble_err)?;
-            let chars = peripheral.characteristics();
-            let find = |uuid| {
-                chars
-                    .iter()
-                    .find(|c| c.uuid == uuid)
-                    .cloned()
-                    .ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            format!("{target} has no Nordic UART characteristic {uuid}"),
-                        )
-                    })
-            };
-            let rx_char = find(NUS_RX)?;
-            let tx_char = find(NUS_TX)?;
-            let write_type = if rx_char
-                .properties
-                .contains(btleplug::api::CharPropFlags::WRITE_WITHOUT_RESPONSE)
-            {
-                WriteType::WithoutResponse
-            } else {
-                WriteType::WithResponse
-            };
-            peripheral.subscribe(&tx_char).await.map_err(ble_err)?;
-
-            let (tx, rx) = mpsc::channel();
-            let connected = Arc::new(AtomicBool::new(true));
-            let mut notes = peripheral.notifications().await.map_err(ble_err)?;
-            let mut events = adapter.events().await.map_err(ble_err)?;
-            let id = peripheral.id();
-            let alive = connected.clone();
-            // Forward notifications until the device disconnects; dropping `tx`
-            // then turns the next read into UnexpectedEof (→ hub Disconnect).
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        n = notes.next() => match n {
-                            Some(n) if n.uuid == NUS_TX => {
-                                if tx.send(n.value).is_err() { break; }
-                            }
-                            Some(_) => {}
-                            None => break,
-                        },
-                        e = events.next() => match e {
-                            Some(CentralEvent::DeviceDisconnected(d)) if d == id => break,
-                            Some(_) => {}
-                            None => break,
-                        },
-                    }
+            let opened =
+                tokio::time::timeout(CONNECT_TIMEOUT, open_nus(&adapter, &peripheral, &target))
+                    .await;
+            let (rx_char, tx_char, rx, connected) = match opened {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => {
+                    let _ = peripheral.disconnect().await;
+                    return Err(e);
                 }
-                alive.store(false, Ordering::SeqCst);
-            });
-
+                Err(_) => {
+                    // Cancels the pending connect (CoreBluetooth keeps trying otherwise).
+                    let _ = peripheral.disconnect().await;
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        format!(
+                            "BLE open of {target} timed out after {} s",
+                            CONNECT_TIMEOUT.as_secs()
+                        ),
+                    ));
+                }
+            };
             Ok(Self {
                 path: path.to_string(),
                 peripheral,
                 rx_char,
-                write_type,
-                rx: Mutex::new(RxQueue {
-                    rx,
-                    pending: Vec::new(),
-                }),
+                tx_char,
+                pacer: WritePacer::default(),
+                rx: Mutex::new(rx),
                 connected,
                 baud_rate,
                 data_bits,
@@ -263,24 +227,82 @@ impl BleSerialPort {
     }
 }
 
+/// Connect, find the NUS characteristics and start notifications. The notification
+/// and event streams are taken before subscribing, so nothing sent right after the
+/// CCCD write is lost.
+async fn open_nus(
+    adapter: &Adapter,
+    peripheral: &Peripheral,
+    target: &str,
+) -> io::Result<(Characteristic, Characteristic, RxQueue, Arc<AtomicBool>)> {
+    peripheral.connect().await.map_err(ble_err)?;
+    peripheral.discover_services().await.map_err(ble_err)?;
+    let chars = peripheral.characteristics();
+    let find = |uuid| {
+        chars
+            .iter()
+            .find(|c| c.uuid == uuid)
+            .cloned()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{target} has no Nordic UART characteristic {uuid}"),
+                )
+            })
+    };
+    let rx_char = find(NUS_RX)?;
+    let tx_char = find(NUS_TX)?;
+    let mut notes = peripheral.notifications().await.map_err(ble_err)?;
+    let mut events = adapter.events().await.map_err(ble_err)?;
+    // btleplug enables notify, or indicate when TX only indicates.
+    peripheral.subscribe(&tx_char).await.map_err(ble_err)?;
+
+    let (feed, rx) = rx_channel(RX_QUEUE_CAP);
+    let connected = Arc::new(AtomicBool::new(true));
+    let id = peripheral.id();
+    let alive = connected.clone();
+    // Forward notifications until the device disconnects; dropping `feed` then turns
+    // the next read into UnexpectedEof (→ hub Disconnect).
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                n = notes.next() => match n {
+                    Some(n) if n.uuid == NUS_TX => { feed.push(n.value); }
+                    Some(_) => {}
+                    None => break,
+                },
+                e = events.next() => match e {
+                    Some(CentralEvent::DeviceDisconnected(d)) if d == id => break,
+                    Some(_) => {}
+                    None => break,
+                },
+            }
+        }
+        alive.store(false, Ordering::SeqCst);
+    });
+    Ok((rx_char, tx_char, rx, connected))
+}
+
 async fn find_peripheral(
     adapter: &Adapter,
     target: &str,
     limit: Duration,
 ) -> io::Result<Peripheral> {
+    // Unfiltered: many NUS firmwares do not advertise the 128-bit service UUID (the
+    // service is checked after connecting anyway).
     adapter
-        .start_scan(ScanFilter {
-            services: vec![NUS_SERVICE],
-        })
+        .start_scan(ScanFilter::default())
         .await
         .map_err(ble_err)?;
     let deadline = Instant::now() + limit;
     let found = 'scan: loop {
         for p in adapter.peripherals().await.map_err(ble_err)? {
-            let by_name = || async {
-                matches!(p.properties().await, Ok(Some(props)) if props.local_name.as_deref() == Some(target))
+            let name = match p.properties().await {
+                Ok(Some(props)) => props.local_name,
+                _ => None,
             };
-            if p.id().to_string() == target || by_name().await {
+            let (id, address) = (p.id().to_string(), p.address().to_string());
+            if target_matches(&id, &address, name.as_deref(), target) {
                 break 'scan Some(p);
             }
         }
@@ -293,16 +315,18 @@ async fn find_peripheral(
     found.ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::NotFound,
-            format!("no BLE device '{target}' advertising the Nordic UART Service"),
+            format!("no BLE device '{target}' found (id, MAC or advertised name)"),
         )
     })
 }
 
 impl Drop for BleSerialPort {
     fn drop(&mut self) {
-        let p = self.peripheral.clone();
-        // Best effort: let the device advertise again for the next open.
+        let (p, tx) = (self.peripheral.clone(), self.tx_char.clone());
+        // Best effort: turn notifications off (BlueZ re-enables them on reconnect
+        // otherwise) and let the device advertise again for the next open.
         runtime().spawn(async move {
+            let _ = p.unsubscribe(&tx).await;
             let _ = p.disconnect().await;
         });
     }
@@ -324,7 +348,16 @@ impl Write for BleSerialPort {
             ));
         }
         let n = buf.len().min(chunk_size(self.peripheral.mtu()));
-        let (p, c, t) = (&self.peripheral, &self.rx_char, self.write_type);
+        let props = self.rx_char.properties;
+        let t = if self.pacer.with_response(
+            props.contains(CharPropFlags::WRITE),
+            props.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE),
+        ) {
+            WriteType::WithResponse
+        } else {
+            WriteType::WithoutResponse
+        };
+        let (p, c) = (&self.peripheral, &self.rx_char);
         runtime()
             .block_on(p.write(c, &buf[..n], t))
             .map_err(ble_err)?;
@@ -431,32 +464,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rx_queue_splits_chunks_and_reports_timeout_and_disconnect() {
-        let (tx, rx) = mpsc::channel();
-        let mut q = RxQueue {
-            rx,
-            pending: Vec::new(),
-        };
-        tx.send(b"hello".to_vec()).unwrap();
-        let mut buf = [0u8; 3];
-        assert_eq!(q.read(&mut buf, Duration::from_millis(10)).unwrap(), 3);
-        assert_eq!(&buf, b"hel");
-        assert_eq!(q.buffered(), 2);
-        assert_eq!(q.read(&mut buf, Duration::from_millis(10)).unwrap(), 2);
-        assert_eq!(&buf[..2], b"lo");
-        let e = q.read(&mut buf, Duration::from_millis(5)).unwrap_err();
-        assert_eq!(e.kind(), io::ErrorKind::TimedOut);
-        drop(tx);
-        let e = q.read(&mut buf, Duration::from_millis(5)).unwrap_err();
-        assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
-        q.clear();
-    }
-
-    #[test]
     fn write_chunks_follow_mtu() {
-        assert_eq!(chunk_size(23), 20);
-        assert_eq!(chunk_size(0), 20);
         assert_eq!(chunk_size(247), 244);
+        assert_eq!(chunk_size(517), 512);
         assert_eq!(ble_target("ble://AA:BB"), Some("AA:BB"));
         assert_eq!(ble_target("/dev/ttyUSB0"), None);
     }

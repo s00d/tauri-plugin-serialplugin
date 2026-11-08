@@ -1212,11 +1212,12 @@ mod tests {
 
         let (_pty, port, _master) = pty_pair_locked();
         let path = "cmux-session-test".to_string();
-        let session = CmuxSession::new(
+        let session = CmuxSession::with_n1(
             path.clone(),
             Arc::new(crate::cmux::SerialPortIo(Arc::new(Mutex::new(
                 Box::new(port) as Box<dyn serialport::SerialPort>,
             )))),
+            31,
         );
         session.register_dlci(2, format!("{path}#dlci=2"));
         let cancel = Arc::new(AtomicBool::new(false));
@@ -1959,16 +1960,14 @@ mod tests {
                 _ => continue,
             }
         };
-        let opts = |parser: serde_json::Value| WatchOptions {
-            parser: Some(serde_json::from_value(parser).unwrap()),
-            ..Default::default()
-        };
+        let opts = |parser: serde_json::Value| Some(serde_json::from_value(parser).unwrap());
 
         // readline: three split writes, two frames, a remainder flushed on unwatch.
         let (tx, rx) = mpsc::channel();
         let id = sp
-            .watch(
+            .watch_framed(
                 path.clone(),
+                WatchOptions::default(),
                 opts(serde_json::json!({"type": "readline"})),
                 channel_for(tx),
             )
@@ -1985,8 +1984,9 @@ mod tests {
 
         // interByteTimeout: one write, nothing after it; the frame still arrives.
         let (tx, rx) = mpsc::channel();
-        sp.watch(
+        sp.watch_framed(
             path.clone(),
+            WatchOptions::default(),
             opts(serde_json::json!({"type": "interByteTimeout", "interval": 30})),
             channel_for(tx),
         )
@@ -2015,15 +2015,15 @@ mod tests {
                 state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
             },
         );
-        let options = WatchOptions {
-            parser: Some(
-                serde_json::from_value(serde_json::json!({"type": "byteLength", "length": 0}))
-                    .unwrap(),
-            ),
-            ..Default::default()
-        };
+        let parser =
+            serde_json::from_value(serde_json::json!({"type": "byteLength", "length": 0})).unwrap();
         let err = sp
-            .watch(path.clone(), options, Channel::new(|_| Ok(())))
+            .watch_framed(
+                path.clone(),
+                WatchOptions::default(),
+                Some(parser),
+                Channel::new(|_| Ok(())),
+            )
             .expect_err("length 0 must be rejected");
         assert!(err.to_string().contains("invalid parser options"), "{err}");
         assert!(crate::port::watch_registry::paths_for_port(&path).is_empty());

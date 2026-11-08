@@ -207,12 +207,27 @@ fn ensure_thread(state: &mut MonitorState) {
     });
 }
 
-/// Subscribe to available-port list changes. Sends an initial [`PortListEvent::Snapshot`].
+/// 4.0.0 API (feature `tauri`): [`subscribe_sink`] for a Tauri channel.
+#[cfg(feature = "tauri")]
 pub fn subscribe(
+    channel_id: u32,
+    channel: tauri::ipc::Channel<PortListEvent>,
+    options: WatchPortsOptions,
+) -> Result<(), Error> {
+    subscribe_sink(channel_id, crate::events::channel_sink(channel), options)
+}
+
+/// Subscribe to available-port list changes. Sends an initial [`PortListEvent::Snapshot`].
+pub fn subscribe_sink(
     channel_id: u32,
     channel: PortListSink,
     options: WatchPortsOptions,
 ) -> Result<(), Error> {
+    if is_subscribed(channel_id) {
+        return Err(Error::new(format!(
+            "port list watch id {channel_id} is already in use"
+        )));
+    }
     let single = options.single_port_per_device.unwrap_or(false);
     let poll_ms = clamp_poll_ms(options.poll_interval_ms.unwrap_or(DEFAULT_POLL_MS));
     let snapshot = enumerate(single).map_err(|e| {
@@ -247,6 +262,12 @@ pub fn subscribe(
     state.poll_interval_ms = min_poll_interval(&state.subscribers);
     ensure_thread(&mut state);
     Ok(())
+}
+
+pub fn is_subscribed(channel_id: u32) -> bool {
+    crate::sync_util::lock_or_recover(monitor_state())
+        .subscribers
+        .contains_key(&channel_id)
 }
 
 /// Unsubscribe from port list changes.
@@ -305,7 +326,7 @@ mod tests {
     #[test]
     fn unsubscribe_does_not_block_and_thread_exits() {
         let channel: PortListSink = Arc::new(|_| true);
-        subscribe(
+        subscribe_sink(
             9_999,
             channel,
             WatchPortsOptions {

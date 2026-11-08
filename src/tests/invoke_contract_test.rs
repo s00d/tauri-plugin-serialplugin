@@ -47,25 +47,61 @@ mod tests {
         assert!(args.options.route_urc);
     }
 
+    /// 4.0.0 ignored unknown watch option keys; still does.
     #[test]
-    fn watch_options_parser_deserializes_from_js_payload() {
+    fn watch_options_ignore_unknown_keys() {
+        let json = serde_json::json!({"path": "p", "options": {"routeUrcs": true, "timeout": 5}});
+        let args: WatchArgs = serde_json::from_value(json).expect("unknown key ignored");
+        assert_eq!(args.options.timeout, Some(5));
+        assert!(!args.options.route_urc);
+    }
+
+    /// `matched.cmeError` / `cmsError` have the 4.0.0 shape: `{ code }` only.
+    #[test]
+    fn cme_cms_error_shape_is_unchanged() {
+        use crate::at::parse::ExchangeMatch;
+        let m = ExchangeMatch::CmeError { code: Some(10) };
+        assert_eq!(
+            serde_json::to_value(&m).unwrap(),
+            serde_json::json!({"cmeError": {"code": 10}})
+        );
+        let m = ExchangeMatch::CmsError { code: None };
+        assert_eq!(
+            serde_json::to_value(&m).unwrap(),
+            serde_json::json!({"cmsError": {"code": null}})
+        );
+    }
+
+    /// The native parser is a top-level `parser` argument of the `watch` command
+    /// (`options` keeps its 4.0.0 keys; a `parser` key inside it is ignored).
+    #[test]
+    fn watch_parser_deserializes_from_js_payload() {
         use serial_codec::framing::{ByteSeq, FramerConfig};
+        #[derive(Deserialize)]
+        struct FramedWatchArgs {
+            path: String,
+            options: WatchOptions,
+            parser: Option<FramerConfig>,
+        }
         let json = serde_json::json!({
             "path": "/dev/ttyUSB0",
-            "options": { "parser": { "type": "delimiter", "delimiter": [13, 10], "includeDelimiter": true } }
+            "options": {},
+            "parser": { "type": "delimiter", "delimiter": [13, 10], "includeDelimiter": true }
         });
-        let args: WatchArgs = serde_json::from_value(json).unwrap();
+        let args: FramedWatchArgs = serde_json::from_value(json).unwrap();
+        assert_eq!(args.path, "/dev/ttyUSB0");
+        assert!(!args.options.route_urc);
         assert_eq!(
-            args.options.parser,
+            args.parser,
             Some(FramerConfig::Delimiter {
                 delimiter: ByteSeq::Bytes(vec![13, 10]),
                 include_delimiter: true,
                 max_buffer_size: None,
             })
         );
-        let none: WatchArgs =
+        let none: FramedWatchArgs =
             serde_json::from_value(serde_json::json!({"path": "p", "options": {}})).unwrap();
-        assert!(none.options.parser.is_none());
+        assert!(none.parser.is_none());
     }
 
     #[test]

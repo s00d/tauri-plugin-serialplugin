@@ -8,7 +8,7 @@
 # Tauri Plugin — SerialPort
 
 Serial ports for Tauri 2 apps: desktop COM/tty ports, USB-serial adapters on
-Android, and serial over TCP or Bluetooth LE — including on iOS.
+Android, and serial over TCP or Bluetooth LE — including on iOS and Android.
 
 - **One API everywhere:** open, stream with `watch()`, read/write, line settings,
   modem lines, hotplug, auto-reconnect.
@@ -22,7 +22,7 @@ Android, and serial over TCP or Bluetooth LE — including on iOS.
 | | Local ports | `tcp://` | `ble://` |
 |-|-------------|----------|----------|
 | Windows · macOS · Linux | ✅ | ✅ | ✅ (feature `ble`) |
-| Android | ✅ USB host | ✅ | — |
+| Android | ✅ USB host | ✅ | ✅ (feature `ble`) |
 | iOS | — (no OS API) | ✅ | ✅ (feature `ble`) |
 
 ## Install
@@ -145,6 +145,6 @@ If the plugin helps you, you can support it via
 
 Dual-licensed under MIT or Apache-2.0 ([LICENSE-MIT](./LICENSE-MIT),
 [LICENSE-APACHE](./LICENSE-APACHE)).
-The bundled [`serial-codec`](crates/serial-codec) crate (framing, AT and CMUX
-parsers) is [MPL-2.0](crates/serial-codec/LICENSE): usable in any app, changes to
+The [`serial-codec`](crates/serial-codec) dependency (framing, AT/URC/SMS/USSD/CMUX
+codecs) is [MPL-2.0](crates/serial-codec/LICENSE): usable in any app, changes to
 its own files must be published.

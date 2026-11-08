@@ -15,6 +15,7 @@ import {
   type AutoReconnectInfo,
   type AutoReconnectOptions,
   type AvailablePortsOptions,
+  type BlePortInfo,
   type BaudRate,
   type Capabilities,
   type ClearBuffer,
@@ -143,15 +144,13 @@ async function invokeWatch(
   }
   // Always send: default false preserves binary; true when onUrc is registered.
   watchOptions.routeUrc = options?.routeUrc ?? (handlers.onUrc != null);
+  const args: Record<string, unknown> = { path, options: watchOptions, channel };
+  // A top-level argument: `options` keeps the 4.0.0 keys.
   if (options?.parser != null) {
-    watchOptions.parser = serializeParser(options.parser);
+    args.parser = serializeParser(options.parser);
   }
 
-  const channelId = await invoke<number>('plugin:serialplugin|watch', {
-    path,
-    options: watchOptions,
-    channel,
-  });
+  const channelId = await invoke<number>('plugin:serialplugin|watch', args);
 
   return {
     channelId,
@@ -274,12 +273,12 @@ export class SerialPort {
   }
 
   /**
-   * Scan for Bluetooth LE devices that advertise the Nordic UART Service (desktop and
-   * iOS; the Rust side needs the plugin's `ble` feature). Keys are `ble://<id>` paths
+   * Scan for Bluetooth LE devices that advertise the Nordic UART Service (desktop, iOS
+   * and Android; the Rust side needs the plugin's `ble` feature). Keys are `ble://<id>` paths
    * that `new SerialPort({ path })` can open.
    */
-  static async scanBlePorts(options?: { timeoutMs?: number }): Promise<Record<string, PortInfo>> {
-    return invoke<Record<string, PortInfo>>('plugin:serialplugin|ble_scan', {
+  static async scanBlePorts(options?: { timeoutMs?: number }): Promise<Record<string, BlePortInfo>> {
+    return invoke<Record<string, BlePortInfo>>('plugin:serialplugin|ble_scan', {
       timeoutMs: options?.timeoutMs,
     });
   }

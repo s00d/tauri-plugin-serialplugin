@@ -12,13 +12,23 @@ on:
       - 'src/commands.rs'
       - 'permissions/**'
       - '.github/workflows/docs.yml'
+  # Build only (no deploy) so a broken reference parse or dead link fails the PR.
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'guest-js/**'
+      - 'src/commands.rs'
+      - 'permissions/**'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: docs
+  group: docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,13 +38,13 @@ jobs:
       run:
         working-directory: docs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: docs/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -49,10 +59,12 @@ jobs:
         run: pnpm generate
 
       - name: Add .nojekyll
+        if: github.event_name != 'pull_request'
         run: touch .output/public/.nojekyll
 
       - name: Deploy to GitHub Pages
-        uses: crazy-max/ghaction-github-pages@v4
+        if: github.event_name != 'pull_request'
+        uses: crazy-max/ghaction-github-pages@v5
         with:
           target_branch: gh-pages
           build_dir: docs/.output/public

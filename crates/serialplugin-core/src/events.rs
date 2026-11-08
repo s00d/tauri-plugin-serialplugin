@@ -6,12 +6,25 @@ use std::sync::Arc;
 /// Receives the events of one [`SerialManager::watch`](crate::SerialManager::watch).
 ///
 /// Called on the port's RX thread, so keep it short (push into a channel for heavy
-/// work). Return `false` once the receiver is gone; the failure is logged.
+/// work); the last events of a watch (parser remainder on unwatch / close / re-watch)
+/// may run on the caller's thread instead. Events arrive in order, one call at a time
+/// per port, never under a manager lock: the sink may call back into the manager.
+/// Return `false` once the receiver is gone; the failure is logged.
 pub type EventSink = Arc<dyn Fn(SerialEvent) -> bool + Send + Sync>;
 
 /// Receives [`PortListEvent`]s of one [`SerialManager::watch_ports`](crate::SerialManager::watch_ports).
 /// Returning `false` ends the subscription.
 pub type PortListSink = Arc<dyn Fn(PortListEvent) -> bool + Send + Sync>;
+
+/// Forward events to a Tauri IPC channel (serialized to JSON per event); the sink
+/// reports `false` once the webview side of the channel is gone. Feature `tauri`.
+#[cfg(feature = "tauri")]
+pub fn channel_sink<E>(channel: tauri::ipc::Channel<E>) -> Arc<dyn Fn(E) -> bool + Send + Sync>
+where
+    E: tauri::ipc::IpcResponse + Send + Sync + 'static,
+{
+    Arc::new(move |event| channel.send(event).is_ok())
+}
 
 /// Options for [`SerialManager::watch_ports`](crate::SerialManager::watch_ports).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -65,7 +78,9 @@ pub enum SerialEvent {
     },
 }
 
-/// Options for [`SerialManager::watch`](crate::SerialManager::watch).
+/// Options for [`SerialManager::watch`](crate::SerialManager::watch). Unknown keys are
+/// ignored (as in 4.0.0). A native parser is passed separately, see
+/// [`SerialManager::watch_framed`](crate::SerialManager::watch_framed).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WatchOptions {
@@ -82,16 +97,6 @@ pub struct WatchOptions {
     /// The JS guest sets this automatically when `onUrc` is provided.
     #[serde(default)]
     pub route_urc: bool,
-    /// Frame RX natively: each complete frame becomes exactly one
-    /// [`SerialEvent::Data`] (the batch timer no longer applies). An invalid
-    /// config fails the `watch` command before the watch starts.
-    ///
-    /// With [`route_urc`](Self::route_urc) the URC split runs first and only
-    /// non-URC lines reach the parser. On unwatch, close or disconnect the
-    /// parser's buffered remainder is sent as a final `data` event (before
-    /// `disconnect`), like Node serialport emits on stream end.
-    #[serde(default)]
-    pub parser: Option<serial_codec::framing::FramerConfig>,
 }
 
 /// How RX is prepared before sending an exchange payload.

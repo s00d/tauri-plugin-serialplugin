@@ -15,6 +15,10 @@ const PLUGIN_IDENTIFIER: &str = "app.tauri.serialplugin";
 #[cfg(target_os = "android")]
 mod android_log;
 
+// 4.0.0 API: plugin invoke errors convert into the plugin error on Android.
+#[cfg(target_os = "android")]
+const _: fn(tauri::plugin::mobile::PluginInvokeError) -> error::Error = error::Error::from;
+
 use crate::api::SerialPort;
 
 /// Commands module providing Tauri commands for serial port operations
@@ -94,7 +98,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             force_close,
             open,
             capabilities,
-            watch,
+            commands::framed::watch,
             unwatch,
             watch_ports,
             unwatch_ports,
@@ -162,6 +166,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 mod tests {
     #[cfg(not(target_os = "android"))]
     mod acl_smoke_test;
+    #[cfg(not(target_os = "android"))]
+    mod api_compat_test;
     #[cfg(not(target_os = "android"))]
     mod available_ports_options_test;
     #[cfg(not(target_os = "android"))]

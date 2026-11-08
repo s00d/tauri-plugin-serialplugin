@@ -46,7 +46,7 @@ export default defineNuxtConfig({
 
   nitro: {
     prerender: {
-      // `/schemas/string.html`, not `/schemas/string/index.html`: GitHub Pages serves it
+      // `/guides/parsers.html`, not `/guides/parsers/index.html`: GitHub Pages serves it
       // without a redirect to the trailing-slash URL.
       autoSubfolderIndex: false,
       crawlLinks: true,
