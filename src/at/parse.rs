@@ -250,10 +250,10 @@ fn classify_final_line_with_format(line: &str, format: AtResultFormat) -> Option
 /// they can arrive in the same read as `OK` and must not hide it. Bytes are decoded
 /// lossily so line noise or a Latin-1 phonebook entry cannot stall the exchange.
 pub fn at_final_line_complete(buf: &[u8], result_format: AtResultFormat) -> Option<ExchangeMatch> {
-    if buf.is_empty() || !buf.ends_with(b"\n") {
-        return None;
-    }
-    let lines = split_lines(&String::from_utf8_lossy(buf));
+    // Judge only complete lines: bytes after the last LF may already belong to what
+    // comes next (e.g. CMUX flags right after `AT+CMUX=0` → `OK`, in the same read).
+    let end = buf.iter().rposition(|&b| b == b'\n')?;
+    let lines = split_lines(&String::from_utf8_lossy(&buf[..=end]));
     for line in lines.iter().rev() {
         if let Some(m) = classify_final_line_with_format(line, result_format) {
             return Some(m);
@@ -327,17 +327,33 @@ pub fn parse_at_response(
     result_format: AtResultFormat,
 ) -> ParsedAtResponse {
     let merged = merge_solicited_prefixes(command, solicited_prefixes);
-    let text = String::from_utf8_lossy(raw);
+    // Same view as completion: complete lines only, and the final result code may be
+    // followed by URC lines (or CMUX flags) that arrived in the same read.
+    let complete = match raw.iter().rposition(|&b| b == b'\n') {
+        Some(end) => &raw[..=end],
+        None => raw,
+    };
+    let text = String::from_utf8_lossy(complete);
     let lines = split_lines(&text);
     let cmd_norm = normalize_command(command);
-    let final_line = lines.last().cloned();
-    let status = final_line
-        .as_deref()
-        .and_then(|l| classify_final_line_with_format(l, result_format))
+    let mut final_idx = None;
+    for (i, line) in lines.iter().enumerate().rev() {
+        if classify_final_line_with_format(line, result_format).is_some() {
+            final_idx = Some(i);
+            break;
+        }
+        if !is_likely_urc(line, &[]) {
+            break;
+        }
+    }
+    let final_pos = final_idx.unwrap_or(lines.len().saturating_sub(1));
+    let final_line = lines.get(final_pos).cloned();
+    let status = final_idx
+        .and_then(|i| classify_final_line_with_format(&lines[i], result_format))
         .map(|m| m.to_parse_status())
         .unwrap_or(AtParseStatus::Unknown);
 
-    let body_end = lines.len().saturating_sub(1);
+    let body_end = final_pos;
     let mut echo_idx: Option<usize> = None;
     for (i, line) in lines.iter().enumerate().take(body_end) {
         if lines_equivalent(line, &cmd_norm) {
@@ -365,6 +381,10 @@ pub fn parse_at_response(
         } else {
             solicited_body.push(line.clone());
         }
+    }
+
+    if let Some(i) = final_idx {
+        urc_lines.extend(lines.iter().skip(i + 1).cloned());
     }
 
     ParsedAtResponse {
@@ -501,6 +521,27 @@ mod tests {
             matches!(m, Some(ExchangeMatch::CmsError { code: Some(304) })),
             "{m:?}"
         );
+    }
+
+    /// Seen on a Quectel M26: `OK` and the first CMUX flags arrive in one read.
+    #[test]
+    fn trailing_bytes_after_final_line_do_not_hide_it() {
+        let m = at_final_line_complete(b"AT+CMUX=0\r\r\nOK\r\n\xF9\xF9\xF9\xF9", F::Verbose);
+        assert_eq!(m, Some(ExchangeMatch::Ok));
+    }
+
+    #[test]
+    fn parsed_status_ignores_trailing_bytes_and_urcs() {
+        let p = parse_at_response(
+            b"AT+CMUX=0\r\r\nOK\r\n\xF9\xF9",
+            "AT+CMUX=0",
+            &[],
+            F::Verbose,
+        );
+        assert_eq!(p.status, AtParseStatus::Ok);
+        let p = parse_at_response(b"AT\r\r\nOK\r\n\r\nRING\r\n", "AT", &[], F::Verbose);
+        assert_eq!(p.status, AtParseStatus::Ok);
+        assert_eq!(p.urc_lines, vec!["RING".to_string()]);
     }
 
     #[test]

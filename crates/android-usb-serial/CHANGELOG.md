@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+- PL2303: detect the chip type from the device descriptor. `raw_descriptors()` holds
+  configuration descriptors on real devices, so every PL2303 (HXN/GC/GS/GT included)
+  was treated as the legacy Type01 and got the wrong init and baud encoding.
+- FTDI: read the device type (bcdDevice) from the device descriptor, so FT232H gets
+  the port-indexed baud divisor.
+- FTDI: baud rate 0 returns `Unsupported` instead of panicking on a division by zero.
+- MSRV is 1.85 (what `nusb` needs; 1.79 was never buildable).
+
 ## 0.1.2
 
 - Return `Disconnected` for I/O and control operations on closed serial handles,

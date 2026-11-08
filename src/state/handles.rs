@@ -1,6 +1,8 @@
 use crate::cmux::CmuxSession;
 use crate::hub::PortRxHub;
 use crate::port::tx_queue::PortTxQueue;
+#[cfg(target_os = "ios")]
+use crate::serialport;
 use serialport::SerialPort;
 use std::sync::Arc;
 use std::sync::{atomic::AtomicBool, Mutex};

@@ -1,4 +1,6 @@
 //! Desktop poll-model RX hub.
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 mod io_errors {
     /// Read timeout / would-block — hub may retry.

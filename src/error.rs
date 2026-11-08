@@ -1,3 +1,5 @@
+#[cfg(target_os = "ios")]
+use crate::serialport;
 use serde::{Serialize, Serializer};
 use std::io;
 #[cfg(target_os = "android")]

@@ -1,4 +1,6 @@
 //! Serial port configuration enums, constants, and global log level.
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 use serde::{Deserialize, Serialize};
 use serialport::{

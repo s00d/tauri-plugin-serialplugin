@@ -1,4 +1,6 @@
 //! Physical port write abstraction (unified `serialport::SerialPort` bearer).
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 use serialport::SerialPort;
 use std::io::Write;

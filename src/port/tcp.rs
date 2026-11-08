@@ -6,6 +6,8 @@
 //! modem lines are stored but not sent: a raw bridge has its own port settings.
 // ponytail: raw TCP only; add RFC 2217 (telnet COM-PORT-OPTION) if remote line
 // control is needed.
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 use serialport::{ClearBuffer, DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::io::{self, Read, Write};

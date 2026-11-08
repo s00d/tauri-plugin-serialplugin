@@ -1,5 +1,68 @@
 # Changelog
 
+## [4.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.9...v4.0.0) (2026-11-08)
+
+Full audit release. See "Migrating to v4" in the README for the breaking changes.
+
+### ⚠ Breaking changes
+
+* Rust `commands::*` port I/O functions are `async` (they ran on the main thread and
+  a `read` waiting for data froze the UI). Add `.await`. MSRV 1.79 → 1.90.
+* npm `exports` split into `import`/`require` with separate types (`index.d.cts`);
+  `guest-js/` sources and the `development` condition are no longer published.
+* `read()` decodes bytes in JS (port `encoding`, streaming); `watch()` no longer
+  uses the read timeout as its batch window (default ~20 ms, plus flush at `size`).
+* Android `device_filter.xml` no longer matches every USB device.
+
+### Features
+
+* Serial over TCP: `tcp://host:port` on every platform (ser2net, ESP-Link, device servers).
+* The plugin builds for iOS (it did not compile there at all); TCP is the transport.
+
+### Bug Fixes
+
+* **exchange/AT:** `cancel_exchange` wedged the port's transaction queue for good (the
+  next exchange waited forever).
+* **exchange/AT:** a late reply left in the buffer completed the next default exchange,
+  shifting all later responses by one.
+* **exchange/AT:** SMS prompt `"\r\n> "` (no LF) was never detected, so `send_sms_pdu`
+  always timed out; `+CMS ERROR`/`ERROR` after `AT+CMGS` waited for the timeout;
+  a non-UTF-8 byte or a URC right after `OK` stalled completion; `"AT\r"` lost its CR.
+* **exchange/AT:** a cancel between `at_phases` / `send_sms_pdu` phases was wiped and
+  the SMS was sent anyway; URCs after the echo were swallowed; the URC demux of the
+  previous exchange was reused.
+* **CMUX:** frames used HDLC-style 0x7E stuffing with a CRC-16 instead of 27.010 basic
+  mode, so no modem understood them; no SABM/UA or CLD; stream flush deadlocked the RX
+  thread; DLCI was not range-checked; `enable_mux` ignored `ERROR`; virtual channels
+  survived their physical port.
+* **watch:** with `routeUrc` data lost its line terminators and lines split across reads
+  were not joined; on Windows an unplugged adapter never produced `disconnect`; EINTR
+  silently stopped the RX thread.
+* **ports:** `unwatch_ports` could deadlock the app; re-opening a port (webview reload)
+  left the old watch registered; a failed open could leave an `Opening` entry or a
+  running hub thread; ports are closed on app exit; large or slow writes failed after a
+  fixed 100 ms timeout.
+* **guest-js:** `handle.unwatch()` did not free the port for a new `watch()`; `close()`
+  after a disconnect did not stop auto-reconnect; `set*` changes were lost on reconnect;
+  `open()` failing in `configureAtSession` left the port open; auto-reconnect gave up
+  when the re-watch failed; concurrent `watch()` started two native watches;
+  `sendAtPhases` sent binary phases as objects; `onReconnect` always reported attempt 0.
+* **android:** PL2303 and FTDI chip detection read the wrong descriptor; FTDI baud 0
+  panicked; `device_filter.xml` had unparsable ids (wildcards) and wrong STM32/Arduino
+  ids; a 30 s USB permission wait held the device lock the detach handler needed;
+  the fd leaked when an open failed part way; detach teardown ran on the UI thread.
+* **docs:** six permission identifiers in the README did not exist.
+
+### Build
+
+* guest-js: Vite 8 library build (ESM + CJS), TypeScript 6, vitest 5; publint,
+  arethetypeswrong and a CJS/ESM smoke check run on every build. Rollup, Jest and tslib removed.
+* Android library: compileSdk 36, AGP 8.11, Kotlin 2.2 `compilerOptions`; unused
+  appcompat/material/gson dependencies removed.
+* CI on Linux, macOS and Windows (Windows test binaries embed a Common-Controls v6
+  manifest), MSRV job, Android and iOS checks.
+* android-usb-serial 0.1.3.
+
 
 ## [3.0.9](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.8...v3.0.9) (2026-10-14)
 

@@ -71,6 +71,10 @@ pub mod port;
 pub mod state;
 pub mod sync_util;
 
+#[cfg(target_os = "ios")]
+#[path = "serialport_ios.rs"]
+pub mod serialport;
+
 #[cfg(any(not(target_os = "android"), debug_assertions))]
 pub mod mock_serial;
 

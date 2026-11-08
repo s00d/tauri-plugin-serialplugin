@@ -1,4 +1,6 @@
 //! Unified serial API — `Box<dyn serialport::SerialPort>` on desktop and Android.
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 use crate::api::serial_port::{
     configure_at_session as configure_at_session_shared, run_exchange_queued,
@@ -94,7 +96,23 @@ fn platform_open(
         .map_err(|e| Error::String(format!("Failed to open {path}: {e}")))?;
         return Ok((path.to_string(), Box::new(port)));
     }
-    #[cfg(not(target_os = "android"))]
+    // iOS has no local serial devices; serialport's open/enumerate code would also
+    // pull in IOKit, which iOS apps cannot link.
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (
+            baud_rate,
+            data_bits,
+            flow_control,
+            parity,
+            stop_bits,
+            timeout,
+        );
+        Err(Error::String(format!(
+            "{path}: iOS has no local serial ports; use a tcp://host:port bridge"
+        )))
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         let port = serialport::new(path, baud_rate)
             .data_bits(data_bits.into())

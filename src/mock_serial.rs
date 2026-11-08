@@ -1,7 +1,9 @@
 //! Shared desktop serial port mock for unit tests (scripted RX, TX capture, error injection).
+#[cfg(target_os = "ios")]
+use crate::serialport;
 
 use crate::state::{ConnectedPort, PortState, SerialportInfo};
-use serialport::{self, SerialPort};
+use serialport::SerialPort;
 use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

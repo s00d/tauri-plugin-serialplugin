@@ -9,9 +9,33 @@
 
 A comprehensive plugin for Tauri applications to communicate with serial ports. This plugin provides a complete API for reading from and writing to serial devices, with support for various configuration options and control signals.
 
+> **v4.0:** async Rust commands, serial over TCP (`tcp://host:port`), iOS builds, real 27.010 CMUX, many fixes — see [Migrating to v4](#migrating-to-v4).
+>
 > **v3.0 breaking change:** `listen` / `startListening` / `disconnected` were removed. Use **`watch()`** and **`SerialPort.getCapabilities()`**. See [Migrating to v3](#migrating-to-v3) below.
 
 ---
+
+## Migrating to v4
+
+- **Rust:** the port I/O functions in `commands` are now `async` (they run on Tauri's
+  blocking pool instead of the main thread, so a `read` waiting for data no longer
+  freezes the UI). Add `.await`: `commands::open(app, serial, …).await?`.
+  MSRV is now 1.90.
+- **JS package:** `exports` now has separate `import`/`require` entries with their own
+  types (`index.d.cts`); the `development` condition pointing at `guest-js/*.ts` and
+  the `guest-js` sources in the npm tarball are gone.
+- **`read()`** now reads bytes and decodes them in JS with the port's `encoding` and a
+  streaming decoder (UTF-8 characters split across reads are kept). It no longer calls
+  the native `read` command.
+- **`watch()`** no longer uses the port's read `timeout` (1 s by default) as its batch
+  window. Without `timeout` / `serialDataFlushIntervalMs` data is delivered within
+  ~20 ms and as soon as `size` bytes are buffered.
+- **CMUX** is now real 3GPP 27.010 basic mode (0xF9 framing, SABM/UA, CLD); before,
+  the frames were not understood by modems. `openMuxChannel(dlci)` accepts 1–63.
+- **Android:** the plugin no longer offers the app for *every* USB device (the old
+  `device_filter.xml` had a catch-all entry); it matches the supported chips plus any
+  CDC-ACM device.
+- **New:** `tcp://host:port` paths on every platform; the plugin now builds for iOS.
 
 ## Migrating to v3
 
@@ -76,7 +100,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 ## Table of Contents
 
-1. [Installation](#installation)
+1. [Installation](#installation) — incl. [iOS](#ios) and [Serial over TCP](#serial-over-tcp-all-platforms)
 2. [Basic Usage](#basic-usage)
 3. [TypeScript Support](#typescript-support)
 4. [Log Level Control](#log-level-control)
@@ -104,7 +128,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 ### Prerequisites
 
-- **Rust** version 1.79 or higher (MSRV)
+- **Rust** 1.90 or higher (MSRV; Tauri 2.12 needs it)
 - **Tauri** 2.0 or higher
 - **Node.js** and an npm-compatible package manager (npm, yarn, pnpm)
 
@@ -156,6 +180,32 @@ pnpm add tauri-plugin-serialplugin-api
 ### Android
 
 USB serial on Android uses pure Rust drivers in [`crates/android-usb-serial`](crates/android-usb-serial/) (nusb). Kotlin provides USB permission, enumeration, and a dup'd fd; **no** vendored Java stack or JitPack dependency.
+
+### iOS
+
+iOS has no API for USB or serial devices (Apple allows only MFi accessories via
+ExternalAccessory, and USBDriverKit only on iPad with a special entitlement), so
+`available_ports()` is empty there. The plugin builds and works on iOS through
+**serial over TCP** (below) — for example an ESP32 / ESP-Link, ser2net on a
+Raspberry Pi, or a network serial device server next to the hardware.
+
+### Serial over TCP (all platforms)
+
+Any API that takes a path also accepts `tcp://host:port`. The plugin then talks raw
+bytes to a TCP serial bridge: `ser2net` in raw mode, ESP-Link, Moxa/USR device
+servers, or `socat TCP-LISTEN:4000,reuseaddr,fork FILE:/dev/ttyUSB0,raw,b115200`.
+`read`, `write`, `watch`, `exchange`, AT and CMUX all work the same; when the bridge
+closes the connection you get a `disconnect` event like an unplugged device.
+
+```ts
+const port = new SerialPort({ path: "tcp://192.168.1.50:4000", baudRate: 115200 });
+await port.open();
+await port.watch({ onData: (text) => console.log(text) });
+```
+
+Line settings (`setBaudRate`, parity, …) and modem lines (RTS/DTR, CTS/DSR) are kept
+locally and not sent: configure the serial side on the bridge itself (RFC 2217 is
+not implemented).
 
 ---
 
@@ -533,7 +583,7 @@ async fn rust_serial_example(
     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Get available ports
-    let ports = available_ports(app.clone(), serial.clone())
+    let ports = available_ports(app.clone(), serial.clone(), None).await
         .map_err(|e| format!("Failed to get ports: {}", e))?;
     println!("Available ports: {:?}", ports);
 
@@ -551,11 +601,11 @@ async fn rust_serial_example(
         Some(Parity::None),
         Some(StopBits::One),
         Some(1000u64) // timeout in milliseconds
-    ).map_err(|e| format!("Failed to open port: {}", e))?;
+    ).await.map_err(|e| format!("Failed to open port: {}", e))?;
 
     // Write data
     let data = "Hello from Rust!".to_string();
-    let bytes_written = write(app.clone(), serial.clone(), path.clone(), data)
+    let bytes_written = write(app.clone(), serial.clone(), path.clone(), data).await
         .map_err(|e| format!("Failed to write: {}", e))?;
     println!("Wrote {} bytes", bytes_written);
 
@@ -566,67 +616,67 @@ async fn rust_serial_example(
         path.clone(),
         Some(1000u64), // timeout
         Some(1024usize) // max bytes to read
-    ).map_err(|e| format!("Failed to read: {}", e))?;
+    ).await.map_err(|e| format!("Failed to read: {}", e))?;
     println!("Received: {}", received_data);
 
     // Configure port settings
-    set_baud_rate(app.clone(), serial.clone(), path.clone(), 115200)
+    set_baud_rate(app.clone(), serial.clone(), path.clone(), 115200).await
         .map_err(|e| format!("Failed to set baud rate: {}", e))?;
     
-    set_data_bits(app.clone(), serial.clone(), path.clone(), DataBits::Eight)
+    set_data_bits(app.clone(), serial.clone(), path.clone(), DataBits::Eight).await
         .map_err(|e| format!("Failed to set data bits: {}", e))?;
     
-    set_flow_control(app.clone(), serial.clone(), path.clone(), FlowControl::None)
+    set_flow_control(app.clone(), serial.clone(), path.clone(), FlowControl::None).await
         .map_err(|e| format!("Failed to set flow control: {}", e))?;
     
-    set_parity(app.clone(), serial.clone(), path.clone(), Parity::None)
+    set_parity(app.clone(), serial.clone(), path.clone(), Parity::None).await
         .map_err(|e| format!("Failed to set parity: {}", e))?;
     
-    set_stop_bits(app.clone(), serial.clone(), path.clone(), StopBits::One)
+    set_stop_bits(app.clone(), serial.clone(), path.clone(), StopBits::One).await
         .map_err(|e| format!("Failed to set stop bits: {}", e))?;
 
     // Set timeout
-    set_timeout(app.clone(), serial.clone(), path.clone(), 1000u64)
+    set_timeout(app.clone(), serial.clone(), path.clone(), 1000u64).await
         .map_err(|e| format!("Failed to set timeout: {}", e))?;
 
     // Control signals
-    write_request_to_send(app.clone(), serial.clone(), path.clone(), true)
+    write_request_to_send(app.clone(), serial.clone(), path.clone(), true).await
         .map_err(|e| format!("Failed to set RTS: {}", e))?;
     
-    write_data_terminal_ready(app.clone(), serial.clone(), path.clone(), true)
+    write_data_terminal_ready(app.clone(), serial.clone(), path.clone(), true).await
         .map_err(|e| format!("Failed to set DTR: {}", e))?;
 
     // Read control signals
-    let cts = read_clear_to_send(app.clone(), serial.clone(), path.clone())
+    let cts = read_clear_to_send(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to read CTS: {}", e))?;
     println!("CTS: {}", cts);
 
-    let dsr = read_data_set_ready(app.clone(), serial.clone(), path.clone())
+    let dsr = read_data_set_ready(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to read DSR: {}", e))?;
     println!("DSR: {}", dsr);
 
     // Buffer management
-    let bytes_to_read = bytes_to_read(app.clone(), serial.clone(), path.clone())
+    let bytes_to_read = bytes_to_read(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to get bytes to read: {}", e))?;
     println!("Bytes available to read: {}", bytes_to_read);
 
-    let bytes_to_write = bytes_to_write(app.clone(), serial.clone(), path.clone())
+    let bytes_to_write = bytes_to_write(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to get bytes to write: {}", e))?;
     println!("Bytes waiting to write: {}", bytes_to_write);
 
     // Clear buffers
-    clear_buffer(app.clone(), serial.clone(), path.clone(), ClearBuffer::All)
+    clear_buffer(app.clone(), serial.clone(), path.clone(), ClearBuffer::All).await
         .map_err(|e| format!("Failed to clear buffer: {}", e))?;
 
     // Break signal
-    set_break(app.clone(), serial.clone(), path.clone())
+    set_break(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to set break: {}", e))?;
     
-    clear_break(app.clone(), serial.clone(), path.clone())
+    clear_break(app.clone(), serial.clone(), path.clone()).await
         .map_err(|e| format!("Failed to clear break: {}", e))?;
 
     // Close the port
-    close(app, serial, path)
+    close(app, serial, path).await
         .map_err(|e| format!("Failed to close port: {}", e))?;
 
     Ok(())
@@ -649,7 +699,7 @@ async fn advanced_serial_example(
     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Get available ports with error handling
-    let ports = match available_ports(app.clone(), serial.clone()) {
+    let ports = match available_ports(app.clone(), serial.clone(), None).await {
         Ok(ports) => ports,
         Err(e) => {
             eprintln!("Failed to get available ports: {}", e);
@@ -676,7 +726,7 @@ async fn advanced_serial_example(
         Some(Parity::None),
         Some(StopBits::One),
         Some(5000u64) // 5 second timeout
-    );
+    ).await;
 
     match open_result {
         Ok(_) => println!("Port opened successfully"),
@@ -687,12 +737,12 @@ async fn advanced_serial_example(
     }
 
     // Poll read (for streaming use `watch` + Channel from the frontend)
-    match read(app.clone(), serial.clone(), port_path.clone(), Some(1000u64), Some(1024usize)) {
+    match read(app.clone(), serial.clone(), port_path.clone(), Some(1000u64), Some(1024usize)).await {
         Ok(data) => println!("Read: {}", data),
         Err(e) => eprintln!("Read failed: {}", e),
     }
     let command = "AT\r\n".to_string();
-    match write(app.clone(), serial.clone(), port_path.clone(), command) {
+    match write(app.clone(), serial.clone(), port_path.clone(), command).await {
         Ok(bytes) => println!("Sent {} bytes", bytes),
         Err(e) => {
             eprintln!("Failed to write command: {}", e);
@@ -707,7 +757,7 @@ async fn advanced_serial_example(
         port_path.clone(),
         Some(2000u64), // 2 second timeout
         Some(512usize) // max 512 bytes
-    ) {
+    ).await {
         Ok(response) => println!("Response: {}", response),
         Err(e) => {
             eprintln!("Failed to read response: {}", e);
@@ -726,13 +776,13 @@ async fn advanced_serial_example(
     println!("Managed ports: {:?}", managed_ports);
 
     // Clean up
-    let cleanup_result = close(app.clone(), serial.clone(), port_path.clone());
+    let cleanup_result = close(app.clone(), serial.clone(), port_path.clone()).await;
     match cleanup_result {
         Ok(_) => println!("Port closed successfully"),
         Err(e) => {
             eprintln!("Failed to close port: {}", e);
             // Try force close
-            if let Err(e2) = force_close(app, serial, port_path) {
+            if let Err(e2) = force_close(app, serial, port_path).await {
                 eprintln!("Failed to force close port: {}", e2);
             }
         }
@@ -767,11 +817,11 @@ async fn binary_data_example(
         Some(Parity::None),
         Some(StopBits::One),
         Some(1000u64)
-    ).map_err(|e| format!("Failed to open port: {}", e))?;
+    ).await.map_err(|e| format!("Failed to open port: {}", e))?;
 
     // Write binary data
     let binary_data = vec![0x48, 0x65, 0x6C, 0x6C, 0x6F]; // "Hello" in ASCII
-    let bytes_written = write_binary(app.clone(), serial.clone(), port_path.clone(), binary_data)
+    let bytes_written = write_binary(app.clone(), serial.clone(), port_path.clone(), binary_data).await
         .map_err(|e| format!("Failed to write binary data: {}", e))?;
     println!("Wrote {} bytes of binary data", bytes_written);
 
@@ -782,12 +832,12 @@ async fn binary_data_example(
         port_path.clone(),
         Some(1000u64), // timeout
         Some(256usize) // max bytes
-    ).map_err(|e| format!("Failed to read binary data: {}", e))?;
+    ).await.map_err(|e| format!("Failed to read binary data: {}", e))?;
     
     println!("Received {} bytes: {:?}", received_data.len(), received_data);
 
     // Close port
-    close(app, serial, port_path)
+    close(app, serial, port_path).await
         .map_err(|e| format!("Failed to close port: {}", e))?;
 
     Ok(())
@@ -812,8 +862,8 @@ async fn my_serial_function(
     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Use command functions
-    let ports = available_ports(app.clone(), serial.clone())?;
-    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None)?;
+    let ports = available_ports(app.clone(), serial.clone(), None).await?;
+    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None).await?;
     // ... rest of your code
 }
 ```
@@ -917,10 +967,11 @@ use tauri_plugin_serialplugin::commands::{
 
 ### Command Function Signatures
 
-All command functions follow this pattern:
+All command functions follow this pattern (since v4 the port I/O commands are
+`async` and run on Tauri's blocking pool; `.await` them):
 
 ```rust
-pub fn function_name<R: Runtime>(
+pub async fn function_name<R: Runtime>(
     app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     // ... additional parameters specific to the function
@@ -930,7 +981,7 @@ pub fn function_name<R: Runtime>(
 For example:
 ```rust
 // Open port
-pub fn open<R: Runtime>(
+pub async fn open<R: Runtime>(
     app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
@@ -943,7 +994,7 @@ pub fn open<R: Runtime>(
 ) -> Result<String, Error>  // canonical path (Android session key / desktop echo)
 
 // Write data
-pub fn write<R: Runtime>(
+pub async fn write<R: Runtime>(
     app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
@@ -1002,114 +1053,66 @@ pub fn write<R: Runtime>(
 
 ## Permissions
 
-Below is a list of all permissions the plugin supports. Granting or denying them allows fine-grained control over what your application can do with serial ports.
-
-| Permission                                  | Description                                                                   |
-|---------------------------------------------|-------------------------------------------------------------------------------|
-| `serialplugin:allow-available-ports`        | Allows listing of available serial ports                                      |
-| `serialplugin:deny-available-ports`         | Denies listing of available serial ports                                      |
-| `serialplugin:allow-cancel-read`            | Allows canceling of read operations                                           |
-| `serialplugin:deny-cancel-read`             | Denies canceling of read operations                                           |
-| `serialplugin:allow-close`                  | Allows closing of serial ports                                                |
-| `serialplugin:deny-close`                   | Denies closing of serial ports                                                |
-| `serialplugin:allow-close-all`              | Allows closing of all open serial ports                                       |
-| `serialplugin:deny-close-all`               | Denies closing of all open serial ports                                       |
-| `serialplugin:allow-force-close`            | Allows forcefully closing of serial ports                                     |
-| `serialplugin:deny-force-close`             | Denies forcefully closing of serial ports                                     |
-| `serialplugin:allow-open`                   | Allows opening of serial ports                                                |
-| `serialplugin:deny-open`                    | Denies opening of serial ports                                                |
-| `serialplugin:allow-read`                   | Allows reading data from serial ports                                         |
-| `serialplugin:deny-read`                    | Denies reading data from serial ports                                         |
-| `serialplugin:allow-read-binary`            | Allows reading binary data from serial ports                                  |
-| `serialplugin:deny-read-binary`             | Denies reading binary data from serial ports                                  |
-| `serialplugin:allow-write`                  | Allows writing data to serial ports                                           |
-| `serialplugin:deny-write`                   | Denies writing data to serial ports                                           |
-| `serialplugin:allow-write-binary`           | Allows writing binary data to serial ports                                    |
-| `serialplugin:deny-write-binary`            | Denies writing binary data to serial ports                                    |
-| `serialplugin:allow-set-baud-rate`          | Allows changing the baud rate of serial ports                                 |
-| `serialplugin:deny-set-baud-rate`           | Denies changing the baud rate of serial ports                                 |
-| `serialplugin:allow-set-data-bits`          | Allows changing the data bits configuration                                   |
-| `serialplugin:deny-set-data-bits`           | Denies changing the data bits configuration                                   |
-| `serialplugin:allow-set-flow-control`       | Allows changing the flow control mode                                         |
-| `serialplugin:deny-set-flow-control`        | Denies changing the flow control mode                                         |
-| `serialplugin:allow-set-parity`             | Allows changing the parity checking mode                                      |
-| `serialplugin:deny-set-parity`              | Denies changing the parity checking mode                                      |
-| `serialplugin:allow-set-stop-bits`          | Allows changing the stop bits configuration                                   |
-| `serialplugin:deny-set-stop-bits`           | Denies changing the stop bits configuration                                   |
-| `serialplugin:allow-set-timeout`            | Allows changing the timeout duration                                          |
-| `serialplugin:deny-set-timeout`             | Denies changing the timeout duration                                          |
-| `serialplugin:allow-write-rts`              | Allows setting the RTS (Request To Send) control signal                       |
-| `serialplugin:deny-write-rts`               | Denies setting the RTS control signal                                         |
-| `serialplugin:allow-write-dtr`              | Allows setting the DTR (Data Terminal Ready) control signal                   |
-| `serialplugin:deny-write-dtr`               | Denies setting the DTR control signal                                         |
-| `serialplugin:allow-read-cts`               | Allows reading the CTS (Clear To Send) control signal state                   |
-| `serialplugin:deny-read-cts`                | Denies reading the CTS control signal state                                   |
-| `serialplugin:allow-read-dsr`               | Allows reading the DSR (Data Set Ready) control signal state                  |
-| `serialplugin:deny-read-dsr`                | Denies reading the DSR control signal state                                   |
-| `serialplugin:allow-read-ri`                | Allows reading the RI (Ring Indicator) control signal state                   |
-| `serialplugin:deny-read-ri`                 | Denies reading the RI control signal state                                    |
-| `serialplugin:allow-read-cd`                | Allows reading the CD (Carrier Detect) control signal state                   |
-| `serialplugin:deny-read-cd`                 | Denies reading the CD control signal state                                    |
-| `serialplugin:allow-bytes-to-read`          | Allows checking the number of bytes available to read                         |
-| `serialplugin:deny-bytes-to-read`           | Denies checking the number of bytes available to read                         |
-| `serialplugin:allow-bytes-to-write`         | Allows checking the number of bytes waiting to be written                     |
-| `serialplugin:deny-bytes-to-write`          | Denies checking the number of bytes waiting to be written                     |
-| `serialplugin:allow-clear-buffer`           | Allows clearing input/output buffers                                          |
-| `serialplugin:deny-clear-buffer`            | Denies clearing input/output buffers                                          |
-| `serialplugin:allow-set-break`              | Allows starting break signal transmission                                     |
-| `serialplugin:deny-set-break`               | Denies starting break signal transmission                                     |
-| `serialplugin:allow-clear-break`            | Allows stopping break signal transmission                                     |
-| `serialplugin:deny-clear-break`             | Denies stopping break signal transmission                                     |
-| `serialplugin:allow-capabilities`           | Allows reading runtime plugin capabilities                                    |
-| `serialplugin:deny-capabilities`            | Denies reading runtime plugin capabilities                                    |
-| `serialplugin:allow-watch`                  | Allows streaming port data through a Tauri Channel                            |
-| `serialplugin:deny-watch`                   | Denies streaming port data through a Tauri Channel                            |
-| `serialplugin:allow-unwatch`                | Allows stopping an active watch session                                       |
-| `serialplugin:deny-unwatch`                  | Denies stopping an active watch session                                       |
-| `serialplugin:allow-set-log-level`          | Allows setting the global log level                                           |
-| `serialplugin:deny-set-log-level`           | Denies setting the global log level                                           |
-| `serialplugin:allow-get-log-level`          | Allows getting the current log level                                          |
-| `serialplugin:deny-get-log-level`           | Denies getting the current log level                                          |
-
-### Granting All Permissions (Example)
+`serialplugin:default` allows every command below; that is what most apps want:
 
 ```jsonc
-"permissions": [
-  "core:default",
-  "serialplugin:default",
-  "serialplugin:allow-available-ports",
-  "serialplugin:allow-cancel-read",
-  "serialplugin:allow-close",
-  "serialplugin:allow-close-all",
-  "serialplugin:allow-force-close",
-  "serialplugin:allow-open",
-  "serialplugin:allow-read",
-  "serialplugin:allow-write",
-  "serialplugin:allow-write-binary",
-  "serialplugin:allow-set-baud-rate",
-  "serialplugin:allow-set-data-bits",
-  "serialplugin:allow-set-flow-control",
-  "serialplugin:allow-set-parity",
-  "serialplugin:allow-set-stop-bits",
-  "serialplugin:allow-set-timeout",
-  "serialplugin:allow-write-rts",
-  "serialplugin:allow-write-dtr",
-  "serialplugin:allow-read-cts",
-  "serialplugin:allow-read-dsr",
-  "serialplugin:allow-read-ri",
-  "serialplugin:allow-read-cd",
-  "serialplugin:allow-bytes-to-read",
-  "serialplugin:allow-bytes-to-write",
-  "serialplugin:allow-clear-buffer",
-  "serialplugin:allow-set-break",
-  "serialplugin:allow-clear-break",
-  "serialplugin:allow-capabilities",
-  "serialplugin:allow-watch",
-  "serialplugin:allow-unwatch",
-  "serialplugin:allow-set-log-level",
-  "serialplugin:allow-get-log-level"
-]
+"permissions": ["core:default", "serialplugin:default"]
 ```
+
+For a narrower capability, list the `allow-*` identifiers you need instead (and
+`deny-*` to take one away from a broader set). Every command has a pair, named
+after the command with `_` replaced by `-`:
+
+| Command | Allow | Deny |
+|---------|-------|------|
+| `available_ports` | `serialplugin:allow-available-ports` | `serialplugin:deny-available-ports` |
+| `managed_ports` | `serialplugin:allow-managed-ports` | `serialplugin:deny-managed-ports` |
+| `cancel_read` | `serialplugin:allow-cancel-read` | `serialplugin:deny-cancel-read` |
+| `close` | `serialplugin:allow-close` | `serialplugin:deny-close` |
+| `close_all` | `serialplugin:allow-close-all` | `serialplugin:deny-close-all` |
+| `force_close` | `serialplugin:allow-force-close` | `serialplugin:deny-force-close` |
+| `open` | `serialplugin:allow-open` | `serialplugin:deny-open` |
+| `read` | `serialplugin:allow-read` | `serialplugin:deny-read` |
+| `read_binary` | `serialplugin:allow-read-binary` | `serialplugin:deny-read-binary` |
+| `capabilities` | `serialplugin:allow-capabilities` | `serialplugin:deny-capabilities` |
+| `watch` | `serialplugin:allow-watch` | `serialplugin:deny-watch` |
+| `unwatch` | `serialplugin:allow-unwatch` | `serialplugin:deny-unwatch` |
+| `watch_ports` | `serialplugin:allow-watch-ports` | `serialplugin:deny-watch-ports` |
+| `unwatch_ports` | `serialplugin:allow-unwatch-ports` | `serialplugin:deny-unwatch-ports` |
+| `write` | `serialplugin:allow-write` | `serialplugin:deny-write` |
+| `write_binary` | `serialplugin:allow-write-binary` | `serialplugin:deny-write-binary` |
+| `set_baud_rate` | `serialplugin:allow-set-baud-rate` | `serialplugin:deny-set-baud-rate` |
+| `set_data_bits` | `serialplugin:allow-set-data-bits` | `serialplugin:deny-set-data-bits` |
+| `set_flow_control` | `serialplugin:allow-set-flow-control` | `serialplugin:deny-set-flow-control` |
+| `set_parity` | `serialplugin:allow-set-parity` | `serialplugin:deny-set-parity` |
+| `set_stop_bits` | `serialplugin:allow-set-stop-bits` | `serialplugin:deny-set-stop-bits` |
+| `set_timeout` | `serialplugin:allow-set-timeout` | `serialplugin:deny-set-timeout` |
+| `write_request_to_send` | `serialplugin:allow-write-request-to-send` | `serialplugin:deny-write-request-to-send` |
+| `write_data_terminal_ready` | `serialplugin:allow-write-data-terminal-ready` | `serialplugin:deny-write-data-terminal-ready` |
+| `read_clear_to_send` | `serialplugin:allow-read-clear-to-send` | `serialplugin:deny-read-clear-to-send` |
+| `read_data_set_ready` | `serialplugin:allow-read-data-set-ready` | `serialplugin:deny-read-data-set-ready` |
+| `read_ring_indicator` | `serialplugin:allow-read-ring-indicator` | `serialplugin:deny-read-ring-indicator` |
+| `read_carrier_detect` | `serialplugin:allow-read-carrier-detect` | `serialplugin:deny-read-carrier-detect` |
+| `bytes_to_read` | `serialplugin:allow-bytes-to-read` | `serialplugin:deny-bytes-to-read` |
+| `bytes_to_write` | `serialplugin:allow-bytes-to-write` | `serialplugin:deny-bytes-to-write` |
+| `clear_buffer` | `serialplugin:allow-clear-buffer` | `serialplugin:deny-clear-buffer` |
+| `set_break` | `serialplugin:allow-set-break` | `serialplugin:deny-set-break` |
+| `clear_break` | `serialplugin:allow-clear-break` | `serialplugin:deny-clear-break` |
+| `set_log_level` | `serialplugin:allow-set-log-level` | `serialplugin:deny-set-log-level` |
+| `get_log_level` | `serialplugin:allow-get-log-level` | `serialplugin:deny-get-log-level` |
+| `exchange` | `serialplugin:allow-exchange` | `serialplugin:deny-exchange` |
+| `exchange_binary` | `serialplugin:allow-exchange-binary` | `serialplugin:deny-exchange-binary` |
+| `cancel_exchange` | `serialplugin:allow-cancel-exchange` | `serialplugin:deny-cancel-exchange` |
+| `at` | `serialplugin:allow-at` | `serialplugin:deny-at` |
+| `at_phases` | `serialplugin:allow-at-phases` | `serialplugin:deny-at-phases` |
+| `send_sms_pdu` | `serialplugin:allow-send-sms-pdu` | `serialplugin:deny-send-sms-pdu` |
+| `configure_at_session` | `serialplugin:allow-configure-at-session` | `serialplugin:deny-configure-at-session` |
+| `enable_mux` | `serialplugin:allow-enable-mux` | `serialplugin:deny-enable-mux` |
+| `open_mux_channel` | `serialplugin:allow-open-mux-channel` | `serialplugin:deny-open-mux-channel` |
+| `disable_mux` | `serialplugin:allow-disable-mux` | `serialplugin:deny-disable-mux` |
+
+The generated reference with descriptions is in
+[`permissions/autogenerated/reference.md`](permissions/autogenerated/reference.md).
 
 ---
 
@@ -1168,7 +1171,8 @@ class SerialPort {
   /**
    * Opens the serial port with specified configuration
    * @returns {Promise<string>} Canonical path (Android re-keys to session path; desktop echoes input)
-   * @throws {Error} If port is already open or invalid configuration
+   * Already open: resolves with the current path. Path may be `tcp://host:port`.
+   * @throws {Error} If the device cannot be opened or the configuration is invalid
    * @example
    * const port = new SerialPort({ path: "COM1", baudRate: 9600 });
    * const canonical = await port.open();
@@ -1178,7 +1182,8 @@ class SerialPort {
   /**
    * Closes the serial port connection
    * @returns {Promise<void>}
-   * @throws {Error} If port is not open
+   * Safe to call when not open; also stops a pending auto-reconnect and releases the
+   * native port after a disconnect.
    * @example
    * await port.close();
    */
@@ -1721,10 +1726,11 @@ Run the full suite locally:
 ```bash
 ./scripts/verify-android-usb-migration.sh   # full Android USB migration gate
 cargo fmt --all -- --check
-cargo clippy --all-targets -- -D warnings
-cargo test
-pnpm install && pnpm check && pnpm test && pnpm build
-cd android && ./gradlew test
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo test -p android-usb-serial --features fake-transport,serialport-compat
+pnpm install && pnpm typecheck && pnpm test && pnpm build   # build also runs publint, attw and a CJS/ESM smoke check
+cd android && ./gradlew lintDebug test
 ```
 
 ### Virtual serial port (desktop integration)
@@ -1742,7 +1748,8 @@ Use `watch()`, `exchange()`, and `sendAt()` against that path; unplugging the pe
 ### Unit tests (no hardware)
 
 - **Rust:** `src/tests/mock_serial.rs` — scripted RX/TX mock used by `cargo test`
-- **JS:** `tests/*.test.ts` — Jest mocks for `invoke` / `Channel`
+- **Rust, real I/O:** PTY pairs (Unix), a local TCP bridge for `tcp://` (all OSes), a fake 27.010 modem for CMUX, and commands through the Tauri IPC path (`tauri::test`)
+- **JS:** `tests/*.test.ts` — vitest with mocks for `invoke` / `Channel`
 - **Android:** `android/src/test/...` — Robolectric for `UsbFdBridge`; Rust driver tests in `crates/android-usb-serial` (`fake-transport`)
 
 > **Note:** `bytesToWrite()` returns **0 on Android** (writes are synchronous over JNI). Desktop returns the driver queue depth when available.

@@ -34,7 +34,7 @@ android-usb-serial = "0.1"
 # android-usb-serial = { version = "0.1", features = ["fake-transport"] }
 ```
 
-Requires **Rust 1.79+**. Real USB needs `target_os = "android"` or `"linux"` (pulls in `nusb` + `libc`).
+Requires **Rust 1.85+**. Real USB needs `target_os = "android"` or `"linux"` (pulls in `nusb` + `libc`).
 
 ## Quick start (Android fd)
 

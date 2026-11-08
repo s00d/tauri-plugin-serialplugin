@@ -40,7 +40,7 @@ pnpm playground
 | `android/` | Kotlin / Gradle Android module |
 | `crates/android-usb-serial/` | Pure-Rust USB serial drivers |
 | `examples/serialport-test/` | Demo / playground |
-| `tests/` | Jest suites for guest-js |
+| `tests/` | vitest suites for guest-js |
 
 ## Pull requests
 
