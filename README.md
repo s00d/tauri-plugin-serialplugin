@@ -207,6 +207,21 @@ Line settings (`setBaudRate`, parity, …) and modem lines (RTS/DTR, CTS/DSR) ar
 locally and not sent: configure the serial side on the bridge itself (RFC 2217 is
 not implemented).
 
+Use **one client per bridge**. A serial line has a single reader: if two apps talk
+to the same device through a forking bridge (`socat …,fork`), each reply goes to
+whichever connection reads it first, so both see timeouts and each other's answers.
+`ser2net` accepts one connection per port by default, which is what you want.
+
+The example app on iOS and Android, talking to a real Quectel M26 modem through
+`socat` on the host (`tcp://127.0.0.1:…` from the iOS simulator,
+`tcp://10.0.2.2:…` from the Android emulator):
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/s00d/tauri-plugin-serialplugin/main/docs/screenshots/ios-tcp-quectel.png" alt="iOS simulator: ATI over tcp:// to a Quectel M26" width="300" />
+  &nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/s00d/tauri-plugin-serialplugin/main/docs/screenshots/android-tcp-quectel.png" alt="Android emulator: ATI and AT+CSQ over tcp:// to a Quectel M26" width="300" />
+</p>
+
 ---
 
 ## Basic Usage
