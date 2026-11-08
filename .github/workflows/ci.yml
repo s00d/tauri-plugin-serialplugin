@@ -113,6 +113,15 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      # Keep the Gradle distribution between runs: its download host flakes (504s,
+      # timeouts), and a cached copy needs no network at all.
+      - uses: actions/cache@v4
+        if: matrix.target == 'aarch64-linux-android'
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/settings.gradle') }}
       # The cargo run above generated android/.tauri/tauri-api, which Gradle needs.
       - name: Kotlin lint + Robolectric tests
         if: matrix.target == 'aarch64-linux-android'

@@ -11,7 +11,7 @@ A comprehensive plugin for Tauri applications to communicate with serial ports. 
 
 > **v4.0:** async Rust commands, serial over TCP (`tcp://host:port`), iOS builds, real 27.010 CMUX, many fixes — see [Migrating to v4](#migrating-to-v4).
 >
-> **v3.0 breaking change:** `listen` / `startListening` / `disconnected` were removed. Use **`watch()`** and **`SerialPort.getCapabilities()`**. See [Migrating to v3](#migrating-to-v3) below.
+> **From v2:** `listen` / `startListening` / `disconnected` were removed in v3 — use **`watch()`**. See [Migrating to v3](#migrating-to-v3).
 
 ---
 
@@ -83,6 +83,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 | `kind` | Meaning | Port stays open? |
 |--------|---------|------------------|
 | `data` | Incoming bytes (decoded to `string` in JS when `decode !== false`) | Yes |
+| `urc` | Unsolicited AT line (`+CREG: …`, `RING`) when `routeUrc` is on; delivered to `onUrc` | Yes |
 | `error` | Non-fatal notification (e.g. emitter glitch); watch continues | Yes |
 | `disconnect` | Fatal end of stream (unplug, IO manager stopped); triggers auto-reconnect if enabled | No (`isOpen = false`) |
 
@@ -90,9 +91,9 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 | Option | Desktop | Android |
 |--------|---------|---------|
-| `timeout` | Batch coalescing window (ms) | Coalescing / flush hint where supported |
-| `serialDataFlushIntervalMs` | Preferred batch interval for hub `batch_timeout_ms` (falls back to `timeout`) | Same; clamped typically 10–2000 ms |
-| `size` | Read chunk size per syscall | Reserved |
+| `timeout` | Batch coalescing window (ms); default ~20 ms | Same |
+| `serialDataFlushIntervalMs` | Batch flush interval (ms); takes precedence over `timeout` | Same |
+| `size` | Max bytes per read chunk; a batch is also flushed once this many bytes are buffered (default: port `size`, 1024) | Same |
 | `decode` | JS-only: `TextDecoder` on `onData` | JS-only |
 | `routeUrc` | Split AT URC lines into `onUrc` (strips them from `onData`). Default: off; JS sets on when `onUrc` is passed. Keep off for binary/NMEA. | Same |
 
@@ -100,6 +101,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
 
 ## Table of Contents
 
+0. [Migrating to v4](#migrating-to-v4) · [v3](#migrating-to-v3)
 1. [Installation](#installation) — incl. [iOS](#ios) and [Serial over TCP](#serial-over-tcp-all-platforms)
 2. [Basic Usage](#basic-usage)
 3. [TypeScript Support](#typescript-support)
@@ -115,7 +117,7 @@ Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (
    7.6. [Buffer Management](#buffer-management)  
    7.7. [Log Control](#log-control)  
    7.8. [Auto-Reconnect](#auto-reconnect-management)
-8. [Common Use Cases](#common-use-cases)
+8. [Common Use Cases](#common-use-cases) — incl. [AT commands & CMUX](#at-commands-native-fifo-queue)
 9. [Android Setup](#android-setup)
 10. [Development Setup](#development-setup)
 11. [Testing](#testing)
@@ -285,7 +287,7 @@ The example app on iOS and Android, talking to a real Quectel M26 modem through
 
 4. **Error Handling Example**
    ```typescript
-   import { SerialPort } from "tauri-plugin-serialplugin-api";
+   import { SerialPort, DataBits, FlowControl, Parity, StopBits } from "tauri-plugin-serialplugin-api";
 
    async function handleSerialPort() {
      let port: SerialPort | null = null;
@@ -380,11 +382,17 @@ import {
   Parity, 
   StopBits, 
   ClearBuffer,
+  LogLevel,
   PortInfo,
   SerialportOptions,
-  ReadOptions 
+  ReadOptions,
 } from "tauri-plugin-serialplugin-api";
 ```
+
+Watch, port-list, exchange and AT types (`WatchOptions`, `WatchHandlers`,
+`WatchHandle`, `ExchangeOptions`, `ExchangeResponse`, `AtCommandOptions`,
+`AtCommandResult`, `AtSessionOptions`, `Capabilities`, …) are exported too — see
+`guest-js/index.ts`.
 
 ### Type Definitions
 
@@ -397,6 +405,7 @@ import {
 - **`PortInfo`** - Interface for port information
 - **`SerialportOptions`** - Interface for port configuration
 - **`ReadOptions`** - Interface for read operation options
+- **`LogLevel`** - Enum: `None`, `Error`, `Warn`, `Info`, `Debug`
 
 ### Configuration Example with Types
 
@@ -427,10 +436,6 @@ await port.setTimeout(500);
 
 ```typescript
 // Set control signals
-await port.writeRequestToSend(true);
-await port.writeDataTerminalReady(true);
-
-// Alternative methods (writeRequestToSend and writeDataTerminalReady)
 await port.writeRequestToSend(true);
 await port.writeDataTerminalReady(true);
 
@@ -534,7 +539,7 @@ async fn configure_production_logging(
 - **`Info`** - Errors, warnings, and general information (default)
 - **`Debug`** - All logging including debug information (for development)
 
-### Common Use Cases
+### Log level use cases
 
 #### Production Environment
 
@@ -589,8 +594,7 @@ use tauri_plugin_serialplugin::commands::{
     set_break, clear_break
 };
 use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits, ClearBuffer};
-use tauri::{AppHandle, State, Runtime};
-use std::collections::HashMap;
+use tauri::{AppHandle, State};
 
 #[tauri::command]
 async fn rust_serial_example(
@@ -702,11 +706,10 @@ async fn rust_serial_example(
 
 ```rust
 use tauri_plugin_serialplugin::commands::{
-    available_ports, open, write, read, close, force_close, managed_ports, watch, unwatch
+    available_ports, open, write, read, close, force_close, managed_ports
 };
 use tauri_plugin_serialplugin::state::{DataBits, FlowControl, Parity, StopBits};
 use tauri::{AppHandle, State};
-use std::collections::HashMap;
 
 #[tauri::command]
 async fn advanced_serial_example(
@@ -877,9 +880,14 @@ async fn my_serial_function(
     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Use command functions
-    let ports = available_ports(app.clone(), serial.clone(), None).await?;
-    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None).await?;
+    let ports = available_ports(app.clone(), serial.clone(), None)
+        .await
+        .map_err(|e| e.to_string())?;
+    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None)
+        .await
+        .map_err(|e| e.to_string())?;
     // ... rest of your code
+    Ok(())
 }
 ```
 
@@ -896,8 +904,9 @@ async fn my_serial_function(
     serial: State<'_, SerialPort<tauri::Wry>>
 ) -> Result<(), String> {
     // Use serial methods directly
-    let ports = serial.available_ports(false)?;
+    let ports = serial.available_ports(false).map_err(|e| e.to_string())?;
     // ... rest of your code
+    Ok(())
 }
 ```
 
@@ -982,8 +991,11 @@ use tauri_plugin_serialplugin::commands::{
 
 ### Command Function Signatures
 
-All command functions follow this pattern (since v4 the port I/O commands are
-`async` and run on Tauri's blocking pool; `.await` them):
+Port commands take `app: AppHandle<R>, serial: State<'_, SerialPort<R>>` plus their
+own parameters. Since v4 every port I/O command (including `available_ports`) is
+`async`, runs on Tauri's blocking pool and must be `.await`ed; `managed_ports`,
+`set_log_level` and `get_log_level` are still synchronous, and `capabilities()`
+takes no arguments.
 
 ```rust
 pub async fn function_name<R: Runtime>(
@@ -1019,50 +1031,23 @@ pub async fn write<R: Runtime>(
 
 ### Error Messages
 
-#### Port Discovery
-- "Failed to lock serialports mutex" - Error acquiring mutex lock when listing ports
-- "Invalid response format" - Invalid response format from plugin
-- "Plugin error: {error}" - Plugin execution error
+Errors reach JS as rejected promises with a string message (Rust: `Error`, which
+serializes to the same string). The ones worth matching on:
 
-#### Port Management
-- "Failed to acquire lock: {error}" - Error acquiring mutex lock
-- "Port '{path}' not found" - Port does not exist
-- "Serial port {path} is not open!" - Port is not open
-- "Failed to open serial port: {error}" - Error opening port
-- "Failed to clone serial port: {error}" - Error cloning port
-- "Failed to set short timeout: {error}" - Error setting timeout
-- "Failed to cancel serial port watch: {error}" - Error stopping watch thread
-- "Failed to join thread: {error}" - Error waiting for thread completion
-- "Failed to cancel serial port data reading: {error}" - Error canceling data reading
+| Message | When |
+|---------|------|
+| `Serial port {path} is not open!` | `close` of a port that is not open |
+| `Port '{path}' not found` | Command on a path that was never opened |
+| `Failed to open serial port: …` / `Failed to open tcp://…: …` | Device or bridge cannot be opened (OS text follows) |
+| `no data received within {timeout} ms` | `read` / `readBinary` timed out |
+| `Cannot read while watch is active; use watch or exchange` | `read` while a `watch` owns the stream |
+| `A watch is already active for port {path}` | Second native `watch` on one port |
+| `exchange timed out after {ms} ms` | `exchange` / `sendAt` got no final result code |
+| `exchange cancelled` / `transaction queue cancelled` | `cancelExchange()` hit the running / a queued job |
+| `invalid CMUX DLCI {n}: data channels are 1..=63` | `openMuxChannel` with DLCI 0 or > 63 |
+| `Failed to write data: …` | Write failed (OS text follows) |
 
-#### Data Operations
-- "Failed to write data: {error}" - Error writing data
-- "Failed to write binary data: {error}" - Error writing binary data
-- "Failed to read data: {error}" - Error reading data
-- "no data received within {timeout} ms" - Read timeout
-- "Failed to set timeout: {error}" - Error setting timeout
-
-#### Port Configuration
-- "Failed to set baud rate: {error}" - Error setting baud rate
-- "Failed to set data bits: {error}" - Error setting data bits
-- "Failed to set flow control: {error}" - Error setting flow control
-- "Failed to set parity: {error}" - Error setting parity
-- "Failed to set stop bits: {error}" - Error setting stop bits
-
-#### Control Signals
-- "Failed to set RTS: {error}" - Error setting RTS signal
-- "Failed to set DTR: {error}" - Error setting DTR signal
-- "Failed to read CTS: {error}" - Error reading CTS signal
-- "Failed to read DSR: {error}" - Error reading DSR signal
-- "Failed to read RI: {error}" - Error reading RI signal
-- "Failed to read CD: {error}" - Error reading CD signal
-- "Failed to set break: {error}" - Error setting break signal
-- "Failed to clear break: {error}" - Error clearing break signal
-
-#### Buffer Management
-- "Failed to clear buffer: {error}" - Error clearing buffer
-- "Failed to get bytes to read: {error}" - Error getting bytes available to read
-- "Failed to get bytes to write: {error}" - Error getting bytes waiting to write
+Other failures carry the OS / serialport error text unchanged.
 
 ---
 
@@ -1258,7 +1243,9 @@ class SerialPort {
   async write(data: string): Promise<number>;
 
   /**
-   * Reads data from the serial port
+   * Reads up to `size` bytes (default: port `size`, 1024) within `timeout`
+   * (default: port `timeout`, 1000 ms) and decodes them in JS with the port's
+   * `encoding`; a multi-byte character split across two reads is kept intact.
    * @param {ReadOptions} [options] Read options
    * @returns {Promise<string>} A promise that resolves to a string
    */
@@ -1517,7 +1504,7 @@ class SerialPort {
    * Disables auto-reconnect functionality
    * @returns {void}
    * @example
-   * await port.disableAutoReconnect();
+   * port.disableAutoReconnect();
    */
   disableAutoReconnect(): void;
 
@@ -1631,7 +1618,7 @@ await port.open();
 
 // Enable auto-reconnect: restores both open() and watch() after disconnect
 // Reconnection uses a fixed interval (options.interval); exponential backoff is not implemented.
-await port.enableAutoReconnect({
+port.enableAutoReconnect({
   interval: 3000,
   maxAttempts: 5,
   onReconnect: (success, attempt) => {
@@ -1655,7 +1642,7 @@ console.log("Auto-reconnect enabled:", info.enabled);
 console.log("Current attempts:", info.currentAttempts);
 
 // Disable auto-reconnect when no longer needed
-await port.disableAutoReconnect();
+port.disableAutoReconnect();
 ```
 
 ### AT commands (native FIFO queue)
@@ -1667,11 +1654,11 @@ For modems and AT devices, use **`sendAt()`** / **`sendAtPhases()`** / **`sendSm
 | `watch()` | Streaming Channel events + optional **`onUrc`** | General I/O, live URC |
 | `sendAt()` | One structured response per command | AT modems, request/response scripts |
 
-**Capabilities (v3.0):**
+**Features:**
 
 | Feature | Description |
 |---------|-------------|
-| `AtCommandResult` | Structured result: `command`, `response`, `status`, `lines`, `solicitedBody`, `urcLines`, `raw` |
+| `AtCommandResult` | Structured result: `command`, `response`, `status`, `lines`, `solicitedBody`, `urcLines`, `matched`, `timedOut`, `raw` |
 | Native queue | Parallel `exchange()` / `sendAt()` **wait in FIFO** (no `"Exchange already in progress"`) |
 | `configureAtSession()` | Session defaults: `expectOk`, `stopOnError`, `appendCr`, timeouts, `resultFormat` |
 | Default `rxPrepare: 'drain'` | Soft idle drain before each command; use **`purge`** only for recovery. On **Android**, drain uses the same hub `drain()` path as desktop (Rust reader → `PortRxHub`). |
@@ -1715,7 +1702,7 @@ Low-level **`exchange`** / **`exchangeBinary`** return **`ExchangeResponse`** (a
 
 ## Android Setup
 
-Android USB serial runs in Rust (`android-usb-serial` + nusb). Kotlin holds the `UsbDeviceConnection` fd; the plugin duplicates it and claims interfaces in native code. Add a `device_filter.xml` in your app for your VID/PID and grant USB permission at runtime.
+Android USB serial runs in Rust (`android-usb-serial` + nusb). Kotlin holds the `UsbDeviceConnection` fd; the plugin duplicates it and claims interfaces in native code. The plugin ships a `device_filter.xml` (supported chips plus any CDC-ACM device) and wires it into your manifest; add your own filter only for a device outside that list. USB permission is requested at runtime on `open`.
 
 If you previously added `maven { url = uri("https://jitpack.io") }` only for usb-serial-for-android, you can remove it.
 

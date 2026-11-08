@@ -26,15 +26,11 @@ export type SerialEvent =
   | { kind: 'error'; path: string; message: string };
 
 export interface WatchOptions {
-  /** Desktop: batch coalescing window (ms). Android: coalescing hint where supported. */
+  /** Batch coalescing window (ms). Default ~20 ms; not the port's read timeout. */
   timeout?: number;
-  /** Max bytes per read chunk. */
+  /** Max bytes per read chunk; a batch is also flushed once this many bytes are buffered. */
   size?: number;
-  /**
-   * Desktop: preferred batch flush interval (falls back to `timeout`).
-   * Android: watch batch flush interval (hub `batch_timeout_ms`, typically 10–2000 ms).
-   * Prefer this over relying on `timeout` alone when you need a specific coalesce window.
-   */
+  /** Batch flush interval (ms); takes precedence over `timeout`. All platforms. */
   serialDataFlushIntervalMs?: number;
   /** Default `true` — stream-decode with TextDecoder. */
   decode?: boolean;
