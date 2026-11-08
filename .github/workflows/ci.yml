@@ -117,4 +117,8 @@ jobs:
       - name: Kotlin lint + Robolectric tests
         if: matrix.target == 'aarch64-linux-android'
         working-directory: android
-        run: ./gradlew --no-daemon lintDebug test
+        # The wrapper download (services.gradle.org -> GitHub releases) flakes with
+        # timeouts / 504s; retry the bootstrap before giving up.
+        run: |
+          for i in 1 2 3; do ./gradlew --no-daemon --version && break; sleep 20; done
+          ./gradlew --no-daemon lintDebug test
