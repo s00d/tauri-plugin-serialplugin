@@ -4,9 +4,9 @@
 //! is unchanged.
 
 use serde::{Deserialize, Serialize};
-#[cfg(any(all(target_os = "linux", not(target_os = "android")), test))]
+#[cfg(any(all(target_os = "linux", not(target_os = "android")), all(test, unix)))]
 use std::collections::HashMap;
-#[cfg(any(all(target_os = "linux", not(target_os = "android")), test))]
+#[cfg(any(all(target_os = "linux", not(target_os = "android")), all(test, unix)))]
 use std::path::{Path, PathBuf};
 
 /// Kind of port, as in the 4.x `type` field.
@@ -136,7 +136,7 @@ pub fn details_from_info_map(
 
 /// Symlinks in `dir`, grouped by their canonical target (sorted link paths).
 /// Dangling links and a missing `dir` are skipped.
-#[cfg(any(all(target_os = "linux", not(target_os = "android")), test))]
+#[cfg(any(all(target_os = "linux", not(target_os = "android")), all(test, unix)))]
 fn serial_links(dir: &Path) -> HashMap<PathBuf, Vec<String>> {
     let mut out: HashMap<PathBuf, Vec<String>> = HashMap::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
