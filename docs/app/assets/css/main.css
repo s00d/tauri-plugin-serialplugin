@@ -1,0 +1,14 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+@source "../../../content/**/*";
+
+:root {
+  --ui-text-muted: var(--ui-color-neutral-500);
+  --ui-text-dimmed: var(--ui-color-neutral-500);
+}
+
+.dark {
+  --ui-text-muted: var(--ui-color-neutral-400);
+  --ui-text-dimmed: var(--ui-color-neutral-400);
+}

@@ -54,7 +54,7 @@ tauri::Builder::default()
 ```
 
 Requires Rust 1.90+ and Tauri 2. Android needs no extra setup; for BLE see
-[platforms](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/platforms.md#bluetooth-le-ble).
+[platforms](https://s00d.github.io/tauri-plugin-serialplugin/platforms/ble).
 
 ## Quick start
 
@@ -98,17 +98,18 @@ port.enableAutoReconnect({ interval: 3000, maxAttempts: null });
 
 | | |
 |-|-|
-| [JavaScript API](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/javascript-api.md) | Every method, option, event and error |
-| [AT commands, exchange, CMUX](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/at-commands.md) | Modem queue, SMS, URCs, multiplexing |
-| [Platforms and transports](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/platforms.md) | Android USB, iOS, `tcp://`, `ble://`, DTR/RTS on open |
-| [Rust](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/rust.md) | Using the plugin from your backend · [docs.rs](https://docs.rs/tauri-plugin-serialplugin/) |
-| [Permissions](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/permissions.md) | Capability identifiers |
-| [Migration guide](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/migration.md) | v3 → v4, v2 → v3 |
-| [Changelog](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/CHANGELOG.md) | |
+| [JavaScript API](https://s00d.github.io/tauri-plugin-serialplugin/guides/javascript-api) | Every method, option, event and error |
+| [AT commands, exchange, CMUX](https://s00d.github.io/tauri-plugin-serialplugin/guides/at-commands) | Modem queue, SMS, URCs, multiplexing |
+| [Platforms and transports](https://s00d.github.io/tauri-plugin-serialplugin/platforms/overview) | Android USB, iOS, `tcp://`, `ble://`, DTR/RTS on open |
+| [Rust](https://s00d.github.io/tauri-plugin-serialplugin/guides/rust) | Using the plugin from your backend · [docs.rs](https://docs.rs/tauri-plugin-serialplugin/) |
+| [Permissions](https://s00d.github.io/tauri-plugin-serialplugin/guides/permissions) | Capability identifiers · [full list](https://s00d.github.io/tauri-plugin-serialplugin/reference/permissions) |
+| [API reference](https://s00d.github.io/tauri-plugin-serialplugin/reference/serial-port) | Generated from the sources: `SerialPort`, types, Tauri commands |
+| [Migration guide](https://s00d.github.io/tauri-plugin-serialplugin/migration) | v3 → v4, v2 → v3 |
+| [Changelog](https://s00d.github.io/tauri-plugin-serialplugin/changelog) | |
 
 **Upgrading from v3?** Rust command functions are now `async`, `read()` decodes in
 JS, `watch()` batches every ~20 ms; see the
-[migration guide](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/docs/migration.md).
+[migration guide](https://s00d.github.io/tauri-plugin-serialplugin/migration).
 
 ## Example app
 
@@ -144,3 +145,6 @@ If the plugin helps you, you can support it via
 
 Dual-licensed under MIT or Apache-2.0 ([LICENSE-MIT](./LICENSE-MIT),
 [LICENSE-APACHE](./LICENSE-APACHE)).
+The bundled [`serial-codec`](crates/serial-codec) crate (framing, AT and CMUX
+parsers) is [MPL-2.0](crates/serial-codec/LICENSE): usable in any app, changes to
+its own files must be published.
