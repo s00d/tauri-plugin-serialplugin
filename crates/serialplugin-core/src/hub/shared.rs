@@ -33,6 +33,8 @@ pub struct ExchangeWaiter {
     buffer: Mutex<(Vec<u8>, Completion)>,
     done: ExchangeDone,
     pub cancel: Arc<AtomicBool>,
+    /// Set by the first `finish`; later results (a late cancel / failure) are ignored.
+    finished: AtomicBool,
 }
 
 impl ExchangeWaiter {
@@ -42,6 +44,7 @@ impl ExchangeWaiter {
             options,
             done: Arc::new((Mutex::new(None), Condvar::new())),
             cancel,
+            finished: AtomicBool::new(false),
         })
     }
 
@@ -90,10 +93,14 @@ impl ExchangeWaiter {
         guard.take().unwrap()
     }
 
+    /// The first result wins: a reply that already completed is not replaced by a
+    /// cancel or failure arriving after it.
     fn finish(&self, result: Result<(Vec<u8>, ExchangeMatch), String>) {
         let (lock, cvar) = &*self.done;
         let mut guard = crate::sync_util::lock_or_recover(lock);
-        *guard = Some(result);
+        if !self.finished.swap(true, Ordering::SeqCst) {
+            *guard = Some(result);
+        }
         cvar.notify_all();
     }
 
@@ -292,6 +299,129 @@ impl WatchSlot {
     }
 }
 
+/// One [`SerialManager::watch_core`](crate::SerialManager::watch_core) stream: its own
+/// line router, batch buffer and parser over the hub's byte stream, so one subscriber's
+/// parser state never affects another's.
+pub(crate) struct CoreWatchSlot {
+    pub(crate) id: u64,
+    pub(crate) sink: EventSink,
+    pub(crate) alive: Arc<AtomicBool>,
+    pub(crate) batch_timeout_ms: u64,
+    pub(crate) read_size: usize,
+    pub(crate) route_urc: bool,
+    pub(crate) framer: Option<Box<dyn Framer>>,
+    pub(crate) line_router: LineRouter,
+    pub(crate) buffer: Vec<u8>,
+    pub(crate) flush_at: Instant,
+}
+
+impl CoreWatchSlot {
+    pub(crate) fn new(
+        id: u64,
+        sink: EventSink,
+        alive: Arc<AtomicBool>,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
+    ) -> Self {
+        Self {
+            id,
+            sink,
+            alive,
+            batch_timeout_ms,
+            read_size,
+            route_urc,
+            framer,
+            line_router: LineRouter::default(),
+            buffer: Vec::new(),
+            flush_at: Instant::now(),
+        }
+    }
+
+    fn alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
+    }
+
+    fn push(&self, out: &mut Vec<QueuedEvent>, event: SerialEvent) {
+        out.push((self.sink.clone(), event));
+    }
+
+    /// Bytes past the URC split: into the parser (one event per frame) or the batch.
+    fn sink_bytes(&mut self, path: &str, bytes: &[u8], out: &mut Vec<QueuedEvent>) {
+        match self.framer.as_mut() {
+            Some(f) => {
+                let mut frames = Vec::new();
+                f.push(bytes, Instant::now(), &mut frames);
+                push_frames(path, &self.sink, frames, out);
+            }
+            None => self.buffer.extend_from_slice(bytes),
+        }
+    }
+
+    fn feed(&mut self, path: &str, chunk: &[u8], out: &mut Vec<QueuedEvent>) {
+        if !self.route_urc {
+            self.sink_bytes(path, chunk, out);
+            return;
+        }
+        for action in self.line_router.route_streaming(chunk, &[]) {
+            match action {
+                RxRouteAction::UrcLine(line) => self.push(
+                    out,
+                    SerialEvent::Urc {
+                        path: path.to_string(),
+                        line,
+                    },
+                ),
+                RxRouteAction::StreamData(bytes) => self.sink_bytes(path, &bytes, out),
+            }
+        }
+    }
+
+    fn tick(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+        let timer = self.flush_at.elapsed() >= Duration::from_millis(self.batch_timeout_ms);
+        if self.framer.is_some() {
+            if timer {
+                self.flush_at = Instant::now();
+                let partial = self.line_router.take_partial();
+                if !partial.is_empty() {
+                    self.sink_bytes(path, &partial, out);
+                }
+            }
+            let mut frames = Vec::new();
+            if let Some(f) = self.framer.as_mut() {
+                f.poll(Instant::now(), &mut frames);
+            }
+            push_frames(path, &self.sink, frames, out);
+            return;
+        }
+        if timer || self.buffer.len() >= self.read_size.max(1) {
+            self.flush_at = Instant::now();
+            self.flush_buffers(path, out);
+        }
+    }
+
+    /// Line-router tail and batch out now (parser state kept).
+    fn flush_buffers(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+        let partial = self.line_router.take_partial();
+        if !partial.is_empty() {
+            self.sink_bytes(path, &partial, out);
+        }
+        let data = std::mem::take(&mut self.buffer);
+        if !data.is_empty() {
+            self.push(out, data_event(path, data));
+        }
+    }
+
+    /// End of stream: batch, then the parser's remainder.
+    fn finish(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+        self.flush_buffers(path, out);
+        if let Some(rest) = self.framer.as_mut().and_then(|f| f.flush()) {
+            self.push(out, data_event(path, rest));
+        }
+    }
+}
+
 fn data_event(path: &str, data: Vec<u8>) -> SerialEvent {
     SerialEvent::Data {
         path: path.to_string(),
@@ -341,6 +471,12 @@ pub struct RxHubShared {
     pub(crate) read_slot: Mutex<Option<ReadSlot>>,
     pub(crate) idle: Mutex<Vec<u8>>,
     pub(crate) cmux: Mutex<Option<Arc<CmuxSession>>>,
+    /// `watch_core` streams (any number, beside the one old watch).
+    pub(crate) core_watches: Mutex<Vec<CoreWatchSlot>>,
+    /// Set by an intentional close: a read error from now on is not a `Disconnect`.
+    closing: AtomicBool,
+    /// `Disconnect` went out (it is sent once, even when two paths report the loss).
+    disconnected: AtomicBool,
     outbox: Outbox,
     /// Port path, for events sent outside the hub thread (watch remainder on detach).
     path: String,
@@ -366,6 +502,9 @@ impl RxHubShared {
             read_slot: Mutex::new(None),
             idle: Mutex::new(Vec::new()),
             cmux: Mutex::new(None),
+            core_watches: Mutex::new(Vec::new()),
+            closing: AtomicBool::new(false),
+            disconnected: AtomicBool::new(false),
             outbox: Outbox::default(),
         }
     }
@@ -419,6 +558,91 @@ impl RxHubShared {
         }
     }
 
+    /// Add a `watch_core` stream (bytes from now on; idle bytes are dropped, as on attach).
+    pub(crate) fn attach_core_watch(&self, slot: CoreWatchSlot) {
+        crate::sync_util::lock_or_recover(&self.idle).clear();
+        crate::sync_util::lock_or_recover(&self.core_watches).push(slot);
+    }
+
+    /// Remove a `watch_core` stream; its batch and parser remainder go out last.
+    /// `false` when no such stream. Call with no lock held.
+    pub(crate) fn detach_core_watch(&self, id: u64) -> bool {
+        let slot = {
+            let mut cores = crate::sync_util::lock_or_recover(&self.core_watches);
+            cores
+                .iter()
+                .position(|c| c.id == id)
+                .map(|i| cores.remove(i))
+        };
+        let Some(mut slot) = slot else {
+            return false;
+        };
+        let mut events = Vec::new();
+        slot.finish(&self.path, &mut events);
+        self.outbox.push(events);
+        self.outbox.deliver();
+        true
+    }
+
+    pub fn has_core_watches(&self) -> bool {
+        !crate::sync_util::lock_or_recover(&self.core_watches).is_empty()
+    }
+
+    /// Mark an intentional close: no `Disconnect` from here on.
+    pub(crate) fn mark_closing(&self) {
+        self.closing.store(true, Ordering::SeqCst);
+    }
+
+    pub(crate) fn is_closing(&self) -> bool {
+        self.closing.load(Ordering::SeqCst)
+    }
+
+    /// Run `f` over the live `watch_core` streams (dead ones are dropped first).
+    fn with_core_watches(&self, f: impl FnMut(&mut CoreWatchSlot)) {
+        let mut cores = crate::sync_util::lock_or_recover(&self.core_watches);
+        cores.retain(CoreWatchSlot::alive);
+        cores.iter_mut().for_each(f);
+    }
+
+    /// Copies of `event` for the old watch and every `watch_core` stream (`urc_only`:
+    /// only those with `route_urc`).
+    fn fan_out(&self, event: &SerialEvent, urc_only: bool, out: &mut Vec<QueuedEvent>) {
+        if let Some(channel) = self.watch_channel() {
+            out.push((channel, event.clone()));
+        }
+        self.with_core_watches(|c| {
+            if !urc_only || c.route_urc {
+                out.push((c.sink.clone(), event.clone()));
+            }
+        });
+    }
+
+    /// Earliest parser timer of all watches (the hub wakes for it).
+    pub(crate) fn next_framer_deadline(&self) -> Option<Instant> {
+        let old = crate::sync_util::lock_or_recover(&self.watch)
+            .as_ref()
+            .and_then(|w| w.framer.as_ref()?.deadline());
+        let core = crate::sync_util::lock_or_recover(&self.core_watches)
+            .iter()
+            .filter_map(|c| c.framer.as_ref()?.deadline())
+            .min();
+        match (old, core) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+    }
+
+    /// Read chunk size: the old watch's, else the largest `watch_core` one.
+    pub(crate) fn read_size(&self) -> Option<usize> {
+        if let Some(w) = crate::sync_util::lock_or_recover(&self.watch).as_ref() {
+            return Some(w.read_size);
+        }
+        crate::sync_util::lock_or_recover(&self.core_watches)
+            .iter()
+            .map(|c| c.read_size)
+            .max()
+    }
+
     /// Deliver events queued by `*_queued` calls. Call with no lock held.
     pub fn deliver_queued(&self) {
         self.outbox.deliver();
@@ -426,8 +650,10 @@ impl RxHubShared {
 
     /// Queue `event` for the current watch (if any) and deliver.
     pub fn emit(&self, event: SerialEvent) {
-        if let Some(channel) = self.watch_channel() {
-            self.outbox.push([(channel, event)]);
+        let mut events = Vec::new();
+        self.fan_out(&event, false, &mut events);
+        if !events.is_empty() {
+            self.outbox.push(events);
             self.outbox.deliver();
         }
     }
@@ -490,8 +716,14 @@ impl RxHubShared {
         if route_read_slot_chunk(self, chunk) {
             return;
         }
-        if self.has_watch() {
+        let cores = self.has_core_watches();
+        if self.has_watch() || cores {
             route_watch_chunk(self, &path, chunk, state);
+            if cores {
+                let mut out = std::mem::take(&mut state.pending_events);
+                self.with_core_watches(|c| c.feed(&path, chunk, &mut out));
+                state.pending_events = out;
+            }
             return;
         }
         push_idle(self, chunk);
@@ -505,6 +737,11 @@ impl RxHubShared {
         let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
         if let Some(session) = session {
             session.tick();
+        }
+        {
+            let mut out = std::mem::take(&mut state.pending_events);
+            self.with_core_watches(|c| c.tick(path, &mut out));
+            state.pending_events = out;
         }
 
         let (batch_timeout_ms, read_size) = {
@@ -573,8 +810,12 @@ impl RxHubShared {
         idle_len + read_len
     }
 
+    /// Drop bytes the hub holds for no one yet (idle RX, a pending read's partial fill).
     pub fn purge_buffers(&self) {
         crate::sync_util::lock_or_recover(&self.idle).clear();
+        if let Some(slot) = crate::sync_util::lock_or_recover(&self.read_slot).as_mut() {
+            slot.buffer.clear();
+        }
     }
 
     /// Take any bytes buffered without an active consumer (e.g. early RX before exchange waiter).
@@ -593,7 +834,7 @@ impl RxHubShared {
         timeout_ms: u64,
         fill: bool,
     ) -> Result<Vec<u8>, String> {
-        if self.has_watch() {
+        if self.has_watch() || self.has_core_watches() {
             return Err("Cannot read while watch is active; use watch or exchange".into());
         }
 
@@ -671,11 +912,20 @@ impl RxHubShared {
             &mut state.combined_buffer,
             &mut state.pending_events,
         );
+        let mut out = std::mem::take(&mut state.pending_events);
+        let path = state.path.clone();
+        self.with_core_watches(|c| c.flush_buffers(&path, &mut out));
+        state.pending_events = out;
     }
 
     /// Send `Disconnect` on the watch, after the parser's remainder as a last `Data`.
     /// CMUX channel watches get the same (remainder, then `Disconnect` on their path).
+    /// Once per hub: a second call (Android reports a USB failure from the hub loop
+    /// and from `fail_port`) does nothing.
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
+        if self.disconnected.swap(true, Ordering::SeqCst) {
+            return;
+        }
         let mut events = Vec::new();
         if let Some(watch) = crate::sync_util::lock_or_recover(&self.watch).as_mut() {
             if let Some(ev) = watch.take_remainder(path) {
@@ -689,6 +939,16 @@ impl RxHubShared {
                 },
             ));
         }
+        self.with_core_watches(|c| {
+            c.finish(path, &mut events);
+            c.push(
+                &mut events,
+                SerialEvent::Disconnect {
+                    path: path.to_string(),
+                    reason: reason.to_string(),
+                },
+            );
+        });
         self.outbox.push(events);
         self.outbox.deliver();
         let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
@@ -705,6 +965,10 @@ impl RxHubShared {
                 state.pending_events.push((watch.channel.clone(), ev));
             }
         }
+        let mut out = std::mem::take(&mut state.pending_events);
+        let path = state.path.clone();
+        self.with_core_watches(|c| c.finish(&path, &mut out));
+        state.pending_events = out;
     }
 
     /// Bytes for the watch with no URC routing (line router tail): parser or batch.
@@ -823,17 +1087,12 @@ pub(crate) fn route_exchange_chunk(
         state.exchange_demux = Some((waiter.clone(), demux));
     }
     if let Some((_, demux)) = state.exchange_demux.as_mut() {
-        let channel = shared.watch_channel();
         for line in demux.process_chunk(chunk) {
-            if let Some(channel) = &channel {
-                state.pending_events.push((
-                    channel.clone(),
-                    SerialEvent::Urc {
-                        path: path.to_string(),
-                        line,
-                    },
-                ));
-            }
+            let event = SerialEvent::Urc {
+                path: path.to_string(),
+                line,
+            };
+            shared.fan_out(&event, true, &mut state.pending_events);
         }
     }
     waiter.push_bytes(chunk);
@@ -1002,19 +1261,19 @@ fn emit_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
     if drain.buffer.is_empty() {
         return;
     }
-    let Some(channel) = shared.watch_channel() else {
+    if !shared.has_watch() && !shared.has_core_watches() {
         return;
-    };
+    }
     let lines = crate::at::parse::urc_lines_from_drain(&drain.buffer, &drain.solicited_prefixes);
-    shared.outbox.push(lines.into_iter().map(|line| {
-        (
-            channel.clone(),
-            SerialEvent::Urc {
-                path: shared.path.clone(),
-                line,
-            },
-        )
-    }));
+    let mut events = Vec::new();
+    for line in lines {
+        let event = SerialEvent::Urc {
+            path: shared.path.clone(),
+            line,
+        };
+        shared.fan_out(&event, true, &mut events);
+    }
+    shared.outbox.push(events);
     shared.outbox.deliver();
 }
 
@@ -1898,6 +2157,36 @@ mod tests {
         assert_eq!(got.len(), 2, "{got:?}");
         assert!(matches!(&got[0], SerialEvent::Data { data, .. } if data == b"half"));
         assert!(matches!(&got[1], SerialEvent::Disconnect { .. }));
+    }
+
+    /// Android: the hub loop and `fail_port` both report one disconnect; every stream
+    /// still gets exactly one `Disconnect`.
+    #[test]
+    fn disconnect_is_sent_once_per_stream() {
+        let shared = RxHubShared::for_path("p".into());
+        let (old, old_events) = recording_channel();
+        let (core, core_events) = recording_channel();
+        shared.attach_watch_with(old, 20, 1024, false, None);
+        shared.attach_core_watch(CoreWatchSlot::new(
+            1,
+            core,
+            Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            20,
+            1024,
+            false,
+            None,
+        ));
+        shared.emit_disconnect("p", "gone");
+        shared.emit_disconnect("p", "gone again");
+        for events in [old_events, core_events] {
+            let n = events
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|e| matches!(e, SerialEvent::Disconnect { .. }))
+                .count();
+            assert_eq!(n, 1);
+        }
     }
 
     #[test]

@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.2.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.1.0...v4.2.0) (2026-11-08)
+
+No breaking API changes: Rust and JS code written for 4.x keeps compiling and the
+invoke payloads are unchanged. New things are new `serialplugin-core` (0.2.0) API.
+
+### Behaviour notes (visible to 4.x code)
+
+* `close()` now delivers what the hub still holds (the pending watch batch, a parser's remainder) to the watch before it returns, in order, with no `disconnect`; 4.x dropped the unflushed batch.
+* Port-list events: within one poll all `removed` come before all `added` (4.x: `added` first), each sorted by path. A different device on the same path between two polls (type, vid, pid or serial number changed) is `removed` + `added`; late-filled manufacturer / product strings are not.
+* CMUX: SABM is resent per the T1 / N2 given in the `AT+CMUX` command (the default `enableMux` command gives T1 = 10, N2 = 2); with neither, one SABM as in 4.x. During modem flow control (FCoff, MSC FC) channel writes wait, and fail after their write timeout.
+* `ble://<name>` (desktop / iOS) waits 1.5 s after the first match before taking a name, and fails if two devices share it.
+* After a disconnect the core releases the device handles (no hub restart on a dead fd), but the path keeps its 4.x behaviour until `close()`: `managedPorts()` lists it, a new `watch` gets the `disconnect`, other calls fail with the disconnect reason, `close()` succeeds once.
+* Rust: `port::list_monitor::diff_ports` reports a path that now holds another device in both lists and returns them sorted.
+
+### Features (serialplugin-core 0.2.0)
+
+* `CoreError` with `ErrorKind` (`NotFound`, `PermissionDenied`, `Busy`, `Disconnected`, `Timeout`, `Cancelled`, `Other`; platform error as `source()`, converts to the 4.x `Error` with the same text) from new methods `open_core`, `close_core`, `write_core`, `exchange_core`, `at_core`. A port that is listed but cannot be opened (flock, Windows "Access is denied" in any language) is `Busy`. The 4.x methods and errors are unchanged.
+* `watch_core` / `unwatch_core`: any number of `CoreEvent` streams per port, each with its own parser and `routeUrc`; URCs caught during `at()` go to every `routeUrc` stream. `subscribe_core` / `unsubscribe_core`: port opened / disconnected (kind `Disconnected` and the reason) / closed, CMUX channels included. Each core receiver runs on its own delivery thread behind a bounded queue (`set_core_queue_capacity`, default 4 MiB): a slow one never stalls RX, `at()` or `close()`; on overflow it gets `CoreEvent::Overflow` and is unsubscribed; a sink returning `false` is removed. `Disconnect` reaches each stream once (also on Android).
+* `insert_port` (manage any `SerialPort`, e.g. a fake), `supports_modem_lines(path)` (`false` for `tcp://`, `ble://` and CMUX channels), `available_ports_detailed()` (typed `PortDetails`: u16 vid/pid, Linux `/dev/serial` links; USB interface number and location with the new feature `usb-port-details`, off by default). Features `log` (logs through the `log` crate) and `test-util`.
+* The old `watch` keeps the 4.x timing: its sink runs on the RX side, nothing is lost and nothing arrives after `unwatch()` / `close()` returns. The watch registry belongs to each `SerialManager` (two managers may watch the same path; a watch id stays unique across managers); "one watch per port" applies to the old `watch` only, with the 4.x error text.
+* Unix local serial ports: writes and control calls use a cloned handle (no wait for the RX hub's read); `open(timeout)` / `set_timeout` apply to writes, and a write longer on the wire gets twice its wire time.
+* CMUX (27.010 basic option): MSC (RTC/RTR/DV) after each data DLC is established; known control commands echoed, unknown ones answered with NSC; DISC or DM from the modem on an open DLC closes that channel (`Disconnect` on its path, writes fail, re-open with `openMuxChannel`); DISC / DM on DLCI 0 or CLD from the modem ends the session and the port is plain again; FCoff and MSC FC hold writes as above; `disableMux` / closing the physical port waits up to T2 for the CLD response without holding the manager's lock; CMUX writes get a timeout from the wire time. Core: `CmuxSession::for_command`, `CmuxTimers`, `CmuxPhysicalIo::write_timeout`.
+* TCP: keepalive (10 s idle, 5 s interval, 3 probes; Windows keeps its 10) on `tcp://` sockets, best effort, so a bridge that vanished without a FIN ends in `Disconnect`; on Unix a keepalive `ETIMEDOUT` read is a disconnect. Optional allowlist for webview `open()`: `plugins."serialplugin-config".tcpAllowlist` in `tauri.conf.json` (exact `host:port` strings); without the key nothing changes, Rust callers are not restricted.
+* BLE (desktop / iOS): each write is bounded by 5 s (a timed-out write drops the link); a name shared by several devices is an error listing their ids.
+* The port-list monitor sends events outside its lock and none after `unwatch_ports` / `unsubscribe` returns.
+
+### Fixes
+
+* The first `ExchangeWaiter` result wins (a late cancel no longer replaces a completed reply); `clear_buffer(Input)` also drops bytes buffered in the hub; `bytes_to_read` no longer reports 0 while the hub holds the port; `write` / `write_binary` on `path#dlci=N` go out as CMUX UIH frames.
+* CMUX: `enableMux` waits 100 ms after the `AT+CMUX` OK before the first SABM (a frame inside the modem's switch window was lost and the Quectel M26 then ignored SABM for ~2 s, so `open` → `enableMux` failed with "no UA") and sends CLD if the control channel does not open; closing a channel waits up to T1 for the UA to its DISC, so `disableMux` gets the CLD response at once instead of waiting out T2.
+* Windows: the full USB serial number is found among every device instance with that COM name.
+* android-usb-serial 0.1.4: no panic when a driver is used before `open` or a control-IN reply is short (CP21xx modem status, CH34x status / break, PL2303 status, FTDI modem status).
+
 ## [4.1.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.0.0...v4.1.0) (2026-11-08)
 
 No breaking API changes: Rust and JS code written for 4.0.0 keeps compiling and the

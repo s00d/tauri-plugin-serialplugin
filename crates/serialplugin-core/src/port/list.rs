@@ -65,26 +65,76 @@ pub fn enumerate_available_ports(
 pub fn enumerate_available_ports(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
+    Ok(enumerate_with_locations(single_port_per_device)?.0)
+}
+
+/// path -> 4.x info map.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+type PortListMap = HashMap<String, HashMap<String, String>>;
+
+/// Raw `serialport` enumeration, sorted by path.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub(crate) fn raw_ports() -> Result<Vec<serialport::SerialPortInfo>, Error> {
     let mut list = serialport::available_ports()
         .map_err(|e| Error::String(format!("Failed to enumerate serial ports: {}", e)))?;
     list.sort_by(|a, b| a.port_name.cmp(&b.port_name));
+    Ok(list)
+}
 
+/// [`enumerate_available_ports`] plus each USB port's location (one scan), so the
+/// port-list monitor can see a different device re-plugged on the same path.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub(crate) fn enumerate_with_locations(
+    single_port_per_device: bool,
+) -> Result<(PortListMap, HashMap<String, String>), Error> {
+    let list = raw_ports()?;
+    let mut locations = HashMap::new();
     let mut result_list: HashMap<String, HashMap<String, String>> = HashMap::new();
     for p in list {
+        if let Some(loc) = crate::port::details::usb_location(&p.port_type) {
+            locations.insert(p.port_name.clone(), loc);
+        }
         result_list.insert(p.port_name, port_info_from_type(p.port_type));
     }
 
     #[cfg(target_os = "windows")]
-    enrich_windows_serial_numbers(&mut result_list);
+    for (port, instances) in windows_full_serials() {
+        if let Some(info) = result_list.get_mut(&port) {
+            let current = info.get("serial_number").map(String::as_str).unwrap_or("");
+            if let Some(full) = pick_full_serial(current, &instances) {
+                let full = full.to_string();
+                info.insert("serial_number".to_string(), full);
+            }
+        }
+    }
 
-    Ok(apply_single_port_per_device(
-        result_list,
-        single_port_per_device,
+    Ok((
+        apply_single_port_per_device(result_list, single_port_per_device),
+        locations,
     ))
 }
 
+/// True when `full` (a USB device-instance key name) is the untruncated `current`
+/// serial. Composite-device instance ids ("6&2f3c...&0&0000") are not serial numbers.
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn extends_serial(current: &str, full: &str) -> bool {
+    full.len() > current.len() && full.starts_with(current) && !current.is_empty()
+}
+
+/// The first device instance that is the untruncated `current` serial (several
+/// instances, a phantom one included, can carry one COM name).
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn pick_full_serial<'a>(current: &str, instances: &'a [String]) -> Option<&'a str> {
+    instances
+        .iter()
+        .map(String::as_str)
+        .find(|full| extends_serial(current, full))
+}
+
+/// COM port -> every USB device-instance key name with that PortName (one of them
+/// is the full serial number).
 #[cfg(target_os = "windows")]
-fn enrich_windows_serial_numbers(ports: &mut HashMap<String, HashMap<String, String>>) {
+pub(crate) fn windows_full_serials() -> HashMap<String, Vec<String>> {
     // serialport truncates USB serial numbers at '-' (serialport-rs#351). The full
     // one is the device-instance key name; its "Device Parameters\PortName" maps it
     // to COMx. Read the registry directly: `wmic` is gone from Windows 11 24H2+ and
@@ -92,10 +142,11 @@ fn enrich_windows_serial_numbers(ports: &mut HashMap<String, HashMap<String, Str
     use winreg::enums::HKEY_LOCAL_MACHINE;
     use winreg::RegKey;
 
+    let mut out = HashMap::new();
     let Ok(usb) =
         RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SYSTEM\CurrentControlSet\Enum\USB")
     else {
-        return;
+        return out;
     };
     for vid_pid in usb.enum_keys().flatten() {
         let Ok(device) = usb.open_subkey(&vid_pid) else {
@@ -105,22 +156,12 @@ fn enrich_windows_serial_numbers(ports: &mut HashMap<String, HashMap<String, Str
             let Ok(params) = device.open_subkey(format!(r"{instance}\Device Parameters")) else {
                 continue;
             };
-            let Ok(port_name) = params.get_value::<String, _>("PortName") else {
-                continue;
-            };
-            if let Some(info) = ports.get_mut(&port_name) {
-                let current = info.get("serial_number").map(String::as_str).unwrap_or("");
-                // Only extend a truncated serial; composite-device instance ids
-                // ("6&2f3c...&0&0000") are not serial numbers.
-                if instance.len() > current.len()
-                    && instance.starts_with(current)
-                    && !current.is_empty()
-                {
-                    info.insert("serial_number".to_string(), instance.clone());
-                }
+            if let Ok(port_name) = params.get_value::<String, _>("PortName") {
+                out.entry(port_name).or_insert_with(Vec::new).push(instance);
             }
         }
     }
+    out
 }
 
 /// macOS exposes each serial device twice: `/dev/cu.*` (callout) and `/dev/tty.*` (dial-in).
@@ -254,6 +295,27 @@ mod tests {
         ]);
         let out = apply_single_port_per_device(ports.clone(), true);
         assert_eq!(out, ports);
+    }
+
+    #[test]
+    fn extends_only_truncated_serials() {
+        assert!(extends_serial("A1B2", "A1B2-C3"));
+        assert!(!extends_serial("", "6&2f3c&0&0000"));
+        assert!(!extends_serial("A1B2", "6&2f3c&0&0000"));
+        assert!(!extends_serial("A1B2", "A1B2"));
+    }
+
+    /// Several device instances can map to one COM name (a phantom one included):
+    /// the one that extends the truncated serial wins, as in 4.x.
+    #[test]
+    fn full_serial_is_picked_from_every_instance() {
+        let instances = vec![
+            "6&2f3c&0&0000".to_string(),
+            "A1B2-C3".to_string(),
+            "ZZZ".to_string(),
+        ];
+        assert_eq!(pick_full_serial("A1B2", &instances), Some("A1B2-C3"));
+        assert_eq!(pick_full_serial("Q9", &instances), None);
     }
 
     #[test]

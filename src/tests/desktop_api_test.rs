@@ -2036,4 +2036,46 @@ mod tests {
         .expect("plain watch after rejected parser");
         let _ = sp.close(path);
     }
+
+    /// A Tauri `Channel` watch keeps the 4.x timing: events go out from the RX side,
+    /// nothing is lost, and the tail `close()` delivers has arrived when it returns.
+    #[cfg(unix)]
+    #[test]
+    fn channel_watch_tail_arrives_before_close_returns() {
+        use crate::events::{SerialEvent, WatchOptions};
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+        use std::time::Duration;
+        use tauri::ipc::{Channel, InvokeResponseBody};
+
+        let app = create_test_app();
+        let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let (_pty, mut master, slave) = pty_pair_locked();
+        let path = "pty-channel-tail".to_string();
+        sp.insert_port(path.clone(), Box::new(slave))
+            .expect("insert");
+        let data = Arc::new(Mutex::new(Vec::new()));
+        let sink = data.clone();
+        let channel = Channel::<SerialEvent>::new(move |body| {
+            if let InvokeResponseBody::Json(json) = body {
+                if let SerialEvent::Data { data, .. } = serde_json::from_str(&json).unwrap() {
+                    sink.lock().unwrap().extend(data);
+                }
+            }
+            Ok(())
+        });
+        // A long batch window: everything is still in the hub at `close()`.
+        let options = WatchOptions {
+            serial_data_flush_interval_ms: Some(5_000),
+            ..Default::default()
+        };
+        sp.watch(path.clone(), options, channel).expect("watch");
+        for part in [&b"abc"[..], b"def", b"ghi"] {
+            master.write_all(part).unwrap();
+            master.flush().unwrap();
+            std::thread::sleep(Duration::from_millis(60));
+        }
+        sp.close(path).expect("close");
+        assert_eq!(data.lock().unwrap().as_slice(), b"abcdefghi");
+    }
 }

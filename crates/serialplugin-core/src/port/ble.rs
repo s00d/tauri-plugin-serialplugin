@@ -53,6 +53,11 @@ fn ble_err(e: impl std::fmt::Display) -> io::Error {
 /// time: CoreBluetooth never times out a connect to an absent device by itself.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
+/// One `write` (one MTU chunk) must finish in this time. A write with response to a
+/// device that went out of range otherwise waits for the OS supervision timeout,
+/// with the port lock held by the caller.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// How long a new adapter may stay in state Unknown before the first scan.
 const POWER_ON_WAIT: Duration = Duration::from_secs(2);
 
@@ -295,29 +300,132 @@ async fn find_peripheral(
         .await
         .map_err(ble_err)?;
     let deadline = Instant::now() + limit;
-    let found = 'scan: loop {
-        for p in adapter.peripherals().await.map_err(ble_err)? {
+    let mut name_seen = None;
+    let found = loop {
+        let peripherals = adapter.peripherals().await.map_err(ble_err)?;
+        let mut seen = Vec::with_capacity(peripherals.len());
+        for p in &peripherals {
             let name = match p.properties().await {
                 Ok(Some(props)) => props.local_name,
                 _ => None,
             };
-            let (id, address) = (p.id().to_string(), p.address().to_string());
-            if target_matches(&id, &address, name.as_deref(), target) {
-                break 'scan Some(p);
-            }
+            seen.push(Candidate {
+                id: p.id().to_string(),
+                address: p.address().to_string(),
+                name,
+            });
         }
-        if Instant::now() >= deadline {
-            break None;
+        match scan_step(&seen, target, &mut name_seen, Instant::now(), deadline) {
+            None => {}
+            Some(Ok(Some(i))) => break Ok(Some(peripherals[i].clone())),
+            Some(other) => break other.map(|_| None),
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     };
     let _ = adapter.stop_scan().await;
-    found.ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("no BLE device '{target}' found (id, MAC or advertised name)"),
-        )
-    })
+    found
+        .map_err(|msg| io::Error::new(io::ErrorKind::InvalidInput, msg))?
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("no BLE device '{target}' found (id, MAC or advertised name)"),
+            )
+        })
+}
+
+/// How long the scan goes on after a name first matched one device, so a second
+/// device with that name is still seen (and the name refused as ambiguous).
+const NAME_SETTLE: Duration = Duration::from_millis(1500);
+
+/// One scan pass: `None` = keep scanning. An id / MAC match is taken at once; a name
+/// that one device has is taken once it was seen for [`NAME_SETTLE`] (or at the
+/// deadline) and is an error as soon as a second device has it. `Some(Ok(None))`:
+/// nothing found by the deadline.
+fn scan_step(
+    seen: &[Candidate],
+    target: &str,
+    name_seen: &mut Option<Instant>,
+    now: Instant,
+    deadline: Instant,
+) -> Option<Result<Option<usize>, String>> {
+    match pick_peripheral(seen, target) {
+        Err(e) => Some(Err(e)),
+        Ok(Some(i)) if target_matches(&seen[i].id, &seen[i].address, None, target) => {
+            Some(Ok(Some(i)))
+        }
+        Ok(Some(i)) => {
+            let first = *name_seen.get_or_insert(now);
+            (now >= first + NAME_SETTLE || now >= deadline).then_some(Ok(Some(i)))
+        }
+        Ok(None) => (now >= deadline).then_some(Ok(None)),
+    }
+}
+
+/// A device seen by the scan, for [`pick_peripheral`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Candidate {
+    id: String,
+    address: String,
+    name: Option<String>,
+}
+
+/// Which scanned device `ble://<target>` names. A platform id or MAC match wins (both
+/// are unique). An advertised name is used only when exactly one device seen so far
+/// has it; several devices with that name are an error listing their `ble://` paths
+/// (MAC, or the platform id where the MAC is hidden), never "the first one the scan
+/// returned". `Ok(None)`: not seen (yet).
+fn pick_peripheral(seen: &[Candidate], target: &str) -> Result<Option<usize>, String> {
+    if let Some(i) = seen
+        .iter()
+        .position(|c| target_matches(&c.id, &c.address, None, target))
+    {
+        return Ok(Some(i));
+    }
+    let named: Vec<&Candidate> = seen
+        .iter()
+        .filter(|c| c.name.as_deref() == Some(target))
+        .collect();
+    match named[..] {
+        [] => Ok(None),
+        [_] => Ok(seen.iter().position(|c| c.name.as_deref() == Some(target))),
+        _ => Err(format!(
+            "{} BLE devices are named '{target}'; open one by id: {}",
+            named.len(),
+            named
+                .iter()
+                .map(|c| {
+                    let id = if c.address == "00:00:00:00:00:00" {
+                        &c.id
+                    } else {
+                        &c.address
+                    };
+                    format!("{BLE_SCHEME}{id}")
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        )),
+    }
+}
+
+/// Run one GATT write on the BLE runtime, bounded by `limit`. On a timeout
+/// `on_timeout` runs: the abandoned write may still complete later and could then be
+/// matched to the next write's future, so the link is dropped instead of reused.
+fn block_on_write(
+    write: impl std::future::Future<Output = btleplug::Result<()>>,
+    limit: Duration,
+    on_timeout: impl FnOnce(),
+) -> io::Result<()> {
+    // The timer must be created inside the runtime (it needs its time driver).
+    match runtime().block_on(async { tokio::time::timeout(limit, write).await }) {
+        Ok(r) => r.map_err(ble_err),
+        Err(_) => {
+            on_timeout();
+            Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("BLE write timed out after {} ms", limit.as_millis()),
+            ))
+        }
+    }
 }
 
 impl Drop for BleSerialPort {
@@ -358,9 +466,15 @@ impl Write for BleSerialPort {
             WriteType::WithoutResponse
         };
         let (p, c) = (&self.peripheral, &self.rx_char);
-        runtime()
-            .block_on(p.write(c, &buf[..n], t))
-            .map_err(ble_err)?;
+        block_on_write(p.write(c, &buf[..n], t), WRITE_TIMEOUT, || {
+            // Fail later writes now; the disconnect ends the notification task, so
+            // reads see EOF and the hub reports `Disconnect` (reopen to go on).
+            self.connected.store(false, Ordering::SeqCst);
+            let p = self.peripheral.clone();
+            runtime().spawn(async move {
+                let _ = p.disconnect().await;
+            });
+        })?;
         Ok(n)
     }
 
@@ -469,5 +583,112 @@ mod tests {
         assert_eq!(chunk_size(517), 512);
         assert_eq!(ble_target("ble://AA:BB"), Some("AA:BB"));
         assert_eq!(ble_target("/dev/ttyUSB0"), None);
+    }
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+
+    fn dev(id: &str, mac: &str, name: Option<&str>) -> Candidate {
+        Candidate {
+            id: id.into(),
+            address: mac.into(),
+            name: name.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn id_or_mac_wins_over_a_name() {
+        let found = [
+            dev("uuid-1", "00:00:00:00:00:00", Some("AA:BB:CC:DD:EE:FF")),
+            dev("uuid-2", "AA:BB:CC:DD:EE:FF", Some("board")),
+        ];
+        assert_eq!(pick_peripheral(&found, "aa:bb:cc:dd:ee:ff"), Ok(Some(1)));
+        assert_eq!(pick_peripheral(&found, "UUID-1"), Ok(Some(0)));
+    }
+
+    #[test]
+    fn a_unique_name_is_used() {
+        let found = [
+            dev("uuid-1", "00:00:00:00:00:00", Some("left")),
+            dev("uuid-2", "00:00:00:00:00:00", Some("right")),
+        ];
+        assert_eq!(pick_peripheral(&found, "right"), Ok(Some(1)));
+        assert_eq!(pick_peripheral(&found, "nothing"), Ok(None));
+    }
+
+    #[test]
+    fn a_shared_name_is_an_error_listing_the_candidates() {
+        let found = [
+            dev("uuid-1", "00:00:00:00:00:00", Some("NUS")),
+            dev("uuid-2", "00:00:00:00:00:00", Some("other")),
+            dev("uuid-3", "00:00:00:00:00:00", Some("NUS")),
+        ];
+        let err = pick_peripheral(&found, "NUS").unwrap_err();
+        assert!(err.contains("ble://uuid-1"), "{err}");
+        assert!(err.contains("ble://uuid-3"), "{err}");
+        assert!(!err.contains("uuid-2"), "{err}");
+    }
+
+    #[test]
+    fn a_stuck_write_times_out_and_drops_the_link() {
+        let started = Instant::now();
+        let dropped = std::cell::Cell::new(0);
+        let err = block_on_write(
+            std::future::pending::<btleplug::Result<()>>(),
+            Duration::from_millis(50),
+            || dropped.set(dropped.get() + 1),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(dropped.get(), 1, "a timed-out write must reset the link");
+        assert!(
+            block_on_write(async { Ok(()) }, Duration::from_millis(50), || {
+                dropped.set(dropped.get() + 1)
+            })
+            .is_ok()
+        );
+        assert_eq!(dropped.get(), 1);
+    }
+
+    /// A unique name is taken only after the settle window, so a second device with
+    /// that name seen later in the scan is still an error.
+    #[test]
+    fn a_name_waits_for_the_scan_window() {
+        let t0 = Instant::now();
+        let deadline = t0 + Duration::from_secs(10);
+        let one = [dev("uuid-1", "00:00:00:00:00:00", Some("NUS"))];
+        let two = [
+            dev("uuid-1", "00:00:00:00:00:00", Some("NUS")),
+            dev("uuid-2", "00:00:00:00:00:00", Some("NUS")),
+        ];
+        let mut first = None;
+        assert_eq!(scan_step(&one, "NUS", &mut first, t0, deadline), None);
+        let later = t0 + Duration::from_millis(400);
+        assert!(matches!(
+            scan_step(&two, "NUS", &mut first, later, deadline),
+            Some(Err(_))
+        ));
+        let mut first = None;
+        assert_eq!(scan_step(&one, "NUS", &mut first, t0, deadline), None);
+        let settled = t0 + NAME_SETTLE;
+        assert_eq!(
+            scan_step(&one, "NUS", &mut first, settled, deadline),
+            Some(Ok(Some(0)))
+        );
+        // An id match does not wait.
+        let mut first = None;
+        assert_eq!(
+            scan_step(&one, "uuid-1", &mut first, t0, deadline),
+            Some(Ok(Some(0)))
+        );
+        // The settle window never runs past the deadline.
+        let mut first = None;
+        assert_eq!(
+            scan_step(&one, "NUS", &mut first, deadline, deadline),
+            Some(Ok(Some(0)))
+        );
     }
 }

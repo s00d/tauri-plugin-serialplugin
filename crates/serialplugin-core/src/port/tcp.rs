@@ -4,6 +4,11 @@
 //! device servers, `socat TCP-LISTEN:… /dev/ttyUSB0`). Works on every platform,
 //! including iOS, which has no local serial API. Line settings (baud, parity, …) and
 //! modem lines are stored but not sent: a raw bridge has its own port settings.
+//!
+//! TCP keepalive is on with a short idle time, so a bridge that vanished without a FIN
+//! (power cut, Wi-Fi drop) fails the next read within about
+//! `KEEPALIVE_IDLE + KEEPALIVE_RETRIES * KEEPALIVE_INTERVAL` and the hub reports
+//! `Disconnect`, instead of the port timing out quietly forever.
 // ponytail: raw TCP only; add RFC 2217 (telnet COM-PORT-OPTION) if remote line
 // control is needed.
 #[cfg(target_os = "ios")]
@@ -32,6 +37,55 @@ pub struct TcpSerialPort {
     timeout: Duration,
 }
 
+/// Idle time before the first keepalive probe.
+const KEEPALIVE_IDLE: Duration = Duration::from_secs(10);
+/// Time between unanswered probes (whole seconds: most stacks round down).
+#[allow(dead_code)] // not settable on every stack
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(5);
+/// Unanswered probes before the stack drops the connection (not set on Windows,
+/// where it stays at the system's 10).
+#[allow(dead_code)] // not settable on every stack
+const KEEPALIVE_RETRIES: u32 = 3;
+
+// ponytail: keepalive only covers an idle link; a half-open link with unsent data
+// waits for the TCP retransmit timeout (TCP_USER_TIMEOUT on Linux) if that matters.
+fn enable_keepalive(stream: &TcpStream) -> io::Result<()> {
+    let ka = socket2::TcpKeepalive::new().with_time(KEEPALIVE_IDLE);
+    #[cfg(any(
+        target_os = "android",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows"
+    ))]
+    let ka = ka.with_interval(KEEPALIVE_INTERVAL);
+    #[cfg(any(
+        target_os = "android",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "ios"
+    ))]
+    let ka = ka.with_retries(KEEPALIVE_RETRIES);
+    socket2::SockRef::from(stream).set_tcp_keepalive(&ka)
+}
+
+/// Read errors as the hub expects them: a read timeout is `TimedOut` (benign), a
+/// dead connection is a disconnect kind.
+fn map_read_error(e: io::Error) -> io::Error {
+    match e.kind() {
+        // Unix reports a read timeout as WouldBlock; serial callers expect TimedOut.
+        io::ErrorKind::WouldBlock => io::Error::new(io::ErrorKind::TimedOut, e),
+        // Unix: SO_RCVTIMEO gives EAGAIN, so ETIMEDOUT here is failed keepalive probes.
+        // (Windows uses WSAETIMEDOUT for both; it reports a keepalive drop as
+        // WSAENETRESET below.)
+        #[cfg(unix)]
+        io::ErrorKind::TimedOut => io::Error::new(io::ErrorKind::ConnectionAborted, e),
+        #[cfg(windows)]
+        _ if e.raw_os_error() == Some(10052) => io::Error::new(io::ErrorKind::ConnectionReset, e),
+        _ => e,
+    }
+}
+
 /// Socket timeouts must be non-zero.
 fn socket_timeout(t: Duration) -> Option<Duration> {
     Some(t.max(Duration::from_millis(1)))
@@ -56,6 +110,10 @@ impl TcpSerialPort {
             match TcpStream::connect_timeout(&sock, connect_timeout) {
                 Ok(stream) => {
                     stream.set_nodelay(true)?;
+                    // Best effort: a stack that rejects an option still connects.
+                    if let Err(e) = enable_keepalive(&stream) {
+                        crate::log_warn!("{path}: TCP keepalive not set: {e}");
+                    }
                     stream.set_read_timeout(socket_timeout(timeout))?;
                     stream.set_write_timeout(socket_timeout(timeout))?;
                     return Ok(Self {
@@ -84,11 +142,8 @@ impl Read for TcpSerialPort {
                 io::ErrorKind::UnexpectedEof,
                 "TCP serial bridge closed the connection",
             )),
-            // Unix reports a read timeout as WouldBlock; serial callers expect TimedOut.
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                Err(io::Error::new(io::ErrorKind::TimedOut, e))
-            }
-            other => other,
+            Err(e) => Err(map_read_error(e)),
+            ok => ok,
         }
     }
 }
@@ -246,5 +301,83 @@ impl SerialPort for TcpSerialPort {
 
     fn clear_break(&self) -> serialport::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    fn connect(listener: &TcpListener) -> TcpSerialPort {
+        let path = format!("tcp://{}", listener.local_addr().unwrap());
+        TcpSerialPort::connect(
+            &path,
+            115_200,
+            DataBits::Eight,
+            FlowControl::None,
+            Parity::None,
+            StopBits::One,
+            Duration::from_millis(50),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn keepalive_is_on_with_a_short_idle() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = connect(&listener);
+        let sock = socket2::SockRef::from(&port.stream);
+        assert!(sock.keepalive().unwrap());
+        #[cfg(unix)]
+        {
+            assert_eq!(sock.tcp_keepalive_time().unwrap(), KEEPALIVE_IDLE);
+            #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+            assert_eq!(sock.tcp_keepalive_interval().unwrap(), KEEPALIVE_INTERVAL);
+        }
+        // A clone shares the socket, so it keeps the options.
+        let clone = port.try_clone().unwrap();
+        drop(clone);
+    }
+
+    /// Unix reports a read timeout as WouldBlock; a dead keepalive is ETIMEDOUT.
+    #[test]
+    fn keepalive_timeout_reads_as_a_disconnect() {
+        let timeout = map_read_error(io::Error::from(io::ErrorKind::WouldBlock));
+        assert_eq!(timeout.kind(), io::ErrorKind::TimedOut);
+        #[cfg(unix)]
+        {
+            let dead = map_read_error(io::Error::from(io::ErrorKind::TimedOut));
+            assert_eq!(dead.kind(), io::ErrorKind::ConnectionAborted);
+        }
+        let reset = map_read_error(io::Error::from(io::ErrorKind::ConnectionReset));
+        assert_eq!(reset.kind(), io::ErrorKind::ConnectionReset);
+    }
+
+    /// The bridge going away ends the hub with `Disconnect`, not endless timeouts.
+    #[cfg(not(target_os = "android"))]
+    #[test]
+    fn bridge_gone_ends_in_disconnect_event() {
+        use crate::events::{EventSink, SerialEvent};
+        use std::sync::{mpsc, Arc, Mutex};
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = connect(&listener);
+        let (peer, _) = listener.accept().unwrap();
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let sink: EventSink = Arc::new(move |event: SerialEvent| {
+            if matches!(event, SerialEvent::Disconnect { .. }) {
+                let _ = tx.lock().unwrap().send(());
+            }
+            true
+        });
+        let port: Arc<Mutex<Box<dyn SerialPort>>> = Arc::new(Mutex::new(Box::new(port)));
+        let hub = crate::hub::PortRxHub::start(port, "tcp://bridge".into());
+        hub.attach_watch_with(sink, 10, 64, false, None);
+        drop(peer);
+        rx.recv_timeout(Duration::from_secs(3))
+            .expect("no Disconnect after the bridge closed");
+        hub.stop();
     }
 }

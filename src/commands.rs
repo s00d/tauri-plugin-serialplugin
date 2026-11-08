@@ -7,7 +7,7 @@ use crate::state::{ClearBuffer, DataBits, FlowControl, Parity, StopBits};
 use std::collections::HashMap;
 use std::time::Duration;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Runtime, State};
+use tauri::{AppHandle, Manager, Runtime, State};
 
 /// Run port I/O on the blocking pool: plain sync commands run on the main thread
 /// in Tauri v2, so a `read` waiting for data would freeze the UI.
@@ -19,6 +19,46 @@ async fn blocking<R: Runtime, T: Send + 'static>(
     tauri::async_runtime::spawn_blocking(move || f(serial))
         .await
         .map_err(|e| Error::String(format!("serial task failed: {e}")))?
+}
+
+/// `plugins` key in `tauri.conf.json` holding this plugin's optional settings, e.g.
+/// `"plugins": { "serialplugin-config": { "tcpAllowlist": ["10.0.0.5:4000"] } }`.
+/// Not `plugins.serialplugin` itself: Tauri deserializes that into the plugin's
+/// config type, which is `()` in 4.x (`init()` returns `TauriPlugin<R>`), so any
+/// object there fails plugin init.
+pub(crate) const CONFIG_KEY: &str = "serialplugin-config";
+
+/// `tcp://` addresses the webview may open (managed only when configured).
+pub(crate) struct TcpAllowlist(pub(crate) Vec<String>);
+
+/// `tcpAllowlist` from the plugin settings: `None` when absent (every address allowed,
+/// as in 4.x); a malformed value is an error rather than "allow everything".
+pub(crate) fn parse_tcp_allowlist(
+    config: Option<&serde_json::Value>,
+) -> Result<Option<Vec<String>>, String> {
+    match config.and_then(|c| c.get("tcpAllowlist")) {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(v) => serde_json::from_value(v.clone()).map(Some).map_err(|e| {
+            format!(
+                "plugins.{CONFIG_KEY}.tcpAllowlist must be a list of \"host:port\" strings: {e}"
+            )
+        }),
+    }
+}
+
+/// A `tcp://host:port` path must be on the allowlist (host case-insensitive); other
+/// paths and an unset allowlist pass.
+pub(crate) fn check_tcp_allowed(allowlist: Option<&[String]>, path: &str) -> Result<(), Error> {
+    let (Some(list), Some(addr)) = (allowlist, crate::port::tcp::tcp_address(path)) else {
+        return Ok(());
+    };
+    if list.iter().any(|a| a.eq_ignore_ascii_case(addr)) {
+        Ok(())
+    } else {
+        Err(Error::String(format!(
+            "{path}: not in plugins.{CONFIG_KEY}.tcpAllowlist"
+        )))
+    }
 }
 
 /// Lists all available serial ports on the system
@@ -105,6 +145,10 @@ pub async fn open<R: Runtime>(
     dtr: Option<bool>,
     rts: Option<bool>,
 ) -> Result<String, Error> {
+    // Webview opens only: Rust callers of the manager are not restricted.
+    if let Some(list) = _app.try_state::<TcpAllowlist>() {
+        check_tcp_allowed(Some(&list.0), &path)?;
+    }
     blocking(&serial, move |s| {
         s.open_with_lines(
             path,
@@ -645,5 +689,44 @@ pub async fn ble_scan(
         Err(Error::String(
             "BLE needs the plugin's `ble` cargo feature".into(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tcp_allowlist_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn no_config_allows_every_tcp_address() {
+        assert_eq!(parse_tcp_allowlist(None), Ok(None));
+        assert_eq!(parse_tcp_allowlist(Some(&json!({}))), Ok(None));
+        assert_eq!(
+            parse_tcp_allowlist(Some(&serde_json::Value::Null)),
+            Ok(None)
+        );
+        assert!(check_tcp_allowed(None, "tcp://10.0.0.9:23").is_ok());
+    }
+
+    #[test]
+    fn allowlist_allows_listed_and_denies_the_rest() {
+        let list = parse_tcp_allowlist(Some(
+            &json!({"tcpAllowlist": ["10.0.0.5:4000", "Bridge.local:23"]}),
+        ))
+        .unwrap()
+        .unwrap();
+        assert!(check_tcp_allowed(Some(list.as_slice()), "tcp://10.0.0.5:4000").is_ok());
+        assert!(check_tcp_allowed(Some(list.as_slice()), "tcp://bridge.LOCAL:23").is_ok());
+        assert!(check_tcp_allowed(Some(list.as_slice()), "tcp://10.0.0.5:4001").is_err());
+        assert!(check_tcp_allowed(Some(list.as_slice()), "tcp://evil:23").is_err());
+        // Local ports are not affected.
+        assert!(check_tcp_allowed(Some(list.as_slice()), "/dev/ttyUSB0").is_ok());
+        assert!(check_tcp_allowed(Some(&[][..]), "tcp://10.0.0.5:4000").is_err());
+    }
+
+    #[test]
+    fn malformed_allowlist_is_an_error_not_allow_all() {
+        assert!(parse_tcp_allowlist(Some(&json!({"tcpAllowlist": "10.0.0.5:4000"}))).is_err());
+        assert!(parse_tcp_allowlist(Some(&json!({"tcpAllowlist": [1]}))).is_err());
     }
 }

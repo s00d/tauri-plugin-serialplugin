@@ -138,6 +138,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             ble_scan,
         ])
         .setup(|app, _api| {
+            // Optional tcp:// allowlist for webview opens; absent = 4.x behaviour.
+            let settings = app.config().plugins.0.get(commands::CONFIG_KEY);
+            if let Some(list) = commands::parse_tcp_allowlist(settings)? {
+                app.manage(commands::TcpAllowlist(list));
+            }
             #[cfg(target_os = "android")]
             {
                 android_log::init();

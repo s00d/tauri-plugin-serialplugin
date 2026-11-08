@@ -1,4 +1,6 @@
-//! Tracks active desktop watch sessions keyed by channel id.
+//! Watch ids keyed by channel id: the 4.x global registry. Each
+//! [`SerialManager`](crate::SerialManager) keeps its own registry (one old watch per
+//! port and manager) and mirrors its watches here, so these functions still see them.
 
 use crate::events::{EventSink, SerialEvent};
 use std::collections::HashMap;
@@ -34,6 +36,23 @@ pub fn contains(channel_id: u32) -> bool {
 
 pub fn unregister(channel_id: u32) -> Option<String> {
     crate::sync_util::lock_or_recover(registry()).remove(&channel_id)
+}
+
+/// Mirror of a manager's own watch (the manager registry is the authority; this
+/// keeps [`contains`] / [`paths_for_port`] showing every manager's watches, as in 4.x).
+/// `false` (nothing changed) when `channel_id` is already there, from any manager.
+pub(crate) fn mirror_insert(channel_id: u32, path: &str) -> bool {
+    let mut map = crate::sync_util::lock_or_recover(registry());
+    if map.contains_key(&channel_id) {
+        return false;
+    }
+    map.insert(channel_id, path.to_string());
+    true
+}
+
+pub(crate) fn mirror_remove(channel_id: u32) {
+    let mut map = crate::sync_util::lock_or_recover(registry());
+    map.remove(&channel_id);
 }
 
 pub fn paths_for_port(path: &str) -> Vec<u32> {

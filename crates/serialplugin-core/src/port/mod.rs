@@ -7,6 +7,7 @@ pub mod ble;
 pub mod ble_android;
 #[cfg(any(feature = "ble", test))]
 pub mod ble_rx;
+pub mod details;
 pub mod list;
 pub mod list_monitor;
 pub mod tcp;

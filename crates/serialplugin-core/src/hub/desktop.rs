@@ -146,6 +146,10 @@ fn shutdown_hub_state(shared: &RxHubShared, routing: &mut HubRoutingState) {
     shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
 }
 
+/// Called once on the hub thread after a real disconnect (not on close), with the
+/// reason sent in `Disconnect`. It must not join the hub.
+pub(crate) type DisconnectHook = Box<dyn FnOnce(&str) + Send>;
+
 /// Single RX consumer on the main serial fd (desktop).
 pub struct PortRxHub {
     shared: Arc<RxHubShared>,
@@ -155,10 +159,20 @@ pub struct PortRxHub {
 
 impl PortRxHub {
     pub fn start(port: Arc<Mutex<Box<dyn SerialPort>>>, path: String) -> Self {
+        Self::start_with(port, path, None)
+    }
+
+    /// [`Self::start`] with a hook the hub thread runs after a real disconnect.
+    pub(crate) fn start_with(
+        port: Arc<Mutex<Box<dyn SerialPort>>>,
+        path: String,
+        on_disconnect: Option<DisconnectHook>,
+    ) -> Self {
         let shared = Arc::new(RxHubShared::for_path(path.clone()));
         let (stop_tx, stop_rx) = mpsc::channel();
         let shared_clone = shared.clone();
-        let thread = thread::spawn(move || hub_loop(port, path, shared_clone, stop_rx));
+        let thread =
+            thread::spawn(move || hub_loop(port, path, shared_clone, stop_rx, on_disconnect));
         Self {
             shared,
             stop_tx,
@@ -242,10 +256,14 @@ impl PortRxHub {
         let _ = self.stop_tx.send(());
     }
 
+    /// Stop and join the hub thread (not when called from it, e.g. a watch sink
+    /// closing its own port: then it only asks it to stop).
     pub fn stop(mut self) {
         let _ = self.stop_tx.send(());
         if let Some(h) = self.thread.take() {
-            let _ = h.join();
+            if h.thread().id() != thread::current().id() {
+                let _ = h.join();
+            }
         }
     }
 }
@@ -292,6 +310,7 @@ fn hub_loop(
     path: String,
     shared: Arc<RxHubShared>,
     stop_rx: Receiver<()>,
+    mut on_disconnect: Option<DisconnectHook>,
 ) {
     let mut routing = HubRoutingState::new(path.clone());
     let mut read_size = 1024usize;
@@ -339,13 +358,13 @@ fn hub_loop(
         // The read timeout doubles as the parser timer: wake by the framer deadline
         // (inter-byte timeout) so `tick` polls it on time, never spinning.
         let mut timeout = POLL_TIMEOUT;
-        if let Some(watch) = crate::sync_util::lock_or_recover(&shared.watch).as_ref() {
-            read_size = watch.read_size;
-            if let Some(d) = watch.framer.as_ref().and_then(|f| f.deadline()) {
-                timeout = d
-                    .saturating_duration_since(Instant::now())
-                    .clamp(Duration::from_millis(1), POLL_TIMEOUT);
-            }
+        if let Some(size) = shared.read_size() {
+            read_size = size;
+        }
+        if let Some(d) = shared.next_framer_deadline() {
+            timeout = d
+                .saturating_duration_since(Instant::now())
+                .clamp(Duration::from_millis(1), POLL_TIMEOUT);
         }
 
         let mut buf = vec![0u8; read_size];
@@ -370,6 +389,11 @@ fn hub_loop(
                 consecutive_errors += 1;
                 shared.flush_watch_now(&mut routing);
                 shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+                if shared.is_closing() {
+                    // Intentional close racing a read error: no `Disconnect`.
+                    shutdown_hub_state(&shared, &mut routing);
+                    break;
+                }
                 if is_disconnect_read_error(&e) || consecutive_errors >= MAX_CONSECUTIVE_READ_ERRORS
                 {
                     let reason = format!("Serial port disconnected: {}", e);
@@ -381,6 +405,9 @@ fn hub_loop(
                     {
                         crate::android::registry::on_usb_error(&path, &reason);
                         let _ = crate::android::driver_host::global_host().close(Some(&path));
+                    }
+                    if let Some(hook) = on_disconnect.take() {
+                        hook(&reason);
                     }
                     break;
                 }

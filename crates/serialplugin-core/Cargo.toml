@@ -1,6 +1,6 @@
 [package]
 name = "serialplugin-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Serial port core of tauri-plugin-serialplugin without Tauri: RX hub, watch streams with native parsers, AT exchange, CMUX, TCP and BLE transports"
 edition = "2021"
 rust-version = "1.90"
@@ -28,12 +28,27 @@ android-test-harness = ["android-usb-serial/fake-transport"]
 # and, on Android, `From<PluginInvokeError> for Error`. The plugin enables it; plain
 # Rust users leave it off (no Tauri in the dependency tree).
 tauri = ["dep:tauri"]
+# Log through the `log` crate instead of stdout / stderr (Android always does).
+log = ["dep:log"]
+# `mock_serial` in every build (it is already there on desktop and in Android debug
+# builds); `SerialManager::insert_port` takes any `SerialPort`, a fake included.
+test-util = []
+# USB interface number and location in `available_ports_detailed()` (and location
+# changes as re-plugs in the port-list monitor), from serialport's
+# `usbportinfo-interface` / `usbportinfo-location`. Off by default and not enabled by
+# the plugin: those features change `serialport::UsbPortInfo` for every crate in the
+# build, and on Linux without libudev (musl) serialport then drops USB ports whose
+# sysfs location cannot be read, so the 4.x port list would change.
+usb-port-details = ["serialport/usbportinfo-interface", "serialport/usbportinfo-location"]
 
 [dependencies]
 tauri = { version = "2", default-features = false, optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serial-codec = { path = "../serial-codec", version = "0.1.0" }
+log = { version = "0.4", features = ["std"], optional = true }
+# TCP keepalive tuning for tcp:// (std has no API for it); already in the tree via tokio.
+socket2 = { version = "0.6", features = ["all"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 btleplug = { version = "0.13", optional = true }
@@ -48,7 +63,7 @@ winreg = "0.56"
 [target.'cfg(target_os = "android")'.dependencies]
 # Stay on 0.21 — 0.22 EnvUnowned / GlobalRef<T> breaks our JNI bridge.
 jni = "0.21"
-android-usb-serial = { path = "../android-usb-serial", version = "0.1.3" }
+android-usb-serial = { path = "../android-usb-serial", version = "0.1.4" }
 serialport = "4.10"
 log = { version = "0.4", features = ["std"] }
 

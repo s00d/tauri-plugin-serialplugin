@@ -7,6 +7,12 @@
 //! Events are delivered to an [`EventSink`] closure you pass to
 //! [`SerialManager::watch`].
 //!
+//! New in 4.2 (core only, the 4.x API is unchanged): methods returning [`CoreError`]
+//! with an [`ErrorKind`] (`open_core`, `write_core`, `exchange_core`, …), any number
+//! of [`SerialManager::watch_core`] streams of [`CoreEvent`]s with bounded queues,
+//! port-state subscriptions ([`SerialManager::subscribe_core`]) and
+//! [`SerialManager::insert_port`] for your own `SerialPort` (a fake in tests).
+//!
 //! ```no_run
 //! use serialplugin_core::{events::{SerialEvent, WatchOptions}, EventSink, SerialManager};
 //! use std::sync::Arc;
@@ -50,9 +56,14 @@ pub mod sync_util;
 #[path = "serialport_ios.rs"]
 pub mod serialport;
 
-#[cfg(any(not(target_os = "android"), debug_assertions))]
+#[cfg(any(not(target_os = "android"), debug_assertions, feature = "test-util"))]
 pub mod mock_serial;
 
+/// The `log` crate, for the logging macros (feature `log`, and always on Android).
+#[doc(hidden)]
+#[cfg(any(feature = "log", target_os = "android"))]
+pub use log as __log;
+
 pub use api::SerialManager;
-pub use error::Error;
-pub use events::{EventSink, PortListSink};
+pub use error::{CoreError, Error, ErrorKind};
+pub use events::{CoreEvent, CoreSink, EventSink, PortListSink, SubscriptionId};

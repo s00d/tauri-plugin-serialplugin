@@ -99,6 +99,53 @@ pub struct WatchOptions {
     pub route_urc: bool,
 }
 
+/// Receives the events of the core's new API: one
+/// [`SerialManager::watch_core`](crate::SerialManager::watch_core) stream or the port
+/// states of [`SerialManager::subscribe_core`](crate::SerialManager::subscribe_core).
+///
+/// Runs on a delivery thread of its own (one per subscription), never on the RX
+/// thread and never under a manager lock: it may block for a while, and it may call
+/// back into the manager, `at()` on the same port included. Events wait in a bounded
+/// queue ([`SerialManager::set_core_queue_capacity`](crate::SerialManager::set_core_queue_capacity),
+/// default [`DEFAULT_CORE_QUEUE_BYTES`]); when it is full the sink gets one
+/// [`CoreEvent::Overflow`] and is unsubscribed. Returning `false` unsubscribes too.
+pub type CoreSink = Arc<dyn Fn(CoreEvent) -> bool + Send + Sync>;
+
+/// Default per-subscription queue of the core's Rust receivers (4 MiB of event data).
+pub const DEFAULT_CORE_QUEUE_BYTES: usize = 4 << 20;
+
+/// Id of a [`SerialManager::watch_core`](crate::SerialManager::watch_core) stream or a
+/// [`SerialManager::subscribe_core`](crate::SerialManager::subscribe_core) subscription.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SubscriptionId(pub u64);
+
+/// Event of the core's new API (see [`CoreSink`]).
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum CoreEvent {
+    /// A watch event, exactly as the old watch sends it (the final `Disconnect` included).
+    Event(SerialEvent),
+    /// The queue overflowed: data from byte `dropped_from` of this stream on (counting
+    /// `Data` bytes delivered before it) is gone, and the sink is unsubscribed.
+    Overflow { dropped_from: u64 },
+    /// A port changed state ([`SerialManager::subscribe_core`](crate::SerialManager::subscribe_core) only).
+    PortState { path: String, state: PortStatus },
+}
+
+/// A port's state change in [`CoreEvent::PortState`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PortStatus {
+    Opened,
+    /// Lost without `close()` (unplug, EOF, I/O error); the core has released the port.
+    Disconnected {
+        kind: crate::error::ErrorKind,
+        reason: String,
+    },
+    /// Closed by `close()` / `force_close()` / `close_all()`.
+    Closed,
+}
+
 /// How RX is prepared before sending an exchange payload.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
