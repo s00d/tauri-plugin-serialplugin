@@ -1851,4 +1851,71 @@ mod tests {
             .expect("watch after re-open");
         serial_port.close(path).expect("close");
     }
+
+    /// Writes must not time out on the port lock while the RX hub is busy reading a
+    /// steady stream (the hub used to re-lock the port right after every read).
+    #[cfg(unix)]
+    #[test]
+    fn writes_get_the_port_under_steady_rx() {
+        use crate::events::WatchOptions;
+        use crate::state::ConnectedPort;
+        use crate::sync_util::pty_pair_locked;
+        use std::io::{Read, Write};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
+        use tauri::ipc::Channel;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let (_pty, master, slave) = pty_pair_locked();
+        let path = "pty-steady-rx".to_string();
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+        serial_port
+            .watch(
+                path.clone(),
+                WatchOptions::default(),
+                Channel::new(|_| Ok(())),
+            )
+            .expect("watch");
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut feeder = master.try_clone_native().expect("clone master");
+        let mut drain = master;
+        let stop_feed = stop.clone();
+        let feed = std::thread::spawn(move || {
+            while !stop_feed.load(Ordering::SeqCst) {
+                let _ = feeder.write_all(&[b'x'; 256]);
+            }
+        });
+        let stop_drain = stop.clone();
+        let drainer = std::thread::spawn(move || {
+            let mut buf = [0u8; 1024];
+            while !stop_drain.load(Ordering::SeqCst) {
+                let _ = drain.read(&mut buf);
+            }
+        });
+
+        let mut slowest = Duration::ZERO;
+        for _ in 0..40 {
+            let t = Instant::now();
+            serial_port
+                .write(path.clone(), "ping\n".into())
+                .expect("write under steady RX");
+            slowest = slowest.max(t.elapsed());
+        }
+        stop.store(true, Ordering::SeqCst);
+        let _ = feed.join();
+        let _ = drainer.join();
+        assert!(
+            slowest < Duration::from_millis(200),
+            "slowest write {slowest:?}"
+        );
+        let _ = serial_port.close(path);
+    }
 }

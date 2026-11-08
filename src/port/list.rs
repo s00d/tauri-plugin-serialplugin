@@ -85,46 +85,39 @@ pub fn enumerate_available_ports(
 
 #[cfg(target_os = "windows")]
 fn enrich_windows_serial_numbers(ports: &mut HashMap<String, HashMap<String, String>>) {
-    use std::process::Command;
+    // serialport truncates USB serial numbers at '-' (serialport-rs#351). The full
+    // one is the device-instance key name; its "Device Parameters\PortName" maps it
+    // to COMx. Read the registry directly: `wmic` is gone from Windows 11 24H2+ and
+    // spawning it flashed a console window on every port-list poll.
+    use winreg::enums::HKEY_LOCAL_MACHINE;
+    use winreg::RegKey;
 
-    let output = match Command::new("wmic")
-        .args([
-            "path",
-            "Win32_SerialPort",
-            "get",
-            "DeviceID,PNPDeviceID",
-            "/format:csv",
-        ])
-        .output()
-    {
-        Ok(o) if o.status.success() => o,
-        _ => return,
+    let Ok(usb) =
+        RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SYSTEM\CurrentControlSet\Enum\USB")
+    else {
+        return;
     };
-
-    let text = String::from_utf8_lossy(&output.stdout);
-    for line in text.lines() {
-        if line.is_empty() || line.starts_with("Node,") {
-            continue;
-        }
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() < 3 {
-            continue;
-        }
-        let device_id = parts[1].trim();
-        let pnp = parts[2].trim();
-        if device_id.is_empty() || pnp.is_empty() {
-            continue;
-        }
-        let Some(pnp_serial) = pnp.rsplit('\\').next() else {
+    for vid_pid in usb.enum_keys().flatten() {
+        let Ok(device) = usb.open_subkey(&vid_pid) else {
             continue;
         };
-        if pnp_serial.is_empty() {
-            continue;
-        }
-        if let Some(info) = ports.get_mut(device_id) {
-            let current = info.get("serial_number").map(String::as_str).unwrap_or("");
-            if pnp_serial.len() > current.len() {
-                info.insert("serial_number".to_string(), pnp_serial.to_string());
+        for instance in device.enum_keys().flatten() {
+            let Ok(params) = device.open_subkey(format!(r"{instance}\Device Parameters")) else {
+                continue;
+            };
+            let Ok(port_name) = params.get_value::<String, _>("PortName") else {
+                continue;
+            };
+            if let Some(info) = ports.get_mut(&port_name) {
+                let current = info.get("serial_number").map(String::as_str).unwrap_or("");
+                // Only extend a truncated serial; composite-device instance ids
+                // ("6&2f3c...&0&0000") are not serial numbers.
+                if instance.len() > current.len()
+                    && instance.starts_with(current)
+                    && !current.is_empty()
+                {
+                    info.insert("serial_number".to_string(), instance.clone());
+                }
             }
         }
     }

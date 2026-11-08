@@ -291,6 +291,7 @@ pub mod test_harness {
             FlowControl::None,
             Parity::None,
             StopBits::One,
+            crate::state::ModemLinesOnOpen::default(),
         )?;
         let cp = ConnectedPort::new(port);
         let hub = Arc::new(PortRxHub::start(cp.port.clone(), session.clone()));

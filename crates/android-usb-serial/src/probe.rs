@@ -110,7 +110,8 @@ impl ProbeTable {
             return self.port_count(driver, interfaces);
         }
         match (vendor_id, product_id) {
-            (0x0403, 0x6010 | 0x6011 | 0x6014 | 0x6015) => 2,
+            (0x0403, 0x6011) => 4, // FT4232H
+            (0x0403, 0x6010 | 0x6014 | 0x6015) => 2,
             (0x10C4, 0xEA70 | 0xEA71) => 2,
             (0x18D1, 0x5014) => 3,
             _ => self.port_count(driver, interfaces),
@@ -130,8 +131,9 @@ pub fn cdc_acm_port_count(interfaces: &[InterfaceInfo]) -> usize {
         .filter(|i| i.class == 2 && i.subclass == 2)
         .count();
     let data = interfaces.iter().filter(|i| i.class == 10).count();
+    // A data interface alone is not a serial port: USB Ethernet (CDC-ECM/NCM) and
+    // RNDIS phones have one too. Same rule as usb-serial-for-android.
     comm.min(data)
-        .max(if comm == 0 && data == 0 { 0 } else { 1 })
 }
 
 #[cfg(test)]

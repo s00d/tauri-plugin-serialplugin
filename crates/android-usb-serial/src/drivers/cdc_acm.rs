@@ -74,7 +74,8 @@ impl CdcNotificationReader {
     }
 
     fn modem_status(&self) -> Result<ModemStatus> {
-        if let Some(error) = self.error.lock().unwrap().take() {
+        // Keep reporting the failure until close, not just once (upstream 667eb40).
+        if let Some(error) = self.error.lock().unwrap_or_else(|e| e.into_inner()).clone() {
             return Err(UsbSerialError::Io(error));
         }
 
@@ -204,7 +205,14 @@ impl CdcAcmDriver {
         if comm.is_empty() {
             return Err(UsbSerialError::ProbeFailed("no CDC comm interfaces".into()));
         }
-        let idx = self.port_index.min(comm.len() - 1);
+        // An out-of-range index must not silently open another port.
+        let idx = self.port_index;
+        if idx >= comm.len() {
+            return Err(UsbSerialError::ProbeFailed(format!(
+                "CDC port {idx} does not exist ({} port(s))",
+                comm.len()
+            )));
+        }
         self.control_iface = comm[idx];
         self.data_iface = data.get(idx).copied().unwrap_or(comm[idx]);
         self.control_index = self.control_iface;

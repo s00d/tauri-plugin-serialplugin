@@ -1,5 +1,5 @@
 {
-  "source": "java",
+  "source": "java-upstream-2026-10",
   "driver": "ch34x",
   "scenario": "flow_RtsCts",
   "vendorId": 6790,
@@ -30,7 +30,7 @@
       "request": 95,
       "value": 0,
       "index": 0,
-      "data": "AAA\u003d"
+      "data": "AAA="
     },
     {
       "requestType": 64,
@@ -58,7 +58,7 @@
       "request": 149,
       "value": 9496,
       "index": 0,
-      "data": "AAA\u003d"
+      "data": "AAA="
     },
     {
       "requestType": 64,
@@ -72,7 +72,7 @@
       "request": 149,
       "value": 1798,
       "index": 0,
-      "data": "AAA\u003d"
+      "data": "AAA="
     },
     {
       "requestType": 64,
@@ -107,7 +107,7 @@
       "request": 149,
       "value": 1798,
       "index": 0,
-      "data": "AAA\u003d"
+      "data": "AAA="
     },
     {
       "requestType": 64,
@@ -143,8 +143,14 @@
       "value": 9496,
       "index": 195,
       "data": ""
+    },
+    {
+      "requestType": 64,
+      "request": 154,
+      "value": 10023,
+      "index": 257,
+      "data": ""
     }
   ],
-  "bulkOut": [],
-  "expectError": "UnsupportedOperationException"
+  "bulkOut": []
 }

@@ -61,6 +61,12 @@ impl FtdiDriver {
 }
 
 impl Driver for FtdiDriver {
+    fn set_latency_timer(&mut self, ms: u8) -> Result<()> {
+        // SIO_SET_LATENCY_TIMER; the chip default of 16 ms adds that much to every
+        // short reply (upstream FtdiSerialDriver.setLatencyTimer).
+        self.vendor_out(9, u16::from(ms.max(1)), self.w_index())
+    }
+
     fn open(&mut self, transport: &SharedTransport) -> Result<()> {
         self.transport = Some(transport.clone());
         self.iface = self.port_index as u8;

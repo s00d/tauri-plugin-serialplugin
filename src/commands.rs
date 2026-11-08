@@ -102,9 +102,11 @@ pub async fn open<R: Runtime>(
     parity: Option<Parity>,
     stop_bits: Option<StopBits>,
     timeout: Option<u64>,
+    dtr: Option<bool>,
+    rts: Option<bool>,
 ) -> Result<String, Error> {
     blocking(&serial, move |s| {
-        s.open(
+        s.open_with_lines(
             path,
             baud_rate,
             data_bits,
@@ -112,6 +114,7 @@ pub async fn open<R: Runtime>(
             parity,
             stop_bits,
             timeout,
+            crate::state::ModemLinesOnOpen { dtr, rts },
         )
     })
     .await

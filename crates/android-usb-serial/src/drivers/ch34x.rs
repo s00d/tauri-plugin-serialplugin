@@ -32,6 +32,8 @@ pub struct Ch34xDriver {
     iface: u8,
     dtr: bool,
     rts: bool,
+    /// Hardware RTS/CTS currently enabled on the chip (off after init).
+    rts_cts: bool,
     endpoints: Option<EndpointPair>,
     transport: Option<SharedTransport>,
     reader: Option<SerialReader>,
@@ -44,6 +46,7 @@ impl Ch34xDriver {
             iface: 0,
             dtr: false,
             rts: false,
+            rts_cts: false,
             endpoints: None,
             transport: None,
             reader: None,
@@ -167,11 +170,17 @@ impl Driver for Ch34xDriver {
     }
 
     fn set_flow_control(&mut self, flow: FlowControl) -> Result<()> {
-        if flow == FlowControl::None {
-            Ok(())
-        } else {
-            Err(UsbSerialError::Unsupported("flow control".into()))
+        // CH34x hardware RTS/CTS (usb-serial-for-android, Oct 2026).
+        let rts_cts = match flow {
+            FlowControl::None => false,
+            FlowControl::RtsCts => true,
+            _ => return Err(UsbSerialError::Unsupported("flow control".into())),
+        };
+        if rts_cts != self.rts_cts {
+            self.vendor_out(0x9A, 0x2727, if rts_cts { 0x0101 } else { 0x0000 })?;
+            self.rts_cts = rts_cts;
         }
+        Ok(())
     }
 
     fn set_dtr(&mut self, value: bool) -> Result<()> {
@@ -237,9 +246,14 @@ impl Ch34xDriver {
     }
 
     fn set_baud(&self, baud: u32) -> Result<()> {
-        let (val1, val2) = if baud == 921_600 {
+        // Dedicated divisors for rates the generic formula hits poorly on real chips.
+        let special = match baud {
+            921_600 => Some(0xF300u16),
+            307_200 => Some(0xD900u16),
+            _ => None,
+        };
+        let (val1, val2) = if let Some(factor) = special {
             let divisor = 7u16 | 0x0080;
-            let factor = 0xF300u16;
             let val1 = (factor & 0xFF00) | divisor;
             let val2 = factor & 0xFF;
             (val1, val2)

@@ -214,8 +214,13 @@ impl BulkOut for NusbBulkOut {
         let mut ep = self.ep.lock().unwrap();
         let timeout = Duration::from_millis(timeout_ms as u64);
         let comp = ep.transfer_blocking(data.to_vec().into(), timeout);
-        comp.status.map_err(|e| map_transfer_err(&e))?;
-        Ok(comp.actual_len)
+        // A timed-out transfer may still have sent part of the buffer (flow control
+        // backpressure): report that, so write_all resumes instead of resending it.
+        match comp.status {
+            Err(_) if comp.actual_len > 0 => Ok(comp.actual_len),
+            Err(e) => Err(map_transfer_err(&e)),
+            Ok(()) => Ok(comp.actual_len),
+        }
     }
 
     fn clear_halt(&mut self) -> Result<()> {

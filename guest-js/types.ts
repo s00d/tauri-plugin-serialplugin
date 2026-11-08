@@ -78,6 +78,14 @@ export interface WatchPortsHandlers {
 }
 
 export interface SerialportOptions {
+  /**
+   * DTR level on open. `false` keeps Arduino-style boards from resetting when the
+   * port opens (Linux still pulses DTR briefly). Default: platform default
+   * (desktop: unchanged, Android: asserted).
+   */
+  dtr?: boolean;
+  /** RTS level on open. Default: platform default (desktop: unchanged, Android: asserted). */
+  rts?: boolean;
   path: string;
   baudRate: number;
   encoding?: string;
@@ -93,6 +101,14 @@ export interface SerialportOptions {
 }
 
 export interface Options {
+  /**
+   * DTR level on open. `false` keeps Arduino-style boards from resetting when the
+   * port opens (Linux still pulses DTR briefly). Default: platform default
+   * (desktop: unchanged, Android: asserted).
+   */
+  dtr?: boolean;
+  /** RTS level on open. Default: platform default (desktop: unchanged, Android: asserted). */
+  rts?: boolean;
   path?: string;
   baudRate?: number;
   dataBits: DataBits;

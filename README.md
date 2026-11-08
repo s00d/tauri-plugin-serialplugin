@@ -191,6 +191,19 @@ ExternalAccessory, and USBDriverKit only on iPad with a special entitlement), so
 **serial over TCP** (below) — for example an ESP32 / ESP-Link, ser2net on a
 Raspberry Pi, or a network serial device server next to the hardware.
 
+### DTR / RTS on open
+
+Many boards (Arduino Uno/Nano, ESP32 dev kits) reset when DTR rises. Pass the levels
+you want and the port opens with them:
+
+```ts
+const port = new SerialPort({ path: "/dev/ttyUSB0", baudRate: 115200, dtr: false, rts: false });
+```
+
+Default: unchanged on desktop (Linux and macOS raise DTR on open, Windows does not),
+asserted on Android. On Linux the kernel still pulses DTR briefly before the setting
+applies.
+
 ### Serial over TCP (all platforms)
 
 Any API that takes a path also accepts `tcp://host:port`. The plugin then talks raw
@@ -645,7 +658,9 @@ async fn rust_serial_example(
         Some(FlowControl::None),
         Some(Parity::None),
         Some(StopBits::One),
-        Some(1000u64) // timeout in milliseconds
+        Some(1000u64), // timeout in milliseconds
+        None,          // dtr on open (Some(false) keeps an Arduino from resetting)
+        None,          // rts on open
     ).await.map_err(|e| format!("Failed to open port: {}", e))?;
 
     // Write data
@@ -769,7 +784,9 @@ async fn advanced_serial_example(
         Some(FlowControl::None),
         Some(Parity::None),
         Some(StopBits::One),
-        Some(5000u64) // 5 second timeout
+        Some(5000u64), // 5 second timeout
+        None,
+        None,
     ).await;
 
     match open_result {
@@ -860,7 +877,9 @@ async fn binary_data_example(
         Some(FlowControl::None),
         Some(Parity::None),
         Some(StopBits::One),
-        Some(1000u64)
+        Some(1000u64),
+        None,
+        None,
     ).await.map_err(|e| format!("Failed to open port: {}", e))?;
 
     // Write binary data
@@ -909,7 +928,7 @@ async fn my_serial_function(
     let ports = available_ports(app.clone(), serial.clone(), None)
         .await
         .map_err(|e| e.to_string())?;
-    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None)
+    open(app.clone(), serial.clone(), "COM1".to_string(), 9600, None, None, None, None, None, None, None)
         .await
         .map_err(|e| e.to_string())?;
     // ... rest of your code
@@ -1044,6 +1063,8 @@ pub async fn open<R: Runtime>(
     parity: Option<Parity>,
     stop_bits: Option<StopBits>,
     timeout: Option<u64>,
+    dtr: Option<bool>,   // DTR level on open (None = platform default)
+    rts: Option<bool>,   // RTS level on open
 ) -> Result<String, Error>  // canonical path (Android session key / desktop echo)
 
 // Write data

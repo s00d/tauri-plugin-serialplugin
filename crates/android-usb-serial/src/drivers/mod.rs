@@ -50,6 +50,11 @@ pub trait Driver: Send {
     fn set_flow_control(&mut self, flow: FlowControl) -> Result<()>;
     fn set_dtr(&mut self, value: bool) -> Result<()>;
     fn set_rts(&mut self, value: bool) -> Result<()>;
+    /// FTDI latency timer in ms (how long the chip holds a partial packet). No-op
+    /// for chips without one.
+    fn set_latency_timer(&mut self, _ms: u8) -> Result<()> {
+        Ok(())
+    }
     fn set_break(&mut self, enabled: bool) -> Result<()>;
     fn purge(&mut self, kind: PurgeKind) -> Result<()>;
     fn modem_status(&mut self) -> Result<ModemStatus>;

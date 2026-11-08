@@ -16,6 +16,8 @@ const STOP_JOIN_TIMEOUT: Duration = Duration::from_secs(1);
 /// Thread that continuously reads bulk IN and pushes filtered chunks into a channel.
 pub struct SerialReader {
     rx: Receiver<Vec<u8>>,
+    /// Rest of a chunk that did not fit the caller's buffer.
+    leftover: Vec<u8>,
     stop_tx: Option<Sender<()>>,
     join: Option<JoinHandle<()>>,
     error: Arc<Mutex<Option<UsbSerialError>>>,
@@ -47,6 +49,7 @@ impl SerialReader {
         });
         Self {
             rx: data_rx,
+            leftover: Vec::new(),
             stop_tx: Some(stop_tx),
             join: Some(join),
             error,
@@ -55,6 +58,12 @@ impl SerialReader {
 
     /// Non-blocking: copy one queued chunk into `buf`, or `Ok(0)` if empty.
     pub fn try_read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        if !self.leftover.is_empty() {
+            let n = self.leftover.len().min(buf.len());
+            buf[..n].copy_from_slice(&self.leftover[..n]);
+            self.leftover.drain(..n);
+            return Ok(n);
+        }
         if let Some(err) = self.error.lock().unwrap().take() {
             return Err(err);
         }
@@ -62,6 +71,7 @@ impl SerialReader {
             Ok(chunk) => {
                 let n = chunk.len().min(buf.len());
                 buf[..n].copy_from_slice(&chunk[..n]);
+                self.leftover = chunk[n..].to_vec();
                 Ok(n)
             }
             Err(TryRecvError::Empty) => Ok(0),
@@ -173,5 +183,30 @@ mod tests {
         assert_eq!(n, 5);
         assert_eq!(&out[..5], b"hello");
         reader.stop();
+    }
+}
+
+#[cfg(test)]
+mod leftover_tests {
+    use super::*;
+
+    /// A chunk larger than the caller's buffer used to lose its tail.
+    #[test]
+    fn try_read_keeps_the_rest_of_a_large_chunk() {
+        let (tx, rx) = mpsc::channel();
+        let mut r = SerialReader {
+            rx,
+            leftover: Vec::new(),
+            stop_tx: None,
+            join: None,
+            error: Arc::new(Mutex::new(None)),
+        };
+        tx.send(b"abcdef".to_vec()).unwrap();
+        let mut buf = [0u8; 4];
+        assert_eq!(r.try_read(&mut buf).unwrap(), 4);
+        assert_eq!(&buf, b"abcd");
+        assert_eq!(r.try_read(&mut buf).unwrap(), 2);
+        assert_eq!(&buf[..2], b"ef");
+        assert_eq!(r.try_read(&mut buf).unwrap(), 0);
     }
 }

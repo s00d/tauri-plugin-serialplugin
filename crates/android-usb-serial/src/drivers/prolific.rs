@@ -54,9 +54,10 @@ const STATUS_BUFFER_SIZE: usize = 10;
 const STATUS_BYTE_IDX: usize = 8;
 
 const STANDARD_BAUD_RATES: &[u32] = &[
+    // 128000/134400/161280/201600/268800/403200/806400 were dropped (as upstream did in
+    // 2026): older chips reject them as direct values; the divisor formula covers them.
     75, 150, 300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 14400, 19200, 28800, 38400, 57600,
-    115200, 128000, 134400, 161280, 201600, 230400, 268800, 403200, 460800, 614400, 806400, 921600,
-    1228800, 2457600, 3000000, 6000000,
+    115200, 230400, 460800, 614400, 921600, 1228800, 2457600, 3000000, 6000000,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

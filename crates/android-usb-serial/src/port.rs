@@ -65,6 +65,11 @@ impl SerialPortHandle {
         self.driver.set_dtr(value)
     }
 
+    pub fn set_latency_timer(&mut self, ms: u8) -> Result<()> {
+        self.ensure_open()?;
+        self.driver.set_latency_timer(ms)
+    }
+
     pub fn set_rts(&mut self, value: bool) -> Result<()> {
         self.ensure_open()?;
         self.driver.set_rts(value)

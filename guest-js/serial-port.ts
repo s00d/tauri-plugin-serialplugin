@@ -177,6 +177,8 @@ export class SerialPort {
       stopBits: options.stopBits || StopBits.One,
       size: options.size || 1024,
       timeout: options.timeout ?? DEFAULT_SERIAL_TIMEOUT_MS,
+      dtr: options.dtr,
+      rts: options.rts,
       ...(options.serialDataFlushIntervalMs != null && {
         serialDataFlushIntervalMs: options.serialDataFlushIntervalMs,
       }),
@@ -610,6 +612,8 @@ export class SerialPort {
         parity: this.options.parity,
         stopBits: this.options.stopBits,
         timeout: this.options.timeout,
+        dtr: this.options.dtr,
+        rts: this.options.rts,
       });
       if (canonicalPath) {
         this.options.path = canonicalPath;

@@ -438,6 +438,9 @@ impl SerialPort for SerialPortAdapter {
 
     fn clear(&self, buffer_to_clear: ClearBuffer) -> serialport::Result<()> {
         if matches!(buffer_to_clear, ClearBuffer::Input | ClearBuffer::All) {
+            // Chunks the reader thread already queued are stale too, not just the ring.
+            let mut scratch = [0u8; 4096];
+            while matches!(self.inner.refill_from_reader(&mut scratch), Ok(n) if n > 0) {}
             self.inner.clear_ring();
         }
         self.inner

@@ -41,7 +41,7 @@ use std::sync::{Arc, Mutex};
 ///     app: AppHandle<tauri::Wry>,
 ///     serial: State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>
 /// ) -> Result<String, String> {
-///     commands::open(app, serial, "COM1".to_string(), 9600, None, None, None, None, None)
+///     commands::open(app, serial, "COM1".to_string(), 9600, None, None, None, None, None, None, None)
 ///         .await
 ///         .map_err(|e| e.to_string())
 /// }

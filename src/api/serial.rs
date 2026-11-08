@@ -82,6 +82,7 @@ fn platform_open(
     parity: Parity,
     stop_bits: StopBits,
     timeout: Duration,
+    lines: crate::state::ModemLinesOnOpen,
 ) -> Result<(String, Box<dyn SerialPortTrait>), Error> {
     if path.starts_with("ble://") {
         #[cfg(all(feature = "ble", not(target_os = "android")))]
@@ -127,6 +128,7 @@ fn platform_open(
             parity,
             stop_bits,
             timeout,
+            lines,
         );
         Err(Error::String(format!(
             "{path}: iOS has no local serial ports; use a tcp://host:port bridge"
@@ -134,14 +136,22 @@ fn platform_open(
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        let port = serialport::new(path, baud_rate)
+        let mut builder = serialport::new(path, baud_rate)
             .data_bits(data_bits.into())
             .flow_control(flow_control.into())
             .parity(parity.into())
             .stop_bits(stop_bits.into())
-            .timeout(timeout)
+            .timeout(timeout);
+        if let Some(dtr) = lines.dtr {
+            builder = builder.dtr_on_open(dtr);
+        }
+        let mut port = builder
             .open()
             .map_err(|e| Error::String(format!("Failed to open serial port: {}", e)))?;
+        if let Some(rts) = lines.rts {
+            port.write_request_to_send(rts)
+                .map_err(|e| Error::String(format!("Failed to set RTS on open: {}", e)))?;
+        }
         Ok((path.to_string(), port))
     }
     #[cfg(target_os = "android")]
@@ -154,6 +164,7 @@ fn platform_open(
             flow_control,
             parity,
             stop_bits,
+            lines,
         )
     }
 }
@@ -532,6 +543,31 @@ impl<R: Runtime> SerialPort<R> {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
     ) -> Result<String, Error> {
+        self.open_with_lines(
+            path,
+            baud_rate,
+            data_bits,
+            flow_control,
+            parity,
+            stop_bits,
+            timeout,
+            crate::state::ModemLinesOnOpen::default(),
+        )
+    }
+
+    /// [`Self::open`] with explicit DTR / RTS levels on open.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_with_lines(
+        &self,
+        path: String,
+        baud_rate: u32,
+        data_bits: Option<DataBits>,
+        flow_control: Option<FlowControl>,
+        parity: Option<Parity>,
+        stop_bits: Option<StopBits>,
+        timeout: Option<u64>,
+        lines: crate::state::ModemLinesOnOpen,
+    ) -> Result<String, Error> {
         // Re-open (e.g. after a webview reload): tear the old session down the same
         // way `close` does, so its watches, CMUX channels and hub go with it.
         let already_open = matches!(
@@ -582,6 +618,7 @@ impl<R: Runtime> SerialPort<R> {
             parity.unwrap_or(Parity::None),
             stop_bits.unwrap_or(StopBits::One),
             Duration::from_millis(timeout_ms),
+            lines,
         );
 
         let mut serialports = self

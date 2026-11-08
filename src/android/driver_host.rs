@@ -158,6 +158,7 @@ impl DriverHost {
     }
 
     /// Open USB port and return a [`serialport::SerialPort`] facade (RX via reader + ring).
+    #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
         path: &str,
@@ -166,6 +167,7 @@ impl DriverHost {
         flow_control: FlowControl,
         parity: Parity,
         stop_bits: StopBits,
+        lines: crate::state::ModemLinesOnOpen,
     ) -> Result<(String, Box<dyn SerialPort>), Error> {
         let (device_name, port_index) = usb_path::parse(path);
         crate::log_info!("[SerialOpen] open path={path} device={device_name} port={port_index}");
@@ -197,8 +199,13 @@ impl DriverHost {
             crate::log_error!("[SerialOpen] set_flow_control: {e}");
             Error::new(e.to_string())
         })?;
-        let _ = handle.set_dtr(true);
-        let _ = handle.set_rts(true);
+        // Asserted by default (as before); `dtr: false` keeps Arduino-style boards
+        // from resetting on open.
+        let _ = handle.set_dtr(lines.dtr.unwrap_or(true));
+        let _ = handle.set_rts(lines.rts.unwrap_or(true));
+        // FTDI holds partial packets for 16 ms by default; 1 ms keeps AT-style
+        // request/response snappy. No-op on other chips.
+        let _ = handle.set_latency_timer(1);
 
         let adapter = SerialPortAdapter::new(handle, session_path.clone(), line_config, usb_flow)
             .map_err(|e| Error::new(e.to_string()))?;

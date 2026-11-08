@@ -398,3 +398,12 @@ pub fn get_log_level() -> LogLevel {
         e.into_inner()
     })
 }
+
+/// DTR / RTS levels to apply when a port is opened (`None` = platform default:
+/// unchanged on desktop, asserted on Android). Deasserting DTR keeps Arduino-style
+/// boards from resetting on open; on Linux the kernel still pulses DTR briefly.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ModemLinesOnOpen {
+    pub dtr: Option<bool>,
+    pub rts: Option<bool>,
+}

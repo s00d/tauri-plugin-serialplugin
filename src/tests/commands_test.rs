@@ -56,6 +56,8 @@ mod tests {
             Some(Parity::None),
             Some(StopBits::One),
             Some(1000),
+            None,
+            None,
         ));
         assert!(result.is_err());
 

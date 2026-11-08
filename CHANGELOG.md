@@ -18,6 +18,9 @@ Full audit release. See "Migrating to v4" in the README for the breaking changes
 
 * Serial over TCP: `tcp://host:port` on every platform (ser2net, ESP-Link, device servers).
 * The plugin builds for iOS (it did not compile there at all); TCP is the transport.
+* `dtr` / `rts` options on open (`new SerialPort({ dtr: false, … })`, Rust
+  `commands::open(…, dtr, rts)` / `SerialPort::open_with_lines`): `dtr: false` stops
+  Arduino-style boards resetting on every open. Android still asserts both by default.
 * Serial over Bluetooth LE (Nordic UART Service): `ble://<id>` paths and
   `SerialPort.scanBlePorts()`, behind the `ble` cargo feature (desktop + iOS).
 
@@ -53,6 +56,18 @@ Full audit release. See "Migrating to v4" in the README for the breaking changes
   panicked; `device_filter.xml` had unparsable ids (wildcards) and wrong STM32/Arduino
   ids; a 30 s USB permission wait held the device lock the detach handler needed;
   the fd leaked when an open failed part way; detach teardown ran on the UI thread.
+* **android:** USB Ethernet / RNDIS devices (a CDC data interface without an ACM
+  control interface) were listed as serial ports; an out-of-range CDC port index
+  silently opened another port; a CDC notification error was reported only once;
+  `clear(Input)` left chunks the reader had already queued; a write that timed out
+  half-way (flow control) reported nothing sent, so `write_all` resent it; a USB
+  chunk bigger than the read buffer lost its tail. FTDI latency timer is set to
+  1 ms (chip default 16 ms per short reply). CH34x gains RTS/CTS flow control and
+  the 307200 baud divisor; PL2303 no longer sends rates older chips reject;
+  FT4232H counts 4 ports. (Compared against usb-serial-for-android 3.11 / master.)
+* **windows:** full USB serial numbers come from the registry instead of `wmic`,
+  which is gone from Windows 11 24H2+ and flashed a console window on every
+  port-list poll.
 * **docs:** six permission identifiers in the README did not exist.
 
 ### Build

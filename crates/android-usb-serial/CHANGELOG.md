@@ -9,6 +9,15 @@
   the port-indexed baud divisor.
 - FTDI: baud rate 0 returns `Unsupported` instead of panicking on a division by zero.
 - MSRV is 1.85 (what `nusb` needs; 1.79 was never buildable).
+- CDC: a data interface without an ACM control interface is no longer a serial port
+  (USB Ethernet, RNDIS); an out-of-range port index is an error; notification errors
+  stay reported until close.
+- `clear(Input)` also drops chunks the reader already queued; `try_read` keeps the
+  rest of a chunk larger than the buffer; a timed-out bulk write reports the bytes it
+  did send.
+- FTDI: `set_latency_timer` (driver trait, no-op elsewhere). CH34x: RTS/CTS flow
+  control and the 307200 baud divisor. PL2303: dropped direct rates older chips
+  reject. FT4232H fallback port count 4.
 
 ## 0.1.2
 
