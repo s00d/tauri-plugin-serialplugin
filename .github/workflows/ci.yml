@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system deps (webkit for tauri, udev for serialport/nusb)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Rust tests (plugin + android-usb-serial host tests)
+        run: cargo test --workspace
+
+      - name: android-usb-serial driver tests (fake USB transport)
+        run: cargo test -p android-usb-serial --features fake-transport,serialport-compat
+
+      - name: JNI bridge regression (real JVM)
+        if: runner.os == 'Linux'
+        run: cargo test --manifest-path tests/jni-bridge/Cargo.toml
+
+      # pnpm version comes from package.json `packageManager`.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - name: Build guest-js and check dist (publint, attw, smoke)
+        run: pnpm build
+      - name: guest-js tests
+        run: pnpm test
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev pkg-config
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.90"
+      - uses: Swatinem/rust-cache@v2
+      - name: Plugin on its rust-version (1.90)
+        run: cargo +1.90 check --workspace --all-targets
+      - name: android-usb-serial on its rust-version (1.85)
+        run: cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
+
+  android:
+    name: android (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-linux-android, x86_64-linux-android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy (Android target, with and without the test harness)
+        run: |
+          cargo clippy -p tauri-plugin-serialplugin -p android-usb-serial --target ${{ matrix.target }} --all-targets -- -D warnings
+          cargo clippy -p tauri-plugin-serialplugin --target ${{ matrix.target }} --all-targets --features android-test-harness -- -D warnings
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'aarch64-linux-android'
+        with:
+          distribution: temurin
+          java-version: 17
+      # The cargo run above generated android/.tauri/tauri-api, which Gradle needs.
+      - name: Kotlin lint + Robolectric tests
+        if: matrix.target == 'aarch64-linux-android'
+        working-directory: android
+        run: ./gradlew --no-daemon lintDebug test

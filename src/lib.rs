@@ -193,6 +193,8 @@ mod tests {
     #[cfg(desktop)]
     mod invoke_contract_test;
     #[cfg(desktop)]
+    mod ipc_test;
+    #[cfg(desktop)]
     mod mock_serial;
     #[cfg(desktop)]
     mod serial_test;
