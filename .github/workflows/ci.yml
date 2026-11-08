@@ -29,6 +29,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          # Android targets are only checked on the Linux runner.
+          targets: ${{ runner.os == 'Linux' && 'aarch64-linux-android,x86_64-linux-android' || '' }}
       - uses: Swatinem/rust-cache@v2
 
       - name: Format
@@ -54,6 +56,44 @@ jobs:
         if: runner.os == 'Linux'
         run: cargo test --manifest-path tests/jni-bridge/Cargo.toml
 
+      # --- Linux runner also covers Android and the MSRV (one job per OS) ---
+      - name: Android clippy (both ABIs, with and without the test harness)
+        if: runner.os == 'Linux'
+        run: |
+          for t in aarch64-linux-android x86_64-linux-android; do
+            cargo clippy -p tauri-plugin-serialplugin -p android-usb-serial --target $t --all-targets -- -D warnings
+          done
+          cargo clippy -p tauri-plugin-serialplugin --target aarch64-linux-android --all-targets --features android-test-harness -- -D warnings
+
+      - name: MSRV (plugin 1.90, android-usb-serial 1.85)
+        if: runner.os == 'Linux'
+        run: |
+          rustup toolchain install 1.90 1.85 --profile minimal
+          cargo +1.90 check --workspace --all-targets
+          cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
+
+      - uses: actions/setup-java@v4
+        if: runner.os == 'Linux'
+        with:
+          distribution: temurin
+          java-version: 17
+      # Keep the Gradle distribution between runs: its download host flakes (504s,
+      # timeouts), and a cached copy needs no network at all.
+      - uses: actions/cache@v4
+        if: runner.os == 'Linux'
+        with:
+          path: |
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches
+          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/settings.gradle') }}
+      # The Android clippy run above generated android/.tauri/tauri-api, which Gradle needs.
+      - name: Kotlin lint + Robolectric tests
+        if: runner.os == 'Linux'
+        working-directory: android
+        run: |
+          for i in 1 2 3; do ./gradlew --no-daemon --version && break; sleep 20; done
+          ./gradlew --no-daemon lintDebug test
+
       # pnpm version comes from package.json `packageManager`.
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -66,68 +106,3 @@ jobs:
         run: pnpm build
       - name: guest-js tests
         run: pnpm test
-
-  msrv:
-    name: msrv
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Linux system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev pkg-config
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.85"
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.90"
-      - uses: Swatinem/rust-cache@v2
-      - name: Plugin on its rust-version (1.90)
-        run: cargo +1.90 check --workspace --all-targets
-      - name: android-usb-serial on its rust-version (1.85)
-        run: cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
-
-  android:
-    name: android (${{ matrix.target }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [aarch64-linux-android, x86_64-linux-android]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-      - name: Clippy (Android target, with and without the test harness)
-        run: |
-          cargo clippy -p tauri-plugin-serialplugin -p android-usb-serial --target ${{ matrix.target }} --all-targets -- -D warnings
-          cargo clippy -p tauri-plugin-serialplugin --target ${{ matrix.target }} --all-targets --features android-test-harness -- -D warnings
-      - uses: actions/setup-java@v4
-        if: matrix.target == 'aarch64-linux-android'
-        with:
-          distribution: temurin
-          java-version: 17
-      # Keep the Gradle distribution between runs: its download host flakes (504s,
-      # timeouts), and a cached copy needs no network at all.
-      - uses: actions/cache@v4
-        if: matrix.target == 'aarch64-linux-android'
-        with:
-          path: |
-            ~/.gradle/wrapper/dists
-            ~/.gradle/caches
-          key: gradle-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/settings.gradle') }}
-      # The cargo run above generated android/.tauri/tauri-api, which Gradle needs.
-      - name: Kotlin lint + Robolectric tests
-        if: matrix.target == 'aarch64-linux-android'
-        working-directory: android
-        # The wrapper download (services.gradle.org -> GitHub releases) flakes with
-        # timeouts / 504s; retry the bootstrap before giving up.
-        run: |
-          for i in 1 2 3; do ./gradlew --no-daemon --version && break; sleep 20; done
-          ./gradlew --no-daemon lintDebug test
