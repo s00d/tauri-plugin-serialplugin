@@ -101,9 +101,15 @@ async function invokeWatch(
       case 'urc':
         handlers.onUrc?.(event.line);
         break;
-      case 'disconnect':
+      case 'disconnect': {
+        // Emit a trailing partial multi-byte character instead of dropping it.
+        const tail = decode ? decoder.decode() : '';
+        if (tail.length > 0) {
+          handlers.onData(tail);
+        }
         handlers.onDisconnect?.(event.reason);
         break;
+      }
       case 'error':
         handlers.onError?.(event.message);
         break;
@@ -141,6 +147,12 @@ export class SerialPort {
   options: Options;
 
   private watchHandle: WatchHandle | null = null;
+  /** What the caller holds for `watchHandle` (see `userWatchHandle`). */
+  private publicWatch: WatchHandle | null = null;
+  private watchStarting = false;
+  /** Native side still holds the port (true after a disconnect until `close`). */
+  private nativeOpen = false;
+  private readDecoder: TextDecoder | null = null;
   private lastWatchHandlers: WatchHandlers | null = null;
   private lastWatchOptions: WatchOptions | undefined;
   private isProcessingOpenClose = false;
@@ -177,7 +189,7 @@ export class SerialPort {
 
   /** Active watch handle, if any. */
   get activeWatch(): WatchHandle | null {
-    return this.watchHandle;
+    return this.publicWatch;
   }
 
   static async getCapabilities(): Promise<Capabilities> {
@@ -282,12 +294,14 @@ export class SerialPort {
     if (!this.options.path) {
       throw new Error('path cannot be empty');
     }
-    if (this.watchHandle) {
+    if (this.watchHandle || this.watchStarting) {
       throw new Error('A watch is already active on this port instance');
     }
 
+    // `timeout` here is the batch window; the port's read timeout (1 s by default)
+    // is not a sensible default for it, so leave it to the native default.
     const resolvedOptions: WatchOptions = {
-      timeout: options?.timeout ?? this.options.timeout,
+      timeout: options?.timeout,
       size: options?.size ?? this.options.size,
       serialDataFlushIntervalMs:
         options?.serialDataFlushIntervalMs ?? this.options.serialDataFlushIntervalMs,
@@ -304,15 +318,35 @@ export class SerialPort {
     this.lastWatchOptions = resolvedOptions;
 
     const path = this.options.path;
-    const handle = await invokeWatch(
-      path,
-      this.buildWatchHandlers(handlers),
-      resolvedOptions,
-      this.encoding,
-    );
+    this.watchStarting = true;
+    try {
+      this.watchHandle = await invokeWatch(
+        path,
+        this.buildWatchHandlers(handlers),
+        resolvedOptions,
+        this.encoding,
+      );
+    } finally {
+      this.watchStarting = false;
+    }
+    this.publicWatch = this.userWatchHandle(this.watchHandle);
+    return this.publicWatch;
+  }
 
-    this.watchHandle = handle;
-    return handle;
+  /**
+   * Handle given to the caller: `unwatch()` also forgets the saved session, so a
+   * later `watch()` works and auto-reconnect does not bring the watch back.
+   */
+  private userWatchHandle(handle: WatchHandle): WatchHandle {
+    return {
+      channelId: handle.channelId,
+      unwatch: async () => {
+        if (this.watchHandle?.channelId === handle.channelId) {
+          this.clearSavedWatchSession();
+          await this.stopWatch();
+        }
+      },
+    };
   }
 
   private clearSavedWatchSession(): void {
@@ -347,6 +381,7 @@ export class SerialPort {
       this.encoding,
     );
     this.watchHandle = handle;
+    this.publicWatch = this.userWatchHandle(handle);
   }
 
   private clearAutoReconnectTimer(): void {
@@ -386,10 +421,18 @@ export class SerialPort {
 
     try {
       await this.open();
-      await this.reestablishWatch();
+      try {
+        await this.reestablishWatch();
+      } catch (error) {
+        // Open but without a stream is not a recovery: undo the open so the next
+        // attempt starts from scratch instead of returning early on `isOpen`.
+        await this.closeNative();
+        throw error;
+      }
+      const attempt = this.autoReconnectAttempts;
       this.autoReconnectAttempts = 0;
       logInfo('Auto-reconnect successful');
-      this.autoReconnectCallback?.(true, 0);
+      this.autoReconnectCallback?.(true, attempt);
     } catch (error) {
       logError(`Auto-reconnect attempt ${this.autoReconnectAttempts} failed:`, error);
       this.autoReconnectCallback?.(false, this.autoReconnectAttempts);
@@ -411,6 +454,7 @@ export class SerialPort {
       logWarn('Error stopping watch:', error);
     } finally {
       this.watchHandle = null;
+      this.publicWatch = null;
     }
   }
 
@@ -439,15 +483,16 @@ export class SerialPort {
   }
 
   async close(): Promise<void> {
-    if (!this.isOpen) {
+    // Stop a pending auto-reconnect even when the port is already down.
+    this.clearAutoReconnectTimer();
+    this.clearSavedWatchSession();
+    if (!this.isOpen && !this.nativeOpen) {
       return;
     }
     if (this.isProcessingOpenClose) {
       throw new Error('Serial port open/close already in progress');
     }
     this.isProcessingOpenClose = true;
-    this.clearAutoReconnectTimer();
-    this.clearSavedWatchSession();
 
     try {
       await this.stopWatch();
@@ -467,8 +512,22 @@ export class SerialPort {
       }
     } finally {
       this.isOpen = false;
+      this.nativeOpen = false;
+      this.readDecoder = null;
       this.isProcessingOpenClose = false;
     }
+  }
+
+  /** Release the native port without touching the saved watch session. */
+  private async closeNative(): Promise<void> {
+    await this.stopWatch();
+    try {
+      await invoke<void>('plugin:serialplugin|close', { path: this.options.path });
+    } catch (error) {
+      logWarn('Error during port close:', error);
+    }
+    this.isOpen = false;
+    this.nativeOpen = false;
   }
 
   enableAutoReconnect(options: AutoReconnectOptions = {}): void {
@@ -545,8 +604,16 @@ export class SerialPort {
         this.options.path = canonicalPath;
       }
       this.isOpen = true;
+      this.nativeOpen = true;
+      this.readDecoder = null;
       if (this.atSessionOptions) {
-        await this.configureAtSession(this.atSessionOptions);
+        try {
+          await this.configureAtSession(this.atSessionOptions);
+        } catch (error) {
+          // Report failure *and* leave no half-open port behind.
+          await this.closeNative();
+          throw error;
+        }
       }
       return this.options.path;
     } finally {
@@ -558,11 +625,11 @@ export class SerialPort {
     if (!this.isOpen) {
       throw new Error('Port is not open');
     }
-    return invoke<string>('plugin:serialplugin|read', {
-      path: this.options.path,
-      timeout: options?.timeout ?? this.options.timeout,
-      size: options?.size ?? this.size,
-    });
+    // Decode in JS with a per-port streaming decoder: honours `encoding` and keeps a
+    // multi-byte character that is split across two reads.
+    const bytes = await this.readBinary(options);
+    this.readDecoder ??= textDecoder(this.encoding);
+    return this.readDecoder.decode(bytes, { stream: true });
   }
 
   async readBinary(options?: ReadOptions): Promise<Uint8Array> {
@@ -578,45 +645,57 @@ export class SerialPort {
   }
 
   async setBaudRate(value: number | BaudRate): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_baud_rate', {
+    await invoke<void>('plugin:serialplugin|set_baud_rate', {
       path: this.options.path,
       baudRate: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.baudRate = value;
   }
 
   async setDataBits(value: DataBits): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_data_bits', {
+    await invoke<void>('plugin:serialplugin|set_data_bits', {
       path: this.options.path,
       dataBits: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.dataBits = value;
   }
 
   async setFlowControl(value: FlowControl): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_flow_control', {
+    await invoke<void>('plugin:serialplugin|set_flow_control', {
       path: this.options.path,
       flowControl: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.flowControl = value;
   }
 
   async setParity(value: Parity): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_parity', {
+    await invoke<void>('plugin:serialplugin|set_parity', {
       path: this.options.path,
       parity: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.parity = value;
   }
 
   async setStopBits(value: StopBits): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_stop_bits', {
+    await invoke<void>('plugin:serialplugin|set_stop_bits', {
       path: this.options.path,
       stopBits: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.stopBits = value;
   }
 
   async setTimeout(value: number): Promise<void> {
-    return invoke<void>('plugin:serialplugin|set_timeout', {
+    await invoke<void>('plugin:serialplugin|set_timeout', {
       path: this.options.path,
       timeout: value,
     });
+    // Keep options in sync: reconnect / change() reopen with them.
+    this.options.timeout = value;
   }
 
   async writeRequestToSend(level: boolean): Promise<void> {
@@ -747,6 +826,8 @@ export class SerialPort {
       timeout: this.options.timeout,
       size: this.options.size,
       serialDataFlushIntervalMs: this.options.serialDataFlushIntervalMs,
+      encoding: this.encoding,
+      atSession: this.atSessionOptions,
     });
   }
 
@@ -807,9 +888,13 @@ export class SerialPort {
     if (!this.isOpen) {
       throw new Error('Port is not open');
     }
+    // A Uint8Array would be JSON-serialized as an object; Rust expects a byte array.
+    const wirePhases = phases.map((p) =>
+      p.write instanceof Uint8Array ? { ...p, write: Array.from(p.write) } : p,
+    );
     const results = await invoke<AtCommandResult[]>('plugin:serialplugin|at_phases', {
       path: this.options.path,
-      phases,
+      phases: wirePhases,
     });
     return results.map((r) => ({
       ...r,

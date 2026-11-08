@@ -5,6 +5,9 @@ import { invoke } from '@tauri-apps/api/core';
 
 export type MockInvoke = Mock<(cmd: string, args?: any) => Promise<any>>;
 
+/** Bytes as the Rust side returns them (`Vec<u8>` → number[]). */
+export const wire = (text: string): number[] => Array.from(new TextEncoder().encode(text));
+
 export const setupTestMocks = () => {
   const mockInvoke = invoke as MockInvoke;
   vi.clearAllMocks();

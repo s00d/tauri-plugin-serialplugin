@@ -111,6 +111,9 @@ fn platform_open(
 const DEFAULT_PORT_TIMEOUT_MS: u64 = 1000;
 const PORT_LOCK_TIMEOUT_MS: u64 = 250;
 const PORT_IO_TIMEOUT_MS: u64 = 100;
+/// Watch batch window when the caller sets none: short enough for interactive
+/// terminals, long enough to coalesce a burst into one event.
+const DEFAULT_WATCH_FLUSH_MS: u64 = 20;
 
 /// Acquire the port mutex with a deadline (hub reader uses try_lock; avoid blocking forever).
 fn with_port_try_lock<T, F>(
@@ -604,7 +607,7 @@ impl<R: Runtime> SerialPort<R> {
         let batch_timeout = options
             .serial_data_flush_interval_ms
             .or(options.timeout)
-            .unwrap_or(DEFAULT_PORT_TIMEOUT_MS);
+            .unwrap_or(DEFAULT_WATCH_FLUSH_MS);
         let read_size = options.size.unwrap_or(1024);
         let route_urc = options.route_urc;
 

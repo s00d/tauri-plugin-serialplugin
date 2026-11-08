@@ -312,11 +312,15 @@ impl RxHubShared {
             session.tick();
         }
 
-        let batch_timeout_ms = crate::sync_util::lock_or_recover(&self.watch)
+        let (batch_timeout_ms, read_size) = crate::sync_util::lock_or_recover(&self.watch)
             .as_ref()
-            .map(|w| w.batch_timeout_ms)
-            .unwrap_or(1000);
-        if state.flush_at.elapsed() >= Duration::from_millis(batch_timeout_ms) {
+            .map(|w| (w.batch_timeout_ms, w.read_size))
+            .unwrap_or((1000, usize::MAX));
+        // Flush on the batch timer, or as soon as a full `size` worth is buffered,
+        // so a fast stream does not grow one huge event per window.
+        if state.flush_at.elapsed() >= Duration::from_millis(batch_timeout_ms)
+            || state.combined_buffer.len() >= read_size.max(1)
+        {
             state.flush_at = Instant::now();
             let partial = state.line_router.take_partial();
             state.combined_buffer.extend_from_slice(&partial);

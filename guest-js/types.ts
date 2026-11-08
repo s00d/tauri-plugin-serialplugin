@@ -1,8 +1,10 @@
 /** Default read/write timeout (ms) when opening a port on desktop. */
 export const DEFAULT_SERIAL_TIMEOUT_MS = 1000;
 
+/** Port metadata; the port path is the key of the record it comes in. */
 export interface PortInfo {
-  path: 'Unknown' | string;
+  /** @deprecated Never sent by the native side; use the record key. */
+  path?: string;
   manufacturer: 'Unknown' | string;
   pid: 'Unknown' | string;
   product: 'Unknown' | string;

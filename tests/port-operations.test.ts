@@ -1,5 +1,5 @@
 import { SerialPort, DataBits, FlowControl, Parity, StopBits } from '../guest-js';
-import { setupTestMocks, createTestSerialPort } from './test-utils';
+import { setupTestMocks, createTestSerialPort, wire } from './test-utils';
 
 describe('SerialPort Operations', () => {
   let mockInvoke: ReturnType<typeof setupTestMocks>['mockInvoke'];
@@ -102,11 +102,11 @@ describe('SerialPort Operations', () => {
 
     it('should read data successfully', async () => {
       serialPort.isOpen = true;
-      mockInvoke.mockResolvedValueOnce('Hello');
+      mockInvoke.mockResolvedValueOnce(wire('Hello'));
 
       const data = await serialPort.read();
       expect(data).toBe('Hello');
-      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|read', {
+      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|read_binary', {
         path: '/dev/tty.usbserial',
         timeout: 1000,
         size: 1024
@@ -115,15 +115,23 @@ describe('SerialPort Operations', () => {
 
     it('should read with custom options', async () => {
       serialPort.isOpen = true;
-      mockInvoke.mockResolvedValueOnce('Hello');
+      mockInvoke.mockResolvedValueOnce(wire('Hello'));
 
       const data = await serialPort.read({ timeout: 500, size: 2048 });
       expect(data).toBe('Hello');
-      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|read', {
+      expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|read_binary', {
         path: '/dev/tty.usbserial',
         timeout: 500,
         size: 2048
       });
+    });
+
+    it('keeps a UTF-8 character split across two reads', async () => {
+      serialPort.isOpen = true;
+      const bytes = wire('Привет');
+      mockInvoke.mockResolvedValueOnce(bytes.slice(0, 3));
+      mockInvoke.mockResolvedValueOnce(bytes.slice(3));
+      expect((await serialPort.read()) + (await serialPort.read())).toBe('Привет');
     });
 
     it('should throw error if port is not open', async () => {

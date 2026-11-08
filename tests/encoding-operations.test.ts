@@ -1,6 +1,6 @@
 import { SerialPort } from '../guest-js';
 import { MockChannel } from './setup';
-import { setupTestMocks, createTestSerialPort } from './test-utils';
+import { setupTestMocks, createTestSerialPort, wire } from './test-utils';
 
 describe('SerialPort Encoding Operations', () => {
   let mockInvoke: ReturnType<typeof setupTestMocks>['mockInvoke'];
@@ -26,7 +26,7 @@ describe('SerialPort Encoding Operations', () => {
       const writeResult = await serialPort.write(utf8Data);
       expect(writeResult).toBe(utf8Data.length);
 
-      mockInvoke.mockImplementationOnce(() => Promise.resolve(utf8Data));
+      mockInvoke.mockImplementationOnce(() => Promise.resolve(wire(utf8Data)));
       const readResult = await serialPort.read();
       expect(readResult).toBe(utf8Data);
 
@@ -37,7 +37,7 @@ describe('SerialPort Encoding Operations', () => {
       const asciiWriteResult = await serialPort.write(asciiData);
       expect(asciiWriteResult).toBe(asciiData.length);
 
-      mockInvoke.mockImplementationOnce(() => Promise.resolve(asciiData));
+      mockInvoke.mockImplementationOnce(() => Promise.resolve(wire(asciiData)));
       const asciiReadResult = await serialPort.read();
       expect(asciiReadResult).toBe(asciiData);
 

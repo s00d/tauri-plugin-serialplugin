@@ -71,8 +71,9 @@ describe('command inventory (guest-js)', () => {
     const file = path.join(__dirname, '..', 'guest-js', 'serial-port.ts');
     const source = fs.readFileSync(file, 'utf8');
     const found = guestJsInvokeCommands(source);
-    const expected = new Set(HANDLER_COMMANDS);
+    // `read` stays for Rust callers; guest-js reads bytes and decodes them itself.
+    const rustOnly = new Set(['read']);
+    const expected = new Set(HANDLER_COMMANDS.filter((c) => !rustOnly.has(c)));
     expect([...found].sort()).toEqual([...expected].sort());
-    expect(found.size).toBe(HANDLER_COMMANDS.length);
   });
 });

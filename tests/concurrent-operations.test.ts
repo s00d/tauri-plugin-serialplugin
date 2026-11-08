@@ -1,5 +1,5 @@
 import { SerialPort } from '../guest-js';
-import { setupTestMocks, createTestSerialPort } from './test-utils';
+import { setupTestMocks, createTestSerialPort, wire } from './test-utils';
 
 describe('SerialPort Concurrent Operations', () => {
   let mockInvoke: ReturnType<typeof setupTestMocks>['mockInvoke'];
@@ -22,7 +22,7 @@ describe('SerialPort Concurrent Operations', () => {
 
     it('should handle multiple concurrent reads', async () => {
       const promises = Array(5).fill(null).map(async () => {
-        mockInvoke.mockResolvedValueOnce('test data');
+        mockInvoke.mockResolvedValueOnce(wire('test data'));
         return await serialPort.read();
       });
 
@@ -52,7 +52,7 @@ describe('SerialPort Concurrent Operations', () => {
           return await serialPort.write('write1');
         },
         async () => {
-          mockInvoke.mockResolvedValueOnce('read1');
+          mockInvoke.mockResolvedValueOnce(wire('read1'));
           return await serialPort.read();
         },
         async () => {
@@ -60,7 +60,7 @@ describe('SerialPort Concurrent Operations', () => {
           return await serialPort.write('write2');
         },
         async () => {
-          mockInvoke.mockResolvedValueOnce('read2');
+          mockInvoke.mockResolvedValueOnce(wire('read2'));
           return await serialPort.read();
         }
       ];
