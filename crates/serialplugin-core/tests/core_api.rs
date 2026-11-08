@@ -36,6 +36,12 @@ struct Shared {
     live: AtomicUsize,
     cleared_input: AtomicUsize,
     responder: Mutex<Option<Responder>>,
+    /// Every read returns `Ok(0)` at once (a tty after hang-up).
+    eof: AtomicBool,
+    /// The next this many reads return `Ok(0)` at once.
+    eof_left: AtomicU32,
+    /// When each `Ok(0)` read happened.
+    eof_reads: Mutex<Vec<Instant>>,
 }
 
 /// Handle to a fake device; [`Fake::port`] makes the `SerialPort` for the manager.
@@ -73,6 +79,13 @@ impl Fake {
     fn fail_reads(&self, kind: io::ErrorKind) {
         *self.0.read_error.lock().unwrap() = Some(kind);
         self.0.cv.notify_all();
+    }
+    fn eof(&self) {
+        self.0.eof.store(true, Ordering::SeqCst);
+        self.0.cv.notify_all();
+    }
+    fn eof_reads(&self) -> Vec<Instant> {
+        self.0.eof_reads.lock().unwrap().clone()
     }
     fn fail_writes(&self, kind: io::ErrorKind) {
         *self.0.write_error.lock().unwrap() = Some(kind);
@@ -117,6 +130,14 @@ impl Read for FakePort {
         loop {
             if let Some(kind) = *self.s.read_error.lock().unwrap() {
                 return Err(io::Error::new(kind, "fake read error"));
+            }
+            let left = self.s.eof_left.load(Ordering::SeqCst);
+            if self.s.eof.load(Ordering::SeqCst) || left > 0 {
+                if left > 0 {
+                    self.s.eof_left.store(left - 1, Ordering::SeqCst);
+                }
+                self.s.eof_reads.lock().unwrap().push(Instant::now());
+                return Ok(0);
             }
             if !rx.is_empty() {
                 let n = buf.len().min(rx.len());
@@ -1430,4 +1451,233 @@ fn modem_leaving_mux_tears_the_session_down() {
             .is_ok()
     });
     m.close("left".into()).unwrap();
+}
+
+// ---------------------------------------------------------------- 4.2.1
+
+/// A tty that returns EOF after an unplug: three `Ok(0)` reads in a row end in one
+/// `Disconnect` (tombstone, `Disconnected` state), and the hub waits between them.
+#[test]
+fn eof_reads_end_in_one_disconnect_without_spinning() {
+    let fake = Fake::new();
+    let m = manager_with("eof", fake.port(true));
+    let (sub, states) = core_sink();
+    m.subscribe_core(sub);
+    let (cs, crx) = core_sink();
+    m.watch_core("eof".into(), WatchOptions::default(), None, cs)
+        .unwrap();
+    let start = Instant::now();
+    fake.eof();
+    let reason = "Serial port disconnected: EOF";
+    loop {
+        match crx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("Disconnect")
+        {
+            CoreEvent::Event(SerialEvent::Disconnect { reason: r, .. }) => {
+                assert_eq!(r, reason);
+                break;
+            }
+            _ => continue,
+        }
+    }
+    // 3 x the 10 ms poll timeout, with slack for a loaded CI machine.
+    assert!(
+        start.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        start.elapsed()
+    );
+    let kind = loop {
+        match states.recv_timeout(Duration::from_secs(2)).expect("state") {
+            CoreEvent::PortState {
+                state: PortStatus::Disconnected { kind, reason: r },
+                ..
+            } => {
+                assert_eq!(r, reason);
+                break kind;
+            }
+            _ => continue,
+        }
+    };
+    assert_eq!(kind, ErrorKind::Disconnected);
+    wait_until("handles released", Duration::from_secs(2), || {
+        fake.live() == 0
+    });
+    let reads = fake.eof_reads();
+    assert_eq!(
+        reads.len(),
+        3,
+        "EOF reads: no spinning, no read after Disconnect"
+    );
+    let spread = reads[2] - reads[0];
+    assert!(
+        spread >= Duration::from_millis(18),
+        "EOF reads {spread:?} apart: hub spun"
+    );
+    assert!(
+        crx.recv_timeout(Duration::from_millis(200)).is_err(),
+        "a second event after Disconnect"
+    );
+    assert_eq!(m.managed_ports().unwrap(), vec!["eof".to_string()]);
+    let e = m.write_core("eof".into(), b"x".to_vec()).unwrap_err();
+    assert_eq!(e.kind(), ErrorKind::Disconnected);
+    assert_eq!(e.to_string(), reason);
+    m.close("eof".into()).unwrap();
+}
+
+/// Two `Ok(0)` reads, then data, again and again: the count restarts, no `Disconnect`.
+#[test]
+fn data_between_eof_reads_keeps_the_port_open() {
+    let fake = Fake::new();
+    let m = manager_with("eof-reset", fake.port(true));
+    let (s, rx) = old_sink();
+    m.watch("eof-reset".into(), watch_opts(5, false), s)
+        .unwrap();
+    for i in 0..5u8 {
+        {
+            let mut q = fake.0.rx.lock().unwrap();
+            fake.0.eof_left.store(2, Ordering::SeqCst);
+            q.push_back(b'a' + i);
+            fake.0.cv.notify_all();
+        }
+        let got = collect_data(&rx, Duration::from_secs(2), |d| !d.is_empty());
+        assert_eq!(got, vec![b'a' + i]);
+    }
+    assert_eq!(fake.eof_reads().len(), 10);
+    assert!(rx.recv_timeout(Duration::from_millis(100)).is_err());
+    m.write("eof-reset".into(), "x".into())
+        .expect("port still open");
+    m.close("eof-reset".into()).unwrap();
+}
+
+/// `insert_port_watch_core`: the stream exists before the first read, so bytes the
+/// device sends at once (`RDY`) all reach it.
+#[test]
+fn insert_port_watch_core_gets_the_first_read() {
+    for round in 0..5 {
+        let fake = Fake::new();
+        fake.push(b"RDY\r\n");
+        let m = SerialManager::new();
+        let (cs, crx) = core_sink();
+        let id = m
+            .insert_port_watch_core(
+                "rdy".into(),
+                fake.port(true),
+                watch_opts(5, false),
+                None,
+                cs,
+            )
+            .unwrap();
+        let mut got: Vec<u8> = Vec::new();
+        while got.len() < 5 {
+            let ev = crx
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap_or_else(|_| panic!("round {round}: got {got:?}"));
+            got.extend(core_data(&ev).unwrap_or_default());
+        }
+        assert_eq!(got, b"RDY\r\n");
+        m.unwatch_core(id).unwrap();
+        m.close("rdy".into()).unwrap();
+    }
+}
+
+/// A device that dies right after insert: the call succeeds and the stream gets the
+/// `Disconnect` (an `insert_port` + `watch_core` pair could miss it).
+#[test]
+fn insert_port_watch_core_of_a_dead_device_delivers_disconnect() {
+    for round in 0..5 {
+        let fake = Fake::new();
+        fake.fail_reads(io::ErrorKind::BrokenPipe);
+        let m = SerialManager::new();
+        let (cs, crx) = core_sink();
+        m.insert_port_watch_core(
+            "dead".into(),
+            fake.port(true),
+            WatchOptions::default(),
+            None,
+            cs,
+        )
+        .expect("insert succeeds");
+        match crx
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap_or_else(|_| panic!("round {round}: no Disconnect"))
+        {
+            CoreEvent::Event(SerialEvent::Disconnect { path, reason }) => {
+                assert_eq!(path, "dead");
+                assert_eq!(reason, "Serial port disconnected: fake read error");
+            }
+            other => panic!("round {round}: {other:?}"),
+        }
+        m.close("dead".into()).unwrap();
+    }
+}
+
+fn open_watch(
+    m: &SerialManager,
+    path: &str,
+    sink: CoreSink,
+) -> Result<(String, serialplugin_core::events::SubscriptionId), CoreError> {
+    m.open_watch_core(
+        path.into(),
+        115_200,
+        None,
+        None,
+        None,
+        None,
+        Some(200),
+        Default::default(),
+        watch_opts(5, false),
+        readline(),
+        sink,
+    )
+}
+
+/// `open_watch_core` on a bridge that greets at once: the parser stream gets it.
+#[test]
+fn open_watch_core_gets_bytes_sent_right_after_open() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let path = format!("tcp://{}", listener.local_addr().unwrap());
+    let (done_tx, done_rx) = mpsc::channel::<()>();
+    let server = thread::spawn(move || {
+        let (mut sock, _) = listener.accept().unwrap();
+        sock.write_all(b"RDY\r\n+QIND: 1\r\n").unwrap();
+        let _ = done_rx.recv_timeout(Duration::from_secs(5));
+    });
+    let m = SerialManager::new();
+    let (cs, crx) = core_sink();
+    let (session, id) = open_watch(&m, &path, cs).expect("open_watch_core");
+    assert_eq!(session, path);
+    assert_eq!(next_frame(&crx), b"RDY\r");
+    assert_eq!(next_frame(&crx), b"+QIND: 1\r");
+    m.unwatch_core(id).unwrap();
+    m.close(path).unwrap();
+    let _ = done_tx.send(());
+    server.join().unwrap();
+}
+
+/// A bridge that closes the connection at once: TCP EOF is a `Disconnect` on the
+/// first `Ok(0)`, it reaches the stream, and `open_watch_core` still succeeds.
+#[test]
+fn open_watch_core_of_a_bridge_that_hangs_up_delivers_disconnect() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let path = format!("tcp://{}", listener.local_addr().unwrap());
+    let server = thread::spawn(move || drop(listener.accept().unwrap()));
+    let m = SerialManager::new();
+    let (cs, crx) = core_sink();
+    open_watch(&m, &path, cs).expect("open succeeds");
+    server.join().unwrap();
+    loop {
+        match crx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("Disconnect")
+        {
+            CoreEvent::Event(SerialEvent::Disconnect { path: p, reason }) => {
+                assert_eq!(p, path);
+                assert!(reason.contains("closed the connection"), "{reason}");
+                break;
+            }
+            _ => continue,
+        }
+    }
+    m.close(path).unwrap();
 }

@@ -1,5 +1,22 @@
 # Changelog
 
+## [4.2.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.0...v4.2.1) (2026-11-08)
+
+No breaking API changes; serialplugin-core 0.2.1.
+
+### Fixes
+
+* A local serial port whose reads return end of stream (`Ok(0)`, e.g. a tty after hang-up / unplug) no longer busy-polls forever: three such reads in a row end in one `Disconnect` with reason `Serial port disconnected: EOF` (released as any disconnect: `PortState::Disconnected`, kind `Disconnected`); data in between restarts the count, and the hub waits a poll interval between them. Not on Android, where the USB adapter returns `Ok(0)` for a read timeout. `tcp://` already reports its first `Ok(0)` (peer closed) as `Disconnect`.
+* BLE: an empty notification is read as "no data yet", not as end of stream.
+
+### Features (serialplugin-core 0.2.1)
+
+* `SerialManager::open_watch_core` (the `open_core` arguments plus `options`, `parser`, `sink`; returns the session path and the `SubscriptionId`) and `insert_port_watch_core`: the `watch_core` stream is attached before the hub's first read, so bytes sent right after open (`RDY`, URCs) and a `Disconnect` of a port that dies at once reach it; the call still succeeds in that case.
+
+### Docs
+
+* `open_core`: re-opening an open path replaces that session (watches, CMUX, hub), as `open` does in 4.x.
+
 ## [4.2.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.1.0...v4.2.0) (2026-11-08)
 
 No breaking API changes: Rust and JS code written for 4.x keeps compiling and the

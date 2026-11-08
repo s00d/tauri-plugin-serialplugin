@@ -137,6 +137,10 @@ impl RxQueue {
             match self.rx.recv_timeout(timeout.max(Duration::from_millis(1))) {
                 Ok(chunk) => {
                     self.took(&chunk);
+                    if chunk.is_empty() {
+                        // An empty notification: no data, never `Ok(0)` (that is EOF).
+                        return Err(io::Error::new(io::ErrorKind::TimedOut, "BLE read timeout"));
+                    }
                     self.pending = chunk;
                 }
                 Err(RecvTimeoutError::Timeout) => {
@@ -195,6 +199,17 @@ mod tests {
         let e = q.read(&mut buf, Duration::from_millis(5)).unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
         q.clear();
+    }
+
+    /// An empty notification is no data, not `Ok(0)` (the hub reads that as EOF).
+    #[test]
+    fn empty_notification_is_a_timeout_not_eof() {
+        let (tx, rx) = mpsc::channel();
+        let mut q = RxQueue::new(rx);
+        tx.send(Vec::new()).unwrap();
+        let mut buf = [0u8; 4];
+        let e = q.read(&mut buf, Duration::from_millis(10)).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::TimedOut);
     }
 
     #[test]

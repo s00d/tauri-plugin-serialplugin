@@ -111,6 +111,10 @@ impl MockSerialPort {
             buf[..len].copy_from_slice(&self.rx_buffer[..len]);
             self.rx_buffer.drain(..len);
         }
+        if len == 0 && !buf.is_empty() {
+            // As serialport: nothing within the timeout is `TimedOut` (`Ok(0)` is EOF).
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "mock read timeout"));
+        }
         Ok(len)
     }
 }

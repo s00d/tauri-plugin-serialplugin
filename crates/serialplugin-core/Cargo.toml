@@ -1,6 +1,6 @@
 [package]
 name = "serialplugin-core"
-version = "0.2.0"
+version = "0.2.1"
 description = "Serial port core of tauri-plugin-serialplugin without Tauri: RX hub, watch streams with native parsers, AT exchange, CMUX, TCP and BLE transports"
 edition = "2021"
 rust-version = "1.90"

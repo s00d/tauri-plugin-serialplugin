@@ -697,6 +697,10 @@ impl SerialManager {
     /// [`Self::open_with_lines`] with a [`CoreError`] (kind `NotFound`, `PermissionDenied`,
     /// `Busy`, … and the platform error as its source). `timeout` (ms, default 1000)
     /// is the port's read / write timeout; [`Self::set_timeout`] changes it later.
+    ///
+    /// Opening a path that is already open (or disconnected and not yet closed)
+    /// replaces that session, as `open` does in 4.x: it is closed first, with its
+    /// watches, `watch_core` streams, CMUX channels and RX hub.
     #[allow(clippy::too_many_arguments)]
     pub fn open_core(
         &self,
@@ -708,6 +712,126 @@ impl SerialManager {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
         lines: crate::state::ModemLinesOnOpen,
+    ) -> Result<String, CoreError> {
+        self.open_core_with(
+            path,
+            baud_rate,
+            data_bits,
+            flow_control,
+            parity,
+            stop_bits,
+            timeout,
+            lines,
+            None,
+        )
+    }
+
+    /// [`Self::open_core`] plus a [`Self::watch_core`] stream that exists before the
+    /// port's first read: no byte and no event is lost (a `RDY` / URC sent right after
+    /// open, or a `Disconnect` of a port that dies at once, which still returns `Ok`).
+    /// Returns the session path and the stream's id (for [`Self::unwatch_core`]). An
+    /// invalid `parser` fails before the port is opened.
+    #[allow(clippy::too_many_arguments)]
+    pub fn open_watch_core(
+        &self,
+        path: String,
+        baud_rate: u32,
+        data_bits: Option<DataBits>,
+        flow_control: Option<FlowControl>,
+        parity: Option<Parity>,
+        stop_bits: Option<StopBits>,
+        timeout: Option<u64>,
+        lines: crate::state::ModemLinesOnOpen,
+        options: WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
+        sink: CoreSink,
+    ) -> Result<(String, SubscriptionId), CoreError> {
+        let (id, queue, slot) = self.first_core_watch(&options, parser, sink)?;
+        match self.open_core_with(
+            path,
+            baud_rate,
+            data_bits,
+            flow_control,
+            parity,
+            stop_bits,
+            timeout,
+            lines,
+            Some(slot),
+        ) {
+            Ok(session) => {
+                crate::sync_util::lock_or_recover(&self.core.core_watches)
+                    .insert(id, session.clone());
+                Ok((session, SubscriptionId(id)))
+            }
+            Err(e) => {
+                queue.close();
+                Err(e)
+            }
+        }
+    }
+
+    /// [`Self::insert_port`] plus a [`Self::watch_core`] stream that exists before the
+    /// port's first read, as [`Self::open_watch_core`].
+    pub fn insert_port_watch_core(
+        &self,
+        path: String,
+        port: Box<dyn SerialPortTrait>,
+        options: WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
+        sink: CoreSink,
+    ) -> Result<SubscriptionId, CoreError> {
+        let (id, queue, slot) = self.first_core_watch(&options, parser, sink)?;
+        match self.insert_port_with(path.clone(), port, Some(slot)) {
+            Ok(()) => {
+                crate::sync_util::lock_or_recover(&self.core.core_watches).insert(id, path);
+                Ok(SubscriptionId(id))
+            }
+            Err(e) => {
+                queue.close();
+                Err(e)
+            }
+        }
+    }
+
+    /// The stream of `open_watch_core` / `insert_port_watch_core`, not attached yet.
+    fn first_core_watch(
+        &self,
+        options: &WatchOptions,
+        parser: Option<serial_codec::framing::FramerConfig>,
+        sink: CoreSink,
+    ) -> Result<(u64, Arc<CoreQueue>, crate::hub::shared::CoreWatchSlot), CoreError> {
+        let framer = parser
+            .as_ref()
+            .map(|p| p.build())
+            .transpose()
+            .map_err(|e| CoreError::new(ErrorKind::Other, Error::String(e.to_string())))?;
+        let (batch_timeout, read_size, route_urc) = watch_params(options);
+        let id = next_subscription_id();
+        let queue = CoreQueue::spawn(sink, self.core_queue_capacity());
+        let slot = crate::hub::shared::CoreWatchSlot::new(
+            id,
+            queue.event_sink(),
+            queue.alive_flag(),
+            batch_timeout,
+            read_size,
+            route_urc,
+            framer,
+        );
+        Ok((id, queue, slot))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn open_core_with(
+        &self,
+        path: String,
+        baud_rate: u32,
+        data_bits: Option<DataBits>,
+        flow_control: Option<FlowControl>,
+        parity: Option<Parity>,
+        stop_bits: Option<StopBits>,
+        timeout: Option<u64>,
+        lines: crate::state::ModemLinesOnOpen,
+        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
     ) -> Result<String, CoreError> {
         // Re-open (e.g. after a webview reload): tear the old session down the same
         // way `close` does, so its watches, CMUX channels and hub go with it.
@@ -780,7 +904,7 @@ impl SerialManager {
                     }
                 }
 
-                let (cp, hub) = self.connect(&session_path, port, timeout);
+                let (cp, hub) = self.connect(&session_path, port, timeout, first_watch);
                 let reserved = matches!(
                     serialports.get(&session_path).map(|i| &i.state),
                     Some(PortState::Opening)
@@ -837,6 +961,15 @@ impl SerialManager {
         path: String,
         port: Box<dyn SerialPortTrait>,
     ) -> Result<(), CoreError> {
+        self.insert_port_with(path, port, None)
+    }
+
+    fn insert_port_with(
+        &self,
+        path: String,
+        port: Box<dyn SerialPortTrait>,
+        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+    ) -> Result<(), CoreError> {
         let known = crate::sync_util::lock_or_recover(&self.serialports).contains_key(&path)
             || crate::sync_util::lock_or_recover(&self.core.disconnected).contains_key(&path);
         if known {
@@ -846,7 +979,7 @@ impl SerialManager {
         // Under the map lock (as `open_core`): a device failing at once is reported by
         // its disconnect hook, which waits for the record.
         let mut serialports = crate::sync_util::lock_or_recover(&self.serialports);
-        let (cp, hub) = self.connect(&path, port, timeout);
+        let (cp, hub) = self.connect(&path, port, timeout, first_watch);
         if let Err(e) = hub {
             drop(serialports);
             self.drop_writer(&path);
@@ -2116,6 +2249,7 @@ impl SerialManager {
         path: &str,
         port: Box<dyn SerialPortTrait>,
         timeout: Duration,
+        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
     ) -> (ConnectedPort, Result<(), Error>) {
         let writer = split_writer(path, port.as_ref(), timeout);
         let cp = ConnectedPort::new(port);
@@ -2128,7 +2262,7 @@ impl SerialManager {
                 },
             );
         }
-        let hub = self.ensure_rx_hub(&cp.handle(), path);
+        let hub = self.start_rx_hub(&cp.handle(), path, first_watch);
         (cp, hub)
     }
 
@@ -2151,6 +2285,16 @@ impl SerialManager {
     /// Start the RX hub if it is not running (it is restarted after an intentional
     /// stop; after a disconnect the port is gone, so it never restarts on a dead fd).
     fn ensure_rx_hub(&self, cp: &ConnectedPortHandle, path: &str) -> Result<(), Error> {
+        self.start_rx_hub(cp, path, None)
+    }
+
+    /// [`Self::ensure_rx_hub`]; `first_watch` joins the hub before its first read.
+    fn start_rx_hub(
+        &self,
+        cp: &ConnectedPortHandle,
+        path: &str,
+        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+    ) -> Result<(), Error> {
         let mut guard = cp
             .rx_hub
             .lock()
@@ -2172,9 +2316,12 @@ impl SerialManager {
                 cp.port.clone(),
                 path.to_string(),
                 Some(hook),
+                first_watch,
             ));
             register_mobile_hub(path, cp, hub.clone());
             *guard = Some(hub);
+        } else if let (Some(slot), Some(hub)) = (first_watch, guard.as_ref()) {
+            hub.shared().attach_core_watch(slot);
         }
         Ok(())
     }

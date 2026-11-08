@@ -91,7 +91,7 @@ use io_errors::{is_benign_read_error, is_disconnect_read_error};
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::hub::shared::{
-    finish_drain, try_complete_drain, ExchangeWaiter, HubRoutingState, RxHubShared,
+    finish_drain, try_complete_drain, CoreWatchSlot, ExchangeWaiter, HubRoutingState, RxHubShared,
 };
 use serial_codec::framing::Framer;
 use serialport::SerialPort;
@@ -104,16 +104,25 @@ use std::time::{Duration, Instant};
 
 const POLL_TIMEOUT: Duration = Duration::from_millis(10);
 
-/// `Ok(None)` means the hub was asked to stop.
+/// One hub read.
+enum PollRead {
+    /// The hub was asked to stop.
+    Stopped,
+    /// Read timeout (or EINTR): no data yet.
+    Idle,
+    /// `Ok(n)`; `Data(0)` with a non-empty buffer is end of stream.
+    Data(usize),
+}
+
 fn poll_read_port(
     port: &Arc<Mutex<Box<dyn SerialPort>>>,
     buf: &mut [u8],
     stop_rx: &Receiver<()>,
     timeout: Duration,
-) -> std::io::Result<Option<usize>> {
+) -> std::io::Result<PollRead> {
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
-            return Ok(None);
+            return Ok(PollRead::Stopped);
         }
         let mut p = match port.try_lock() {
             Ok(g) => g,
@@ -124,16 +133,63 @@ fn poll_read_port(
         };
         let _ = p.set_timeout(timeout);
         match p.read(buf) {
-            Ok(n) => return Ok(Some(n)),
-            Err(e) if is_benign_read_error(&e) => {
-                drop(p);
-                // Yield so hub_loop can complete drain idle/deadline and flush watch batches.
-                return Ok(Some(0));
-            }
+            Ok(n) => return Ok(PollRead::Data(n)),
+            // Yield so hub_loop can complete drain idle/deadline and flush watch batches.
+            Err(e) if is_benign_read_error(&e) => return Ok(PollRead::Idle),
             Err(e) => return Err(e),
         }
     }
 }
+
+/// `Ok(0)` reads in a row before the port is treated as gone. serialport reports a
+/// read timeout as `TimedOut` and POLLHUP as `BrokenPipe`, so `Ok(0)` means poll said
+/// "readable" and there was nothing: end of stream (a tty after hang-up / unplug).
+/// TCP turns its first `Ok(0)` into `UnexpectedEof` itself (a closed socket).
+const MAX_CONSECUTIVE_EOF_READS: u32 = 3;
+
+/// The Android USB adapter returns `Ok(0)` on a read timeout, so `Ok(0)` is no EOF
+/// signal there.
+const EOF_MEANS_DISCONNECT: bool = !cfg!(target_os = "android");
+
+/// Track one read for EOF: `true` once enough `Ok(0)` reads came in a row. An `Ok(0)`
+/// that does not end the port waits like a read timeout (never spin on a dead fd).
+fn note_eof(read: &PollRead, buf_len: usize, eof_reads: &mut u32) -> bool {
+    match read {
+        PollRead::Data(0) if buf_len > 0 && EOF_MEANS_DISCONNECT => {
+            *eof_reads += 1;
+            if *eof_reads >= MAX_CONSECUTIVE_EOF_READS {
+                return true;
+            }
+            thread::sleep(POLL_TIMEOUT);
+        }
+        PollRead::Data(0) => thread::sleep(Duration::from_millis(1)),
+        _ => *eof_reads = 0,
+    }
+    false
+}
+
+/// A real disconnect (not a close): fail waiters, send `Disconnect` once, run the hook.
+fn report_disconnect(
+    shared: &RxHubShared,
+    path: &str,
+    reason: &str,
+    on_disconnect: &mut Option<DisconnectHook>,
+) {
+    shared.fail_all_waiters(reason);
+    shared.emit_disconnect(path, reason);
+    // Android: clear mobile registry + USB adapter (harness expects
+    // inject_bulk_read_error → on_usb_error → registry drop).
+    #[cfg(target_os = "android")]
+    {
+        crate::android::registry::on_usb_error(path, reason);
+        let _ = crate::android::driver_host::global_host().close(Some(path));
+    }
+    if let Some(hook) = on_disconnect.take() {
+        hook(reason);
+    }
+}
+
+const EOF_REASON: &str = "Serial port disconnected: EOF";
 
 /// Non-benign read errors in a row before the port is treated as gone. Windows reports
 /// an unplugged adapter as PermissionDenied / Other, Unix sometimes as EIO, never as
@@ -159,16 +215,21 @@ pub struct PortRxHub {
 
 impl PortRxHub {
     pub fn start(port: Arc<Mutex<Box<dyn SerialPort>>>, path: String) -> Self {
-        Self::start_with(port, path, None)
+        Self::start_with(port, path, None, None)
     }
 
     /// [`Self::start`] with a hook the hub thread runs after a real disconnect.
+    /// `first_watch` is attached before the first read, so it gets every byte and event.
     pub(crate) fn start_with(
         port: Arc<Mutex<Box<dyn SerialPort>>>,
         path: String,
         on_disconnect: Option<DisconnectHook>,
+        first_watch: Option<CoreWatchSlot>,
     ) -> Self {
         let shared = Arc::new(RxHubShared::for_path(path.clone()));
+        if let Some(slot) = first_watch {
+            shared.attach_core_watch(slot);
+        }
         let (stop_tx, stop_rx) = mpsc::channel();
         let shared_clone = shared.clone();
         let thread =
@@ -316,6 +377,7 @@ fn hub_loop(
     let mut read_size = 1024usize;
     let mut last_error_emit = Instant::now() - Duration::from_secs(1);
     let mut consecutive_errors = 0u32;
+    let mut eof_reads = 0u32;
 
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
@@ -330,16 +392,30 @@ fn hub_loop(
             }
 
             let mut buf = vec![0u8; 1024];
-            let n = match poll_read_port(&port, &mut buf, &stop_rx, POLL_TIMEOUT) {
-                Ok(Some(n)) => n,
-                Ok(None) => {
+            let read = match poll_read_port(&port, &mut buf, &stop_rx, POLL_TIMEOUT) {
+                Ok(PollRead::Stopped) => {
                     shutdown_hub_state(&shared, &mut routing);
                     break;
                 }
+                Ok(read) => read,
                 Err(e) => {
                     finish_drain(&shared, Err(format!("drain read failed: {}", e)));
                     continue;
                 }
+            };
+            if note_eof(&read, buf.len(), &mut eof_reads) {
+                if shared.is_closing() {
+                    shutdown_hub_state(&shared, &mut routing);
+                } else {
+                    shared.flush_watch_now(&mut routing);
+                    shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+                    report_disconnect(&shared, &path, EOF_REASON, &mut on_disconnect);
+                }
+                break;
+            }
+            let n = match read {
+                PollRead::Data(n) => n,
+                _ => 0,
             };
 
             if n > 0 {
@@ -373,16 +449,30 @@ fn hub_loop(
         if read_result.is_ok() {
             consecutive_errors = 0;
         }
+        if let Ok(read) = &read_result {
+            if note_eof(read, buf.len(), &mut eof_reads) {
+                shared.flush_watch_now(&mut routing);
+                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+                if shared.is_closing() {
+                    // Intentional close racing the EOF: no `Disconnect`.
+                    shutdown_hub_state(&shared, &mut routing);
+                } else {
+                    report_disconnect(&shared, &path, EOF_REASON, &mut on_disconnect);
+                }
+                break;
+            }
+        }
         match read_result {
-            Ok(None) => {
+            Ok(PollRead::Stopped) => {
                 shutdown_hub_state(&shared, &mut routing);
                 break;
             }
-            Ok(Some(n)) if n > 0 => {
+            Ok(PollRead::Data(n)) if n > 0 => {
                 shared.feed_bytes(&buf[..n], &mut routing);
                 shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
             }
-            Ok(Some(_)) => {
+            Ok(PollRead::Data(_)) => {}
+            Ok(PollRead::Idle) => {
                 thread::sleep(Duration::from_millis(1));
             }
             Err(e) => {
@@ -397,18 +487,7 @@ fn hub_loop(
                 if is_disconnect_read_error(&e) || consecutive_errors >= MAX_CONSECUTIVE_READ_ERRORS
                 {
                     let reason = format!("Serial port disconnected: {}", e);
-                    shared.fail_all_waiters(&reason);
-                    shared.emit_disconnect(&path, &reason);
-                    // Android: clear mobile registry + USB adapter (harness expects
-                    // inject_bulk_read_error → on_usb_error → registry drop).
-                    #[cfg(target_os = "android")]
-                    {
-                        crate::android::registry::on_usb_error(&path, &reason);
-                        let _ = crate::android::driver_host::global_host().close(Some(&path));
-                    }
-                    if let Some(hook) = on_disconnect.take() {
-                        hook(&reason);
-                    }
+                    report_disconnect(&shared, &path, &reason, &mut on_disconnect);
                     break;
                 }
                 if last_error_emit.elapsed() >= Duration::from_secs(1) {

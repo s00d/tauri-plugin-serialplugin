@@ -3096,7 +3096,7 @@ dependencies = [
 
 [[package]]
 name = "serialplugin-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "android-usb-serial",
  "btleplug",
@@ -3571,7 +3571,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "4.2.0"
+version = "4.2.1"
 dependencies = [
  "log",
  "serde",
