@@ -39,18 +39,27 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: serialplugin-core has no Tauri dependency
+        shell: bash
+        run: |
+          for f in "" "--features ble"; do
+            if cargo tree -p serialplugin-core -e normal,build --prefix none -f '{lib}' $f | grep -i tauri; then
+              echo "serialplugin-core must not depend on tauri"; exit 1
+            fi
+          done
+
       - name: Clippy + tests with the BLE transport (`ble` feature)
         run: |
-          cargo clippy -p tauri-plugin-serialplugin --all-targets --features ble -- -D warnings
-          cargo test -p tauri-plugin-serialplugin --lib --features ble port::ble
+          cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --all-targets --features ble -- -D warnings
+          cargo test -p serialplugin-core --lib --features ble port::ble
 
       - name: iOS build check (tcp:// and ble://)
         if: runner.os == 'macOS'
         run: |
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
           for t in aarch64-apple-ios aarch64-apple-ios-sim; do
-            cargo clippy -p tauri-plugin-serialplugin --target $t -- -D warnings
-            cargo clippy -p tauri-plugin-serialplugin --target $t --features ble -- -D warnings
+            cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target $t -- -D warnings
+            cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target $t --features ble -- -D warnings
           done
 
       - name: Rust tests (plugin + android-usb-serial host tests)
@@ -68,11 +77,11 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           for t in aarch64-linux-android x86_64-linux-android; do
-            cargo clippy -p tauri-plugin-serialplugin -p android-usb-serial --target $t --all-targets -- -D warnings
+            cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core -p android-usb-serial --target $t --all-targets -- -D warnings
           done
-          cargo clippy -p tauri-plugin-serialplugin --target aarch64-linux-android --all-targets --features android-test-harness -- -D warnings
+          cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target aarch64-linux-android --all-targets --features android-test-harness -- -D warnings
 
-      - name: MSRV (plugin 1.90, android-usb-serial 1.85)
+      - name: MSRV (plugin + serialplugin-core 1.90, android-usb-serial 1.85)
         if: runner.os == 'Linux'
         run: |
           rustup toolchain install 1.90 1.85 --profile minimal

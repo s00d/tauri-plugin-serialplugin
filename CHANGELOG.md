@@ -4,6 +4,13 @@
 
 ### Features
 
+* New `serialplugin-core` crate (`crates/serialplugin-core`): the plugin's whole serial core
+  (RX hub, watch with parsers, exchange / AT / SMS PDU, CMUX, TCP, BLE, Android USB)
+  without Tauri. `SerialManager` takes closure sinks (`EventSink`, `PortListSink`)
+  instead of IPC channels, so headless Rust apps can drive many ports directly. The
+  plugin is now a thin layer: `api::SerialPort<R>` derefs to `SerialManager` and the
+  moved modules are re-exported at their old paths (`state`, `events`, `error`, `at`,
+  `hub`, …). Only Android loses `From<PluginInvokeError> for error::Error`.
 * New `serial-codec` crate (`crates/serial-codec`): byte stream framing with Node
   serialport parser parity (delimiter, readline, byteLength, interByteTimeout,
   packetLength, ready, regex, startEnd, SLIP, ccTalk), AT response parsing and

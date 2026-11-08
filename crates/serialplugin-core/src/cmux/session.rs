@@ -11,7 +11,6 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::ipc::Channel;
 
 /// Per-DLCI routing state (virtual channel).
 pub struct DlciChannel {
@@ -22,7 +21,7 @@ pub struct DlciChannel {
 }
 
 struct DlciWatchSlot {
-    channel: Channel<SerialEvent>,
+    channel: crate::events::EventSink,
     batch_timeout_ms: u64,
     flush_at: Instant,
     /// Native parser: each frame is one `Data` event, no batching.
@@ -41,7 +40,7 @@ impl DlciChannel {
 
     pub fn attach_watch(
         &self,
-        channel: Channel<SerialEvent>,
+        channel: crate::events::EventSink,
         batch_timeout_ms: u64,
         framer: Option<Box<dyn Framer>>,
     ) {
@@ -64,7 +63,7 @@ impl DlciChannel {
         }
     }
 
-    fn send_frames(&self, channel: &Channel<SerialEvent>, frames: Vec<Vec<u8>>) {
+    fn send_frames(&self, channel: &crate::events::EventSink, frames: Vec<Vec<u8>>) {
         for data in frames {
             crate::port::watch_registry::send_event(
                 channel,
@@ -236,7 +235,7 @@ impl CmuxSession {
     pub fn set_watch(
         &self,
         dlci: u8,
-        channel: Channel<SerialEvent>,
+        channel: crate::events::EventSink,
         batch_timeout_ms: u64,
         framer: Option<Box<dyn Framer>>,
     ) {
@@ -430,13 +429,11 @@ mod tests {
         session.register_dlci(2, "mock#dlci=2".into());
         let frames = Arc::new(Mutex::new(Vec::new()));
         let sink = frames.clone();
-        let channel = Channel::<SerialEvent>::new(move |body| {
-            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
-                if let SerialEvent::Data { data, .. } = serde_json::from_str(&json).unwrap() {
-                    sink.lock().unwrap().push(data);
-                }
+        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
+            if let SerialEvent::Data { data, .. } = event {
+                sink.lock().unwrap().push(data);
             }
-            Ok(())
+            true
         });
         let cfg: FramerConfig =
             serde_json::from_value(serde_json::json!({"type": "readline"})).unwrap();

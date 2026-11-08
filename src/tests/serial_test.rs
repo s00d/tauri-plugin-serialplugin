@@ -193,47 +193,6 @@ mod tests {
         }
     }
 
-    // Implementation of From for type conversion
-    impl From<serialport::DataBits> for DataBits {
-        fn from(bits: serialport::DataBits) -> Self {
-            match bits {
-                serialport::DataBits::Five => DataBits::Five,
-                serialport::DataBits::Six => DataBits::Six,
-                serialport::DataBits::Seven => DataBits::Seven,
-                serialport::DataBits::Eight => DataBits::Eight,
-            }
-        }
-    }
-
-    impl From<serialport::FlowControl> for FlowControl {
-        fn from(flow: serialport::FlowControl) -> Self {
-            match flow {
-                serialport::FlowControl::None => FlowControl::None,
-                serialport::FlowControl::Software => FlowControl::Software,
-                serialport::FlowControl::Hardware => FlowControl::Hardware,
-            }
-        }
-    }
-
-    impl From<serialport::Parity> for Parity {
-        fn from(parity: serialport::Parity) -> Self {
-            match parity {
-                serialport::Parity::None => Parity::None,
-                serialport::Parity::Odd => Parity::Odd,
-                serialport::Parity::Even => Parity::Even,
-            }
-        }
-    }
-
-    impl From<serialport::StopBits> for StopBits {
-        fn from(bits: serialport::StopBits) -> Self {
-            match bits {
-                serialport::StopBits::One => StopBits::One,
-                serialport::StopBits::Two => StopBits::Two,
-            }
-        }
-    }
-
     struct TestSerialPort<R: Runtime> {
         app: tauri::AppHandle<R>,
         serialports: Arc<Mutex<HashMap<String, SerialportInfo>>>,

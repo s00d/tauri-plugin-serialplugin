@@ -1,9 +1,8 @@
 //! Tracks active desktop watch sessions keyed by channel id.
 
-use crate::events::SerialEvent;
+use crate::events::{EventSink, SerialEvent};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use tauri::ipc::Channel;
 
 static REGISTRY: OnceLock<Mutex<HashMap<u32, String>>> = OnceLock::new();
 
@@ -35,8 +34,8 @@ pub fn paths_for_port(path: &str) -> Vec<u32> {
         .collect()
 }
 
-pub fn send_event(channel: &Channel<SerialEvent>, event: SerialEvent) {
-    if let Err(e) = channel.send(event) {
-        crate::log_warn!("Failed to send serial event on channel: {}", e);
+pub fn send_event(channel: &EventSink, event: SerialEvent) {
+    if !channel(event) {
+        crate::log_warn!("Failed to send serial event: receiver is gone");
     }
 }

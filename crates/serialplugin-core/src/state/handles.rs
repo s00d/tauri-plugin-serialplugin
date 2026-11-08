@@ -71,8 +71,8 @@ impl SerialportInfo {
         }
     }
 
-    #[cfg(all(test, not(target_os = "android")))]
-    pub(crate) fn connected_port_mut(&mut self) -> Option<&mut ConnectedPort> {
+    #[doc(hidden)]
+    pub fn connected_port_mut(&mut self) -> Option<&mut ConnectedPort> {
         match &mut self.state {
             PortState::Connected(cp) => Some(cp),
             _ => None,
@@ -107,8 +107,8 @@ impl ConnectedPort {
     }
 }
 
-#[cfg(test)]
 impl ConnectedPort {
+    #[doc(hidden)]
     pub fn test_port_mut(&self) -> std::sync::MutexGuard<'_, Box<dyn SerialPort>> {
         self.port.lock().unwrap()
     }

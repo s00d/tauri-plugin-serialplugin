@@ -1,11 +1,11 @@
 #![cfg(test)]
 #![allow(dead_code)]
 
-#[path = "../../../src/error.rs"]
+#[path = "../../../crates/serialplugin-core/src/error.rs"]
 mod error;
-#[path = "../../../src/android/fd_bridge.rs"]
+#[path = "../../../crates/serialplugin-core/src/android/fd_bridge.rs"]
 mod fd_bridge;
-#[path = "../../../src/jni_ready.rs"]
+#[path = "../../../crates/serialplugin-core/src/jni_ready.rs"]
 mod jni_ready;
 
 #[macro_export]

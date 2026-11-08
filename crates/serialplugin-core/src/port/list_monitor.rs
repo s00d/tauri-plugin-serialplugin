@@ -1,20 +1,19 @@
 //! Background polling for available-port list changes (desktop + shared diff helpers).
 
 use crate::error::Error;
-use crate::events::{PortListEvent, WatchPortsOptions};
+use crate::events::{PortListEvent, PortListSink, WatchPortsOptions};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
-use tauri::ipc::Channel;
 
 const DEFAULT_POLL_MS: u64 = 2000;
 const MIN_POLL_MS: u64 = 250;
 const MAX_POLL_MS: u64 = 30_000;
 
 struct Subscriber {
-    channel: Channel<PortListEvent>,
+    channel: PortListSink,
     single_port_per_device: bool,
     poll_interval_ms: u64,
     last: HashMap<String, HashMap<String, String>>,
@@ -79,15 +78,13 @@ pub fn diff_ports(old: &PortListMap, new: &PortListMap) -> PortDiff {
     (added, removed)
 }
 
-/// Returns false when the webview side of the channel is gone.
-fn send_event(channel: &Channel<PortListEvent>, event: PortListEvent) -> bool {
-    match channel.send(event) {
-        Ok(()) => true,
-        Err(e) => {
-            crate::log_warn!("Failed to send port list event: {}", e);
-            false
-        }
+/// Returns false when the receiver is gone.
+fn send_event(channel: &PortListSink, event: PortListEvent) -> bool {
+    let alive = channel(event);
+    if !alive {
+        crate::log_warn!("Failed to send port list event: receiver is gone");
     }
+    alive
 }
 
 #[cfg(not(target_os = "android"))]
@@ -213,7 +210,7 @@ fn ensure_thread(state: &mut MonitorState) {
 /// Subscribe to available-port list changes. Sends an initial [`PortListEvent::Snapshot`].
 pub fn subscribe(
     channel_id: u32,
-    channel: Channel<PortListEvent>,
+    channel: PortListSink,
     options: WatchPortsOptions,
 ) -> Result<(), Error> {
     let single = options.single_port_per_device.unwrap_or(false);
@@ -307,7 +304,7 @@ mod tests {
     #[cfg(not(target_os = "android"))]
     #[test]
     fn unsubscribe_does_not_block_and_thread_exits() {
-        let channel: Channel<PortListEvent> = Channel::new(|_| Ok(()));
+        let channel: PortListSink = Arc::new(|_| true);
         subscribe(
             9_999,
             channel,

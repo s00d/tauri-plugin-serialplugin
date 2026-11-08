@@ -37,7 +37,6 @@ mod io_errors {
             use crate::mock_serial::MockSerialPort;
             use std::sync::{Arc, Mutex};
             use std::time::Duration;
-            use tauri::ipc::{Channel, InvokeResponseBody};
 
             let mut mock = MockSerialPort::new();
             mock.sticky_read_error = Some(std::io::ErrorKind::PermissionDenied);
@@ -45,13 +44,11 @@ mod io_errors {
                 Arc::new(Mutex::new(Box::new(mock)));
             let (tx, rx) = std::sync::mpsc::channel();
             let tx = Mutex::new(tx);
-            let channel = Channel::<SerialEvent>::new(move |body| {
-                if let InvokeResponseBody::Json(json) = body {
-                    if json.contains("disconnect") {
-                        let _ = tx.lock().unwrap().send(());
-                    }
+            let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
+                if matches!(event, SerialEvent::Disconnect { .. }) {
+                    let _ = tx.lock().unwrap().send(());
                 }
-                Ok(())
+                true
             });
             let hub = super::super::PortRxHub::start(port, "unplugged".into());
             hub.attach_watch(channel, 10, 64, false, None);
@@ -104,7 +101,6 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-use tauri::ipc::Channel;
 
 const POLL_TIMEOUT: Duration = Duration::from_millis(10);
 
@@ -183,7 +179,7 @@ impl PortRxHub {
 
     pub fn attach_watch(
         &self,
-        channel: Channel<SerialEvent>,
+        channel: crate::events::EventSink,
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
@@ -256,7 +252,7 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
     }
     fn attach_watch(
         &self,
-        channel: Channel<SerialEvent>,
+        channel: crate::events::EventSink,
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
@@ -379,7 +375,7 @@ fn hub_loop(
                         .as_ref()
                         .map(|watch| watch.channel.clone());
                     if let Some(channel) = channel {
-                        let _ = channel.send(SerialEvent::Error {
+                        let _ = (channel)(SerialEvent::Error {
                             path: path.clone(),
                             message: format!("Serial read error: {}", e),
                         });

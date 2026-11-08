@@ -60,7 +60,7 @@ android/
 └── build.gradle
 
 crates/android-usb-serial/   # published-quality driver crate (nusb)
-src/android/                 # fd_bridge, driver_host, registry JNI
+crates/serialplugin-core/src/android/  # fd_bridge, driver_host, registry JNI
 ```
 
 ## Attribution

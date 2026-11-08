@@ -8,10 +8,12 @@ pub fn lock_or_recover<'a, T>(mutex: &'a Mutex<T>) -> MutexGuard<'a, T> {
 }
 
 /// Serialize PTY integration tests (parallel `TTYPort::pair()` races on macOS).
-#[cfg(all(test, unix, not(target_os = "android")))]
+#[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
 static PTY_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-#[cfg(all(test, unix, not(target_os = "android")))]
+/// Test helper: a PTY pair, with a process-wide lock held while it is alive.
+#[doc(hidden)]
+#[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
 pub fn pty_pair_locked() -> (
     MutexGuard<'static, ()>,
     serialport::TTYPort,

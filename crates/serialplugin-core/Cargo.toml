@@ -1,0 +1,49 @@
+[package]
+name = "serialplugin-core"
+version = "0.1.0"
+description = "Serial port core of tauri-plugin-serialplugin without Tauri: RX hub, watch streams with native parsers, AT exchange, CMUX, TCP and BLE transports"
+edition = "2021"
+rust-version = "1.90"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/s00d/tauri-plugin-serialplugin"
+homepage = "https://github.com/s00d/tauri-plugin-serialplugin/tree/main/crates/serialplugin-core"
+documentation = "https://docs.rs/serialplugin-core"
+authors = ["s00d"]
+keywords = ["serial", "serialport", "at-commands", "cmux", "modem"]
+categories = ["hardware-support", "api-bindings"]
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+# Serial over Bluetooth LE (Nordic UART Service), desktop + iOS. On Linux it needs libdbus (BlueZ).
+ble = ["dep:btleplug", "dep:tokio", "dep:futures", "dep:uuid"]
+# In-memory USB transport for the Android JNI test harness (debug builds only).
+android-test-harness = ["android-usb-serial/fake-transport"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serial-codec = { path = "../serial-codec", version = "0.1.0" }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+btleplug = { version = "0.13", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "macros"], optional = true }
+futures = { version = "0.3", optional = true }
+uuid = { version = "1", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+# Full USB serial numbers for COM ports (serialport truncates them at '-').
+winreg = "0.56"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Stay on 0.21 — 0.22 EnvUnowned / GlobalRef<T> breaks our JNI bridge.
+jni = "0.21"
+android-usb-serial = { path = "../android-usb-serial", version = "0.1.3" }
+serialport = "4.10"
+log = { version = "0.4", features = ["std"] }
+
+# Not on iOS: the crate links IOKit there; src/serialport_ios.rs stands in for it.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+serialport = "4.10"

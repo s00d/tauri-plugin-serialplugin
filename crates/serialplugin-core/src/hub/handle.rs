@@ -1,11 +1,10 @@
 //! Shared RX hub facade (poll hub on desktop and Android).
 
 use crate::cmux::CmuxSession;
-use crate::events::SerialEvent;
+use crate::events::EventSink;
 use crate::hub::shared::{ExchangeWaiter, RxHubShared};
 use serial_codec::framing::Framer;
 use std::sync::Arc;
-use tauri::ipc::Channel;
 
 /// Platform-neutral RX hub API used by exchange and watch paths.
 pub trait RxHubHandle: Send + Sync {
@@ -15,7 +14,7 @@ pub trait RxHubHandle: Send + Sync {
     fn cancel_active_exchange(&self);
     fn attach_watch(
         &self,
-        channel: Channel<SerialEvent>,
+        channel: EventSink,
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,

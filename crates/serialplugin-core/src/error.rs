@@ -2,8 +2,6 @@
 use crate::serialport;
 use serde::{Serialize, Serializer};
 use std::io;
-#[cfg(target_os = "android")]
-use tauri::plugin::mobile::PluginInvokeError;
 
 /// An error type for serial port operations
 #[derive(Debug)]
@@ -92,12 +90,5 @@ impl Serialize for Error {
         S: Serializer,
     {
         serializer.serialize_str(&self.to_string())
-    }
-}
-
-#[cfg(target_os = "android")]
-impl From<PluginInvokeError> for Error {
-    fn from(error: PluginInvokeError) -> Self {
-        Error::String(error.to_string())
     }
 }

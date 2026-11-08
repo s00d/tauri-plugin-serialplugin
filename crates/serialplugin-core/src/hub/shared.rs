@@ -10,7 +10,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
-use tauri::ipc::Channel;
 
 pub(crate) const IDLE_BUFFER_CAP: usize = 64 * 1024;
 
@@ -145,8 +144,8 @@ impl LineRouter {
     }
 }
 
-pub fn emit_urc(channel: &Channel<SerialEvent>, path: &str, line: &str) {
-    let _ = channel.send(SerialEvent::Urc {
+pub fn emit_urc(channel: &crate::events::EventSink, path: &str, line: &str) {
+    let _ = (channel)(SerialEvent::Urc {
         path: path.to_string(),
         line: line.to_string(),
     });
@@ -178,7 +177,7 @@ impl HubRoutingState {
 }
 
 pub(crate) struct WatchSlot {
-    pub(crate) channel: Channel<SerialEvent>,
+    pub(crate) channel: crate::events::EventSink,
     pub(crate) batch_timeout_ms: u64,
     /// Poll read chunk size for the hub thread.
     pub(crate) read_size: usize,
@@ -283,7 +282,7 @@ impl RxHubShared {
 
     pub fn attach_watch(
         &self,
-        channel: Channel<SerialEvent>,
+        channel: crate::events::EventSink,
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
@@ -331,7 +330,7 @@ impl RxHubShared {
         *crate::sync_util::lock_or_recover(&self.exchange_waiter) = None;
     }
 
-    /// Wake an in-flight exchange waiter when [`crate::api::serial::SerialPort::cancel_exchange`] is invoked.
+    /// Wake an in-flight exchange waiter when [`SerialManager::cancel_exchange`](crate::SerialManager::cancel_exchange) is invoked.
     pub fn cancel_active_exchange(&self) {
         if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).as_ref() {
             waiter.fail_with_reason("exchange cancelled".into());
@@ -546,7 +545,7 @@ impl RxHubShared {
             if let Some(ev) = remainder {
                 crate::port::watch_registry::send_event(&channel, ev);
             }
-            let _ = channel.send(SerialEvent::Disconnect {
+            let _ = (channel)(SerialEvent::Disconnect {
                 path: path.to_string(),
                 reason: reason.to_string(),
             });
@@ -880,7 +879,6 @@ mod tests {
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
     use std::path::PathBuf;
     use std::thread;
-    use tauri::ipc::Channel;
 
     #[test]
     fn exchange_waiter_completes_on_final_ok_line() {
@@ -916,7 +914,10 @@ mod tests {
     #[test]
     fn watch_without_route_urc_preserves_mavlink_bytes() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
         // MAVLink v2 HEARTBEAT: start 0xFD, payload contains 0x0A, CRC contains 0xFD.
         let frame: Vec<u8> = vec![
@@ -938,7 +939,10 @@ mod tests {
     #[test]
     fn watch_without_route_urc_keeps_nmea_in_data_stream() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
         let nmea = b"$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A\r\n";
         let mut routing = HubRoutingState::new("p".into());
@@ -956,7 +960,10 @@ mod tests {
     #[test]
     fn watch_with_route_urc_classifies_idle_urc_lines() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, true, None);
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"^CARDLOCK: 1\r\nOK\r\n", &mut routing);
@@ -997,7 +1004,10 @@ mod tests {
     #[test]
     fn feed_bytes_exchange_with_watch_emits_live_urc_pending() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
 
         let cancel = Arc::new(AtomicBool::new(false));
@@ -1151,7 +1161,10 @@ mod tests {
     #[test]
     fn read_request_rejects_when_watch_active() {
         let shared = Arc::new(RxHubShared::new());
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
         let err = shared.read_request(64, 100, false).unwrap_err();
         assert!(err.contains("watch"));
@@ -1176,7 +1189,10 @@ mod tests {
         let shared = Arc::new(RxHubShared::new());
         shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
         assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
         assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
     }
@@ -1423,7 +1439,7 @@ mod tests {
     #[test]
     fn hub_script_creg_csq_ok_fixture_feeds_urc_and_completes() {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/tests/fixtures/hub_scripts/creg_csq_ok.json");
+            .join("tests/fixtures/hub_scripts/creg_csq_ok.json");
         let text = std::fs::read_to_string(&path).expect("fixture");
         let fixture: serde_json::Value = serde_json::from_str(&text).expect("json");
         let command = fixture["command"].as_str().unwrap();
@@ -1437,7 +1453,10 @@ mod tests {
         let expected_match = fixture["expected_match"].as_str().unwrap();
 
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 100, 1024, false, None);
         let mut options = at_csq_options();
         options.command = Some(command.to_string());
@@ -1518,16 +1537,12 @@ mod tests {
     }
 
     /// Channel that records every event, in order.
-    fn recording_channel() -> (Channel<SerialEvent>, Arc<Mutex<Vec<SerialEvent>>>) {
+    fn recording_channel() -> (crate::events::EventSink, Arc<Mutex<Vec<SerialEvent>>>) {
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = events.clone();
-        let channel = Channel::<SerialEvent>::new(move |body| {
-            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
-                sink.lock()
-                    .unwrap()
-                    .push(serde_json::from_str(&json).unwrap());
-            }
-            Ok(())
+        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
+            sink.lock().unwrap().push(event);
+            true
         });
         (channel, events)
     }
@@ -1548,7 +1563,10 @@ mod tests {
     #[test]
     fn parser_readline_frames_across_split_chunks_without_batching() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(
             channel,
             10_000,
@@ -1571,7 +1589,10 @@ mod tests {
     #[test]
     fn parser_inter_byte_timeout_fires_from_tick_without_more_data() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(
             channel,
             10_000,
@@ -1623,7 +1644,10 @@ mod tests {
     #[test]
     fn parser_with_route_urc_splits_urc_first() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(
             channel,
             10_000,
@@ -1684,7 +1708,10 @@ mod tests {
     #[test]
     fn no_parser_watch_still_batches_until_tick() {
         let shared = RxHubShared::new();
-        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        let channel = {
+            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
+            c
+        };
         shared.attach_watch(channel, 0, 1024, false, None);
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"a\nb", &mut routing);

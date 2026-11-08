@@ -17,7 +17,7 @@ use std::sync::{Mutex, OnceLock};
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::{USB, BLUETOOTH, PCI, UNKNOWN};
+/// use serialplugin_core::state::{USB, BLUETOOTH, PCI, UNKNOWN};
 ///
 /// let port_type = USB;
 /// match port_type {
@@ -44,7 +44,7 @@ pub const PCI: &str = "PCI";
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::DataBits;
+/// use serialplugin_core::state::DataBits;
 ///
 /// let data_bits = DataBits::Eight; // Most common setting
 /// ```
@@ -83,7 +83,7 @@ impl DataBits {
     /// # Example
     ///
     /// ```rust
-    /// use tauri_plugin_serialplugin::state::DataBits;
+    /// use serialplugin_core::state::DataBits;
     ///
     /// let data_bits = DataBits::Eight;
     /// assert_eq!(data_bits.as_u8(), 8);
@@ -106,7 +106,7 @@ impl DataBits {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::FlowControl;
+/// use serialplugin_core::state::FlowControl;
 ///
 /// let flow_control = FlowControl::None; // No flow control
 /// ```
@@ -142,7 +142,7 @@ impl FlowControl {
     /// # Example
     ///
     /// ```rust
-    /// use tauri_plugin_serialplugin::state::FlowControl;
+    /// use serialplugin_core::state::FlowControl;
     ///
     /// let flow_control = FlowControl::None;
     /// assert_eq!(flow_control.as_u8(), 0);
@@ -164,7 +164,7 @@ impl FlowControl {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::Parity;
+/// use serialplugin_core::state::Parity;
 ///
 /// let parity = Parity::None; // No parity checking (most common)
 /// ```
@@ -200,7 +200,7 @@ impl Parity {
     /// # Example
     ///
     /// ```rust
-    /// use tauri_plugin_serialplugin::state::Parity;
+    /// use serialplugin_core::state::Parity;
     ///
     /// let parity = Parity::None;
     /// assert_eq!(parity.as_u8(), 0);
@@ -222,7 +222,7 @@ impl Parity {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::StopBits;
+/// use serialplugin_core::state::StopBits;
 ///
 /// let stop_bits = StopBits::One; // Most common setting
 /// ```
@@ -255,7 +255,7 @@ impl StopBits {
     /// # Example
     ///
     /// ```rust
-    /// use tauri_plugin_serialplugin::state::StopBits;
+    /// use serialplugin_core::state::StopBits;
     ///
     /// let stop_bits = StopBits::One;
     /// assert_eq!(stop_bits.as_u8(), 1);
@@ -276,7 +276,7 @@ impl StopBits {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::ClearBuffer;
+/// use serialplugin_core::state::ClearBuffer;
 ///
 /// let buffer_type = ClearBuffer::All; // Clear both input and output buffers
 /// ```
@@ -308,7 +308,7 @@ impl From<ClearBuffer> for SerialClearBuffer {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::LogLevel;
+/// use serialplugin_core::state::LogLevel;
 ///
 /// let log_level = LogLevel::Error; // Only show errors
 /// ```
@@ -369,7 +369,7 @@ fn get_log_level_mutex() -> &'static Mutex<LogLevel> {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::{LogLevel, set_log_level};
+/// use serialplugin_core::state::{LogLevel, set_log_level};
 ///
 /// set_log_level(LogLevel::Error);
 /// ```
@@ -388,7 +388,7 @@ pub fn set_log_level(level: LogLevel) {
 /// # Example
 ///
 /// ```rust
-/// use tauri_plugin_serialplugin::state::get_log_level;
+/// use serialplugin_core::state::get_log_level;
 ///
 /// let level = get_log_level();
 /// ```
