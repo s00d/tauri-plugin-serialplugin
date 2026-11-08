@@ -13,6 +13,8 @@ export type {
   Capabilities,
   SerialEvent,
   WatchOptions,
+  ParserOptions,
+  ByteSeq,
   WatchHandlers,
   WatchHandle,
   AvailablePortsOptions,

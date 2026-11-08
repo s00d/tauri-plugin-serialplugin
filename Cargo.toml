@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/android-usb-serial"]
+members = ["crates/android-usb-serial", "crates/serial-codec"]
 exclude = [
     "examples/serialport-test/src-tauri",
     "examples/usb-driver-tester/rust",
@@ -69,6 +69,7 @@ tauri-plugin = { version = "2", features = [ "build" ] }
 tauri = { version = "2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serial-codec = { path = "crates/serial-codec", version = "0.1.0" }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 btleplug = { version = "0.13", optional = true }

@@ -1,8 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+* New `serial-codec` crate (`crates/serial-codec`): byte stream framing with Node
+  serialport parser parity (delimiter, readline, byteLength, interByteTimeout,
+  packetLength, ready, regex, startEnd, SLIP, ccTalk), AT response parsing and
+  27.010 CMUX frames, usable without Tauri.
+* `watch({ parser })` (Rust `WatchOptions::parser`): native framing, each complete
+  frame is one `data` event with no batching; time-based parsers fire without further
+  bytes; the buffered remainder is emitted on unwatch, close or disconnect. Works on
+  every transport and on CMUX channels, and survives auto-reconnect. See the
+  [parsers guide](https://s00d.github.io/tauri-plugin-serialplugin/guides/parsers).
+
+### Bug Fixes
+
+* **watch/URC:** URCs found while draining RX before an exchange were judged per read
+  chunk, so a `+CMT:` / `+CDS:` header could go out without its PDU line; they are now
+  emitted when the drain completes, over the whole drained buffer.
+
 ## [4.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.9...v4.0.0) (2026-11-08)
 
-Full audit release. See the [migration guide](docs/migration.md) for the breaking changes.
+Full audit release. See the [migration guide](https://s00d.github.io/tauri-plugin-serialplugin/migration) for the breaking changes.
 
 ### ⚠ Breaking changes
 

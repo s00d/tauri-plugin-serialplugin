@@ -688,6 +688,13 @@ impl<R: Runtime> SerialPort<R> {
         options: WatchOptions,
         channel: Channel<SerialEvent>,
     ) -> Result<u32, Error> {
+        // Validate the parser before anything is registered or attached.
+        let mut framer = options
+            .parser
+            .as_ref()
+            .map(|p| p.build())
+            .transpose()
+            .map_err(|e| Error::String(e.to_string()))?;
         let channel_id = channel.id();
         crate::port::watch_registry::register(channel_id, path.clone())?;
         log_debug!("Starting watch on port: {} (channel {})", path, channel_id);
@@ -713,7 +720,7 @@ impl<R: Runtime> SerialPort<R> {
                     mux
                 };
                 ensure_rx_hub_on_physical(self, &vp.physical_path)?;
-                session.set_watch(vp.dlci, channel, batch_timeout);
+                session.set_watch(vp.dlci, channel, batch_timeout, framer);
                 return Ok(channel_id);
             }
         }
@@ -743,7 +750,7 @@ impl<R: Runtime> SerialPort<R> {
             let hub = guard
                 .as_ref()
                 .ok_or_else(|| Error::String("RX hub missing after start".into()))?;
-            hub.attach_watch(channel, batch_timeout, read_size, route_urc);
+            hub.attach_watch(channel, batch_timeout, read_size, route_urc, framer.take());
             Ok(())
         }) {
             crate::port::watch_registry::unregister(channel_id);

@@ -1918,4 +1918,122 @@ mod tests {
         );
         let _ = serial_port.close(path);
     }
+
+    /// Watch on a PTY with `parser`: frames across split writes, then a parser whose
+    /// timer fires with no further bytes, then the remainder on unwatch.
+    #[cfg(unix)]
+    #[test]
+    fn watch_parser_frames_on_pty() {
+        use crate::events::{SerialEvent, WatchOptions};
+        use crate::state::ConnectedPort;
+        use std::io::Write;
+        use std::sync::mpsc;
+        use std::time::Duration;
+        use tauri::ipc::{Channel, InvokeResponseBody};
+
+        let app = create_test_app();
+        let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let (_pty, mut master, slave) = pty_pair_locked();
+        let path = "pty-watch-parser".to_string();
+        sp.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+        let channel_for = |tx: mpsc::Sender<SerialEvent>| {
+            let tx = std::sync::Mutex::new(tx);
+            Channel::<SerialEvent>::new(move |body| {
+                if let InvokeResponseBody::Json(json) = body {
+                    let _ = tx
+                        .lock()
+                        .unwrap()
+                        .send(serde_json::from_str(&json).unwrap());
+                }
+                Ok(())
+            })
+        };
+        let next_data = |rx: &mpsc::Receiver<SerialEvent>| loop {
+            match rx.recv_timeout(Duration::from_secs(2)).expect("data event") {
+                SerialEvent::Data { data, .. } => break data,
+                _ => continue,
+            }
+        };
+        let opts = |parser: serde_json::Value| WatchOptions {
+            parser: Some(serde_json::from_value(parser).unwrap()),
+            ..Default::default()
+        };
+
+        // readline: three split writes, two frames, a remainder flushed on unwatch.
+        let (tx, rx) = mpsc::channel();
+        let id = sp
+            .watch(
+                path.clone(),
+                opts(serde_json::json!({"type": "readline"})),
+                channel_for(tx),
+            )
+            .expect("watch with parser");
+        for part in [&b"fir"[..], b"st\nsec", b"ond\nrest"] {
+            master.write_all(part).unwrap();
+            master.flush().unwrap();
+            std::thread::sleep(Duration::from_millis(40));
+        }
+        assert_eq!(next_data(&rx), b"first");
+        assert_eq!(next_data(&rx), b"second");
+        sp.unwatch(id).expect("unwatch");
+        assert_eq!(next_data(&rx), b"rest", "remainder on unwatch");
+
+        // interByteTimeout: one write, nothing after it; the frame still arrives.
+        let (tx, rx) = mpsc::channel();
+        sp.watch(
+            path.clone(),
+            opts(serde_json::json!({"type": "interByteTimeout", "interval": 30})),
+            channel_for(tx),
+        )
+        .expect("watch with timeout parser");
+        master.write_all(&[0xAA, 0x01, 0x02]).unwrap();
+        master.flush().unwrap();
+        assert_eq!(next_data(&rx), vec![0xAA, 0x01, 0x02]);
+
+        let _ = sp.close(path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn watch_rejects_invalid_parser_before_starting() {
+        use crate::events::WatchOptions;
+        use crate::state::ConnectedPort;
+        use tauri::ipc::Channel;
+
+        let app = create_test_app();
+        let sp = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let (_pty, _master, slave) = pty_pair_locked();
+        let path = "pty-watch-bad-parser".to_string();
+        sp.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(slave))),
+            },
+        );
+        let options = WatchOptions {
+            parser: Some(
+                serde_json::from_value(serde_json::json!({"type": "byteLength", "length": 0}))
+                    .unwrap(),
+            ),
+            ..Default::default()
+        };
+        let err = sp
+            .watch(path.clone(), options, Channel::new(|_| Ok(())))
+            .expect_err("length 0 must be rejected");
+        assert!(err.to_string().contains("invalid parser options"), "{err}");
+        assert!(crate::port::watch_registry::paths_for_port(&path).is_empty());
+        // The port is still free for a valid watch.
+        sp.watch(
+            path.clone(),
+            WatchOptions::default(),
+            Channel::new(|_| Ok(())),
+        )
+        .expect("plain watch after rejected parser");
+        let _ = sp.close(path);
+    }
 }

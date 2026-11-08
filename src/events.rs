@@ -105,6 +105,16 @@ pub struct WatchOptions {
     /// The JS guest sets this automatically when `onUrc` is provided.
     #[serde(default)]
     pub route_urc: bool,
+    /// Frame RX natively: each complete frame becomes exactly one
+    /// [`SerialEvent::Data`] (the batch timer no longer applies). An invalid
+    /// config fails the `watch` command before the watch starts.
+    ///
+    /// With [`route_urc`](Self::route_urc) the URC split runs first and only
+    /// non-URC lines reach the parser. On unwatch, close or disconnect the
+    /// parser's buffered remainder is sent as a final `data` event (before
+    /// `disconnect`), like Node serialport emits on stream end.
+    #[serde(default)]
+    pub parser: Option<serial_codec::framing::FramerConfig>,
 }
 
 /// How RX is prepared before sending an exchange payload.
@@ -120,14 +130,7 @@ pub enum RxPrepareMode {
     None,
 }
 
-/// AT result line format (V.250 verbose vs numeric `ATV0`).
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum AtResultFormat {
-    #[default]
-    Verbose,
-    Numeric,
-}
+pub use serial_codec::at::AtResultFormat;
 
 /// When an exchange read is considered complete.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

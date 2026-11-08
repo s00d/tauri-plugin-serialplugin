@@ -3,6 +3,7 @@
 use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::hub::shared::{ExchangeWaiter, RxHubShared};
+use serial_codec::framing::Framer;
 use std::sync::Arc;
 use tauri::ipc::Channel;
 
@@ -18,6 +19,7 @@ pub trait RxHubHandle: Send + Sync {
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
     );
     fn detach_watch(&self);
     fn attach_cmux(&self, session: Arc<CmuxSession>);

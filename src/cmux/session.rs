@@ -6,6 +6,7 @@ use crate::cmux::frame::{
 use crate::cmux::io::CmuxPhysicalIo;
 use crate::events::SerialEvent;
 use crate::hub::ExchangeWaiter;
+use serial_codec::framing::Framer;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,8 @@ struct DlciWatchSlot {
     channel: Channel<SerialEvent>,
     batch_timeout_ms: u64,
     flush_at: Instant,
+    /// Native parser: each frame is one `Data` event, no batching.
+    framer: Option<Box<dyn Framer>>,
 }
 
 impl DlciChannel {
@@ -36,20 +39,67 @@ impl DlciChannel {
         }
     }
 
-    pub fn attach_watch(&self, channel: Channel<SerialEvent>, batch_timeout_ms: u64) {
+    pub fn attach_watch(
+        &self,
+        channel: Channel<SerialEvent>,
+        batch_timeout_ms: u64,
+        framer: Option<Box<dyn Framer>>,
+    ) {
         *crate::sync_util::lock_or_recover(&self.watch) = Some(DlciWatchSlot {
             channel,
             batch_timeout_ms,
             flush_at: Instant::now(),
+            framer,
         });
     }
 
+    /// Stop the watch; a parser's buffered remainder goes out as a last `Data` event.
     pub fn detach_watch(&self) {
-        *crate::sync_util::lock_or_recover(&self.watch) = None;
+        let slot = crate::sync_util::lock_or_recover(&self.watch).take();
         crate::sync_util::lock_or_recover(&self.stream_buffer).clear();
+        if let Some(mut slot) = slot {
+            if let Some(rest) = slot.framer.as_mut().and_then(|f| f.flush()) {
+                self.send_frames(&slot.channel, vec![rest]);
+            }
+        }
+    }
+
+    fn send_frames(&self, channel: &Channel<SerialEvent>, frames: Vec<Vec<u8>>) {
+        for data in frames {
+            crate::port::watch_registry::send_event(
+                channel,
+                SerialEvent::Data {
+                    path: self.path.clone(),
+                    size: data.len(),
+                    data,
+                },
+            );
+        }
+    }
+
+    /// Run the parser (push or poll) and send its frames outside the `watch` lock.
+    /// `false` when the watch has no parser.
+    fn with_framer(&self, run: impl FnOnce(&mut dyn Framer, &mut Vec<Vec<u8>>)) -> bool {
+        let (channel, frames) = {
+            let mut guard = crate::sync_util::lock_or_recover(&self.watch);
+            let Some(slot) = guard.as_mut() else {
+                return false;
+            };
+            let Some(f) = slot.framer.as_mut() else {
+                return false;
+            };
+            let mut frames = Vec::new();
+            run(f.as_mut(), &mut frames);
+            (slot.channel.clone(), frames)
+        };
+        self.send_frames(&channel, frames);
+        true
     }
 
     fn push_stream(&self, payload: &[u8]) {
+        if self.with_framer(|f, out| f.push(payload, Instant::now(), out)) {
+            return;
+        }
         let due = {
             let mut guard = crate::sync_util::lock_or_recover(&self.watch);
             let Some(slot) = guard.as_mut() else {
@@ -66,6 +116,9 @@ impl DlciChannel {
 
     /// Flush a batch whose timeout elapsed with no new frame to trigger it.
     fn tick(&self) {
+        if self.with_framer(|f, out| f.poll(Instant::now(), out)) {
+            return;
+        }
         let due = crate::sync_util::lock_or_recover(&self.watch)
             .as_mut()
             .is_some_and(DlciWatchSlot::take_due);
@@ -83,15 +136,7 @@ impl DlciChannel {
             .as_ref()
             .map(|slot| slot.channel.clone());
         if let Some(channel) = channel {
-            let size = data.len();
-            crate::port::watch_registry::send_event(
-                &channel,
-                SerialEvent::Data {
-                    path: self.path.clone(),
-                    data,
-                    size,
-                },
-            );
+            self.send_frames(&channel, vec![data]);
         }
     }
 }
@@ -188,9 +233,15 @@ impl CmuxSession {
         }
     }
 
-    pub fn set_watch(&self, dlci: u8, channel: Channel<SerialEvent>, batch_timeout_ms: u64) {
+    pub fn set_watch(
+        &self,
+        dlci: u8,
+        channel: Channel<SerialEvent>,
+        batch_timeout_ms: u64,
+        framer: Option<Box<dyn Framer>>,
+    ) {
         if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
-            ch.attach_watch(channel, batch_timeout_ms);
+            ch.attach_watch(channel, batch_timeout_ms, framer);
         }
     }
 
@@ -363,5 +414,40 @@ mod tests {
         }
         assert!(done.load(std::sync::atomic::Ordering::SeqCst));
         assert!(start.elapsed() < std::time::Duration::from_millis(500));
+    }
+
+    #[test]
+    fn dlci_watch_parser_emits_one_event_per_frame() {
+        use crate::cmux::io::CmuxPhysicalIo;
+        use serial_codec::framing::FramerConfig;
+        struct NoopIo;
+        impl CmuxPhysicalIo for NoopIo {
+            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        let session = CmuxSession::new("mock".into(), Arc::new(NoopIo));
+        session.register_dlci(2, "mock#dlci=2".into());
+        let frames = Arc::new(Mutex::new(Vec::new()));
+        let sink = frames.clone();
+        let channel = Channel::<SerialEvent>::new(move |body| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
+                if let SerialEvent::Data { data, .. } = serde_json::from_str(&json).unwrap() {
+                    sink.lock().unwrap().push(data);
+                }
+            }
+            Ok(())
+        });
+        let cfg: FramerConfig =
+            serde_json::from_value(serde_json::json!({"type": "readline"})).unwrap();
+        session.set_watch(2, channel, 10_000, Some(cfg.build().unwrap()));
+        session.feed_physical_rx(&encode_uih(2, b"one\ntw"));
+        session.feed_physical_rx(&encode_uih(2, b"o\nthr"));
+        assert_eq!(
+            *frames.lock().unwrap(),
+            vec![b"one".to_vec(), b"two".to_vec()]
+        );
+        session.clear_watch(2);
+        assert_eq!(frames.lock().unwrap().last().unwrap(), b"thr");
     }
 }

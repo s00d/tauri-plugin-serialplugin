@@ -1,6 +1,6 @@
 //! GSM 07.10 CMUX (virtual serial channels over one physical port).
 
-pub mod frame;
+pub use serial_codec::cmux as frame;
 mod io;
 mod path;
 mod session;

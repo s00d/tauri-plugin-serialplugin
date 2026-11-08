@@ -1,7 +1,15 @@
 //! AT response line parsing and solicited vs URC classification.
 
-use crate::events::AtResultFormat;
 use serde::{Deserialize, Serialize};
+
+/// AT result line format (V.250 verbose vs numeric `ATV0`).
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AtResultFormat {
+    #[default]
+    Verbose,
+    Numeric,
+}
 
 /// Parsed outcome of an AT exchange response.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -30,16 +38,29 @@ pub enum AtParseStatus {
 pub enum ExchangeMatch {
     Ok,
     Error,
-    CmeError { code: Option<i32> },
-    CmsError { code: Option<i32> },
+    CmeError {
+        code: Option<i32>,
+        /// Error text (`AT+CMEE=2`), e.g. `SIM not inserted`. Absent for numeric codes.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
+    CmsError {
+        code: Option<i32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+    },
     NoCarrier,
     Busy,
     NoAnswer,
     NoDialtone,
     SendOk,
     SendFail,
-    Intermediate { line: String },
-    Substring { term: String },
+    Intermediate {
+        line: String,
+    },
+    Substring {
+        term: String,
+    },
     Idle,
 }
 
@@ -180,14 +201,133 @@ pub fn derive_solicited_prefixes(command: &str) -> Vec<String> {
     vec![header]
 }
 
+/// Longest quoted `+CUSD` text kept open across embedded CR/LF (UCS2 hex of 182 chars + slack).
+const MAX_CUSD_SPAN: usize = 2_048;
+
 /// Split buffer into non-empty trimmed lines (handles `\r\n` and `\n`).
+///
+/// Two modem quirks are undone here, so every caller sees the same lines:
+/// - a final result glued to the next URC without CRLF (`OK+CUSD: …`) becomes two lines;
+/// - the quoted text of a `+CUSD:` may carry raw `\r`/`\n` (USSD menus): the line stays
+///   open until the quote closes. A result code, another `+XXX:` line or 2 KiB end an
+///   unclosed quote early (truncated `+CUSD`). Inside a `+CUSD` line CR/LF are kept.
 pub fn split_lines(text: &str) -> Vec<String> {
-    text.replace('\r', "")
-        .split('\n')
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(str::to_string)
-        .collect()
+    let segments: Vec<&str> = text.split('\n').collect();
+    group_segments(&segments, false).0
+}
+
+/// Group LF-separated segments into logical lines. With `wait_for_quote`, an open
+/// `+CUSD` quote at the end stops the scan; the second value is how many segments
+/// were consumed (the rest must be fed again with more bytes).
+fn group_segments(segments: &[&str], wait_for_quote: bool) -> (Vec<String>, usize) {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < segments.len() {
+        let emitted = out.len();
+        let mut rest = segments[i].trim_start();
+        if let Some(head) = glued_final_head(rest.trim_end()) {
+            out.push(head.to_string());
+            rest = &rest[head.len()..];
+        }
+        let line = rest.trim_end();
+        if line.starts_with("+CUSD:") {
+            if has_open_quote(line) {
+                match close_cusd_quote(segments, i, line.len()) {
+                    QuoteEnd::Closed(j) => {
+                        let mut joined = rest.to_string();
+                        for seg in &segments[i + 1..=j] {
+                            joined.push('\n');
+                            joined.push_str(seg);
+                        }
+                        out.push(joined.trim_end().to_string());
+                        i = j + 1;
+                        continue;
+                    }
+                    QuoteEnd::Open if wait_for_quote => {
+                        out.truncate(emitted);
+                        return (out, i);
+                    }
+                    QuoteEnd::Open | QuoteEnd::Cut => {}
+                }
+            }
+            out.push(line.to_string());
+        } else {
+            let line = line.replace('\r', "");
+            let line = line.trim();
+            if !line.is_empty() {
+                out.push(line.to_string());
+            }
+        }
+        i += 1;
+    }
+    (out, segments.len())
+}
+
+enum QuoteEnd {
+    /// Quote closes in segment `j`.
+    Closed(usize),
+    /// Ended early by a modem line / size cap: keep the first segment as a truncated line.
+    Cut,
+    /// No closing quote yet.
+    Open,
+}
+
+fn close_cusd_quote(segments: &[&str], first: usize, first_len: usize) -> QuoteEnd {
+    let mut span = first_len;
+    for (j, seg) in segments.iter().enumerate().skip(first + 1) {
+        span += seg.len() + 1;
+        let seg = seg.trim();
+        if span > MAX_CUSD_SPAN || classify_final_line(seg).is_some() || is_urc_shape(seg) {
+            return QuoteEnd::Cut;
+        }
+        if has_open_quote(seg) {
+            return QuoteEnd::Closed(j);
+        }
+    }
+    QuoteEnd::Open
+}
+
+fn has_open_quote(s: &str) -> bool {
+    s.matches('"').count() % 2 == 1
+}
+
+/// `OK+CUSD: …` → `Some("OK")`: a verbose final result glued to a URC line.
+fn glued_final_head(line: &str) -> Option<&str> {
+    let idx = line.find('+').filter(|&i| i > 0)?;
+    let (head, rest) = line.split_at(idx);
+    (classify_final_line(head).is_some() && is_urc_shape(rest)).then_some(head)
+}
+
+/// Strict shape of an unsolicited line: `RING`, or `+NAME:` / `^NAME:` / `#NAME:` … with
+/// an upper-case name. SMS text such as `*100#`, `+7 900 …` or `#tag` does not match.
+fn is_urc_shape(line: &str) -> bool {
+    let t = line.trim();
+    if t == "RING" {
+        return true;
+    }
+    let Some(body) = t.strip_prefix(['+', '^', '#', '$', '%', '*']) else {
+        return false;
+    };
+    body.split_once(':').is_some_and(|(name, _)| {
+        name.starts_with(|c: char| c.is_ascii_uppercase())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+    })
+}
+
+/// Header whose next line is data (27.005): `Some(true)` when more text lines may
+/// follow (text-mode `+CMGR`/`+CMGL` bodies), `Some(false)` for exactly one data line
+/// (`+CMT`, `+CBM`, PDU-mode `+CDS: <length>`).
+fn two_line_header(line: &str) -> Option<bool> {
+    if line.starts_with("+CMGR:") || line.starts_with("+CMGL:") {
+        return Some(true);
+    }
+    if line.starts_with("+CMT:") || line.starts_with("+CBM:") {
+        return Some(false);
+    }
+    let len = line.strip_prefix("+CDS:")?.trim();
+    (!len.is_empty() && len.chars().all(|c| c.is_ascii_digit())).then_some(false)
 }
 
 /// Vendor extended information line (`+CSQ:`, `^SYSCFG:`, `#SGACT:`, …).
@@ -218,7 +358,13 @@ pub fn classify_intermediate_line_with_format(line: &str, format: AtResultFormat
     classify_intermediate_line(line) || (format == AtResultFormat::Numeric && line.trim() == "1")
 }
 
-/// V.250 numeric final result codes (`ATV0`). Numeric `1`/`2` are intermediate/URC, not finals.
+/// V.250 numeric final result codes (`ATV0`): `0` OK, `3` NO CARRIER, `4` ERROR,
+/// `6` NO DIALTONE, `7` BUSY, `8` NO ANSWER. `1` (CONNECT) is intermediate, `2` (RING)
+/// unsolicited, `5` is unassigned.
+///
+/// In numeric mode a one-digit SMS body (`0`, `4`, …) in a `+CMGR`/`+CMGL` reply is
+/// indistinguishable from a result code and ends the exchange early; read SMS in
+/// verbose mode (`ATV1`).
 pub fn classify_numeric_final_line(line: &str) -> Option<ExchangeMatch> {
     if !is_numeric_result_line(line) {
         return None;
@@ -227,15 +373,19 @@ pub fn classify_numeric_final_line(line: &str) -> Option<ExchangeMatch> {
         "0" => Some(ExchangeMatch::Ok),
         "3" => Some(ExchangeMatch::NoCarrier),
         "4" => Some(ExchangeMatch::Error),
-        "5" => Some(ExchangeMatch::NoDialtone),
-        "6" => Some(ExchangeMatch::Busy),
-        "7" => Some(ExchangeMatch::NoAnswer),
+        "6" => Some(ExchangeMatch::NoDialtone),
+        "7" => Some(ExchangeMatch::Busy),
+        "8" => Some(ExchangeMatch::NoAnswer),
         _ => None,
     }
 }
 
-fn classify_final_line_with_format(line: &str, format: AtResultFormat) -> Option<ExchangeMatch> {
-    classify_final_line(line).or_else(|| {
+fn classify_final_line_with_format(
+    line: &str,
+    format: AtResultFormat,
+    ignore_case: bool,
+) -> Option<ExchangeMatch> {
+    classify_final_line_cased(line, ignore_case).or_else(|| {
         if format == AtResultFormat::Numeric {
             classify_numeric_final_line(line)
         } else {
@@ -246,23 +396,27 @@ fn classify_final_line_with_format(line: &str, format: AtResultFormat) -> Option
 
 /// Returns `Some(match)` when the buffer holds a complete AT final line.
 ///
-/// Lines after the final code that look like URCs (`RING`, `+CMTI: …`) are skipped:
-/// they can arrive in the same read as `OK` and must not hide it. Bytes are decoded
+/// The last final result after the echo wins; whatever follows it in the same read
+/// (`RING`, a two-line `+CMT` with its PDU, `RDY` / `Call Ready`, the rest of a USSD
+/// menu) is trailing unsolicited output and does not hide it. Bytes are decoded
 /// lossily so line noise or a Latin-1 phonebook entry cannot stall the exchange.
 pub fn at_final_line_complete(buf: &[u8], result_format: AtResultFormat) -> Option<ExchangeMatch> {
     // Judge only complete lines: bytes after the last LF may already belong to what
     // comes next (e.g. CMUX flags right after `AT+CMUX=0` → `OK`, in the same read).
     let end = buf.iter().rposition(|&b| b == b'\n')?;
     let lines = split_lines(&String::from_utf8_lossy(&buf[..=end]));
-    for line in lines.iter().rev() {
-        if let Some(m) = classify_final_line_with_format(line, result_format) {
-            return Some(m);
-        }
-        if !is_likely_urc(line, &[]) {
-            return None;
+    let mut classifier = LineClassifier::new("", &[], result_format, true);
+    let mut last = None;
+    for line in &lines {
+        match classifier.feed(line) {
+            LineKind::Final(m) => last = Some(m),
+            // Without the command, an echo is any `AT…` line: it starts a new reply,
+            // so an earlier final (late reply to a previous command) is stale.
+            _ if line.starts_with("AT") => last = None,
+            _ => {}
         }
     }
-    None
+    last
 }
 
 /// Completion for prompt-style commands (`AT+CMGS=…` → `> `, `ATD` → `CONNECT`).
@@ -294,9 +448,22 @@ pub fn at_intermediate_line_complete(
     }
 }
 
+/// V.250 / 27.007 / 27.005 final result line, case-insensitive (`OK`, `ok`, …).
 pub fn classify_final_line(line: &str) -> Option<ExchangeMatch> {
+    classify_final_line_cased(line, true)
+}
+
+fn classify_final_line_cased(line: &str, ignore_case: bool) -> Option<ExchangeMatch> {
     let trimmed = line.trim();
-    match trimmed {
+    let upper;
+    let key = if ignore_case {
+        upper = trimmed.to_ascii_uppercase();
+        upper.as_str()
+    } else {
+        trimmed
+    };
+    // ASCII upper-casing keeps byte offsets, so `trimmed[11..]` is the original detail.
+    match key {
         "OK" => Some(ExchangeMatch::Ok),
         "ERROR" => Some(ExchangeMatch::Error),
         "NO CARRIER" => Some(ExchangeMatch::NoCarrier),
@@ -305,21 +472,182 @@ pub fn classify_final_line(line: &str) -> Option<ExchangeMatch> {
         "NO DIALTONE" => Some(ExchangeMatch::NoDialtone),
         "SEND OK" => Some(ExchangeMatch::SendOk),
         "SEND FAIL" => Some(ExchangeMatch::SendFail),
-        s if s.starts_with("+CME ERROR:") => Some(ExchangeMatch::CmeError {
-            code: parse_trailing_code(s),
-        }),
-        s if s.starts_with("+CMS ERROR:") => Some(ExchangeMatch::CmsError {
-            code: parse_trailing_code(s),
-        }),
+        s if s.starts_with("+CME ERROR:") => {
+            let (code, message) = parse_error_detail(&trimmed[11..], CME_TEXT_CODES);
+            Some(ExchangeMatch::CmeError { code, message })
+        }
+        s if s.starts_with("+CMS ERROR:") => {
+            let (code, message) = parse_error_detail(&trimmed[11..], CMS_TEXT_CODES);
+            Some(ExchangeMatch::CmsError { code, message })
+        }
         _ => None,
     }
 }
 
-fn parse_trailing_code(s: &str) -> Option<i32> {
-    s.rsplit(':').next()?.trim().parse().ok()
+/// Verbose `+CME ERROR:` texts (`AT+CMEE=2`) → numeric codes (27.007 §9.2).
+const CME_TEXT_CODES: &[(&str, i32)] = &[
+    ("phone failure", 0),
+    ("no connection to phone", 1),
+    ("phone-adaptor link reserved", 2),
+    ("operation not allowed", 3),
+    ("operation not supported", 4),
+    ("PH-SIM PIN required", 5),
+    ("PH-FSIM PIN required", 6),
+    ("PH-FSIM PUK required", 7),
+    ("SIM not inserted", 10),
+    ("SIM PIN required", 11),
+    ("SIM PUK required", 12),
+    ("SIM failure", 13),
+    ("SIM busy", 14),
+    ("SIM wrong", 15),
+    ("incorrect password", 16),
+    ("SIM PIN2 required", 17),
+    ("SIM PUK2 required", 18),
+    ("memory full", 20),
+    ("invalid index", 21),
+    ("not found", 22),
+    ("memory failure", 23),
+    ("text string too long", 24),
+    ("invalid characters in text string", 25),
+    ("dial string too long", 26),
+    ("invalid characters in dial string", 27),
+    ("no network service", 30),
+    ("network timeout", 31),
+    ("network not allowed - emergency calls only", 32),
+    ("unknown", 100),
+];
+
+/// Verbose `+CMS ERROR:` texts → numeric codes (27.005 §3.2.5).
+const CMS_TEXT_CODES: &[(&str, i32)] = &[
+    ("ME failure", 300),
+    ("SMS service of ME reserved", 301),
+    ("operation not allowed", 302),
+    ("operation not supported", 303),
+    ("invalid PDU mode parameter", 304),
+    ("invalid text mode parameter", 305),
+    ("SIM not inserted", 310),
+    ("SIM PIN required", 311),
+    ("PH-SIM PIN required", 312),
+    ("SIM failure", 313),
+    ("SIM busy", 314),
+    ("SIM wrong", 315),
+    ("SIM PUK required", 316),
+    ("SIM PIN2 required", 317),
+    ("SIM PUK2 required", 318),
+    ("memory failure", 320),
+    ("invalid memory index", 321),
+    ("memory full", 322),
+    ("SMSC address unknown", 330),
+    ("no network service", 331),
+    ("network timeout", 332),
+    ("no +CNMA acknowledgement expected", 340),
+    ("unknown error", 500),
+];
+
+/// `14` → (14, None); `10: SIM not inserted` → (10, text); `SIM busy` → (table, text).
+fn parse_error_detail(detail: &str, table: &[(&str, i32)]) -> (Option<i32>, Option<String>) {
+    let detail = detail.trim();
+    if let Ok(code) = detail.parse() {
+        return (Some(code), None);
+    }
+    if let Some((code, text)) = detail.split_once(':') {
+        if let Ok(code) = code.trim().parse() {
+            let text = text.trim();
+            return (Some(code), (!text.is_empty()).then(|| text.to_string()));
+        }
+    }
+    let text = detail.trim_matches('"').trim();
+    let code = table
+        .iter()
+        .find(|(message, _)| message.eq_ignore_ascii_case(text))
+        .map(|(_, code)| *code);
+    (code, (!text.is_empty()).then(|| text.to_string()))
+}
+
+/// What a reply line is, judged in order (see [`LineClassifier::feed`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LineKind {
+    Echo,
+    Body,
+    Urc,
+    Final(ExchangeMatch),
+}
+
+/// Line-by-line solicited / URC classification shared by the one-shot parser, the
+/// completion check and the live demux, so they never disagree about a line.
+#[derive(Debug)]
+struct LineClassifier {
+    command: String,
+    prefixes: Vec<String>,
+    format: AtResultFormat,
+    /// Parser: lines after the echo are the reply. Live demux: still URC-checked.
+    body_after_echo: bool,
+    echo_seen: bool,
+    /// Kind of the next line: the data line of a two-line header (`+CMT`, `+CMGR`, …),
+    /// plus whether more text-body lines may follow it.
+    pending: Option<(LineKind, bool)>,
+    /// Inside a text-mode `+CMGR`/`+CMGL` body: only strict URC shapes are URCs.
+    in_text_body: bool,
+}
+
+impl LineClassifier {
+    fn new(
+        command: &str,
+        prefixes: &[String],
+        format: AtResultFormat,
+        body_after_echo: bool,
+    ) -> Self {
+        Self {
+            command: normalize_command(command),
+            prefixes: prefixes.to_vec(),
+            format,
+            body_after_echo,
+            echo_seen: false,
+            pending: None,
+            in_text_body: false,
+        }
+    }
+
+    fn feed(&mut self, line: &str) -> LineKind {
+        // SMS text is often lower-case (`ok`): inside a body only exact codes end it.
+        let in_data = self.pending.is_some() || self.in_text_body;
+        if let Some(m) = classify_final_line_with_format(line, self.format, !in_data) {
+            self.pending = None;
+            self.in_text_body = false;
+            return LineKind::Final(m);
+        }
+        if let Some((kind, text_body)) = self.pending.take() {
+            self.in_text_body = text_body;
+            return kind;
+        }
+        if !self.echo_seen && !self.command.is_empty() && lines_equivalent(line, &self.command) {
+            self.echo_seen = true;
+            return LineKind::Echo;
+        }
+        let kind = if self.in_text_body {
+            if is_urc_shape(line) && is_likely_urc(line, &self.prefixes) {
+                LineKind::Urc
+            } else {
+                LineKind::Body
+            }
+        } else if self.echo_seen && self.body_after_echo {
+            LineKind::Body
+        } else if is_likely_urc(line, &self.prefixes) {
+            LineKind::Urc
+        } else {
+            LineKind::Body
+        };
+        if let Some(text_body) = two_line_header(line) {
+            self.pending = Some((kind.clone(), text_body));
+        }
+        kind
+    }
 }
 
 /// Classify lines into solicited body vs URC using echo / solicited prefixes.
+///
+/// The data line after `+CMGR:`/`+CMGL:`/`+CMT:`/`+CBM:`/`+CDS: <len>` belongs to its
+/// header (body or URC, kept adjacent). Lines after the final result are URCs.
 pub fn parse_at_response(
     raw: &[u8],
     command: &str,
@@ -333,56 +661,33 @@ pub fn parse_at_response(
         Some(end) => &raw[..=end],
         None => raw,
     };
-    let text = String::from_utf8_lossy(complete);
-    let lines = split_lines(&text);
-    let cmd_norm = normalize_command(command);
-    let mut final_idx = None;
-    for (i, line) in lines.iter().enumerate().rev() {
-        if classify_final_line_with_format(line, result_format).is_some() {
-            final_idx = Some(i);
-            break;
-        }
-        if !is_likely_urc(line, &[]) {
-            break;
-        }
-    }
+    let lines = split_lines(&String::from_utf8_lossy(complete));
+    let mut classifier = LineClassifier::new(command, &merged, result_format, true);
+    let kinds: Vec<LineKind> = lines.iter().map(|l| classifier.feed(l)).collect();
+    let echo_idx = kinds.iter().position(|k| *k == LineKind::Echo);
+    let final_idx = kinds
+        .iter()
+        .rposition(|k| matches!(k, LineKind::Final(_)))
+        .filter(|&i| echo_idx.is_none_or(|e| i > e));
     let final_pos = final_idx.unwrap_or(lines.len().saturating_sub(1));
     let final_line = lines.get(final_pos).cloned();
-    let status = final_idx
-        .and_then(|i| classify_final_line_with_format(&lines[i], result_format))
-        .map(|m| m.to_parse_status())
-        .unwrap_or(AtParseStatus::Unknown);
-
-    let body_end = final_pos;
-    let mut echo_idx: Option<usize> = None;
-    for (i, line) in lines.iter().enumerate().take(body_end) {
-        if lines_equivalent(line, &cmd_norm) {
-            echo_idx = Some(i);
-            break;
-        }
-    }
+    let status = match final_idx.map(|i| &kinds[i]) {
+        Some(LineKind::Final(m)) => m.to_parse_status(),
+        _ => AtParseStatus::Unknown,
+    };
 
     let mut urc_lines = Vec::new();
     let mut solicited_body = Vec::new();
-
-    for (i, line) in lines.iter().enumerate().take(body_end) {
-        if Some(i) == echo_idx {
-            continue;
-        }
-        if echo_idx.is_none() && i == 0 && lines_equivalent(line, &cmd_norm) {
-            continue;
-        }
-        if echo_idx.is_none() && is_likely_urc(line, &merged) {
-            urc_lines.push(line.clone());
-        } else if echo_idx.map(|e| i > e).unwrap_or(true) {
-            solicited_body.push(line.clone());
-        } else if is_likely_urc(line, &merged) {
-            urc_lines.push(line.clone());
-        } else {
-            solicited_body.push(line.clone());
+    for (line, kind) in lines.iter().zip(&kinds).take(final_pos) {
+        match kind {
+            LineKind::Echo => {}
+            LineKind::Urc => urc_lines.push(line.clone()),
+            LineKind::Body => solicited_body.push(line.clone()),
+            // An earlier result-like line: `NO CARRIER` before the echo is a URC.
+            LineKind::Final(_) if is_likely_urc(line, &merged) => urc_lines.push(line.clone()),
+            LineKind::Final(_) => solicited_body.push(line.clone()),
         }
     }
-
     if let Some(i) = final_idx {
         urc_lines.extend(lines.iter().skip(i + 1).cloned());
     }
@@ -425,7 +730,10 @@ pub enum ExchangePhase {
     CollectingSolicited,
 }
 
-/// Routes bytes during an exchange: URC before echo → live emit; after echo → solicited blob.
+/// Routes bytes during an exchange: URC lines are emitted live, the rest is the reply.
+///
+/// Each line is judged once, when it completes, so every URC occurrence (two `RING`s
+/// in one exchange) is emitted exactly once.
 #[derive(Debug)]
 pub struct ExchangeDemux {
     phase: ExchangePhase,
@@ -433,70 +741,86 @@ pub struct ExchangeDemux {
     solicited_prefixes: Vec<String>,
     /// Bytes of an unfinished line (kept raw so a split UTF-8 char survives).
     partial: Vec<u8>,
-    emitted_urc: Vec<String>,
+    classifier: LineClassifier,
 }
 
 impl ExchangeDemux {
     pub fn new(command: &str, solicited_prefixes: &[String]) -> Self {
+        let command = normalize_command(command);
+        let solicited_prefixes = merge_solicited_prefixes(&command, solicited_prefixes);
         Self {
             phase: ExchangePhase::AwaitingFirstLine,
-            command: normalize_command(command),
-            solicited_prefixes: merge_solicited_prefixes(command, solicited_prefixes),
+            classifier: Self::classifier(&command, &solicited_prefixes),
+            command,
+            solicited_prefixes,
             partial: Vec::new(),
-            emitted_urc: Vec::new(),
         }
+    }
+
+    fn classifier(command: &str, prefixes: &[String]) -> LineClassifier {
+        LineClassifier::new(command, prefixes, AtResultFormat::Verbose, false)
     }
 
     pub fn reset(&mut self) {
         self.phase = ExchangePhase::AwaitingFirstLine;
         self.partial.clear();
-        self.emitted_urc.clear();
+        self.classifier = Self::classifier(&self.command, &self.solicited_prefixes);
     }
 
     /// Process complete lines from a chunk; returns new URC lines to emit live.
     pub fn process_chunk(&mut self, chunk: &[u8]) -> Vec<String> {
         self.partial.extend_from_slice(chunk);
+        let Some(end) = self.partial.iter().rposition(|&b| b == b'\n') else {
+            return Vec::new();
+        };
+        let text = String::from_utf8_lossy(&self.partial[..end]).into_owned();
+        let segments: Vec<&str> = text.split('\n').collect();
+        let (lines, used) = group_segments(&segments, true);
+        // LF is never part of a multi-byte sequence, so counting it in the raw bytes
+        // maps consumed segments back to a byte offset.
+        let cut = match used {
+            0 => 0,
+            n if n == segments.len() => end + 1,
+            n => self
+                .partial
+                .iter()
+                .enumerate()
+                .filter(|(_, &b)| b == b'\n')
+                .nth(n - 1)
+                .map_or(0, |(i, _)| i + 1),
+        };
+        self.partial.drain(..cut);
+
         let mut live_urc = Vec::new();
-        while let Some(pos) = self.partial.iter().position(|&b| b == b'\n') {
-            let raw: Vec<u8> = self.partial.drain(..=pos).collect();
-            let line = String::from_utf8_lossy(&raw).trim().to_string();
-            if line.is_empty() {
-                continue;
-            }
-            if classify_final_line_with_format(&line, AtResultFormat::Verbose).is_some()
-                || classify_intermediate_line(&line)
-            {
-                if lines_equivalent(&line, &self.command) {
-                    self.phase = ExchangePhase::CollectingSolicited;
-                }
-                continue;
-            }
-            if lines_equivalent(&line, &self.command) {
-                self.phase = ExchangePhase::CollectingSolicited;
-                continue;
-            }
-            // URCs can arrive before the echo or in the middle of the reply
-            // (`+CMTI` during `AT+CSQ`); either way they are not part of it.
-            if is_likely_urc(&line, &self.solicited_prefixes) && !self.emitted_urc.contains(&line) {
-                self.emitted_urc.push(line.clone());
-                live_urc.push(line);
+        for line in lines {
+            match self.classifier.feed(&line) {
+                LineKind::Echo => self.phase = ExchangePhase::CollectingSolicited,
+                LineKind::Urc => live_urc.push(line),
+                LineKind::Body | LineKind::Final(_) => {}
             }
         }
         live_urc
     }
 }
 
-/// Extract URC lines from drained bytes (for drainRx forwarding).
+/// Extract URC lines from drained bytes (for drainRx forwarding). The data line of a
+/// two-line URC (`+CMT: ,23` + PDU) comes right after its header.
 pub fn urc_lines_from_drain(bytes: &[u8], solicited_prefixes: &[String]) -> Vec<String> {
+    let mut classifier =
+        LineClassifier::new("", solicited_prefixes, AtResultFormat::Verbose, false);
     split_lines(&String::from_utf8_lossy(bytes))
         .into_iter()
-        .filter(|l| is_likely_urc(l, solicited_prefixes))
+        .filter(|l| match classifier.feed(l) {
+            LineKind::Urc => true,
+            LineKind::Final(_) => is_likely_urc(l, solicited_prefixes),
+            LineKind::Echo | LineKind::Body => false,
+        })
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::events::AtResultFormat as F;
+    use super::AtResultFormat as F;
 
     #[test]
     fn urc_after_echo_is_still_emitted() {
@@ -518,7 +842,13 @@ mod tests {
     fn prompt_command_rejected_with_cms_error_completes() {
         let m = at_intermediate_line_complete(b"AT+CMGS=20\r\r\n+CMS ERROR: 304\r\n", F::Verbose);
         assert!(
-            matches!(m, Some(ExchangeMatch::CmsError { code: Some(304) })),
+            matches!(
+                m,
+                Some(ExchangeMatch::CmsError {
+                    code: Some(304),
+                    ..
+                })
+            ),
             "{m:?}"
         );
     }

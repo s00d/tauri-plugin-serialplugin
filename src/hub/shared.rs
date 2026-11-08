@@ -5,6 +5,7 @@ use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::exchange::completion::check_exchange_complete;
 use crate::exchange::options::ResolvedExchangeOptions;
+use serial_codec::framing::Framer;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Condvar, Mutex};
@@ -111,6 +112,11 @@ pub struct LineRouter {
 }
 
 impl LineRouter {
+    // ponytail: splits on LF only, so outside an exchange the quoted multi-line `+CUSD`
+    // join and the glued `OK+CUSD:` peel of `serial_codec::at::split_lines` do not apply
+    // here. Reusing them needs an incremental, byte-preserving splitter exported from
+    // `at.rs` (the one in `ExchangeDemux::process_chunk` is private and returns trimmed
+    // text, while this router must forward data lines byte-for-byte).
     pub fn route_streaming(
         &mut self,
         chunk: &[u8],
@@ -178,6 +184,46 @@ pub(crate) struct WatchSlot {
     pub(crate) read_size: usize,
     /// When true, idle watch RX goes through [`LineRouter`] (AT URC split).
     pub(crate) route_urc: bool,
+    /// Native parser: each frame is its own `Data` event, no batching.
+    ///
+    /// With `route_urc` the URC split runs first and the parser sees only the data
+    /// lines. That is the least surprising order: `onUrc` keeps its meaning whatever
+    /// the parser, and a parser never has to know AT syntax. The line router's
+    /// unterminated tail reaches the parser on the batch timer, as it reaches `data`
+    /// without a parser.
+    pub(crate) framer: Option<Box<dyn Framer>>,
+}
+
+impl WatchSlot {
+    /// Feed watch bytes: into the parser (one event per frame) or the batch buffer.
+    fn sink(&mut self, path: &str, bytes: &[u8], state: &mut HubRoutingState) {
+        match self.framer.as_mut() {
+            Some(f) => {
+                let mut frames = Vec::new();
+                f.push(bytes, Instant::now(), &mut frames);
+                push_frames(path, frames, &mut state.pending_events);
+            }
+            None => state.combined_buffer.extend_from_slice(bytes),
+        }
+    }
+
+    /// End of stream: the parser's buffered partial frame as a final `Data` event.
+    fn take_remainder(&mut self, path: &str) -> Option<SerialEvent> {
+        let data = self.framer.as_mut()?.flush()?;
+        Some(data_event(path, data))
+    }
+}
+
+fn data_event(path: &str, data: Vec<u8>) -> SerialEvent {
+    SerialEvent::Data {
+        path: path.to_string(),
+        size: data.len(),
+        data,
+    }
+}
+
+fn push_frames(path: &str, frames: Vec<Vec<u8>>, pending: &mut Vec<SerialEvent>) {
+    pending.extend(frames.into_iter().map(|f| data_event(path, f)));
 }
 
 pub(crate) struct DrainSlot {
@@ -208,6 +254,8 @@ pub struct RxHubShared {
     pub(crate) read_slot: Mutex<Option<ReadSlot>>,
     pub(crate) idle: Mutex<Vec<u8>>,
     pub(crate) cmux: Mutex<Option<Arc<CmuxSession>>>,
+    /// Port path, for events sent outside the hub thread (watch remainder on detach).
+    path: String,
 }
 
 impl Default for RxHubShared {
@@ -218,7 +266,12 @@ impl Default for RxHubShared {
 
 impl RxHubShared {
     pub fn new() -> Self {
+        Self::for_path(String::new())
+    }
+
+    pub fn for_path(path: String) -> Self {
         Self {
+            path,
             exchange_waiter: Mutex::new(None),
             watch: Mutex::new(None),
             drain: Mutex::new(None),
@@ -234,6 +287,7 @@ impl RxHubShared {
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
     ) {
         crate::sync_util::lock_or_recover(&self.idle).clear();
         *crate::sync_util::lock_or_recover(&self.watch) = Some(WatchSlot {
@@ -241,11 +295,18 @@ impl RxHubShared {
             batch_timeout_ms,
             read_size,
             route_urc,
+            framer,
         });
     }
 
+    /// Stop the watch; a parser's buffered remainder goes out as a last `Data` event.
     pub fn detach_watch(&self) {
-        *crate::sync_util::lock_or_recover(&self.watch) = None;
+        let slot = crate::sync_util::lock_or_recover(&self.watch).take();
+        if let Some(mut slot) = slot {
+            if let Some(ev) = slot.take_remainder(&self.path) {
+                crate::port::watch_registry::send_event(&slot.channel, ev);
+            }
+        }
     }
 
     pub fn attach_cmux(&self, session: Arc<CmuxSession>) {
@@ -287,7 +348,7 @@ impl RxHubShared {
             session.feed_physical_rx(chunk);
             return;
         }
-        if route_drain_chunk(self, &path, chunk) {
+        if route_drain_chunk(self, chunk) {
             return;
         }
         if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).clone() {
@@ -312,10 +373,35 @@ impl RxHubShared {
             session.tick();
         }
 
-        let (batch_timeout_ms, read_size) = crate::sync_util::lock_or_recover(&self.watch)
-            .as_ref()
-            .map(|w| (w.batch_timeout_ms, w.read_size))
-            .unwrap_or((1000, usize::MAX));
+        let (batch_timeout_ms, read_size) = {
+            let mut guard = crate::sync_util::lock_or_recover(&self.watch);
+            if let Some(w) = guard.as_mut().filter(|w| w.framer.is_some()) {
+                // Parser watch: frames already went out one by one. Release the line
+                // router tail on the batch timer, then fire time-based frames.
+                if state.flush_at.elapsed() >= Duration::from_millis(w.batch_timeout_ms) {
+                    state.flush_at = Instant::now();
+                    let partial = state.line_router.take_partial();
+                    if !partial.is_empty() {
+                        w.sink(path, &partial, state);
+                    }
+                }
+                let mut frames = Vec::new();
+                if let Some(f) = w.framer.as_mut() {
+                    f.poll(Instant::now(), &mut frames);
+                }
+                push_frames(path, frames, &mut state.pending_events);
+                // Bytes batched before a parser watch replaced a plain one.
+                let stale = std::mem::take(&mut state.combined_buffer);
+                if !stale.is_empty() {
+                    state.pending_events.insert(0, data_event(path, stale));
+                }
+                return;
+            }
+            guard
+                .as_ref()
+                .map(|w| (w.batch_timeout_ms, w.read_size))
+                .unwrap_or((1000, usize::MAX))
+        };
         // Flush on the batch timer, or as soon as a full `size` worth is buffered,
         // so a fast stream does not grow one huge event per window.
         if state.flush_at.elapsed() >= Duration::from_millis(batch_timeout_ms)
@@ -441,7 +527,7 @@ impl RxHubShared {
 
     pub fn flush_watch_now(&self, state: &mut HubRoutingState) {
         let partial = state.line_router.take_partial();
-        state.combined_buffer.extend_from_slice(&partial);
+        self.sink_watch(&partial, state);
         flush_watch_data(
             self,
             &state.path,
@@ -450,15 +536,41 @@ impl RxHubShared {
         );
     }
 
+    /// Send `Disconnect` on the watch, after the parser's remainder as a last `Data`.
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
-        let channel = crate::sync_util::lock_or_recover(&self.watch)
-            .as_ref()
-            .map(|watch| watch.channel.clone());
+        let (channel, remainder) = match crate::sync_util::lock_or_recover(&self.watch).as_mut() {
+            Some(watch) => (Some(watch.channel.clone()), watch.take_remainder(path)),
+            None => (None, None),
+        };
         if let Some(channel) = channel {
+            if let Some(ev) = remainder {
+                crate::port::watch_registry::send_event(&channel, ev);
+            }
             let _ = channel.send(SerialEvent::Disconnect {
                 path: path.to_string(),
                 reason: reason.to_string(),
             });
+        }
+    }
+
+    /// Port going away: flush the batch and the parser remainder into `pending_events`.
+    pub fn finish_watch_stream(&self, state: &mut HubRoutingState) {
+        self.flush_watch_now(state);
+        if let Some(watch) = crate::sync_util::lock_or_recover(&self.watch).as_mut() {
+            state
+                .pending_events
+                .extend(watch.take_remainder(&state.path));
+        }
+    }
+
+    /// Bytes for the watch with no URC routing (line router tail): parser or batch.
+    fn sink_watch(&self, bytes: &[u8], state: &mut HubRoutingState) {
+        if bytes.is_empty() {
+            return;
+        }
+        match crate::sync_util::lock_or_recover(&self.watch).as_mut() {
+            Some(watch) => watch.sink(&state.path.clone(), bytes, state),
+            None => state.combined_buffer.extend_from_slice(bytes),
         }
     }
 
@@ -512,6 +624,7 @@ impl RxHubShared {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
                 if let Some(slot) = crate::sync_util::lock_or_recover(&self.drain).take() {
+                    emit_drain_urcs(self, &slot);
                     if slot.buffer.is_empty() {
                         Err("drain timed out waiting for hub".into())
                     } else {
@@ -530,17 +643,16 @@ impl RxHubShared {
 
 /// Append RX into the active drain slot. Returns `false` if there is no slot
 /// (caller must route elsewhere — never silently drop the chunk).
-pub(crate) fn route_drain_chunk(shared: &RxHubShared, path: &str, chunk: &[u8]) -> bool {
-    let prefixes = {
-        let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
-        let Some(drain) = guard.as_mut() else {
-            return false;
-        };
-        drain.buffer.extend_from_slice(chunk);
-        drain.last_byte_at = Some(Instant::now());
-        drain.solicited_prefixes.clone()
+/// URCs in the drained bytes go out when the drain completes, judged over the whole
+/// buffer: a two-line URC (`+CMT:` + PDU) or a multi-line `+CUSD` split across reads
+/// stays together. That delays them by at most the drain window (default 200 ms).
+pub(crate) fn route_drain_chunk(shared: &RxHubShared, chunk: &[u8]) -> bool {
+    let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
+    let Some(drain) = guard.as_mut() else {
+        return false;
     };
-    emit_drain_urc_with_prefixes(shared, path, chunk, &prefixes);
+    drain.buffer.extend_from_slice(chunk);
+    drain.last_byte_at = Some(Instant::now());
     true
 }
 
@@ -577,14 +689,15 @@ pub(crate) fn route_watch_chunk(
     state: &mut HubRoutingState,
 ) {
     state.exchange_demux = None;
-    let route_urc = crate::sync_util::lock_or_recover(&shared.watch)
-        .as_ref()
-        .map(|w| w.route_urc)
-        .unwrap_or(false);
-    if !route_urc {
+    let mut guard = crate::sync_util::lock_or_recover(&shared.watch);
+    let Some(watch) = guard.as_mut() else {
+        // Watch went away since `has_watch`: the batch is dropped on flush anyway.
+        return;
+    };
+    if !watch.route_urc {
         // Raw stream: do not UTF-8-lossify, split on 0x0A, or steal URC-looking lines.
         state.line_router = LineRouter::default();
-        state.combined_buffer.extend_from_slice(chunk);
+        watch.sink(path, chunk, state);
         return;
     }
     for action in state.line_router.route_streaming(chunk, &[]) {
@@ -595,9 +708,7 @@ pub(crate) fn route_watch_chunk(
                     line,
                 });
             }
-            RxRouteAction::StreamData(bytes) => {
-                state.combined_buffer.extend_from_slice(&bytes);
-            }
+            RxRouteAction::StreamData(bytes) => watch.sink(path, &bytes, state),
         }
     }
 }
@@ -677,6 +788,7 @@ pub(crate) fn try_complete_drain(shared: &RxHubShared) {
         };
         kind.map(|k| {
             let d = guard.take().unwrap();
+            emit_drain_urcs(shared, &d);
             let result = match k {
                 DrainCompleteKind::Cancel => Err("exchange cancelled".into()),
                 DrainCompleteKind::Buffer => Ok(d.buffer),
@@ -723,24 +835,19 @@ pub(crate) fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>
     }
 }
 
-pub(crate) fn emit_drain_urc_with_prefixes(
-    shared: &RxHubShared,
-    path: &str,
-    chunk: &[u8],
-    prefixes: &[String],
-) {
-    let lines = crate::at::parse::split_lines(&String::from_utf8_lossy(chunk));
-    let channel = shared
-        .watch
-        .lock()
-        .unwrap()
+/// Send the URC lines of a finished drain on the watch channel (if any).
+fn emit_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
+    if drain.buffer.is_empty() {
+        return;
+    }
+    let channel = crate::sync_util::lock_or_recover(&shared.watch)
         .as_ref()
         .map(|watch| watch.channel.clone());
     if let Some(channel) = channel {
+        let lines =
+            crate::at::parse::urc_lines_from_drain(&drain.buffer, &drain.solicited_prefixes);
         for line in lines {
-            if is_likely_urc(&line, prefixes) {
-                emit_urc(&channel, path, &line);
-            }
+            emit_urc(&channel, &shared.path, &line);
         }
     }
 }
@@ -810,7 +917,7 @@ mod tests {
     fn watch_without_route_urc_preserves_mavlink_bytes() {
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
         // MAVLink v2 HEARTBEAT: start 0xFD, payload contains 0x0A, CRC contains 0xFD.
         let frame: Vec<u8> = vec![
             0xFD, 0x09, 0x00, 0x00, 0x2A, 0x01, 0x01, 0x00, 0x00, 0x00, 0x0A, 0x2B, 0x00, 0x00,
@@ -832,7 +939,7 @@ mod tests {
     fn watch_without_route_urc_keeps_nmea_in_data_stream() {
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
         let nmea = b"$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A\r\n";
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(nmea, &mut routing);
@@ -850,7 +957,7 @@ mod tests {
     fn watch_with_route_urc_classifies_idle_urc_lines() {
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, true);
+        shared.attach_watch(channel, 100, 1024, true, None);
         let mut routing = HubRoutingState::new("p".into());
         shared.feed_bytes(b"^CARDLOCK: 1\r\nOK\r\n", &mut routing);
         assert!(
@@ -891,7 +998,7 @@ mod tests {
     fn feed_bytes_exchange_with_watch_emits_live_urc_pending() {
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
 
         let cancel = Arc::new(AtomicBool::new(false));
         let options = ResolvedExchangeOptions {
@@ -1045,7 +1152,7 @@ mod tests {
     fn read_request_rejects_when_watch_active() {
         let shared = Arc::new(RxHubShared::new());
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
         let err = shared.read_request(64, 100, false).unwrap_err();
         assert!(err.contains("watch"));
     }
@@ -1070,7 +1177,7 @@ mod tests {
         shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
         assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
         assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
     }
 
@@ -1198,7 +1305,7 @@ mod tests {
     #[test]
     fn route_drain_chunk_returns_false_when_no_slot() {
         let shared = RxHubShared::new();
-        assert!(!route_drain_chunk(&shared, "p", b"x"));
+        assert!(!route_drain_chunk(&shared, b"x"));
     }
 
     #[test]
@@ -1331,7 +1438,7 @@ mod tests {
 
         let shared = RxHubShared::new();
         let channel = Channel::<SerialEvent>::new(|_| Ok(()));
-        shared.attach_watch(channel, 100, 1024, false);
+        shared.attach_watch(channel, 100, 1024, false, None);
         let mut options = at_csq_options();
         options.command = Some(command.to_string());
         let waiter = ExchangeWaiter::new(options, Arc::new(AtomicBool::new(false)));
@@ -1401,6 +1508,194 @@ mod tests {
         shared.fail_all_waiters("usb error");
         let err = handle.join().unwrap().expect_err("drain must fail");
         assert!(err.contains("usb error"), "unexpected: {err}");
+    }
+
+    // --- Native parser on the watch ---
+
+    fn parser(json: serde_json::Value) -> Option<Box<dyn Framer>> {
+        let cfg: serial_codec::framing::FramerConfig = serde_json::from_value(json).unwrap();
+        Some(cfg.build().unwrap())
+    }
+
+    /// Channel that records every event, in order.
+    fn recording_channel() -> (Channel<SerialEvent>, Arc<Mutex<Vec<SerialEvent>>>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let channel = Channel::<SerialEvent>::new(move |body| {
+            if let tauri::ipc::InvokeResponseBody::Json(json) = body {
+                sink.lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
+            }
+            Ok(())
+        });
+        (channel, events)
+    }
+
+    fn data_frames(events: &[SerialEvent]) -> Vec<Vec<u8>> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Data { data, size, .. } => {
+                    assert_eq!(*size, data.len());
+                    Some(data.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn parser_readline_frames_across_split_chunks_without_batching() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(
+            channel,
+            10_000,
+            1024,
+            false,
+            parser(serde_json::json!({"type": "readline", "delimiter": "\r\n"})),
+        );
+        let mut routing = HubRoutingState::new("p".into());
+        for chunk in [&b"$GPGGA,1"[..], b"23\r", b"\n$GPRMC\r\nPART"] {
+            shared.feed_bytes(chunk, &mut routing);
+        }
+        // Frames are ready at once: no batch timer, nothing left in the batch buffer.
+        assert!(routing.combined_buffer.is_empty());
+        assert_eq!(
+            data_frames(&routing.pending_events),
+            vec![b"$GPGGA,123".to_vec(), b"$GPRMC".to_vec()]
+        );
+    }
+
+    #[test]
+    fn parser_inter_byte_timeout_fires_from_tick_without_more_data() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(
+            channel,
+            10_000,
+            1024,
+            false,
+            parser(serde_json::json!({"type": "interByteTimeout", "interval": 20})),
+        );
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"\x01\x02", &mut routing);
+        shared.feed_bytes(b"\x03", &mut routing);
+        shared.tick("p", &mut routing);
+        assert!(routing.pending_events.is_empty(), "silence not over yet");
+        let deadline = crate::sync_util::lock_or_recover(&shared.watch)
+            .as_ref()
+            .and_then(|w| w.framer.as_ref()?.deadline())
+            .expect("deadline armed");
+        thread::sleep(
+            deadline.saturating_duration_since(Instant::now()) + Duration::from_millis(2),
+        );
+        shared.tick("p", &mut routing);
+        assert_eq!(data_frames(&routing.pending_events), vec![vec![1, 2, 3]]);
+    }
+
+    #[test]
+    fn parser_remainder_flushed_on_detach_and_before_disconnect() {
+        let shared = RxHubShared::for_path("p".into());
+        let (channel, events) = recording_channel();
+        let cfg = serde_json::json!({"type": "readline"});
+        shared.attach_watch(channel.clone(), 20, 1024, false, parser(cfg.clone()));
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"done\ntail", &mut routing);
+        shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+        shared.detach_watch();
+        assert_eq!(
+            data_frames(&events.lock().unwrap()),
+            vec![b"done".to_vec(), b"tail".to_vec()]
+        );
+
+        events.lock().unwrap().clear();
+        shared.attach_watch(channel, 20, 1024, false, parser(cfg));
+        shared.feed_bytes(b"half", &mut routing);
+        shared.emit_disconnect("p", "gone");
+        let got = events.lock().unwrap().clone();
+        assert_eq!(got.len(), 2, "{got:?}");
+        assert!(matches!(&got[0], SerialEvent::Data { data, .. } if data == b"half"));
+        assert!(matches!(&got[1], SerialEvent::Disconnect { .. }));
+    }
+
+    #[test]
+    fn parser_with_route_urc_splits_urc_first() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(
+            channel,
+            10_000,
+            1024,
+            true,
+            parser(serde_json::json!({"type": "readline", "delimiter": "\r\n"})),
+        );
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"+CREG: 0,1\r\nhello\r\nwor", &mut routing);
+        shared.feed_bytes(b"ld\r\n", &mut routing);
+        let urcs: Vec<_> = routing
+            .pending_events
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Urc { line, .. } => Some(line.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(urcs, vec!["+CREG: 0,1"]);
+        assert_eq!(
+            data_frames(&routing.pending_events),
+            vec![b"hello".to_vec(), b"world".to_vec()]
+        );
+    }
+
+    /// Regression: drain URCs were judged per read chunk, so a `+CMT:` header went out
+    /// without the PDU line that arrived in the next chunk.
+    #[test]
+    fn drain_emits_two_line_urc_together_across_chunks() {
+        let shared = Arc::new(RxHubShared::for_path("p".into()));
+        let (channel, events) = recording_channel();
+        shared.attach_watch(channel, 20, 1024, false, None);
+        let bg = shared.clone();
+        let handle =
+            thread::spawn(move || bg.drain(20, 2_000, Arc::new(AtomicBool::new(false)), vec![]));
+        wait_until_drain_slot(&shared);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"\r\n+CMT: ,23\r\n", &mut routing);
+        shared.feed_bytes(b"0791447758100650\r\nOK\r\n", &mut routing);
+        thread::sleep(Duration::from_millis(30));
+        shared.tick("p", &mut routing);
+        handle.join().unwrap().expect("drain");
+        let urcs: Vec<String> = events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Urc { line, path } => {
+                    assert_eq!(path, "p");
+                    Some(line.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(urcs, vec!["+CMT: ,23", "0791447758100650"]);
+    }
+
+    #[test]
+    fn no_parser_watch_still_batches_until_tick() {
+        let shared = RxHubShared::new();
+        let channel = Channel::<SerialEvent>::new(|_| Ok(()));
+        shared.attach_watch(channel, 0, 1024, false, None);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"a\nb", &mut routing);
+        shared.feed_bytes(b"\nc", &mut routing);
+        assert!(routing.pending_events.is_empty());
+        assert_eq!(routing.combined_buffer, b"a\nb\nc");
+        shared.tick("p", &mut routing);
+        assert_eq!(
+            data_frames(&routing.pending_events),
+            vec![b"a\nb\nc".to_vec()]
+        );
     }
 
     #[test]

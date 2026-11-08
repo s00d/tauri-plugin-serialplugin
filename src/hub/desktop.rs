@@ -54,7 +54,7 @@ mod io_errors {
                 Ok(())
             });
             let hub = super::super::PortRxHub::start(port, "unplugged".into());
-            hub.attach_watch(channel, 10, 64, false);
+            hub.attach_watch(channel, 10, 64, false, None);
             rx.recv_timeout(Duration::from_secs(3))
                 .expect("no Disconnect after persistent read errors");
             hub.stop();
@@ -96,6 +96,7 @@ use crate::events::SerialEvent;
 use crate::hub::shared::{
     finish_drain, tick_read_slot, try_complete_drain, ExchangeWaiter, HubRoutingState, RxHubShared,
 };
+use serial_codec::framing::Framer;
 use serialport::SerialPort;
 use std::io::Read;
 use std::sync::atomic::AtomicBool;
@@ -105,13 +106,14 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 
-const POLL_READ_TIMEOUT_MS: u64 = 10;
+const POLL_TIMEOUT: Duration = Duration::from_millis(10);
 
 /// `Ok(None)` means the hub was asked to stop.
 fn poll_read_port(
     port: &Arc<Mutex<Box<dyn SerialPort>>>,
     buf: &mut [u8],
     stop_rx: &Receiver<()>,
+    timeout: Duration,
 ) -> std::io::Result<Option<usize>> {
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
@@ -124,7 +126,7 @@ fn poll_read_port(
                 continue;
             }
         };
-        let _ = p.set_timeout(Duration::from_millis(POLL_READ_TIMEOUT_MS));
+        let _ = p.set_timeout(timeout);
         match p.read(buf) {
             Ok(n) => return Ok(Some(n)),
             Err(e) if is_benign_read_error(&e) => {
@@ -144,7 +146,7 @@ const MAX_CONSECUTIVE_READ_ERRORS: u32 = 5;
 
 fn shutdown_hub_state(shared: &RxHubShared, routing: &mut HubRoutingState) {
     shared.fail_all_waiters("port closed");
-    shared.flush_watch_now(routing);
+    shared.finish_watch_stream(routing);
     shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
 }
 
@@ -157,7 +159,7 @@ pub struct PortRxHub {
 
 impl PortRxHub {
     pub fn start(port: Arc<Mutex<Box<dyn SerialPort>>>, path: String) -> Self {
-        let shared = Arc::new(RxHubShared::new());
+        let shared = Arc::new(RxHubShared::for_path(path.clone()));
         let (stop_tx, stop_rx) = mpsc::channel();
         let shared_clone = shared.clone();
         let thread = thread::spawn(move || hub_loop(port, path, shared_clone, stop_rx));
@@ -185,9 +187,10 @@ impl PortRxHub {
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
     ) {
         self.shared
-            .attach_watch(channel, batch_timeout_ms, read_size, route_urc);
+            .attach_watch(channel, batch_timeout_ms, read_size, route_urc, framer);
     }
 
     pub fn detach_watch(&self) {
@@ -257,8 +260,9 @@ impl crate::hub::handle::RxHubHandle for PortRxHub {
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
     ) {
-        self.attach_watch(channel, batch_timeout_ms, read_size, route_urc);
+        self.attach_watch(channel, batch_timeout_ms, read_size, route_urc, framer);
     }
     fn detach_watch(&self) {
         self.detach_watch();
@@ -298,7 +302,7 @@ fn hub_loop(
             }
 
             let mut buf = vec![0u8; 1024];
-            let n = match poll_read_port(&port, &mut buf, &stop_rx) {
+            let n = match poll_read_port(&port, &mut buf, &stop_rx, POLL_TIMEOUT) {
                 Ok(Some(n)) => n,
                 Ok(None) => {
                     shutdown_hub_state(&shared, &mut routing);
@@ -321,12 +325,20 @@ fn hub_loop(
             continue;
         }
 
+        // The read timeout doubles as the parser timer: wake by the framer deadline
+        // (inter-byte timeout) so `tick` polls it on time, never spinning.
+        let mut timeout = POLL_TIMEOUT;
         if let Some(watch) = crate::sync_util::lock_or_recover(&shared.watch).as_ref() {
             read_size = watch.read_size;
+            if let Some(d) = watch.framer.as_ref().and_then(|f| f.deadline()) {
+                timeout = d
+                    .saturating_duration_since(Instant::now())
+                    .clamp(Duration::from_millis(1), POLL_TIMEOUT);
+            }
         }
 
         let mut buf = vec![0u8; read_size];
-        let read_result = poll_read_port(&port, &mut buf, &stop_rx);
+        let read_result = poll_read_port(&port, &mut buf, &stop_rx, timeout);
 
         if read_result.is_ok() {
             consecutive_errors = 0;
@@ -351,15 +363,7 @@ fn hub_loop(
                 {
                     let reason = format!("Serial port disconnected: {}", e);
                     shared.fail_all_waiters(&reason);
-                    let channel = crate::sync_util::lock_or_recover(&shared.watch)
-                        .as_ref()
-                        .map(|watch| watch.channel.clone());
-                    if let Some(channel) = channel {
-                        let _ = channel.send(SerialEvent::Disconnect {
-                            path: path.clone(),
-                            reason: reason.clone(),
-                        });
-                    }
+                    shared.emit_disconnect(&path, &reason);
                     // Android: clear mobile registry + USB adapter (harness expects
                     // inject_bulk_read_error → on_usb_error → registry drop).
                     #[cfg(target_os = "android")]

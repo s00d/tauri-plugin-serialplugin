@@ -1,0 +1,21 @@
+[package]
+name = "serial-codec"
+version = "0.1.0"
+description = "Byte stream framing for serial ports (Node serialport parser parity), AT response parsing and 3GPP 27.010 CMUX frames"
+edition = "2021"
+rust-version = "1.85"
+license = "MPL-2.0"
+readme = "README.md"
+repository = "https://github.com/s00d/tauri-plugin-serialplugin"
+homepage = "https://github.com/s00d/tauri-plugin-serialplugin/tree/main/crates/serial-codec"
+documentation = "https://docs.rs/serial-codec"
+authors = ["s00d"]
+keywords = ["serial", "parser", "framing", "at-commands", "cmux"]
+categories = ["parser-implementations", "encoding", "hardware-support"]
+
+[dependencies]
+serde = { version = "1.0.185", features = ["derive"] }
+regex-lite = "0.1"
+
+[dev-dependencies]
+serde_json = "1.0"

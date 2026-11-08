@@ -29,6 +29,7 @@ import {
   type WatchHandle,
   type WatchHandlers,
   type WatchOptions,
+  type ParserOptions,
   type WatchPortsHandlers,
   type WatchPortsOptions,
   type AtSessionOptions,
@@ -80,6 +81,13 @@ function dispatchWatchData(
   }
 }
 
+/** `Uint8Array` fields become `number[]` (the native `ByteSeq` takes a string or bytes). */
+function serializeParser(parser: ParserOptions): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(parser).map(([k, v]) => [k, v instanceof Uint8Array ? Array.from(v) : v]),
+  );
+}
+
 async function invokeWatch(
   path: string,
   handlers: WatchHandlers,
@@ -87,6 +95,7 @@ async function invokeWatch(
   encoding: string,
 ): Promise<WatchHandle> {
   const decode = options?.decode !== false;
+  const framed = options?.parser != null;
   const decoder = textDecoder(encoding);
   const channel = new Channel<SerialEvent>();
 
@@ -96,7 +105,13 @@ async function invokeWatch(
     }
     switch (event.kind) {
       case 'data':
-        dispatchWatchData(event.data, decoder, decode, handlers.onData);
+        if (framed) {
+          // One native frame = one onData call, decoded on its own (no stream state).
+          const bytes = toUint8Raw(event.data);
+          handlers.onData(decode ? decoder.decode(bytes) : bytes);
+        } else {
+          dispatchWatchData(event.data, decoder, decode, handlers.onData);
+        }
         break;
       case 'urc':
         handlers.onUrc?.(event.line);
@@ -128,6 +143,9 @@ async function invokeWatch(
   }
   // Always send: default false preserves binary; true when onUrc is registered.
   watchOptions.routeUrc = options?.routeUrc ?? (handlers.onUrc != null);
+  if (options?.parser != null) {
+    watchOptions.parser = serializeParser(options.parser);
+  }
 
   const channelId = await invoke<number>('plugin:serialplugin|watch', {
     path,
@@ -164,6 +182,7 @@ export class SerialPort {
   private autoReconnectCallback?: (success: boolean, attempt: number) => void;
   private readonly atSessionOptions?: AtSessionOptions;
 
+  /** Describe a port; nothing is opened until `open()`. */
   constructor(options: SerialportOptions) {
     this.isOpen = false;
     this.encoding = options.encoding || 'utf-8';
@@ -185,6 +204,7 @@ export class SerialPort {
     };
   }
 
+  /** Default read chunk size in bytes (`size` option, 1024 if unset). */
   get size(): number {
     return this.options.size ?? 1024;
   }
@@ -194,6 +214,7 @@ export class SerialPort {
     return this.publicWatch;
   }
 
+  /** Native build info (transport, platform, plugin version); cached after the first call. */
   static async getCapabilities(): Promise<Capabilities> {
     if (!capabilitiesCache) {
       capabilitiesCache = await invoke<Capabilities>('plugin:serialplugin|capabilities');
@@ -201,6 +222,7 @@ export class SerialPort {
     return capabilitiesCache;
   }
 
+  /** List serial ports, keyed by path. `singlePortPerDevice` keeps one path per USB device. */
   static async available_ports(
     options?: AvailablePortsOptions,
   ): Promise<Record<string, PortInfo>> {
@@ -262,24 +284,29 @@ export class SerialPort {
     });
   }
 
+  /** Paths of the ports this plugin currently holds open. */
   static async managed_ports(): Promise<string[]> {
     return invoke<string[]>('plugin:serialplugin|managed_ports');
   }
 
+  /** Close a port by path without a `SerialPort` instance (stops its watch too). */
   static async forceClose(path: string): Promise<void> {
     return invoke<void>('plugin:serialplugin|force_close', { path });
   }
 
+  /** Close every port this plugin holds open. */
   static async closeAll(): Promise<void> {
     return invoke<void>('plugin:serialplugin|close_all');
   }
 
+  /** Set the native and JS log level. */
   static async setLogLevel(level: LogLevel): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_log_level', { level });
     const synced = await invoke<LogLevel>('plugin:serialplugin|get_log_level');
     setInternalLogLevel(synced);
   }
 
+  /** Current native log level (also applied to the JS logger). */
   static async getLogLevel(): Promise<LogLevel> {
     const level = await invoke<LogLevel>('plugin:serialplugin|get_log_level');
     setInternalLogLevel(level);
@@ -297,6 +324,13 @@ export class SerialPort {
     };
   }
 
+  /**
+   * Stream received data through a native channel; one watch per port instance.
+   * Without `parser`, bytes are batched (~20 ms window or `size` bytes per event); with
+   * `parser`, each complete frame is one `onData` call. `onUrc` turns on URC routing.
+   * Auto-reconnect re-creates the watch with the same handlers and options.
+   * @returns a handle whose `unwatch()` stops the stream for good.
+   */
   async watch(
     handlers: WatchHandlers,
     options?: WatchOptions,
@@ -320,6 +354,7 @@ export class SerialPort {
         options?.serialDataFlushIntervalMs ?? this.options.serialDataFlushIntervalMs,
       decode: options?.decode,
       routeUrc: options?.routeUrc ?? (handlers.onUrc != null),
+      parser: options?.parser,
     };
 
     this.lastWatchHandlers = {
@@ -471,6 +506,7 @@ export class SerialPort {
     }
   }
 
+  /** Switch path and/or baud rate: closes, reopens and restores an active watch. */
   async change(options: { path?: string; baudRate?: number }): Promise<void> {
     const savedHandlers = this.lastWatchHandlers;
     const savedOptions = this.lastWatchOptions;
@@ -495,6 +531,7 @@ export class SerialPort {
     }
   }
 
+  /** Stop the watch and auto-reconnect, cancel a pending read and close the port. */
   async close(): Promise<void> {
     // Stop a pending auto-reconnect even when the port is already down.
     this.clearAutoReconnectTimer();
@@ -543,6 +580,7 @@ export class SerialPort {
     this.nativeOpen = false;
   }
 
+  /** Reopen (and re-watch) after a disconnect every `interval` ms (default 5000), up to `maxAttempts` (default 10, `null` = unlimited). */
   enableAutoReconnect(options: AutoReconnectOptions = {}): void {
     this.autoReconnectEnabled = true;
     this.autoReconnectInterval = options.interval ?? 5000;
@@ -552,6 +590,7 @@ export class SerialPort {
     this.autoReconnectAttempts = 0;
   }
 
+  /** Stop auto-reconnect and forget the saved watch session. */
   disableAutoReconnect(): void {
     this.autoReconnectEnabled = false;
     this.clearAutoReconnectTimer();
@@ -560,6 +599,7 @@ export class SerialPort {
     this.clearSavedWatchSession();
   }
 
+  /** Current auto-reconnect settings and attempt count. */
   getAutoReconnectInfo(): AutoReconnectInfo {
     return {
       enabled: this.autoReconnectEnabled,
@@ -570,6 +610,7 @@ export class SerialPort {
     };
   }
 
+  /** Reopen now and restore the saved watch; resolves `false` instead of throwing on failure. */
   async manualReconnect(): Promise<boolean> {
     if (this.isOpen) {
       return true;
@@ -589,6 +630,7 @@ export class SerialPort {
     }
   }
 
+  /** Open the port with the constructor settings. Resolves to the canonical path (e.g. a `tcp://` or `ble://` path as the native side names it). */
   async open(): Promise<string> {
     if (!this.options.path) {
       throw new Error('path cannot be empty');
@@ -636,6 +678,7 @@ export class SerialPort {
     }
   }
 
+  /** Read up to `size` bytes within `timeout` ms and decode them with `encoding` (a split multi-byte character is kept for the next read). Not allowed while a watch is active. */
   async read(options?: ReadOptions): Promise<string> {
     if (!this.isOpen) {
       throw new Error('Port is not open');
@@ -647,6 +690,7 @@ export class SerialPort {
     return this.readDecoder.decode(bytes, { stream: true });
   }
 
+  /** Read raw bytes: waits up to `timeout` ms to fill `size` bytes, resolves with what arrived, rejects if nothing did. Not allowed while a watch is active. */
   async readBinary(options?: ReadOptions): Promise<Uint8Array> {
     if (!this.isOpen) {
       throw new Error('Port is not open');
@@ -659,6 +703,7 @@ export class SerialPort {
     return toUint8Raw(result);
   }
 
+  /** Change the baud rate of the open port (kept for reopen). */
   async setBaudRate(value: number | BaudRate): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_baud_rate', {
       path: this.options.path,
@@ -668,6 +713,7 @@ export class SerialPort {
     this.options.baudRate = value;
   }
 
+  /** Change the data bits of the open port (kept for reopen). */
   async setDataBits(value: DataBits): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_data_bits', {
       path: this.options.path,
@@ -677,6 +723,7 @@ export class SerialPort {
     this.options.dataBits = value;
   }
 
+  /** Change flow control of the open port (kept for reopen). */
   async setFlowControl(value: FlowControl): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_flow_control', {
       path: this.options.path,
@@ -686,6 +733,7 @@ export class SerialPort {
     this.options.flowControl = value;
   }
 
+  /** Change parity of the open port (kept for reopen). */
   async setParity(value: Parity): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_parity', {
       path: this.options.path,
@@ -695,6 +743,7 @@ export class SerialPort {
     this.options.parity = value;
   }
 
+  /** Change stop bits of the open port (kept for reopen). */
   async setStopBits(value: StopBits): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_stop_bits', {
       path: this.options.path,
@@ -704,6 +753,7 @@ export class SerialPort {
     this.options.stopBits = value;
   }
 
+  /** Change the port read/write timeout in ms (kept for reopen). */
   async setTimeout(value: number): Promise<void> {
     await invoke<void>('plugin:serialplugin|set_timeout', {
       path: this.options.path,
@@ -713,6 +763,7 @@ export class SerialPort {
     this.options.timeout = value;
   }
 
+  /** Set the RTS line. */
   async writeRequestToSend(level: boolean): Promise<void> {
     if (!this.isOpen) {
       throw new Error('Port is not open');
@@ -723,6 +774,7 @@ export class SerialPort {
     });
   }
 
+  /** Set the DTR line. */
   async writeDataTerminalReady(level: boolean): Promise<void> {
     if (!this.isOpen) {
       throw new Error('Port is not open');
@@ -733,42 +785,49 @@ export class SerialPort {
     });
   }
 
+  /** Read the CTS line. */
   async readClearToSend(): Promise<boolean> {
     return invoke<boolean>('plugin:serialplugin|read_clear_to_send', {
       path: this.options.path,
     });
   }
 
+  /** Read the DSR line. */
   async readDataSetReady(): Promise<boolean> {
     return invoke<boolean>('plugin:serialplugin|read_data_set_ready', {
       path: this.options.path,
     });
   }
 
+  /** Read the RI line. */
   async readRingIndicator(): Promise<boolean> {
     return invoke<boolean>('plugin:serialplugin|read_ring_indicator', {
       path: this.options.path,
     });
   }
 
+  /** Read the CD line. */
   async readCarrierDetect(): Promise<boolean> {
     return invoke<boolean>('plugin:serialplugin|read_carrier_detect', {
       path: this.options.path,
     });
   }
 
+  /** Bytes waiting in the input buffer. */
   async bytesToRead(): Promise<number> {
     return invoke<number>('plugin:serialplugin|bytes_to_read', {
       path: this.options.path,
     });
   }
 
+  /** Bytes still waiting in the output buffer. */
   async bytesToWrite(): Promise<number> {
     return invoke<number>('plugin:serialplugin|bytes_to_write', {
       path: this.options.path,
     });
   }
 
+  /** Discard the input, output or both buffers. */
   async clearBuffer(buffer: ClearBuffer): Promise<void> {
     return invoke<void>('plugin:serialplugin|clear_buffer', {
       path: this.options.path,
@@ -938,18 +997,21 @@ export class SerialPort {
     }));
   }
 
+  /** Start a break condition on TX. */
   async setBreak(): Promise<void> {
     return invoke<void>('plugin:serialplugin|set_break', {
       path: this.options.path,
     });
   }
 
+  /** End the break condition. */
   async clearBreak(): Promise<void> {
     return invoke<void>('plugin:serialplugin|clear_break', {
       path: this.options.path,
     });
   }
 
+  /** Write a string (UTF-8). Resolves to the number of bytes written. */
   async write(value: string): Promise<number> {
     if (!this.isOpen) {
       throw new Error('Port is not open');
@@ -960,6 +1022,7 @@ export class SerialPort {
     });
   }
 
+  /** Write raw bytes. Resolves to the number of bytes written. */
   async writeBinary(value: Uint8Array | number[]): Promise<number> {
     if (!this.isOpen) {
       throw new Error('Port is not open');

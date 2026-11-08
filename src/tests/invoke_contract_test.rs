@@ -48,6 +48,27 @@ mod tests {
     }
 
     #[test]
+    fn watch_options_parser_deserializes_from_js_payload() {
+        use serial_codec::framing::{ByteSeq, FramerConfig};
+        let json = serde_json::json!({
+            "path": "/dev/ttyUSB0",
+            "options": { "parser": { "type": "delimiter", "delimiter": [13, 10], "includeDelimiter": true } }
+        });
+        let args: WatchArgs = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            args.options.parser,
+            Some(FramerConfig::Delimiter {
+                delimiter: ByteSeq::Bytes(vec![13, 10]),
+                include_delimiter: true,
+                max_buffer_size: None,
+            })
+        );
+        let none: WatchArgs =
+            serde_json::from_value(serde_json::json!({"path": "p", "options": {}})).unwrap();
+        assert!(none.options.parser.is_none());
+    }
+
+    #[test]
     fn watch_options_route_urc_defaults_false_when_omitted() {
         let json = serde_json::json!({
             "path": "/dev/ttyUSB0",

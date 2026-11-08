@@ -103,4 +103,27 @@ describe('SerialPort sendAt', () => {
       phases: [{ write: 'AT' }],
     });
   });
+
+  it('passes the verbose +CME ERROR text through in matched.cmeError.message', async () => {
+    const { mockInvoke } = setupTestMocks();
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === 'plugin:serialplugin|open') return Promise.resolve();
+      if (cmd === 'plugin:serialplugin|at') {
+        return Promise.resolve(
+          mockAtCommandResult('AT+CPIN?', '+CME ERROR: SIM not inserted\r\n', {
+            status: 'cme',
+            matched: { cmeError: { code: null, message: 'SIM not inserted' } },
+          }),
+        );
+      }
+      return Promise.resolve();
+    });
+
+    const port = createTestSerialPort();
+    await port.open();
+    const result = await port.sendAt('AT+CPIN?');
+    expect(result.status).toBe('cme');
+    const matched = result.matched as { cmeError: { code?: number | null; message?: string } };
+    expect(matched.cmeError).toEqual({ code: null, message: 'SIM not inserted' });
+  });
 });

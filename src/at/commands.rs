@@ -60,6 +60,9 @@ pub fn run_at_phases<R: ExchangeRunner>(
 ) -> Result<Vec<crate::at::parse::AtCommandResult>, Error> {
     let stop_on_error = session.stop_on_error();
     let mut results = Vec::with_capacity(phases.len());
+    // A payload phase (PDU + Ctrl-Z after `AT+CMGS=n` / `AT+CMGW=n`) has no AT command
+    // of its own; its reply (`+CMGS: <mr>`) answers the command that opened the prompt.
+    let mut command_prefixes: Vec<String> = Vec::new();
     for (i, phase) in phases.iter().enumerate() {
         phase_gap_hook(i);
         let label = phase.command.clone().unwrap_or_else(|| match &phase.write {
@@ -72,6 +75,19 @@ pub fn run_at_phases<R: ExchangeRunner>(
             Some(RxPrepareMode::None)
         };
         let mut exchange_opts = session.merge_phase(phase, &label);
+        let own_prefixes = crate::at::parse::derive_solicited_prefixes(&label);
+        if own_prefixes.is_empty() {
+            let prefixes = exchange_opts
+                .solicited_prefixes
+                .get_or_insert_with(Vec::new);
+            for p in &command_prefixes {
+                if !prefixes.contains(p) {
+                    prefixes.push(p.clone());
+                }
+            }
+        } else {
+            command_prefixes = own_prefixes;
+        }
         if let Some(rp) = rx_prepare {
             exchange_opts.rx_prepare = Some(rp);
         }
@@ -194,4 +210,61 @@ pub fn queue_send_sms_pdu<R: ExchangeRunner>(
         let session = tx_queue.at_session();
         run_send_sms_pdu(runner, &session, path, length, pdu, options)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::at::parse::{AtResultFormat, ExchangeMatch, ExchangeResponse};
+    use std::sync::Mutex;
+
+    /// Replies with canned bytes and parses them with the options it was given.
+    struct FakeRunner {
+        replies: Mutex<Vec<&'static [u8]>>,
+        seen: Mutex<Vec<ExchangeOptions>>,
+    }
+
+    impl ExchangeRunner for FakeRunner {
+        fn run_exchange_unqueued(
+            &self,
+            _path: String,
+            _payload: Vec<u8>,
+            options: ExchangeOptions,
+        ) -> Result<ExchangeResponse, Error> {
+            let raw = self.replies.lock().unwrap().remove(0).to_vec();
+            let command = options.command.clone().unwrap_or_default();
+            let prefixes = options.solicited_prefixes.clone().unwrap_or_default();
+            self.seen.lock().unwrap().push(options);
+            Ok(ExchangeResponse::from_raw(
+                raw,
+                ExchangeMatch::Ok,
+                &command,
+                &prefixes,
+                AtResultFormat::Verbose,
+            ))
+        }
+    }
+
+    #[test]
+    fn cmgs_reference_is_solicited_in_payload_phase() {
+        let runner = FakeRunner {
+            replies: Mutex::new(vec![b"AT+CMGS=20\r\r\n> ", b"\r\n+CMGS: 12\r\n\r\nOK\r\n"]),
+            seen: Mutex::new(Vec::new()),
+        };
+        let session = AtSessionConfig::default();
+        let results =
+            run_send_sms_pdu(&runner, &session, "p".into(), 20, b"0011".to_vec(), None).unwrap();
+        assert_eq!(results[1].solicited_body, vec!["+CMGS: 12".to_string()]);
+        assert!(
+            results[1].urc_lines.is_empty(),
+            "{:?}",
+            results[1].urc_lines
+        );
+        // The live demux reads the same options, so `+CMGS:` is not emitted as a URC.
+        let seen = runner.seen.lock().unwrap();
+        assert!(seen[1]
+            .solicited_prefixes
+            .as_ref()
+            .is_some_and(|p| p.iter().any(|x| x == "+CMGS:")));
+    }
 }

@@ -40,7 +40,83 @@ export interface WatchOptions {
    * (raw byte stream — required for binary / NMEA).
    */
   routeUrc?: boolean;
+  /**
+   * Frame RX natively (Node `@serialport/parser-*` semantics): each complete frame
+   * becomes exactly one `onData` call and the batch window (`timeout`,
+   * `serialDataFlushIntervalMs`) no longer applies. With `decode` (default) each frame
+   * is decoded on its own. An invalid config rejects `watch()` before the watch starts.
+   *
+   * With `routeUrc` / `onUrc`, URC lines are split off first and only the other lines
+   * reach the parser. On `unwatch()`, `close()` or a disconnect, the parser's buffered
+   * partial frame is delivered as a last `onData` call (before `onDisconnect`).
+   * Auto-reconnect restores the watch with the same parser.
+   *
+   * @example
+   * await port.watch({ onData: (line) => console.log(line) }, { parser: { type: 'readline', delimiter: '\r\n' } });
+   */
+  parser?: ParserOptions;
 }
+
+/** Bytes as a UTF-8 string, a byte array or a `Uint8Array`. */
+export type ByteSeq = string | number[] | Uint8Array;
+
+/**
+ * Native parser selection for `watch({ parser })`. `maxBufferSize` (default 65536) caps
+ * bytes buffered without a complete frame; see each variant for what happens at the cap.
+ */
+export type ParserOptions =
+  /** Split on a byte sequence (`@serialport/parser-delimiter`). Full buffer is emitted as a frame. */
+  | { type: 'delimiter'; delimiter: ByteSeq; includeDelimiter?: boolean; maxBufferSize?: number }
+  /** Split on `delimiter`, default `"\n"` (`@serialport/parser-readline`). */
+  | { type: 'readline'; delimiter?: ByteSeq; includeDelimiter?: boolean; maxBufferSize?: number }
+  /** Fixed-size frames of `length` bytes (`@serialport/parser-byte-length`). */
+  | { type: 'byteLength'; length: number }
+  /** A frame ends after `intervalMs` (alias `interval`) of silence (`@serialport/parser-inter-byte-timeout`). */
+  | {
+      type: 'interByteTimeout';
+      intervalMs?: number;
+      interval?: number;
+      maxBufferSize?: number;
+    }
+  /**
+   * Delimiter + little-endian length field (`@serialport/parser-packet-length`).
+   * Defaults: delimiter 0xaa, delimiterBytes 1, packetOverhead 2, lengthBytes 1,
+   * lengthOffset 1, maxLen 0xff.
+   */
+  | {
+      type: 'packetLength';
+      delimiter?: number | number[];
+      delimiterBytes?: number;
+      packetOverhead?: number;
+      lengthBytes?: number;
+      lengthOffset?: number;
+      maxLen?: number;
+    }
+  /** Drop everything until `delimiter`, then pass data through (`@serialport/parser-ready`). */
+  | { type: 'ready'; delimiter: ByteSeq }
+  /** Split UTF-8 text on a regular expression (Rust `regex-lite` syntax, not a JS `RegExp`). */
+  | { type: 'regex'; regex: string; maxBufferSize?: number }
+  /** Frames between a start and an end marker (`@serialport/parser-start-end`). */
+  | {
+      type: 'startEnd';
+      startDelimiter: ByteSeq;
+      endDelimiter: ByteSeq;
+      includeStartDelimiter?: boolean;
+      includeEndDelimiter?: boolean;
+      maxBufferSize?: number;
+    }
+  /** SLIP (RFC 1055) decoder (`@serialport/parser-slip-encoder` `SlipDecoder`); bytes default to RFC values. */
+  | {
+      type: 'slip';
+      start?: number;
+      esc?: number;
+      end?: number;
+      escStart?: number;
+      escEnd?: number;
+      escEsc?: number;
+    }
+  /** ccTalk frames, length in byte 1 (`@serialport/parser-cctalk`). A partial frame is dropped after `maxDelayMs` (default 50, 0 = never). */
+  | { type: 'ccTalk'; maxDelayMs?: number };
 
 export interface WatchHandlers {
   onData: (data: string | Uint8Array) => void;
@@ -201,8 +277,10 @@ export type ExchangeMatch =
   | 'noDialtone'
   | 'sendOk'
   | 'sendFail'
-  | { cmeError: { code?: number | null } }
-  | { cmsError: { code?: number | null } }
+  /** `code` is `null` when the modem only sent text (`AT+CMEE=2`); `message` is that text, absent for numeric codes. */
+  | { cmeError: { code?: number | null; message?: string } }
+  /** Same shape as `cmeError`, for `+CMS ERROR`. */
+  | { cmsError: { code?: number | null; message?: string } }
   | { intermediate: { line: string } }
   | { substring: { term: string } };
 
