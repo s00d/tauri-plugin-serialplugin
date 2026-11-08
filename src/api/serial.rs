@@ -145,9 +145,16 @@ fn write_all_port(
     buf: &[u8],
     operation: &str,
 ) -> Result<usize, Error> {
-    port.write_all(buf)
-        .map_err(|e| Error::String(format!("Failed to {}: {}", operation, e)))?;
-    Ok(buf.len())
+    // The shared 100 ms I/O timeout is too short for big or slow writes (8 KB at
+    // 9600 baud needs ~9 s), so give writes room for the wire time plus a margin.
+    let baud = u64::from(port.baud_rate().unwrap_or(9600).max(1));
+    let wire_ms = (buf.len() as u64).saturating_mul(11_000) / baud;
+    let _ = port.set_timeout(Duration::from_millis(wire_ms.saturating_mul(2) + 1000));
+    let result = port
+        .write_all(buf)
+        .map_err(|e| Error::String(format!("Failed to {}: {}", operation, e)));
+    let _ = port.set_timeout(Duration::from_millis(PORT_IO_TIMEOUT_MS));
+    result.map(|()| buf.len())
 }
 
 /// Tear down resources held by a [`SerialportInfo`] (RX hub + port).
@@ -290,7 +297,6 @@ impl<R: Runtime> SerialPort<R> {
         if let Ok(mut v) = virtual_ports.lock() {
             if let Some(vp) = v.remove(path) {
                 vp.tx_queue.cancel_all();
-                vp.tx_queue.clear_halt();
             }
         }
         let mut map = ports
@@ -395,6 +401,11 @@ impl<R: Runtime> SerialPort<R> {
             }
         }
 
+        // Physical port: its virtual channels and CMUX session go with it.
+        if self.resolve_connected_port(&path).is_ok() {
+            let _ = self.disable_mux(path.clone());
+        }
+
         let removed = match self.serialports.lock() {
             Ok(mut serialports) => serialports.remove(&path),
             Err(error) => {
@@ -435,13 +446,21 @@ impl<R: Runtime> SerialPort<R> {
         for channel_id in crate::port::watch_registry::paths_for_port(&path) {
             let _ = self.unwatch(channel_id);
         }
+        if crate::sync_util::lock_or_recover(&self.virtual_ports).contains_key(&path) {
+            return self.close(path);
+        }
+        self.close_virtual_channels_of(&path);
+        if let Ok(cp) = self.resolve_connected_port(&path) {
+            if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).take() {
+                session.close_down();
+            }
+        }
 
         match self.serialports.lock() {
             Ok(mut map) => {
                 if let Some(serial) = map.remove(&path) {
                     finish_serialport_info(&path, serial)?;
                 }
-                let _ = self.virtual_ports.lock().map(|mut v| v.remove(&path));
                 Ok(())
             }
             Err(error) => Err(Error::String(format!("Failed to acquire lock: {}", error))),
@@ -1081,7 +1100,7 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Enter GSM 07.10 CMUX mode (`AT+CMUX=…` then attach deframer to the RX hub).
     pub fn enable_mux(&self, path: String, command: String, timeout_ms: u64) -> Result<(), Error> {
-        self.exchange(
+        let response = self.exchange(
             path.clone(),
             format!("{command}\r"),
             ExchangeOptions {
@@ -1090,6 +1109,12 @@ impl<R: Runtime> SerialPort<R> {
                 ..Default::default()
             },
         )?;
+        if response.status != crate::at::parse::AtParseStatus::Ok {
+            return Err(Error::String(format!(
+                "modem rejected {command}: {}",
+                String::from_utf8_lossy(&response.raw).trim()
+            )));
+        }
 
         let cp = self.resolve_connected_port(&path)?;
         if cp.virtual_dlci.is_some() {
@@ -1111,12 +1136,24 @@ impl<R: Runtime> SerialPort<R> {
         if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
             hub.attach_cmux(session.clone());
         }
+        // Control channel first; without its UA the modem is not multiplexing.
+        if let Err(e) = session.open_dlci(0, Duration::from_millis(timeout_ms.max(500))) {
+            if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
+                hub.detach_cmux();
+            }
+            return Err(Error::String(e));
+        }
         *crate::sync_util::lock_or_recover(&cp.mux) = Some(session);
         Ok(())
     }
 
     /// Register a virtual DLCI channel on an CMUX-enabled physical port.
     pub fn open_mux_channel(&self, physical_path: String, dlci: u8) -> Result<String, Error> {
+        if !crate::cmux::is_data_dlci(dlci) {
+            return Err(Error::String(format!(
+                "invalid CMUX DLCI {dlci}: data channels are 1..=63"
+            )));
+        }
         let virtual_path = mux_path(&physical_path, dlci);
         let session = {
             let ports = self
@@ -1137,16 +1174,22 @@ impl<R: Runtime> SerialPort<R> {
             }
         }?;
 
-        if self
+        // Already open on *this* session. An entry left from an earlier session (port
+        // closed and re-opened) is stale and gets replaced below.
+        let known = self
             .virtual_ports
             .lock()
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
-            .contains_key(&virtual_path)
-        {
+            .contains_key(&virtual_path);
+        if known && session.has_dlci(dlci) {
             return Ok(virtual_path);
         }
 
         session.register_dlci(dlci, virtual_path.clone());
+        if let Err(e) = session.open_dlci(dlci, Duration::from_secs(3)) {
+            session.unregister_dlci(dlci);
+            return Err(Error::String(e));
+        }
         self.virtual_ports
             .lock()
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
@@ -1164,37 +1207,28 @@ impl<R: Runtime> SerialPort<R> {
 
     /// Tear down CMUX: close virtual channels and detach deframer.
     pub fn disable_mux(&self, path: String) -> Result<(), Error> {
-        let virtual_paths: Vec<String> = {
-            let mut paths: Vec<String> = self
-                .virtual_ports
-                .lock()
-                .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?
-                .iter()
-                .filter(|(_p, vp)| vp.physical_path == path)
-                .map(|(p, _)| p.clone())
-                .collect();
-            if paths.is_empty() {
-                let ports = self.serialports.lock().unwrap();
-                paths = ports
-                    .keys()
-                    .filter(|p| {
-                        parse_mux_path(p).map(|(base, _)| base == path.as_str()) == Some(true)
-                    })
-                    .cloned()
-                    .collect();
-            }
-            paths
-        };
-        for vp in virtual_paths {
-            let _ = self.close(vp);
-        }
+        self.close_virtual_channels_of(&path);
         self.with_connected_port(path.clone(), |cp| {
+            if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).take() {
+                session.close_down();
+            }
             if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
                 hub.detach_cmux();
             }
-            *crate::sync_util::lock_or_recover(&cp.mux) = None;
             Ok(())
         })
+    }
+
+    /// Close every CMUX virtual channel that rides on `physical`.
+    fn close_virtual_channels_of(&self, physical: &str) {
+        let virtual_paths: Vec<String> = crate::sync_util::lock_or_recover(&self.virtual_ports)
+            .iter()
+            .filter(|(_, vp)| vp.physical_path == physical)
+            .map(|(p, _)| p.clone())
+            .collect();
+        for vp in virtual_paths {
+            let _ = self.close(vp);
+        }
     }
 
     /// Cancel an in-flight exchange and reject queued waiters on `path`.
@@ -1229,7 +1263,6 @@ impl<R: Runtime> SerialPort<R> {
                 } else {
                     vp.exchange_cancel.store(true, Ordering::SeqCst);
                     vp.tx_queue.cancel_all();
-                    vp.tx_queue.clear_halt();
                 }
                 return Ok(());
             }

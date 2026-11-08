@@ -3,14 +3,14 @@
     "target": "es2021",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "lib": ["es2021", "dom"],
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": true,
     "noImplicitAny": true,
     "noEmit": true,
-    "types": ["jest", "node"],
-    "esModuleInterop": true
+    "types": []
   },
-  "include": ["guest-js/**/*.ts"],
-  "exclude": ["dist-js", "node_modules", "test/types", "examples", "target"]
+  "include": ["guest-js/*.ts"],
+  "exclude": ["dist-js", "node_modules"]
 }

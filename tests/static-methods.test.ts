@@ -60,7 +60,7 @@ describe('SerialPort Static Methods', () => {
     it('subscribes with channel and returns handle', async () => {
       mockInvoke.mockResolvedValueOnce(42);
 
-      const onSnapshot = jest.fn();
+      const onSnapshot = vi.fn();
       const handle = await SerialPort.watchAvailablePorts({ onSnapshot });
 
       expect(handle.channelId).toBe(42);
@@ -81,9 +81,9 @@ describe('SerialPort Static Methods', () => {
     it('passes watch options and dispatches port list events', async () => {
       mockInvoke.mockResolvedValueOnce(1);
 
-      const onSnapshot = jest.fn();
-      const onAdded = jest.fn();
-      const onRemoved = jest.fn();
+      const onSnapshot = vi.fn();
+      const onAdded = vi.fn();
+      const onRemoved = vi.fn();
 
       await SerialPort.watchAvailablePorts(
         { onSnapshot, onAdded, onRemoved },

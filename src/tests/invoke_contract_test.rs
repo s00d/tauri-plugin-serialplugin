@@ -95,13 +95,13 @@ mod tests {
             Ok(())
         });
 
-        let result = watch(
+        let result = tauri::async_runtime::block_on(watch(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             WatchOptions::default(),
             channel,
-        );
+        ));
         assert!(result.is_err());
     }
 

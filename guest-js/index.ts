@@ -1,4 +1,4 @@
-export { SerialPort } from './serial-port';
+export { SerialPort } from './serial-port.js';
 export {
   DEFAULT_SERIAL_TIMEOUT_MS,
   DataBits,
@@ -6,8 +6,8 @@ export {
   Parity,
   StopBits,
   ClearBuffer,
-} from './types';
-export { LogLevel } from './logger';
+} from './types.js';
+export { LogLevel } from './logger.js';
 export type {
   PortInfo,
   Capabilities,
@@ -36,4 +36,4 @@ export type {
   AtPhase,
   AtResultFormat,
   SendSmsPduOptions,
-} from './types';
+} from './types.js';

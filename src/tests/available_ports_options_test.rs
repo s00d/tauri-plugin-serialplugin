@@ -17,11 +17,11 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        let result = available_ports(
+        let result = tauri::async_runtime::block_on(available_ports(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             Some(true),
-        );
+        ));
         assert!(result.is_ok());
     }
 

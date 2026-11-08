@@ -1,170 +1,271 @@
-//! GSM 07.10 basic-mode UIH frame encode/decode (userspace CMUX).
+//! 3GPP TS 27.010 (GSM 07.10) basic-option frame encode/decode.
+//!
+//! Frame: `F9 | address | control | length (1–2 octets, EA) | info | FCS | F9`.
+//! No byte stuffing: the length field delimits the info, so payload bytes may be 0xF9.
+//! FCS is CRC-8 (reflected poly 0x07, i.e. 0xE0) over address+control+length; for UI
+//! frames the info field is included too.
 
-const FLAG: u8 = 0x7E;
-const ESC: u8 = 0x7D;
-const ESC_MASK: u8 = 0x20;
+pub const FLAG: u8 = 0xF9;
 
-const FCSTAB: [u16; 256] = [
-    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf, 0x8c48, 0x9dc1, 0xaf5a, 0xbed3,
-    0xca6c, 0xdbe5, 0xe97e, 0xf8f7, 0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
-    0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876, 0x2102, 0x308b, 0x0210, 0x1399,
-    0x6726, 0x76af, 0x4434, 0x55bd, 0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
-    0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c, 0xbdcb, 0xac42, 0x9ed9, 0x8f50,
-    0xfbef, 0xea66, 0xd8fd, 0xc974, 0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
-    0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3, 0x5285, 0x430c, 0x7197, 0x601e,
-    0x14a1, 0x0528, 0x37b3, 0x263a, 0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
-    0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9, 0xef4e, 0xfec7, 0xcc5c, 0xddd5,
-    0xa96a, 0xb8e3, 0x8a78, 0x9bf1, 0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738,
-    0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70, 0x8408, 0x9581, 0xa71a, 0xb693,
-    0xc22c, 0xd3a5, 0xe13e, 0xf0b7, 0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
-    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036, 0x18c1, 0x0948, 0x3bd3, 0x2a5a,
-    0x5ee5, 0x4f6c, 0x7df7, 0x6c7e, 0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
-    0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd, 0xb58b, 0xa402, 0x9699, 0x8710,
-    0xf3af, 0xe226, 0xd0bd, 0xc134, 0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
-    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3, 0x4a44, 0x5bcd, 0x6956, 0x78df,
-    0x0c60, 0x1de9, 0x2f72, 0x3efb, 0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
-    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a, 0xe70e, 0xf687, 0xc41c, 0xd595,
-    0xa12a, 0xb0a3, 0x8238, 0x93b1, 0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
-    0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330, 0x7bc7, 0x6a4e, 0x58d5, 0x495c,
-    0x3de3, 0x2c6a, 0x1ef1, 0x0f78,
-];
+/// Frame types (control field with the P/F bit cleared).
+pub const SABM: u8 = 0x2F;
+pub const UA: u8 = 0x63;
+pub const DM: u8 = 0x0F;
+pub const DISC: u8 = 0x43;
+pub const UIH: u8 = 0xEF;
+pub const UI: u8 = 0x03;
+pub const PF: u8 = 0x10;
 
-fn fcs_add(c: u8, fcs: u16) -> u16 {
-    (fcs >> 8) ^ FCSTAB[((fcs ^ u16::from(c)) & 0xFF) as usize]
+/// Largest info field we accept on receive (27.010 N1 upper bound).
+const MAX_INFO: usize = 32_768;
+/// Info bytes per transmitted frame. Basic option defaults N1 to 31 unless `AT+CMUX`
+/// sets it, so 31 is the only size every modem accepts.
+// ponytail: fixed N1=31; parse N1 from the AT+CMUX command if throughput matters.
+pub const TX_N1: usize = 31;
+
+const fn crc_table() -> [u8; 256] {
+    let mut table = [0u8; 256];
+    let mut i = 0;
+    while i < 256 {
+        let mut crc = i as u8;
+        let mut bit = 0;
+        while bit < 8 {
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xE0
+            } else {
+                crc >> 1
+            };
+            bit += 1;
+        }
+        table[i] = crc;
+        i += 1;
+    }
+    table
 }
 
-fn fcs_finish(fcs: u16) -> u16 {
-    !fcs
+static CRC_TABLE: [u8; 256] = crc_table();
+
+pub fn fcs(bytes: &[u8]) -> u8 {
+    let crc = bytes
+        .iter()
+        .fold(0xFFu8, |crc, &b| CRC_TABLE[(crc ^ b) as usize]);
+    0xFF - crc
 }
 
 pub fn encode_address(dlci: u8, cr: bool) -> u8 {
-    let mut c = (dlci & 0x3F) << 2;
-    c |= 0x01;
-    if cr {
-        c |= 0x02;
-    }
-    c
+    ((dlci & 0x3F) << 2) | (u8::from(cr) << 1) | 0x01
 }
 
 pub fn decode_address(addr: u8) -> (u8, bool) {
-    let dlci = (addr >> 2) & 0x3F;
-    let cr = (addr & 0x02) != 0;
-    (dlci, cr)
+    ((addr >> 2) & 0x3F, addr & 0x02 != 0)
 }
 
-/// UIH frame with P/F bit set (common for modem CMUX).
-pub fn encode_uih(dlci: u8, payload: &[u8]) -> Vec<u8> {
-    let mut body = Vec::with_capacity(4 + payload.len());
-    body.push(encode_address(dlci, true));
-    body.push(0xEF);
-    body.extend_from_slice(payload);
-    let mut fcs = 0xFFFFu16;
-    for b in &body {
-        fcs = fcs_add(*b, fcs);
+/// One frame. `cr` is the address C/R bit; as initiator we set it on commands and UIH.
+pub fn encode_frame(dlci: u8, cr: bool, control: u8, info: &[u8]) -> Vec<u8> {
+    assert!(info.len() <= MAX_INFO, "cmux info field too long");
+    let mut header = vec![encode_address(dlci, cr), control];
+    let len = info.len();
+    if len <= 127 {
+        header.push(((len as u8) << 1) | 0x01);
+    } else {
+        header.push(((len & 0x7F) as u8) << 1);
+        header.push((len >> 7) as u8);
     }
-    fcs = fcs_finish(fcs);
-    body.push((fcs & 0xFF) as u8);
-    body.push((fcs >> 8) as u8);
-
-    let mut frame = Vec::with_capacity(body.len() * 2 + 2);
+    let check = if control & !PF == UI {
+        fcs(&[header.as_slice(), info].concat())
+    } else {
+        fcs(&header)
+    };
+    let mut frame = Vec::with_capacity(header.len() + len + 3);
     frame.push(FLAG);
-    for b in body {
-        if b == FLAG {
-            frame.extend_from_slice(&[ESC, FLAG ^ ESC_MASK]);
-        } else if b == ESC {
-            frame.extend_from_slice(&[ESC, ESC ^ ESC_MASK]);
-        } else {
-            frame.push(b);
-        }
-    }
+    frame.extend_from_slice(&header);
+    frame.extend_from_slice(info);
+    frame.push(check);
     frame.push(FLAG);
     frame
+}
+
+/// UIH data frames for `payload`, split into [`TX_N1`]-sized info fields.
+pub fn encode_uih(dlci: u8, payload: &[u8]) -> Vec<u8> {
+    if payload.is_empty() {
+        return encode_frame(dlci, true, UIH, &[]);
+    }
+    payload
+        .chunks(TX_N1)
+        .flat_map(|chunk| encode_frame(dlci, true, UIH, chunk))
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodedFrame {
     pub dlci: u8,
+    /// Address C/R bit.
+    pub cr: bool,
+    /// Control field with the P/F bit cleared (see [`SABM`], [`UA`], [`UIH`] …).
+    pub kind: u8,
     pub payload: Vec<u8>,
 }
 
+/// Streaming deframer: keeps partial frames across reads and resyncs on garbage.
 #[derive(Default)]
 pub struct Deframer {
-    in_frame: bool,
-    escaped: bool,
-    raw: Vec<u8>,
+    buf: Vec<u8>,
 }
 
 impl Deframer {
     pub fn feed(&mut self, chunk: &[u8]) -> Vec<DecodedFrame> {
+        self.buf.extend_from_slice(chunk);
         let mut out = Vec::new();
-        for &b in chunk {
-            if b == FLAG {
-                if self.in_frame {
-                    if let Some(frame) = self.take_frame() {
-                        out.push(frame);
-                    }
+        loop {
+            // Drop everything before the first flag.
+            match self.buf.iter().position(|&b| b == FLAG) {
+                Some(0) => {}
+                Some(i) => {
+                    self.buf.drain(..i);
                 }
-                self.in_frame = true;
-                self.escaped = false;
-                self.raw.clear();
-                continue;
+                None => {
+                    self.buf.clear();
+                    return out;
+                }
             }
-            if !self.in_frame {
-                continue;
+            // Collapse runs of flags (closing flag + opening flag, or idle fill).
+            let flags = self.buf.iter().take_while(|&&b| b == FLAG).count();
+            if flags > 1 {
+                self.buf.drain(..flags - 1);
             }
-            if self.escaped {
-                self.raw.push(b ^ ESC_MASK);
-                self.escaped = false;
-                continue;
+            match self.parse_one() {
+                Parse::Need => return out,
+                Parse::Bad => {
+                    // Not a frame start after all: skip this flag and rescan.
+                    self.buf.remove(0);
+                }
+                Parse::Frame(frame, used) => {
+                    // Keep the closing flag: it may also open the next frame.
+                    self.buf.drain(..used - 1);
+                    out.push(frame);
+                }
             }
-            if b == ESC {
-                self.escaped = true;
-                continue;
-            }
-            self.raw.push(b);
         }
-        out
     }
 
-    fn take_frame(&mut self) -> Option<DecodedFrame> {
-        if self.raw.len() < 4 {
-            return None;
+    fn parse_one(&self) -> Parse {
+        let b = &self.buf;
+        if b.len() < 4 {
+            return Parse::Need;
         }
-        let (body, fcs_bytes) = self.raw.split_at(self.raw.len() - 2);
-        let mut fcs = 0xFFFFu16;
-        for b in body {
-            fcs = fcs_add(*b, fcs);
+        let (addr, control) = (b[1], b[2]);
+        if addr & 0x01 == 0 {
+            return Parse::Bad;
         }
-        fcs = fcs_finish(fcs);
-        let expected = u16::from(fcs_bytes[0]) | (u16::from(fcs_bytes[1]) << 8);
-        if fcs != expected {
-            return None;
+        let (len, len_octets) = if b[3] & 0x01 != 0 {
+            ((b[3] >> 1) as usize, 1)
+        } else {
+            if b.len() < 5 {
+                return Parse::Need;
+            }
+            (((b[3] >> 1) as usize) | ((b[4] as usize) << 7), 2)
+        };
+        if len > MAX_INFO {
+            return Parse::Bad;
         }
-        let addr = body[0];
-        let control = body[1];
-        if (control & 0xEF) != 0x03 && control != 0xEF {
-            return None;
+        let header_end = 3 + len_octets;
+        let total = header_end + len + 2; // + FCS + closing flag
+        if b.len() < total {
+            return Parse::Need;
         }
-        let (dlci, _) = decode_address(addr);
-        Some(DecodedFrame {
-            dlci,
-            payload: body[2..].to_vec(),
-        })
+        let info = &b[header_end..header_end + len];
+        let kind = control & !PF;
+        let expected = if kind == UI {
+            fcs(&b[1..header_end + len])
+        } else {
+            fcs(&b[1..header_end])
+        };
+        if b[header_end + len] != expected || b[total - 1] != FLAG {
+            return Parse::Bad;
+        }
+        let (dlci, cr) = decode_address(addr);
+        Parse::Frame(
+            DecodedFrame {
+                dlci,
+                cr,
+                kind,
+                payload: info.to_vec(),
+            },
+            total,
+        )
     }
+}
+
+enum Parse {
+    Need,
+    Bad,
+    Frame(DecodedFrame, usize),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// 27.010 reference: SABM with P on DLCI 0 is `F9 03 3F 01 1C F9`.
     #[test]
-    fn uih_roundtrip() {
-        let payload = b"AT\r";
+    fn sabm_dlci0_matches_spec_vector() {
+        assert_eq!(
+            encode_frame(0, true, SABM | PF, &[]),
+            vec![0xF9, 0x03, 0x3F, 0x01, 0x1C, 0xF9]
+        );
+    }
+
+    #[test]
+    fn uih_roundtrip_with_flag_bytes_split_across_reads() {
+        let payload = b"AT\r\xF9\xF9 data";
         let frame = encode_uih(1, payload);
         let mut def = Deframer::default();
-        let frames = def.feed(&frame);
+        let (a, b) = frame.split_at(5);
+        assert!(def.feed(a).is_empty());
+        let frames = def.feed(b);
         assert_eq!(frames.len(), 1);
         assert_eq!(frames[0].dlci, 1);
+        assert_eq!(frames[0].kind, UIH);
         assert_eq!(frames[0].payload, payload);
+    }
+
+    #[test]
+    fn long_payload_is_split_into_n1_frames_and_back_to_back_frames_share_flags() {
+        let payload: Vec<u8> = (0..100u8).collect();
+        let mut stream = encode_uih(2, &payload);
+        // A modem may send frames with a single shared flag between them.
+        let second = encode_uih(3, b"OK");
+        stream.extend_from_slice(&second[1..]);
+        let frames = Deframer::default().feed(&stream);
+        let data: Vec<u8> = frames
+            .iter()
+            .filter(|f| f.dlci == 2)
+            .flat_map(|f| f.payload.clone())
+            .collect();
+        assert_eq!(data, payload);
+        assert!(frames.iter().all(|f| f.payload.len() <= TX_N1));
+        assert_eq!(frames.last().unwrap().payload, b"OK");
+    }
+
+    #[test]
+    fn two_octet_length_roundtrip() {
+        let info = vec![0x55u8; 200];
+        let frame = encode_frame(5, true, UIH, &info);
+        assert_eq!(frame[3] & 0x01, 0, "EA must be 0 for a 2-octet length");
+        let frames = Deframer::default().feed(&frame);
+        assert_eq!(frames[0].payload, info);
+    }
+
+    #[test]
+    fn garbage_and_bad_fcs_are_skipped() {
+        let mut stream = vec![0x00, 0xF9, 0x12, 0xF9];
+        let mut bad = encode_uih(1, b"x");
+        let fcs_at = bad.len() - 2;
+        bad[fcs_at] ^= 0xFF;
+        stream.extend_from_slice(&bad);
+        stream.extend_from_slice(&encode_uih(1, b"good"));
+        let frames = Deframer::default().feed(&stream);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].payload, b"good");
     }
 }

@@ -116,13 +116,13 @@ describe('SerialPort API error matrix', () => {
 
     beforeEach(() => {
       callCount = 0;
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       serialPort.isOpen = false; // Start with closed port
     });
 
     afterEach(async () => {
       callCount = 0;
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       await SerialPort.closeAll();
     });
 
@@ -302,7 +302,7 @@ describe('SerialPort API error matrix', () => {
 
     it('should reject watch when port is closed', async () => {
       serialPort.isOpen = false;
-      await expect(serialPort.watch({ onData: jest.fn() })).rejects.toThrow('Port is not open');
+      await expect(serialPort.watch({ onData: vi.fn() })).rejects.toThrow('Port is not open');
     });
 
     it('should handle invalid binary data in writeBinary', async () => {

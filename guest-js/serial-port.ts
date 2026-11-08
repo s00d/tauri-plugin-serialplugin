@@ -5,7 +5,7 @@ import {
   logWarn,
   logInfo,
   type LogLevel,
-} from './logger';
+} from './logger.js';
 import {
   DEFAULT_SERIAL_TIMEOUT_MS,
   DataBits,
@@ -36,7 +36,7 @@ import {
   type AtCommandResult,
   type AtPhase,
   type SendSmsPduOptions,
-} from './types';
+} from './types.js';
 
 let capabilitiesCache: Capabilities | null = null;
 

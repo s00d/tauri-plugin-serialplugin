@@ -20,7 +20,7 @@ describe('SerialPort watch lifecycle', () => {
     const port = createTestSerialPort();
     await port.open();
 
-    const onData = jest.fn();
+    const onData = vi.fn();
     const handle = await port.watch({ onData });
 
     expect(handle.channelId).toBe(7);
@@ -48,7 +48,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onData = jest.fn();
+    const onData = vi.fn();
     await port.watch({ onData });
 
     const channel = MockChannel.lastInstance;
@@ -73,8 +73,8 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onError = jest.fn();
-    await port.watch({ onData: jest.fn(), onError });
+    const onError = vi.fn();
+    await port.watch({ onData: vi.fn(), onError });
 
     MockChannel.lastInstance!.onmessage?.({
       kind: 'error',
@@ -96,8 +96,8 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onDisconnect = jest.fn();
-    await port.watch({ onData: jest.fn(), onDisconnect });
+    const onDisconnect = vi.fn();
+    await port.watch({ onData: vi.fn(), onDisconnect });
 
     MockChannel.lastInstance!.onmessage?.({
       kind: 'disconnect',
@@ -119,8 +119,8 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onUrc = jest.fn();
-    await port.watch({ onData: jest.fn(), onUrc });
+    const onUrc = vi.fn();
+    await port.watch({ onData: vi.fn(), onUrc });
 
     expect(mockInvoke).toHaveBeenCalledWith(
       'plugin:serialplugin|watch',
@@ -148,7 +148,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    await port.watch({ onData: jest.fn() }, { decode: false });
+    await port.watch({ onData: vi.fn() }, { decode: false });
 
     expect(mockInvoke).toHaveBeenCalledWith(
       'plugin:serialplugin|watch',
@@ -168,7 +168,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    await port.watch({ onData: jest.fn() }, { routeUrc: true });
+    await port.watch({ onData: vi.fn() }, { routeUrc: true });
 
     expect(mockInvoke).toHaveBeenCalledWith(
       'plugin:serialplugin|watch',
@@ -189,7 +189,7 @@ describe('SerialPort watch lifecycle', () => {
     const port = createTestSerialPort();
     await port.open();
     expect(port.activeWatch).toBeNull();
-    const handle = await port.watch({ onData: jest.fn() });
+    const handle = await port.watch({ onData: vi.fn() });
     expect(port.activeWatch).toBe(handle);
   });
 
@@ -210,7 +210,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onData = jest.fn();
+    const onData = vi.fn();
     await port.watch({ onData });
     await port.change({ baudRate: 115200 });
     expect(watchCount).toBe(2);
@@ -227,7 +227,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    const onData = jest.fn();
+    const onData = vi.fn();
     await port.watch({ onData });
 
     MockChannel.lastInstance!.onmessage?.({
@@ -250,8 +250,8 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    await port.watch({ onData: jest.fn() });
-    await expect(port.watch({ onData: jest.fn() })).rejects.toThrow(
+    await port.watch({ onData: vi.fn() });
+    await expect(port.watch({ onData: vi.fn() })).rejects.toThrow(
       'A watch is already active on this port instance',
     );
   });
@@ -269,7 +269,7 @@ describe('SerialPort watch lifecycle', () => {
 
     const port = createTestSerialPort();
     await port.open();
-    await port.watch({ onData: jest.fn() });
+    await port.watch({ onData: vi.fn() });
     await port.close();
 
     expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|unwatch', {

@@ -41,7 +41,7 @@ need_npm=(
   package/dist-js/index.js
   package/dist-js/index.cjs
   package/dist-js/index.d.ts
-  package/guest-js/index.ts
+  package/dist-js/index.d.cts
   package/CHANGELOG.md
   package/README.md
   package/CONTRIBUTING.md
@@ -72,13 +72,11 @@ for bad in \
   '^test-results/' \
   '^android/src/test/' \
   '^android/BUILD_INSTRUCTIONS\.md$' \
-  '^jest\.config\.js$' \
-  '^\.jestignore$' \
   '^\.versionrc\.json$' \
   '^pnpm-lock\.yaml$' \
   '^pnpm-workspace\.yaml$' \
   '^tsconfig\.json$' \
-  '^rollup\.config\.mjs$'
+  '^vite\.config\.ts$'
 do
   if rg -q "$bad" "$LIST"; then
     echo "error: cargo package still includes: $bad" >&2

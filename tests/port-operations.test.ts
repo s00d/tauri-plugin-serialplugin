@@ -216,7 +216,7 @@ describe('SerialPort Operations', () => {
     it('should start watch successfully', async () => {
       mockInvoke.mockResolvedValueOnce(9);
 
-      const handle = await serialPort.watch({ onData: jest.fn() });
+      const handle = await serialPort.watch({ onData: vi.fn() });
       expect(handle.channelId).toBe(9);
       expect(mockInvoke).toHaveBeenCalledWith(
         'plugin:serialplugin|watch',
@@ -228,7 +228,7 @@ describe('SerialPort Operations', () => {
 
     it('should unwatch via handle', async () => {
       mockInvoke.mockResolvedValueOnce(2);
-      const handle = await serialPort.watch({ onData: jest.fn() });
+      const handle = await serialPort.watch({ onData: vi.fn() });
       mockInvoke.mockResolvedValueOnce(undefined);
       await handle.unwatch();
       expect(mockInvoke).toHaveBeenCalledWith('plugin:serialplugin|unwatch', {

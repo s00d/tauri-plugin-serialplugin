@@ -5,7 +5,9 @@ mod io_errors {
     pub(super) fn is_benign_read_error(err: &std::io::Error) -> bool {
         matches!(
             err.kind(),
-            std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+            std::io::ErrorKind::TimedOut
+                | std::io::ErrorKind::WouldBlock
+                | std::io::ErrorKind::Interrupted
         )
     }
 
@@ -24,6 +26,43 @@ mod io_errors {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        /// Windows reports an unplugged adapter as PermissionDenied, never BrokenPipe.
+        #[cfg(desktop)]
+        #[test]
+        fn persistent_read_error_ends_in_disconnect_event() {
+            use crate::events::SerialEvent;
+            use crate::mock_serial::MockSerialPort;
+            use std::sync::{Arc, Mutex};
+            use std::time::Duration;
+            use tauri::ipc::{Channel, InvokeResponseBody};
+
+            let mut mock = MockSerialPort::new();
+            mock.sticky_read_error = Some(std::io::ErrorKind::PermissionDenied);
+            let port: Arc<Mutex<Box<dyn serialport::SerialPort>>> =
+                Arc::new(Mutex::new(Box::new(mock)));
+            let (tx, rx) = std::sync::mpsc::channel();
+            let tx = Mutex::new(tx);
+            let channel = Channel::<SerialEvent>::new(move |body| {
+                if let InvokeResponseBody::Json(json) = body {
+                    if json.contains("disconnect") {
+                        let _ = tx.lock().unwrap().send(());
+                    }
+                }
+                Ok(())
+            });
+            let hub = super::super::PortRxHub::start(port, "unplugged".into());
+            hub.attach_watch(channel, 10, 64, false);
+            rx.recv_timeout(Duration::from_secs(3))
+                .expect("no Disconnect after persistent read errors");
+            hub.stop();
+        }
+
+        #[test]
+        fn eintr_is_benign() {
+            let err = std::io::Error::new(std::io::ErrorKind::Interrupted, "EINTR");
+            assert!(is_benign_read_error(&err));
+        }
 
         #[test]
         fn read_timeout_is_benign_not_disconnect() {
@@ -66,17 +105,15 @@ use tauri::ipc::Channel;
 
 const POLL_READ_TIMEOUT_MS: u64 = 10;
 
+/// `Ok(None)` means the hub was asked to stop.
 fn poll_read_port(
     port: &Arc<Mutex<Box<dyn SerialPort>>>,
     buf: &mut [u8],
     stop_rx: &Receiver<()>,
-) -> std::io::Result<usize> {
+) -> std::io::Result<Option<usize>> {
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Interrupted,
-                "rx hub stopped",
-            ));
+            return Ok(None);
         }
         let mut p = match port.try_lock() {
             Ok(g) => g,
@@ -87,16 +124,28 @@ fn poll_read_port(
         };
         let _ = p.set_timeout(Duration::from_millis(POLL_READ_TIMEOUT_MS));
         match p.read(buf) {
-            Ok(n) => return Ok(n),
+            Ok(n) => return Ok(Some(n)),
             Err(e) if is_benign_read_error(&e) => {
                 drop(p);
                 // Yield so hub_loop can complete drain idle/deadline and flush watch batches.
-                return Ok(0);
+                return Ok(Some(0));
             }
             Err(e) => return Err(e),
         }
     }
 }
+
+/// Non-benign read errors in a row before the port is treated as gone. Windows reports
+/// an unplugged adapter as PermissionDenied / Other, Unix sometimes as EIO, never as
+/// BrokenPipe, so a persistent error is the only portable unplug signal.
+const MAX_CONSECUTIVE_READ_ERRORS: u32 = 5;
+
+fn shutdown_hub_state(shared: &RxHubShared, routing: &mut HubRoutingState) {
+    shared.fail_all_waiters("port closed");
+    shared.flush_watch_now(routing);
+    shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+}
+
 /// Single RX consumer on the main serial fd (desktop).
 pub struct PortRxHub {
     shared: Arc<RxHubShared>,
@@ -230,15 +279,13 @@ fn hub_loop(
     stop_rx: Receiver<()>,
 ) {
     let mut routing = HubRoutingState::new(path.clone());
-    let mut batch_timeout_ms = 1000u64;
     let mut read_size = 1024usize;
     let mut last_error_emit = Instant::now() - Duration::from_secs(1);
+    let mut consecutive_errors = 0u32;
 
     loop {
         if matches!(stop_rx.try_recv(), Ok(_) | Err(TryRecvError::Disconnected)) {
-            shared.fail_all_waiters("port closed");
-            shared.flush_watch_now(&mut routing);
-            shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
+            shutdown_hub_state(&shared, &mut routing);
             break;
         }
 
@@ -250,9 +297,11 @@ fn hub_loop(
 
             let mut buf = vec![0u8; 1024];
             let n = match poll_read_port(&port, &mut buf, &stop_rx) {
-                Ok(n) => n,
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
-                Err(e) if is_benign_read_error(&e) => 0,
+                Ok(Some(n)) => n,
+                Ok(None) => {
+                    shutdown_hub_state(&shared, &mut routing);
+                    break;
+                }
                 Err(e) => {
                     finish_drain(&shared, Err(format!("drain read failed: {}", e)));
                     continue;
@@ -271,29 +320,33 @@ fn hub_loop(
         }
 
         if let Some(watch) = crate::sync_util::lock_or_recover(&shared.watch).as_ref() {
-            batch_timeout_ms = watch.batch_timeout_ms;
             read_size = watch.read_size;
         }
 
         let mut buf = vec![0u8; read_size];
         let read_result = poll_read_port(&port, &mut buf, &stop_rx);
 
+        if read_result.is_ok() {
+            consecutive_errors = 0;
+        }
         match read_result {
-            Ok(n) if n > 0 => {
+            Ok(None) => {
+                shutdown_hub_state(&shared, &mut routing);
+                break;
+            }
+            Ok(Some(n)) if n > 0 => {
                 shared.feed_bytes(&buf[..n], &mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
             }
-            Ok(_) => {
-                thread::sleep(Duration::from_millis(1));
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => break,
-            Err(e) if is_benign_read_error(&e) => {
+            Ok(Some(_)) => {
                 thread::sleep(Duration::from_millis(1));
             }
             Err(e) => {
+                consecutive_errors += 1;
                 shared.flush_watch_now(&mut routing);
                 shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-                if is_disconnect_read_error(&e) {
+                if is_disconnect_read_error(&e) || consecutive_errors >= MAX_CONSECUTIVE_READ_ERRORS
+                {
                     let reason = format!("Serial port disconnected: {}", e);
                     shared.fail_all_waiters(&reason);
                     let channel = crate::sync_util::lock_or_recover(&shared.watch)
@@ -332,6 +385,5 @@ fn hub_loop(
 
         shared.tick(&path, &mut routing);
         shared.dispatch_pending_events(std::mem::take(&mut routing.pending_events));
-        let _ = batch_timeout_ms;
     }
 }

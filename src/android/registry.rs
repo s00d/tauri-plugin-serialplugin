@@ -57,7 +57,6 @@ impl MobilePortRegistry {
         handle.exchange_cancel.store(true, Ordering::SeqCst);
         hub.shared().fail_all_waiters(reason);
         handle.tx_queue.cancel_all();
-        handle.tx_queue.clear_halt();
         hub.shared().emit_disconnect(path, reason);
 
         for channel_id in watch_registry::paths_for_port(path) {
@@ -420,7 +419,7 @@ mod fail_port_tests {
     }
 
     #[test]
-    fn fail_port_clear_halt_allows_next_tx_job() {
+    fn fail_port_allows_next_tx_job() {
         let registry = MobilePortRegistry::new();
         let port: Arc<Mutex<Box<dyn SerialPort>>> =
             Arc::new(Mutex::new(Box::new(MockSerialPort::new())));

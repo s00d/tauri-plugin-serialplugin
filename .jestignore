@@ -1,8 +1,0 @@
-target/
-examples/
-dist/
-build/
-coverage/
-test-results/
-node_modules/
-*.log 

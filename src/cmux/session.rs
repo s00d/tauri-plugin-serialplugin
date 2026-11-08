@@ -1,12 +1,14 @@
 //! CMUX session: deframe physical RX, route per DLCI, encode TX.
 
-use crate::cmux::frame::{encode_uih, DecodedFrame, Deframer};
+use crate::cmux::frame::{
+    encode_frame, encode_uih, DecodedFrame, Deframer, DISC, DM, PF, SABM, UA, UI, UIH,
+};
 use crate::cmux::io::CmuxPhysicalIo;
 use crate::events::SerialEvent;
 use crate::hub::ExchangeWaiter;
 use std::collections::HashMap;
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
-
 use std::time::{Duration, Instant};
 use tauri::ipc::Channel;
 
@@ -48,35 +50,59 @@ impl DlciChannel {
     }
 
     fn push_stream(&self, payload: &[u8]) {
-        let mut guard = crate::sync_util::lock_or_recover(&self.watch);
-        let Some(slot) = guard.as_mut() else {
-            return;
+        let due = {
+            let mut guard = crate::sync_util::lock_or_recover(&self.watch);
+            let Some(slot) = guard.as_mut() else {
+                return;
+            };
+            crate::sync_util::lock_or_recover(&self.stream_buffer).extend_from_slice(payload);
+            slot.take_due()
         };
-        self.stream_buffer
-            .lock()
-            .unwrap()
-            .extend_from_slice(payload);
-        if slot.flush_at.elapsed() >= Duration::from_millis(slot.batch_timeout_ms) {
-            slot.flush_at = Instant::now();
+        // Flush outside the `watch` lock: flush_stream_buffer takes it again.
+        if due {
+            self.flush_stream_buffer();
+        }
+    }
+
+    /// Flush a batch whose timeout elapsed with no new frame to trigger it.
+    fn tick(&self) {
+        let due = crate::sync_util::lock_or_recover(&self.watch)
+            .as_mut()
+            .is_some_and(DlciWatchSlot::take_due);
+        if due {
             self.flush_stream_buffer();
         }
     }
 
     fn flush_stream_buffer(&self) {
-        let mut buf = crate::sync_util::lock_or_recover(&self.stream_buffer);
-        if buf.is_empty() {
+        let data = std::mem::take(&mut *crate::sync_util::lock_or_recover(&self.stream_buffer));
+        if data.is_empty() {
             return;
         }
-        if let Some(slot) = crate::sync_util::lock_or_recover(&self.watch).as_ref() {
-            let size = buf.len();
-            let data = std::mem::take(&mut *buf);
-            let path = self.path.clone();
+        let channel = crate::sync_util::lock_or_recover(&self.watch)
+            .as_ref()
+            .map(|slot| slot.channel.clone());
+        if let Some(channel) = channel {
+            let size = data.len();
             crate::port::watch_registry::send_event(
-                &slot.channel,
-                SerialEvent::Data { path, data, size },
+                &channel,
+                SerialEvent::Data {
+                    path: self.path.clone(),
+                    data,
+                    size,
+                },
             );
+        }
+    }
+}
+
+impl DlciWatchSlot {
+    fn take_due(&mut self) -> bool {
+        if self.flush_at.elapsed() >= Duration::from_millis(self.batch_timeout_ms) {
+            self.flush_at = Instant::now();
+            true
         } else {
-            buf.clear();
+            false
         }
     }
 }
@@ -87,6 +113,8 @@ pub struct CmuxSession {
     io: Arc<dyn CmuxPhysicalIo>,
     deframer: Mutex<Deframer>,
     channels: Mutex<HashMap<u8, Arc<DlciChannel>>>,
+    /// SABM sent, waiting for UA (true) or DM (false).
+    pending_open: Mutex<HashMap<u8, mpsc::Sender<bool>>>,
 }
 
 impl CmuxSession {
@@ -96,6 +124,7 @@ impl CmuxSession {
             io,
             deframer: Mutex::new(Deframer::default()),
             channels: Mutex::new(HashMap::new()),
+            pending_open: Mutex::new(HashMap::new()),
         })
     }
 
@@ -110,7 +139,53 @@ impl CmuxSession {
     }
 
     pub fn unregister_dlci(&self, dlci: u8) {
-        crate::sync_util::lock_or_recover(&self.channels).remove(&dlci);
+        if crate::sync_util::lock_or_recover(&self.channels)
+            .remove(&dlci)
+            .is_some()
+        {
+            let _ = self.io.write_all(&encode_frame(dlci, true, DISC | PF, &[]));
+        }
+    }
+
+    pub fn has_dlci(&self, dlci: u8) -> bool {
+        crate::sync_util::lock_or_recover(&self.channels).contains_key(&dlci)
+    }
+
+    /// Establish a DLC: send SABM and wait for the modem's UA (DM = refused).
+    /// DLCI 0 (the control channel) must be opened first.
+    pub fn open_dlci(&self, dlci: u8, timeout: Duration) -> Result<(), String> {
+        let (tx, rx) = mpsc::channel();
+        crate::sync_util::lock_or_recover(&self.pending_open).insert(dlci, tx);
+        let sent = self.io.write_all(&encode_frame(dlci, true, SABM | PF, &[]));
+        let result = sent.and_then(|()| match rx.recv_timeout(timeout) {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(format!("modem refused CMUX DLCI {dlci} (DM)")),
+            Err(_) => Err(format!(
+                "no UA for CMUX DLCI {dlci} within {} ms",
+                timeout.as_millis()
+            )),
+        });
+        crate::sync_util::lock_or_recover(&self.pending_open).remove(&dlci);
+        result
+    }
+
+    /// Ask the modem to leave multiplexer mode (CLD on the control channel).
+    pub fn close_down(&self) {
+        // CLD command: type octet 0xC3 (EA=1, C/R=1, type 0x30), length 0.
+        let _ = self
+            .io
+            .write_all(&encode_frame(0, true, UIH, &[0xC3, 0x01]));
+    }
+
+    /// Batch-timeout flush for virtual-channel watches (called from the hub tick).
+    pub fn tick(&self) {
+        let channels: Vec<_> = crate::sync_util::lock_or_recover(&self.channels)
+            .values()
+            .cloned()
+            .collect();
+        for ch in channels {
+            ch.tick();
+        }
     }
 
     pub fn set_watch(&self, dlci: u8, channel: Channel<SerialEvent>, batch_timeout_ms: u64) {
@@ -161,6 +236,23 @@ impl CmuxSession {
     }
 
     fn dispatch_frame(&self, frame: DecodedFrame) {
+        match frame.kind {
+            UA | DM => {
+                if let Some(tx) =
+                    crate::sync_util::lock_or_recover(&self.pending_open).get(&frame.dlci)
+                {
+                    let _ = tx.send(frame.kind == UA);
+                }
+                return;
+            }
+            UIH | UI => {}
+            // SABM/DISC from the modem: we are the initiator, nothing to accept.
+            _ => return,
+        }
+        if frame.dlci == 0 {
+            self.handle_control(&frame.payload);
+            return;
+        }
         let ch = crate::sync_util::lock_or_recover(&self.channels)
             .get(&frame.dlci)
             .cloned();
@@ -173,6 +265,21 @@ impl CmuxSession {
             return;
         }
         ch.push_stream(&frame.payload);
+    }
+
+    /// Control-channel message from the modem. Commands (MSC, TEST, FCon/FCoff …) are
+    /// acknowledged by echoing them back with the type octet's C/R bit cleared, as
+    /// 27.010 §5.4.6 requires; responses to our own commands need no action.
+    fn handle_control(&self, payload: &[u8]) {
+        let Some(&type_octet) = payload.first() else {
+            return;
+        };
+        if type_octet & 0x02 == 0 {
+            return;
+        }
+        let mut reply = payload.to_vec();
+        reply[0] &= !0x02;
+        let _ = self.io.write_all(&encode_frame(0, true, UIH, &reply));
     }
 }
 

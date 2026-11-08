@@ -68,7 +68,7 @@ describe('SerialPort Encoding Operations', () => {
         return Promise.resolve();
       });
 
-      const callback = jest.fn();
+      const callback = vi.fn();
       await serialPort.watch({ onData: callback });
 
       MockChannel.lastInstance!.onmessage?.({
@@ -87,7 +87,7 @@ describe('SerialPort Encoding Operations', () => {
         return Promise.resolve();
       });
 
-      const callback = jest.fn();
+      const callback = vi.fn();
       await serialPort.watch({ onData: callback }, { decode: false });
 
       MockChannel.lastInstance!.onmessage?.({

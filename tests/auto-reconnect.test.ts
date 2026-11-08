@@ -8,7 +8,7 @@ describe('SerialPort Auto-Reconnect', () => {
   let watchCallCount = 0;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     watchCallCount = 0;
     const mocks = setupTestMocks();
     mockInvoke = mocks.mockInvoke;
@@ -16,7 +16,7 @@ describe('SerialPort Auto-Reconnect', () => {
   });
 
   afterEach(async () => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     await SerialPort.closeAll();
   });
 
@@ -33,7 +33,7 @@ describe('SerialPort Auto-Reconnect', () => {
 
     await serialPort.open();
     serialPort.enableAutoReconnect({ interval: 100 });
-    const onData = jest.fn();
+    const onData = vi.fn();
     await serialPort.watch({ onData });
 
     MockChannel.lastInstance!.onmessage?.({
@@ -42,7 +42,7 @@ describe('SerialPort Auto-Reconnect', () => {
       reason: 'lost',
     });
 
-    await jest.runOnlyPendingTimersAsync();
+    await vi.runOnlyPendingTimersAsync();
 
     expect(serialPort.isOpen).toBe(true);
     expect(watchCallCount).toBe(2);
@@ -60,7 +60,7 @@ describe('SerialPort Auto-Reconnect', () => {
     });
 
     await serialPort.open();
-    await serialPort.watch({ onData: jest.fn() });
+    await serialPort.watch({ onData: vi.fn() });
 
     const openCallsBeforeDisconnect = mockInvoke.mock.calls.filter(
       (call) => call[0] === 'plugin:serialplugin|open',
@@ -72,7 +72,7 @@ describe('SerialPort Auto-Reconnect', () => {
       reason: 'lost',
     });
 
-    await jest.runOnlyPendingTimersAsync();
+    await vi.runOnlyPendingTimersAsync();
 
     expect(serialPort.isOpen).toBe(false);
     expect(watchCallCount).toBe(1);
@@ -107,7 +107,7 @@ describe('SerialPort Auto-Reconnect', () => {
     });
 
     await serialPort.open();
-    await serialPort.watch({ onData: jest.fn() });
+    await serialPort.watch({ onData: vi.fn() });
     serialPort.isOpen = false;
 
     const ok = await serialPort.manualReconnect();
@@ -117,7 +117,7 @@ describe('SerialPort Auto-Reconnect', () => {
 
   it('stops auto-reconnect after maxAttempts is exhausted', async () => {
     let openCount = 0;
-    const onReconnect = jest.fn();
+    const onReconnect = vi.fn();
 
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === 'plugin:serialplugin|open') {
@@ -137,7 +137,7 @@ describe('SerialPort Auto-Reconnect', () => {
 
     await serialPort.open();
     serialPort.enableAutoReconnect({ interval: 100, maxAttempts: 2, onReconnect });
-    await serialPort.watch({ onData: jest.fn() });
+    await serialPort.watch({ onData: vi.fn() });
 
     MockChannel.lastInstance!.onmessage?.({
       kind: 'disconnect',
@@ -145,7 +145,7 @@ describe('SerialPort Auto-Reconnect', () => {
       reason: 'lost',
     });
 
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
 
     expect(openCount).toBe(3);
     expect(serialPort.isOpen).toBe(false);
@@ -165,7 +165,7 @@ describe('SerialPort Auto-Reconnect', () => {
 
     await serialPort.open();
     serialPort.enableAutoReconnect({ interval: 100 });
-    await serialPort.watch({ onData: jest.fn() });
+    await serialPort.watch({ onData: vi.fn() });
     serialPort.disableAutoReconnect();
 
     const openCallsBeforeDisconnect = mockInvoke.mock.calls.filter(
@@ -178,7 +178,7 @@ describe('SerialPort Auto-Reconnect', () => {
       reason: 'lost',
     });
 
-    await jest.runOnlyPendingTimersAsync();
+    await vi.runOnlyPendingTimersAsync();
 
     const openCallsAfterDisconnect = mockInvoke.mock.calls.filter(
       (call) => call[0] === 'plugin:serialplugin|open',

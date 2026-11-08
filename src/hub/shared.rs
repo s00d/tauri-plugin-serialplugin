@@ -149,7 +149,8 @@ pub fn emit_urc(channel: &Channel<SerialEvent>, path: &str, line: &str) {
 pub struct HubRoutingState {
     pub path: String,
     pub line_router: LineRouter,
-    pub exchange_demux: Option<ExchangeDemux>,
+    /// URC demux for the exchange it was built for; rebuilt when the waiter changes.
+    pub exchange_demux: Option<(Arc<ExchangeWaiter>, ExchangeDemux)>,
     pub combined_buffer: Vec<u8>,
     pub flush_at: Instant,
     /// Watch/URC events queued under routing lock; dispatched after the lock is released.
@@ -254,7 +255,13 @@ impl RxHubShared {
         *crate::sync_util::lock_or_recover(&self.cmux) = None;
     }
 
+    /// Install the waiter. Bytes that arrived with no consumer (`idle`) are handed to it
+    /// first, under the idle lock, so they keep their order ahead of the reply.
     pub fn set_exchange_waiter(&self, waiter: Arc<ExchangeWaiter>) {
+        let mut idle = crate::sync_util::lock_or_recover(&self.idle);
+        if !idle.is_empty() {
+            waiter.push_bytes(&std::mem::take(&mut *idle));
+        }
         *crate::sync_util::lock_or_recover(&self.exchange_waiter) = Some(waiter);
     }
 
@@ -300,6 +307,9 @@ impl RxHubShared {
     pub fn tick(&self, path: &str, state: &mut HubRoutingState) {
         tick_read_slot(self);
         try_complete_drain(self);
+        if let Some(session) = crate::sync_util::lock_or_recover(&self.cmux).clone() {
+            session.tick();
+        }
 
         let batch_timeout_ms = crate::sync_util::lock_or_recover(&self.watch)
             .as_ref()
@@ -532,11 +542,13 @@ pub(crate) fn route_exchange_chunk(
     state: &mut HubRoutingState,
     waiter: Arc<ExchangeWaiter>,
 ) {
-    if state.exchange_demux.is_none() {
+    let stale = !matches!(&state.exchange_demux, Some((w, _)) if Arc::ptr_eq(w, &waiter));
+    if stale {
         let cmd = waiter.options.command.clone().unwrap_or_default();
-        state.exchange_demux = Some(ExchangeDemux::new(&cmd, &waiter.options.solicited_prefixes));
+        let demux = ExchangeDemux::new(&cmd, &waiter.options.solicited_prefixes);
+        state.exchange_demux = Some((waiter.clone(), demux));
     }
-    if let Some(demux) = state.exchange_demux.as_mut() {
+    if let Some((_, demux)) = state.exchange_demux.as_mut() {
         for line in demux.process_chunk(chunk) {
             if shared.has_watch() {
                 state.pending_events.push(SerialEvent::Urc {
@@ -684,6 +696,11 @@ pub(crate) fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, Str
 
 pub(crate) fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     let mut idle = crate::sync_util::lock_or_recover(&shared.idle);
+    // A waiter may have been installed after `feed_bytes` checked for one.
+    if let Some(waiter) = crate::sync_util::lock_or_recover(&shared.exchange_waiter).as_ref() {
+        waiter.push_bytes(chunk);
+        return;
+    }
     idle.extend_from_slice(chunk);
     if idle.len() > IDLE_BUFFER_CAP {
         let excess = idle.len() - IDLE_BUFFER_CAP;

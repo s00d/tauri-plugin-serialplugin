@@ -1,12 +1,13 @@
+import type { Mock } from 'vitest';
 import { SerialPort, DataBits, FlowControl, Parity, StopBits } from '../guest-js';
 import type { SerialportOptions } from '../guest-js';
 import { invoke } from '@tauri-apps/api/core';
 
-export type MockInvoke = jest.Mock<Promise<any>, [string, any?]>;
+export type MockInvoke = Mock<(cmd: string, args?: any) => Promise<any>>;
 
 export const setupTestMocks = () => {
   const mockInvoke = invoke as MockInvoke;
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   return {
     mockInvoke,
@@ -27,9 +28,9 @@ export const createTestSerialPort = (overrides?: Partial<SerialportOptions>) => 
 };
 
 afterEach(() => {
-  jest.clearAllTimers();
+  vi.clearAllTimers();
 });
 
 afterAll(() => {
-  jest.clearAllTimers();
+  vi.clearAllTimers();
 });

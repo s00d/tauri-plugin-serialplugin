@@ -42,6 +42,8 @@ pub struct MockSerialPort {
     pub rx_script: Vec<Vec<u8>>,
     pub captured_tx: Arc<Mutex<Vec<u8>>>,
     pub next_read_error: Option<io::ErrorKind>,
+    /// Returned by every read (simulates an unplugged adapter).
+    pub sticky_read_error: Option<io::ErrorKind>,
     pub baud_rate: u32,
     pub data_bits: serialport::DataBits,
     pub flow_control: serialport::FlowControl,
@@ -64,6 +66,7 @@ impl Default for MockSerialPort {
             rx_script: Vec::new(),
             captured_tx: Arc::new(Mutex::new(Vec::new())),
             next_read_error: None,
+            sticky_read_error: None,
             baud_rate: 9600,
             data_bits: serialport::DataBits::Eight,
             flow_control: serialport::FlowControl::None,
@@ -211,6 +214,7 @@ impl SerialPort for MockSerialPort {
             rx_script: self.rx_script.clone(),
             captured_tx: self.captured_tx.clone(),
             next_read_error: self.next_read_error,
+            sticky_read_error: self.sticky_read_error,
             baud_rate: self.baud_rate,
             data_bits: self.data_bits,
             flow_control: self.flow_control,
@@ -231,7 +235,7 @@ impl SerialPort for MockSerialPort {
 
 impl Read for MockSerialPort {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if let Some(kind) = self.next_read_error.take() {
+        if let Some(kind) = self.next_read_error.take().or(self.sticky_read_error) {
             return Err(io::Error::new(kind, "injected read error"));
         }
         self.pull_rx(buf)

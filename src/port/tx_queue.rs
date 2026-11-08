@@ -16,8 +16,10 @@ pub struct PortTxQueue {
 struct Inner {
     next_ticket: u64,
     now_serving: u64,
-    /// When set, waiters receive cancelled error.
-    drain_waiters: bool,
+    /// Tickets below this value were cancelled and must not run.
+    cancel_below: u64,
+    /// A job holds the turn right now.
+    running: bool,
 }
 
 impl Default for PortTxQueue {
@@ -32,7 +34,8 @@ impl PortTxQueue {
             inner: Mutex::new(Inner {
                 next_ticket: 0,
                 now_serving: 0,
-                drain_waiters: false,
+                cancel_below: 0,
+                running: false,
             }),
             turn: Condvar::new(),
             at_session: Mutex::new(AtSessionConfig::default()),
@@ -47,16 +50,15 @@ impl PortTxQueue {
         crate::sync_util::lock_or_recover(&self.at_session).clone()
     }
 
-    /// Cancel in-flight exchange (via port flag) and reject all queued waiters.
+    /// Reject every job queued so far. The running job (if any) is stopped through
+    /// the port's cancel flag by the caller; jobs submitted after this call run normally.
     pub fn cancel_all(&self) {
         let mut inner = crate::sync_util::lock_or_recover(&self.inner);
-        inner.drain_waiters = true;
-        inner.now_serving = inner.next_ticket;
+        inner.cancel_below = inner.next_ticket;
+        if !inner.running {
+            inner.now_serving = inner.next_ticket;
+        }
         self.turn.notify_all();
-    }
-
-    pub fn clear_halt(&self) {
-        crate::sync_util::lock_or_recover(&self.inner).drain_waiters = false;
     }
 
     /// Run `f` when this caller's turn arrives (FIFO).
@@ -64,41 +66,30 @@ impl PortTxQueue {
     where
         F: FnOnce() -> Result<T, Error>,
     {
-        let ticket = {
-            let mut inner = crate::sync_util::lock_or_recover(&self.inner);
-            if inner.drain_waiters {
-                return Err(Error::String(CANCELLED_MSG.into()));
-            }
-            let t = inner.next_ticket;
-            inner.next_ticket += 1;
-            t
-        };
-
         let mut inner = crate::sync_util::lock_or_recover(&self.inner);
+        let ticket = inner.next_ticket;
+        inner.next_ticket += 1;
         while inner.now_serving != ticket {
-            if inner.drain_waiters {
+            if ticket < inner.cancel_below {
                 return Err(Error::String(CANCELLED_MSG.into()));
             }
-            inner = self
-                .turn
-                .wait(inner)
-                .map_err(|e| Error::String(format!("queue wait failed: {e}")))?;
+            inner = self.turn.wait(inner).unwrap_or_else(|e| e.into_inner());
         }
+        inner.running = true;
         drop(inner);
 
-        let result = f();
-
-        {
-            let mut inner = crate::sync_util::lock_or_recover(&self.inner);
-            inner.now_serving += 1;
-            if inner.drain_waiters {
-                inner.now_serving = inner.next_ticket;
-                inner.drain_waiters = false;
+        // Release the turn even if `f` panics, so the queue never wedges.
+        struct Turn<'a>(&'a PortTxQueue);
+        impl Drop for Turn<'_> {
+            fn drop(&mut self) {
+                let mut inner = crate::sync_util::lock_or_recover(&self.0.inner);
+                inner.running = false;
+                inner.now_serving = (inner.now_serving + 1).max(inner.cancel_below);
+                self.0.turn.notify_all();
             }
         }
-        self.turn.notify_all();
-
-        result
+        let _turn = Turn(self);
+        f()
     }
 }
 
@@ -167,12 +158,37 @@ mod tests {
     }
 
     #[test]
-    fn cancel_all_then_clear_halt_allows_next_job() {
+    fn cancel_all_then_next_job_runs() {
         let q = Arc::new(PortTxQueue::new());
         q.cancel_all();
-        q.clear_halt();
         let result = q.run_serial(|| Ok(42));
         assert_eq!(result.unwrap(), 42);
+    }
+
+    /// Regression: cancelling while a job runs used to push `now_serving` past every
+    /// future ticket, so the next job on the port waited forever.
+    #[test]
+    fn cancel_during_running_job_does_not_wedge_queue() {
+        let q = Arc::new(PortTxQueue::new());
+        let started = Arc::new(std::sync::Barrier::new(2));
+        let (q1, s1) = (q.clone(), started.clone());
+        let t1 = thread::spawn(move || {
+            q1.run_serial(|| {
+                s1.wait();
+                thread::sleep(Duration::from_millis(50));
+                Ok(())
+            })
+        });
+        started.wait();
+        q.cancel_all();
+        t1.join().unwrap().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let q2 = q.clone();
+        thread::spawn(move || tx.send(q2.run_serial(|| Ok(7))).unwrap());
+        let r = rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("next job never ran");
+        assert_eq!(r.unwrap(), 7);
     }
 
     #[test]

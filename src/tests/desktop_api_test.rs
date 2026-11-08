@@ -1246,12 +1246,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn cmux_virtual_port_exchange_on_pty() {
-        use crate::cmux::{encode_uih, CmuxSession};
-        use crate::hub::PortRxHub;
+        use crate::cmux::frame::{encode_frame, Deframer, PF, SABM, UA, UIH};
         use crate::state::{ConnectedPort, PortState, SerialportInfo};
         use serialport::SerialPort as SerialPortTrait;
         use std::io::{Read, Write};
-        use std::sync::Arc;
         use std::thread;
         use std::time::Duration;
 
@@ -1261,7 +1259,6 @@ mod tests {
         let (_pty, mut master, slave) = pty_pair_locked();
         master.set_timeout(Duration::from_millis(50)).unwrap();
         let path = "pty-cmux-virtual".to_string();
-
         serial_port.serialports.lock().unwrap().insert(
             path.clone(),
             SerialportInfo {
@@ -1269,65 +1266,73 @@ mod tests {
             },
         );
 
-        {
-            let mut ports = serial_port.serialports.lock().unwrap();
-            let cp = ports
-                .get_mut(&path)
-                .unwrap()
-                .connected_port_mut()
-                .expect("connected");
-            let session = CmuxSession::new(
-                path.clone(),
-                Arc::new(crate::cmux::SerialPortIo(cp.port.clone())),
-            );
-            let mut hub_guard = cp.rx_hub.lock().unwrap();
-            if hub_guard.is_none() {
-                *hub_guard = Some(Arc::new(PortRxHub::start(cp.port.clone(), path.clone())));
+        // Fake 27.010 modem: OK to AT+CMUX, UA to every SABM, OK to AT on a data
+        // DLCI, and it records the CLD that closing the port must send.
+        let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
+        let modem = thread::spawn(move || {
+            let mut buf = [0u8; 1024];
+            let mut text = Vec::new();
+            let mut muxed = false;
+            let mut deframer = Deframer::default();
+            let (mut opened, mut got_cld) = (Vec::new(), false);
+            while stop_rx.try_recv().is_err() {
+                let n = match master.read(&mut buf) {
+                    Ok(n) => n,
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+                    Err(_) => break,
+                };
+                if !muxed {
+                    text.extend_from_slice(&buf[..n]);
+                    if text.ends_with(b"AT+CMUX=0\r") {
+                        master.write_all(b"\r\nOK\r\n").unwrap();
+                        muxed = true;
+                    }
+                    continue;
+                }
+                for f in deframer.feed(&buf[..n]) {
+                    match f.kind {
+                        SABM => {
+                            opened.push(f.dlci);
+                            master
+                                .write_all(&encode_frame(f.dlci, true, UA | PF, &[]))
+                                .unwrap();
+                        }
+                        UIH if f.dlci == 0 && f.payload.first() == Some(&0xC3) => got_cld = true,
+                        UIH if f.payload.starts_with(b"AT") => {
+                            master
+                                .write_all(&encode_frame(f.dlci, false, UIH, b"\r\nOK\r\n"))
+                                .unwrap();
+                        }
+                        _ => {}
+                    }
+                }
             }
-            hub_guard
-                .as_ref()
-                .expect("hub")
-                .attach_cmux(session.clone());
-            *cp.mux.lock().unwrap() = Some(session);
-        }
+            (opened, got_cld)
+        });
 
+        serial_port
+            .enable_mux(path.clone(), "AT+CMUX=0".to_string(), 2000)
+            .expect("enable mux");
+        assert!(
+            serial_port.open_mux_channel(path.clone(), 0).is_err(),
+            "DLCI 0 is the control channel"
+        );
         let virtual_path = serial_port
             .open_mux_channel(path.clone(), 2)
             .expect("open virtual");
-
-        let (done_tx, done_rx) = std::sync::mpsc::channel();
-        let responder = thread::spawn(move || {
-            let mut buf = vec![0u8; 4096];
-            let mut acc = Vec::new();
-            let deadline = std::time::Instant::now() + Duration::from_secs(5);
-            while std::time::Instant::now() < deadline {
-                match master.read(&mut buf) {
-                    Ok(0) => continue,
-                    Ok(n) => {
-                        acc.extend_from_slice(&buf[..n]);
-                        if acc.windows(4).any(|w| w == b"AT\r\r") || acc.contains(&b'A') {
-                            let frame = encode_uih(2, b"\r\nOK\r\n");
-                            master.write_all(&frame).expect("uih ok");
-                            master.flush().ok();
-                            break;
-                        }
-                    }
-                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
-                    Err(e) => panic!("master read failed: {e}"),
-                }
-            }
-            let _ = done_rx.recv_timeout(Duration::from_secs(5));
-        });
-
         let response = serial_port
             .at(virtual_path.clone(), "AT".to_string(), None)
             .expect("virtual AT");
-
-        done_tx.send(()).ok();
-        responder.join().expect("responder join");
         assert_eq!(response.status, crate::at::parse::AtParseStatus::Ok);
-        let _ = serial_port.close(virtual_path);
-        let _ = serial_port.close(path);
+
+        // Closing the physical port tears down the virtual channel and the session.
+        serial_port.close(path.clone()).expect("close physical");
+        assert!(serial_port.managed_ports().unwrap().is_empty());
+        thread::sleep(Duration::from_millis(100));
+        let _ = stop_tx.send(());
+        let (opened, got_cld) = modem.join().expect("modem thread");
+        assert_eq!(opened, vec![0, 2], "SABM order: control channel first");
+        assert!(got_cld, "closing the port must send CLD");
     }
 
     /// B3: finished RX hub is restarted on the next read.
@@ -1543,6 +1548,49 @@ mod tests {
         let text = String::from_utf8_lossy(&response.raw);
         assert!(text.contains("OK"), "expected OK in {:?}", text);
 
+        let _ = serial_port.close(path);
+    }
+
+    /// Regression: a late reply left in the idle buffer used to complete the next
+    /// default (Drain) exchange, shifting every later response by one.
+    #[test]
+    fn drain_exchange_discards_stale_idle_reply() {
+        use crate::events::ExchangeOptions;
+        use crate::hub::HubRoutingState;
+        use crate::state::{ConnectedPort, PortState, SerialportInfo};
+        use crate::tests::mock_serial::MockSerialPort;
+
+        let app = create_test_app();
+        let serial_port = app.state::<SerialPort<MockRuntime>>().inner().clone();
+        let path = "mock-idle-drain".to_string();
+        serial_port.serialports.lock().unwrap().insert(
+            path.clone(),
+            SerialportInfo {
+                state: PortState::Connected(ConnectedPort::new(Box::new(MockSerialPort::new()))),
+            },
+        );
+        let _ = serial_port.read(path.clone(), Some(50), Some(8));
+        {
+            let mut ports = serial_port.serialports.lock().unwrap();
+            let cp = ports
+                .get_mut(&path)
+                .and_then(|info| info.connected_port_mut())
+                .expect("connected");
+            let hub = cp.rx_hub.lock().unwrap().as_ref().expect("hub").shared();
+            hub.feed_bytes(b"\r\nOK\r\n", &mut HubRoutingState::new(path.clone()));
+        }
+        let result = serial_port.exchange(
+            path.clone(),
+            "AT+CSQ\r".to_string(),
+            ExchangeOptions {
+                timeout_ms: Some(300),
+                ..Default::default()
+            },
+        );
+        assert!(
+            result.is_err(),
+            "stale OK completed the exchange: {result:?}"
+        );
         let _ = serial_port.close(path);
     }
 

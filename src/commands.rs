@@ -9,15 +9,30 @@ use std::time::Duration;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Runtime, State};
 
+/// Run port I/O on the blocking pool: plain sync commands run on the main thread
+/// in Tauri v2, so a `read` waiting for data would freeze the UI.
+async fn blocking<R: Runtime, T: Send + 'static>(
+    serial: &State<'_, SerialPort<R>>,
+    f: impl FnOnce(SerialPort<R>) -> Result<T, Error> + Send + 'static,
+) -> Result<T, Error> {
+    let serial = serial.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || f(serial))
+        .await
+        .map_err(|e| Error::String(format!("serial task failed: {e}")))?
+}
+
 /// Lists all available serial ports on the system
 /// See README for examples.
 #[tauri::command]
-pub fn available_ports<R: Runtime>(
+pub async fn available_ports<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     single_port_per_device: Option<bool>,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-    serial.available_ports(single_port_per_device.unwrap_or(false))
+    blocking(&serial, move |s| {
+        s.available_ports(single_port_per_device.unwrap_or(false))
+    })
+    .await
 }
 
 /// Lists all currently managed serial ports
@@ -33,51 +48,51 @@ pub fn managed_ports<R: Runtime>(
 /// Cancels an in-flight poll `read` on a serial port (does not stop an active `watch`).
 /// See README for examples.
 #[tauri::command]
-pub fn cancel_read<R: Runtime>(
+pub async fn cancel_read<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.cancel_read(path)
+    blocking(&serial, move |s| s.cancel_read(path)).await
 }
 
 /// Closes a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn close<R: Runtime>(
+pub async fn close<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.close(path)
+    blocking(&serial, move |s| s.close(path)).await
 }
 
 /// Closes all open serial ports
 /// See README for examples.
 #[tauri::command]
-pub fn close_all<R: Runtime>(
+pub async fn close_all<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
 ) -> Result<(), Error> {
-    serial.close_all()
+    blocking(&serial, move |s| s.close_all()).await
 }
 
 /// Forcefully closes a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn force_close<R: Runtime>(
+pub async fn force_close<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.force_close(path)
+    blocking(&serial, move |s| s.force_close(path)).await
 }
 
 /// Opens a serial port with the specified configuration
 /// See README for examples.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
-pub fn open<R: Runtime>(
+pub async fn open<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
@@ -88,65 +103,68 @@ pub fn open<R: Runtime>(
     stop_bits: Option<StopBits>,
     timeout: Option<u64>,
 ) -> Result<String, Error> {
-    serial.open(
-        path,
-        baud_rate,
-        data_bits,
-        flow_control,
-        parity,
-        stop_bits,
-        timeout,
-    )
+    blocking(&serial, move |s| {
+        s.open(
+            path,
+            baud_rate,
+            data_bits,
+            flow_control,
+            parity,
+            stop_bits,
+            timeout,
+        )
+    })
+    .await
 }
 
 /// Writes string data to a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn write<R: Runtime>(
+pub async fn write<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     value: String,
 ) -> Result<usize, Error> {
-    serial.write(path, value)
+    blocking(&serial, move |s| s.write(path, value)).await
 }
 
 /// Writes binary data to a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn write_binary<R: Runtime>(
+pub async fn write_binary<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     value: Vec<u8>,
 ) -> Result<usize, Error> {
-    serial.write_binary(path, value)
+    blocking(&serial, move |s| s.write_binary(path, value)).await
 }
 
 /// Reads string data from a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn read<R: Runtime>(
+pub async fn read<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     timeout: Option<u64>,
     size: Option<usize>,
 ) -> Result<String, Error> {
-    serial.read(path, timeout, size)
+    blocking(&serial, move |s| s.read(path, timeout, size)).await
 }
 
 /// Reads binary data from a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn read_binary<R: Runtime>(
+pub async fn read_binary<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     timeout: Option<u64>,
     size: Option<usize>,
 ) -> Result<Vec<u8>, Error> {
-    serial.read_binary(path, timeout, size)
+    blocking(&serial, move |s| s.read_binary(path, timeout, size)).await
 }
 
 /// Returns runtime capabilities (transport, platform, version) without window probing.
@@ -159,243 +177,249 @@ pub fn capabilities() -> Result<Capabilities, Error> {
 /// Streams serial port events through a Tauri IPC channel.
 /// See README for examples.
 #[tauri::command]
-pub fn watch<R: Runtime>(
+pub async fn watch<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     options: WatchOptions,
     channel: Channel<SerialEvent>,
 ) -> Result<u32, Error> {
-    serial.watch(path, options, channel)
+    blocking(&serial, move |s| s.watch(path, options, channel)).await
 }
 
 /// Stops a watch session by channel id.
 /// See README for examples.
 #[tauri::command]
-pub fn unwatch<R: Runtime>(
+pub async fn unwatch<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     channel_id: u32,
 ) -> Result<(), Error> {
-    serial.unwatch(channel_id)
+    blocking(&serial, move |s| s.unwatch(channel_id)).await
 }
 
 /// Streams available-port attach/detach events through a Tauri IPC channel.
 #[tauri::command]
-pub fn watch_ports<R: Runtime>(
+pub async fn watch_ports<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     options: Option<crate::events::WatchPortsOptions>,
     channel: tauri::ipc::Channel<crate::events::PortListEvent>,
 ) -> Result<u32, Error> {
-    serial.watch_ports(options.unwrap_or_default(), channel)
+    blocking(&serial, move |s| {
+        s.watch_ports(options.unwrap_or_default(), channel)
+    })
+    .await
 }
 
 /// Stops a port-list watch session by channel id.
 #[tauri::command]
-pub fn unwatch_ports<R: Runtime>(
+pub async fn unwatch_ports<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     channel_id: u32,
 ) -> Result<(), Error> {
-    serial.unwatch_ports(channel_id)
+    blocking(&serial, move |s| s.unwatch_ports(channel_id)).await
 }
 
 /// Sets the baud rate for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_baud_rate<R: Runtime>(
+pub async fn set_baud_rate<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     baud_rate: u32,
 ) -> Result<(), Error> {
-    serial.set_baud_rate(path, baud_rate)
+    blocking(&serial, move |s| s.set_baud_rate(path, baud_rate)).await
 }
 
 /// Sets the number of data bits for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_data_bits<R: Runtime>(
+pub async fn set_data_bits<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     data_bits: DataBits,
 ) -> Result<(), Error> {
-    serial.set_data_bits(path, data_bits)
+    blocking(&serial, move |s| s.set_data_bits(path, data_bits)).await
 }
 
 /// Sets the flow control mode for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_flow_control<R: Runtime>(
+pub async fn set_flow_control<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     flow_control: FlowControl,
 ) -> Result<(), Error> {
-    serial.set_flow_control(path, flow_control)
+    blocking(&serial, move |s| s.set_flow_control(path, flow_control)).await
 }
 
 /// Sets the parity checking mode for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_parity<R: Runtime>(
+pub async fn set_parity<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     parity: Parity,
 ) -> Result<(), Error> {
-    serial.set_parity(path, parity)
+    blocking(&serial, move |s| s.set_parity(path, parity)).await
 }
 
 /// Sets the number of stop bits for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_stop_bits<R: Runtime>(
+pub async fn set_stop_bits<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     stop_bits: StopBits,
 ) -> Result<(), Error> {
-    serial.set_stop_bits(path, stop_bits)
+    blocking(&serial, move |s| s.set_stop_bits(path, stop_bits)).await
 }
 
 /// Sets the read timeout for a serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_timeout<R: Runtime>(
+pub async fn set_timeout<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     timeout: u64,
 ) -> Result<(), Error> {
-    let timeout_duration = Duration::from_millis(timeout);
-    serial.set_timeout(path, timeout_duration)
+    blocking(&serial, move |s| {
+        let timeout_duration = Duration::from_millis(timeout);
+        s.set_timeout(path, timeout_duration)
+    })
+    .await
 }
 
 /// Sets the RTS (Request To Send) control signal
 /// See README for examples.
 #[tauri::command]
-pub fn write_request_to_send<R: Runtime>(
+pub async fn write_request_to_send<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     level: bool,
 ) -> Result<(), Error> {
-    serial.write_request_to_send(path, level)
+    blocking(&serial, move |s| s.write_request_to_send(path, level)).await
 }
 
 /// Sets the DTR (Data Terminal Ready) control signal
 /// See README for examples.
 #[tauri::command]
-pub fn write_data_terminal_ready<R: Runtime>(
+pub async fn write_data_terminal_ready<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     level: bool,
 ) -> Result<(), Error> {
-    serial.write_data_terminal_ready(path, level)
+    blocking(&serial, move |s| s.write_data_terminal_ready(path, level)).await
 }
 
 /// Reads the CTS (Clear To Send) control signal state
 /// See README for examples.
 #[tauri::command]
-pub fn read_clear_to_send<R: Runtime>(
+pub async fn read_clear_to_send<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<bool, Error> {
-    serial.read_clear_to_send(path)
+    blocking(&serial, move |s| s.read_clear_to_send(path)).await
 }
 
 /// Reads the DSR (Data Set Ready) control signal state
 /// See README for examples.
 #[tauri::command]
-pub fn read_data_set_ready<R: Runtime>(
+pub async fn read_data_set_ready<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<bool, Error> {
-    serial.read_data_set_ready(path)
+    blocking(&serial, move |s| s.read_data_set_ready(path)).await
 }
 
 /// Reads the RI (Ring Indicator) control signal state
 /// See README for examples.
 #[tauri::command]
-pub fn read_ring_indicator<R: Runtime>(
+pub async fn read_ring_indicator<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<bool, Error> {
-    serial.read_ring_indicator(path)
+    blocking(&serial, move |s| s.read_ring_indicator(path)).await
 }
 
 /// Reads the CD (Carrier Detect) control signal state
 /// See README for examples.
 #[tauri::command]
-pub fn read_carrier_detect<R: Runtime>(
+pub async fn read_carrier_detect<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<bool, Error> {
-    serial.read_carrier_detect(path)
+    blocking(&serial, move |s| s.read_carrier_detect(path)).await
 }
 
 /// Gets the number of bytes available to read from the serial port
 /// See README for examples.
 #[tauri::command]
-pub fn bytes_to_read<R: Runtime>(
+pub async fn bytes_to_read<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<u32, Error> {
-    serial.bytes_to_read(path)
+    blocking(&serial, move |s| s.bytes_to_read(path)).await
 }
 
 /// Gets the number of bytes available to write to the serial port
 /// See README for examples.
 #[tauri::command]
-pub fn bytes_to_write<R: Runtime>(
+pub async fn bytes_to_write<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<u32, Error> {
-    serial.bytes_to_write(path)
+    blocking(&serial, move |s| s.bytes_to_write(path)).await
 }
 
 /// Clears the specified buffer of the serial port
 /// See README for examples.
 #[tauri::command]
-pub fn clear_buffer<R: Runtime>(
+pub async fn clear_buffer<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     buffer_type: ClearBuffer,
 ) -> Result<(), Error> {
-    serial.clear_buffer(path, buffer_type)
+    blocking(&serial, move |s| s.clear_buffer(path, buffer_type)).await
 }
 
 /// Sets the break condition on the serial port
 /// See README for examples.
 #[tauri::command]
-pub fn set_break<R: Runtime>(
+pub async fn set_break<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.set_break(path)
+    blocking(&serial, move |s| s.set_break(path)).await
 }
 
 /// Clears the break condition on the serial port
 /// See README for examples.
 #[tauri::command]
-pub fn clear_break<R: Runtime>(
+pub async fn clear_break<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.clear_break(path)
+    blocking(&serial, move |s| s.clear_break(path)).await
 }
 
 /// Sets the global log level for the plugin
@@ -441,12 +465,12 @@ pub async fn exchange<R: Runtime>(
 /// Cancel an in-flight exchange on a port.
 /// See README for examples.
 #[tauri::command]
-pub fn cancel_exchange<R: Runtime>(
+pub async fn cancel_exchange<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.cancel_exchange(path)
+    blocking(&serial, move |s| s.cancel_exchange(path)).await
 }
 
 /// Send one AT command with native session defaults and FIFO queue.
@@ -496,13 +520,13 @@ pub async fn send_sms_pdu<R: Runtime>(
 
 /// Configure AT session defaults for native `at` on a port.
 #[tauri::command]
-pub fn configure_at_session<R: Runtime>(
+pub async fn configure_at_session<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     session: crate::at::session::AtSessionConfig,
 ) -> Result<(), Error> {
-    serial.configure_at_session(path, session)
+    blocking(&serial, move |s| s.configure_at_session(path, session)).await
 }
 
 /// Binary write + read-until-response (e.g. CMGS PDU).
@@ -550,21 +574,21 @@ pub async fn enable_mux<R: Runtime>(
 
 /// Open a virtual CMUX channel (returns composite path).
 #[tauri::command]
-pub fn open_mux_channel<R: Runtime>(
+pub async fn open_mux_channel<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
     dlci: u8,
 ) -> Result<String, Error> {
-    serial.open_mux_channel(path, dlci)
+    blocking(&serial, move |s| s.open_mux_channel(path, dlci)).await
 }
 
 /// Tear down CMUX and close virtual channels.
 #[tauri::command]
-pub fn disable_mux<R: Runtime>(
+pub async fn disable_mux<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
     path: String,
 ) -> Result<(), Error> {
-    serial.disable_mux(path)
+    blocking(&serial, move |s| s.disable_mux(path)).await
 }

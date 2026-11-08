@@ -5,7 +5,7 @@ use crate::events::{PortListEvent, WatchPortsOptions};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::thread::{self, JoinHandle};
+use std::thread;
 use std::time::Duration;
 use tauri::ipc::Channel;
 
@@ -23,9 +23,9 @@ struct Subscriber {
 struct MonitorState {
     subscribers: HashMap<u32, Subscriber>,
     poll_interval_ms: u64,
-    stop: Arc<AtomicBool>,
     wake: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
+    /// Poll thread is alive (cleared by the thread itself under the lock).
+    running: bool,
 }
 
 impl MonitorState {
@@ -33,9 +33,8 @@ impl MonitorState {
         Self {
             subscribers: HashMap::new(),
             poll_interval_ms: DEFAULT_POLL_MS,
-            stop: Arc::new(AtomicBool::new(false)),
             wake: Arc::new(AtomicBool::new(false)),
-            thread: None,
+            running: false,
         }
     }
 }
@@ -80,9 +79,14 @@ pub fn diff_ports(old: &PortListMap, new: &PortListMap) -> PortDiff {
     (added, removed)
 }
 
-fn send_event(channel: &Channel<PortListEvent>, event: PortListEvent) {
-    if let Err(e) = channel.send(event) {
-        crate::log_warn!("Failed to send port list event: {}", e);
+/// Returns false when the webview side of the channel is gone.
+fn send_event(channel: &Channel<PortListEvent>, event: PortListEvent) -> bool {
+    match channel.send(event) {
+        Ok(()) => true,
+        Err(e) => {
+            crate::log_warn!("Failed to send port list event: {}", e);
+            false
+        }
     }
 }
 
@@ -124,15 +128,10 @@ where
     let _ = ANDROID_ENUM.set(Box::new(f));
 }
 
-fn poll_subscriber(sub: &mut Subscriber) {
-    let current = match enumerate(sub.single_port_per_device) {
-        Ok(v) => v,
-        Err(e) => {
-            crate::log_warn!("[SerialEnumerate] poll failed: {}", e);
-            return;
-        }
-    };
-    let (added, removed) = diff_ports(&sub.last, &current);
+/// Diff `current` against the subscriber's last view and send events.
+/// Returns false when the subscriber's channel is dead and it should be dropped.
+fn deliver(sub: &mut Subscriber, current: &PortListMap) -> bool {
+    let (added, removed) = diff_ports(&sub.last, current);
     if !added.is_empty() || !removed.is_empty() {
         crate::log_info!(
             "[SerialEnumerate] poll delta +{} -{} total={}",
@@ -141,63 +140,74 @@ fn poll_subscriber(sub: &mut Subscriber) {
             current.len()
         );
     }
+    let mut alive = true;
     for (path, info) in added {
-        send_event(&sub.channel, PortListEvent::Added { path, info });
+        alive &= send_event(&sub.channel, PortListEvent::Added { path, info });
     }
     for path in removed {
-        send_event(&sub.channel, PortListEvent::Removed { path });
+        alive &= send_event(&sub.channel, PortListEvent::Removed { path });
     }
-    sub.last = current;
+    sub.last = current.clone();
+    alive
 }
 
-fn poll_all(subscribers: &mut HashMap<u32, Subscriber>) {
-    for sub in subscribers.values_mut() {
-        poll_subscriber(sub);
+/// Enumerate outside the state lock (it can take hundreds of ms), then deliver under it.
+fn poll_once() {
+    let modes: HashSet<bool> = {
+        let guard = crate::sync_util::lock_or_recover(monitor_state());
+        guard
+            .subscribers
+            .values()
+            .map(|s| s.single_port_per_device)
+            .collect()
+    };
+    let mut lists = HashMap::new();
+    for single in modes {
+        match enumerate(single) {
+            Ok(v) => {
+                lists.insert(single, v);
+            }
+            Err(e) => crate::log_warn!("[SerialEnumerate] poll failed: {}", e),
+        }
     }
+    let mut guard = crate::sync_util::lock_or_recover(monitor_state());
+    guard
+        .subscribers
+        .retain(|_, sub| match lists.get(&sub.single_port_per_device) {
+            Some(current) => deliver(sub, current),
+            None => true,
+        });
+    guard.poll_interval_ms = min_poll_interval(&guard.subscribers);
 }
 
+/// Start the poll thread if needed. The thread exits on its own (under the state
+/// lock) once no subscribers remain, so nobody ever has to join it while holding
+/// the lock it needs.
 fn ensure_thread(state: &mut MonitorState) {
-    if state.thread.is_some() || state.subscribers.is_empty() {
+    if state.running || state.subscribers.is_empty() {
         return;
     }
-    state.stop.store(false, Ordering::SeqCst);
-    state.wake.store(false, Ordering::SeqCst);
-    let stop = state.stop.clone();
+    state.running = true;
     let wake = state.wake.clone();
-    state.thread = Some(thread::spawn(move || loop {
-        if stop.load(Ordering::SeqCst) {
-            break;
-        }
+    thread::spawn(move || loop {
         let interval = {
-            let guard = monitor_state().lock().unwrap();
+            let mut guard = crate::sync_util::lock_or_recover(monitor_state());
+            if guard.subscribers.is_empty() {
+                guard.running = false;
+                return;
+            }
             clamp_poll_ms(guard.poll_interval_ms)
         };
         let mut slept = 0u64;
-        while slept < interval && !stop.load(Ordering::SeqCst) {
+        while slept < interval {
             if wake.swap(false, Ordering::SeqCst) {
                 break;
             }
             thread::sleep(Duration::from_millis(50));
             slept += 50;
         }
-        if stop.load(Ordering::SeqCst) {
-            break;
-        }
-        if let Ok(mut guard) = monitor_state().lock() {
-            poll_all(&mut guard.subscribers);
-        }
-    }));
-}
-
-fn stop_thread_if_idle(state: &mut MonitorState) {
-    if !state.subscribers.is_empty() {
-        return;
-    }
-    state.stop.store(true, Ordering::SeqCst);
-    state.wake.store(true, Ordering::SeqCst);
-    if let Some(handle) = state.thread.take() {
-        let _ = handle.join();
-    }
+        poll_once();
+    });
 }
 
 /// Subscribe to available-port list changes. Sends an initial [`PortListEvent::Snapshot`].
@@ -217,16 +227,16 @@ pub fn subscribe(
         snapshot.len(),
         single
     );
-    send_event(
+    if !send_event(
         &channel,
         PortListEvent::Snapshot {
             ports: snapshot.clone(),
         },
-    );
+    ) {
+        return Err(Error::new("port list channel is closed"));
+    }
 
-    let mut state = monitor_state()
-        .lock()
-        .map_err(|_| Error::new("port list monitor lock poisoned"))?;
+    let mut state = crate::sync_util::lock_or_recover(monitor_state());
 
     state.subscribers.insert(
         channel_id,
@@ -244,11 +254,11 @@ pub fn subscribe(
 
 /// Unsubscribe from port list changes.
 pub fn unsubscribe(channel_id: u32) {
-    let Ok(mut state) = monitor_state().lock() else {
-        return;
-    };
+    let mut state = crate::sync_util::lock_or_recover(monitor_state());
     state.subscribers.remove(&channel_id);
-    stop_thread_if_idle(&mut state);
+    state.poll_interval_ms = min_poll_interval(&state.subscribers);
+    // Wake the thread so it notices the empty set and exits promptly.
+    state.wake.store(true, Ordering::SeqCst);
 }
 
 /// Request an immediate poll (e.g. after platform hotplug hint).
@@ -290,5 +300,34 @@ mod tests {
         assert_eq!(added.len(), 1);
         assert_eq!(added[0].0, "COM3");
         assert_eq!(removed, vec!["COM1".to_string()]);
+    }
+
+    /// Regression: unsubscribe used to join the poll thread while holding the lock the
+    /// thread needed, freezing the caller. Now it returns at once and the thread exits.
+    #[cfg(desktop)]
+    #[test]
+    fn unsubscribe_does_not_block_and_thread_exits() {
+        let channel: Channel<PortListEvent> = Channel::new(|_| Ok(()));
+        subscribe(
+            9_999,
+            channel,
+            WatchPortsOptions {
+                poll_interval_ms: Some(MIN_POLL_MS),
+                single_port_per_device: None,
+            },
+        )
+        .unwrap();
+        thread::sleep(Duration::from_millis(MIN_POLL_MS + 100));
+        let t = std::time::Instant::now();
+        unsubscribe(9_999);
+        assert!(t.elapsed() < Duration::from_millis(100));
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while crate::sync_util::lock_or_recover(monitor_state()).running {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "poll thread did not exit"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
     }
 }

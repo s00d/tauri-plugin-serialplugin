@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 import { createTestSerialPort, setupTestMocks } from './test-utils';
 import { mockExchangeResponse } from './exchange-mock';
 
@@ -6,7 +7,7 @@ describe('SerialPort exchange options payload', () => {
     setupTestMocks();
   });
 
-  function mockOpenAndExchange(mockInvoke: jest.Mock) {
+  function mockOpenAndExchange(mockInvoke: Mock) {
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === 'plugin:serialplugin|open') {
         return Promise.resolve('/dev/tty.usbserial');

@@ -22,11 +22,11 @@ mod tests {
         let serial_port = SerialPort::new(app.handle().clone());
         app.manage(serial_port);
 
-        let result = available_ports(
+        let result = tauri::async_runtime::block_on(available_ports(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             None,
-        );
+        ));
         assert!(result.is_ok());
     }
 
@@ -46,7 +46,7 @@ mod tests {
         let app = create_test_app();
 
         // Test should expect error when opening non-existent port
-        let result = open(
+        let result = tauri::async_runtime::block_on(open(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
@@ -56,15 +56,15 @@ mod tests {
             Some(Parity::None),
             Some(StopBits::One),
             Some(1000),
-        );
+        ));
         assert!(result.is_err());
 
         // Test closing non-existent port
-        let result = close(
+        let result = tauri::async_runtime::block_on(close(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
-        );
+        ));
         assert!(result.is_err());
     }
 
@@ -73,22 +73,22 @@ mod tests {
         let app = create_test_app();
 
         // Test should expect error when writing to non-existent port
-        let result = write(
+        let result = tauri::async_runtime::block_on(write(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             "Test data".to_string(),
-        );
+        ));
         assert!(result.is_err());
 
         // Test should expect error when reading from non-existent port
-        let result = read(
+        let result = tauri::async_runtime::block_on(read(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             Some(1000),
             Some(1024),
-        );
+        ));
         assert!(result.is_err());
     }
 
@@ -97,20 +97,20 @@ mod tests {
         let app = create_test_app();
 
         // Test should expect error when setting settings for non-existent port
-        let result = set_baud_rate(
+        let result = tauri::async_runtime::block_on(set_baud_rate(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             115200,
-        );
+        ));
         assert!(result.is_err());
 
-        let result = set_data_bits(
+        let result = tauri::async_runtime::block_on(set_data_bits(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             DataBits::Seven,
-        );
+        ));
         assert!(result.is_err());
     }
 
@@ -119,20 +119,20 @@ mod tests {
         let app = create_test_app();
 
         // Test should expect error when setting control signals for non-existent port
-        let result = write_request_to_send(
+        let result = tauri::async_runtime::block_on(write_request_to_send(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             true,
-        );
+        ));
         assert!(result.is_err());
 
-        let result = write_data_terminal_ready(
+        let result = tauri::async_runtime::block_on(write_data_terminal_ready(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             true,
-        );
+        ));
         assert!(result.is_err());
     }
 
@@ -141,12 +141,12 @@ mod tests {
         let app = create_test_app();
 
         // Test should expect error when operating on buffer of non-existent port
-        let result = clear_buffer(
+        let result = tauri::async_runtime::block_on(clear_buffer(
             app.handle().clone(),
             app.state::<SerialPort<MockRuntime>>(),
             "NONEXISTENT".to_string(),
             ClearBuffer::All,
-        );
+        ));
         assert!(result.is_err());
     }
 }

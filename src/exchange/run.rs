@@ -36,6 +36,9 @@ pub fn run_physical_exchange<H: RxHubHandle>(
             io.purge_rx()?;
         }
         RxPrepareMode::Drain => {
+            // Bytes left over from earlier traffic (e.g. a late reply to a timed-out
+            // exchange) are exactly what drain is meant to throw away.
+            drop(hub_shared.take_idle_bytes());
             hub_shared
                 .drain(
                     resolved.drain_idle_ms,
@@ -59,11 +62,6 @@ pub fn run_physical_exchange<H: RxHubHandle>(
     if let Err(e) = io.write_payload(&payload) {
         hub.clear_exchange_waiter();
         return Err(e);
-    }
-
-    let stale = hub_shared.take_idle_bytes();
-    if !stale.is_empty() {
-        waiter.push_bytes(&stale);
     }
 
     let wait_result = waiter.wait(resolved.timeout_ms);
@@ -98,7 +96,10 @@ pub fn run_mux_exchange(
     let cancel = exchange_cancel.clone();
     let waiter = ExchangeWaiter::new(resolved.clone(), cancel);
     session.set_exchange_waiter(dlci, waiter.clone());
-    session.send_uih(dlci, &payload).map_err(Error::String)?;
+    if let Err(e) = session.send_uih(dlci, &payload) {
+        session.clear_exchange_waiter(dlci);
+        return Err(Error::String(e));
+    }
     let wait_result = waiter.wait(resolved.timeout_ms);
     session.clear_exchange_waiter(dlci);
     let (raw, matched) = wait_result.map_err(Error::String)?;

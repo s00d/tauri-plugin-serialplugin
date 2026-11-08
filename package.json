@@ -25,19 +25,26 @@
     "android"
   ],
   "exports": {
-    "types": "./dist-js/index.d.ts",
-    "import": {
-      "development": "./guest-js/index.ts",
-      "default": "./dist-js/index.js"
-    },
-    "require": "./dist-js/index.cjs"
+    ".": {
+      "import": {
+        "types": "./dist-js/index.d.ts",
+        "default": "./dist-js/index.js"
+      },
+      "require": {
+        "types": "./dist-js/index.d.cts",
+        "default": "./dist-js/index.cjs"
+      }
+    }
   },
   "scripts": {
-    "build": "rollup -c",
-    "tauri": "tauri",
-    "check": "tsc --noEmit -p tsconfig.json",
-    "check:watch": "tsc --noEmit -p tsconfig.json --watch",
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/emit-cts-types.mjs && pnpm check:dist",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "check": "pnpm typecheck",
+    "check:dist": "publint --strict && attw --pack . --profile node16 && node scripts/check-dist.mjs",
     "check:demo": "pnpm --dir examples/serialport-test run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build",
     "release": "release-it",
     "release:patch": "release-it patch",
     "release:minor": "release-it minor",
@@ -45,12 +52,10 @@
     "release:publish": "bash scripts/publish.sh",
     "publish:check": "bash scripts/check-publish-surface.sh",
     "playground": "pnpm --dir examples/serialport-test run tauri dev",
-    "test": "jest --config jest.config.js",
-    "test:watch": "jest --config jest.config.js --watch"
+    "tauri": "tauri"
   },
   "files": [
     "dist-js",
-    "guest-js",
     "README.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
@@ -64,19 +69,18 @@
     "@tauri-apps/api": "^2.0.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@release-it/conventional-changelog": "^12.0.2",
-    "@rollup/plugin-typescript": "^12.3.0",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^20.17.22",
-    "jest": "^30.5.2",
-    "jest-environment-jsdom": "^30.5.2",
-    "jest-junit": "^17.0.0",
-    "jsdom": "^30.1.2",
-    "release-it": "^21.1.1",
-    "rollup": "4.64.6",
-    "ts-jest": "^29.4.14",
-    "tslib": "^2.8.1",
-    "typescript": "5.6.3"
+    "@types/node": "^22.19.0",
+    "jsdom": "^31.0.0",
+    "publint": "^0.3.25",
+    "release-it": "^21.1.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   },
-  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0",
+  "engines": {
+    "node": ">=20.19"
+  }
 }
