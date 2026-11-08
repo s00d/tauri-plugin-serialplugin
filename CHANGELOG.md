@@ -2,7 +2,7 @@
 
 ## [4.0.0](https://github.com/s00d/tauri-plugin-serialplugin/compare/v3.0.9...v4.0.0) (2026-11-08)
 
-Full audit release. See "Migrating to v4" in the README for the breaking changes.
+Full audit release. See the [migration guide](docs/migration.md) for the breaking changes.
 
 ### ⚠ Breaking changes
 

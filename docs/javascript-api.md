@@ -1,0 +1,214 @@
+# JavaScript / TypeScript API
+
+Everything is exported from `tauri-plugin-serialplugin-api`:
+
+```ts
+import {
+  SerialPort,
+  DataBits, FlowControl, Parity, StopBits, ClearBuffer, LogLevel,
+} from "tauri-plugin-serialplugin-api";
+```
+
+All methods return promises that reject with a string message on failure
+(see [Errors](#errors)).
+
+- [Creating a port](#creating-a-port)
+- [Discovery (static)](#discovery-static)
+- [Open and close](#open-and-close)
+- [Streaming with `watch()`](#streaming-with-watch)
+- [Reading and writing](#reading-and-writing)
+- [Line settings](#line-settings)
+- [Modem lines and buffers](#modem-lines-and-buffers)
+- [Auto-reconnect](#auto-reconnect)
+- [Logging](#logging)
+- [Enums](#enums)
+- [Errors](#errors)
+
+AT commands, `exchange()`, SMS and CMUX have their own page:
+[AT commands, exchange and CMUX](at-commands.md).
+
+## Creating a port
+
+```ts
+const port = new SerialPort({
+  path: "/dev/ttyUSB0",   // COM3, /dev/cu.usbserial-…, tcp://host:port, ble://<id>
+  baudRate: 115200,
+});
+```
+
+| Option | Default | Meaning |
+|--------|---------|---------|
+| `path` | — | Device path, `tcp://host:port` or `ble://<id>` ([transports](platforms.md)) |
+| `baudRate` | — | Bits per second |
+| `dataBits` | `DataBits.Eight` | 5–8 |
+| `parity` | `Parity.None` | |
+| `stopBits` | `StopBits.One` | |
+| `flowControl` | `FlowControl.None` | `Software` (XON/XOFF) or `Hardware` (RTS/CTS) |
+| `timeout` | `1000` | Read timeout (ms) for `read()` / `readBinary()` |
+| `size` | `1024` | Max bytes per `read()` and per `watch()` chunk |
+| `encoding` | `"utf-8"` | `TextDecoder` encoding for `read()` and `watch()` text |
+| `dtr`, `rts` | platform default | Line levels on open; `dtr: false` stops Arduino-style boards resetting ([details](platforms.md#dtr--rts-on-open)) |
+| `serialDataFlushIntervalMs` | ~20 ms | Default batch window for `watch()` |
+| `atSession` | — | AT defaults applied on `open()` ([AT](at-commands.md#session-defaults)) |
+
+## Discovery (static)
+
+| Method | Returns |
+|--------|---------|
+| `SerialPort.available_ports({ singlePortPerDevice? })` | `Record<path, PortInfo>` |
+| `SerialPort.watchAvailablePorts(handlers, { singlePortPerDevice?, pollIntervalMs? })` | `WatchHandle`; calls `onSnapshot(ports)` once, then `onAdded(path, info)` / `onRemoved(path)` |
+| `SerialPort.scanBlePorts({ timeoutMs? })` | BLE UART devices as `ble://<id>` paths ([BLE](platforms.md#bluetooth-le-ble)) |
+| `SerialPort.managed_ports()` | Paths the plugin currently has open |
+| `SerialPort.getCapabilities()` | `{ transport: "desktop" \| "mobile", platform, version }` |
+| `SerialPort.closeAll()` | Closes every open port |
+| `SerialPort.forceClose(path)` | Closes a port you no longer hold an object for |
+
+`PortInfo` is `{ type, vid, pid, manufacturer, product, serial_number }`; unknown
+fields are `"Unknown"`. On macOS every device appears twice (`/dev/cu.*` and
+`/dev/tty.*`); `singlePortPerDevice: true` keeps the `cu.*` one.
+
+```ts
+const stop = await SerialPort.watchAvailablePorts({
+  onSnapshot: (ports) => console.log(Object.keys(ports)),
+  onAdded: (path, info) => console.log("plugged", path, info.product),
+  onRemoved: (path) => console.log("unplugged", path),
+}, { singlePortPerDevice: true });
+// later
+await stop.unwatch();
+```
+
+## Open and close
+
+| Method | Notes |
+|--------|-------|
+| `open()` | Resolves with the canonical path (on Android a USB path is re-keyed to a session path). Already open: resolves with the current path. |
+| `close()` | Safe when not open; also stops a pending auto-reconnect and releases the native port after a disconnect. |
+| `change({ path?, baudRate? })` | Close, apply, reopen; an active watch is re-established. |
+| `isOpen` | `boolean` property. |
+
+## Streaming with `watch()`
+
+`watch()` delivers incoming data, unsolicited AT lines, errors and disconnects
+through one Tauri channel. One watch per port at a time.
+
+```ts
+const handle = await port.watch({
+  onData: (data) => console.log(data),          // string (decoded) or Uint8Array
+  onUrc: (line) => console.log("URC", line),    // optional, AT modems
+  onError: (message) => console.warn(message),  // non-fatal
+  onDisconnect: (reason) => console.log(reason) // port is gone
+}, { decode: true });
+
+await handle.unwatch();
+```
+
+| Event | When | Port still open? |
+|-------|------|------------------|
+| `onData` | Bytes arrived (batched) | yes |
+| `onUrc` | A URC line (`+CREG: …`, `RING`) when `routeUrc` is on | yes |
+| `onError` | Non-fatal read error; the watch continues | yes |
+| `onDisconnect` | Unplug, bridge closed, BLE link lost | no — `isOpen` becomes `false`, auto-reconnect starts if enabled |
+
+| Watch option | Default | Meaning |
+|--------------|---------|---------|
+| `decode` | `true` | Decode to text with the port `encoding` (multi-byte characters split across chunks are kept). `false` gives `Uint8Array`. |
+| `timeout` / `serialDataFlushIntervalMs` | ~20 ms | Batch window. Data is also flushed as soon as `size` bytes are buffered. |
+| `size` | port `size` | Max bytes per chunk |
+| `routeUrc` | `true` if `onUrc` is given | Split AT URC lines out of `onData`. Keep off for binary or NMEA streams. |
+
+`activeWatch` returns the current handle (or `null`).
+
+## Reading and writing
+
+| Method | Returns |
+|--------|---------|
+| `write(text)` | bytes written |
+| `writeBinary(Uint8Array \| number[])` | bytes written |
+| `read({ timeout?, size? })` | text decoded with the port `encoding` |
+| `readBinary({ timeout?, size? })` | `Uint8Array` |
+
+`read()` / `readBinary()` wait up to `timeout` for data and reject with
+`no data received within … ms` if nothing arrives. They cannot run while a
+`watch()` is active — use one model per port: polling reads or a watch.
+
+For request/response protocols use [`exchange()` / `sendAt()`](at-commands.md):
+they write, wait for the reply and keep concurrent calls in order.
+
+## Line settings
+
+`setBaudRate(n)`, `setDataBits(DataBits)`, `setParity(Parity)`,
+`setStopBits(StopBits)`, `setFlowControl(FlowControl)`, `setTimeout(ms)`.
+
+The new value is also kept in `port.options`, so a reconnect or `change()` reopens
+with it. Over `tcp://` and `ble://` these are stored only (the bridge or radio owns
+the real line settings).
+
+## Modem lines and buffers
+
+| Method | |
+|--------|--|
+| `writeDataTerminalReady(bool)`, `writeRequestToSend(bool)` | Set DTR / RTS |
+| `readClearToSend()`, `readDataSetReady()`, `readRingIndicator()`, `readCarrierDetect()` | Read CTS / DSR / RI / CD |
+| `bytesToRead()`, `bytesToWrite()` | Queue sizes (`bytesToWrite()` is always 0 on Android) |
+| `clearBuffer(ClearBuffer.Input \| Output \| All)` | Drop queued data |
+| `setBreak()`, `clearBreak()` | Break condition |
+
+## Auto-reconnect
+
+```ts
+port.enableAutoReconnect({
+  interval: 3000,        // ms between attempts (fixed, no backoff)
+  maxAttempts: 10,       // null = forever
+  onReconnect: (ok, attempt) => console.log(ok ? `back after ${attempt}` : `attempt ${attempt} failed`),
+});
+await port.watch({ onData: console.log });
+```
+
+After `onDisconnect` the port is reopened and the last watch is re-established
+with the same handlers. `disableAutoReconnect()` stops it,
+`getAutoReconnectInfo()` reports `{ enabled, interval, maxAttempts,
+currentAttempts, hasCallback }`, and `manualReconnect()` tries once now.
+`close()` also cancels a pending reconnect.
+
+## Logging
+
+```ts
+await SerialPort.setLogLevel(import.meta.env.DEV ? LogLevel.Debug : LogLevel.Error);
+const level = await SerialPort.getLogLevel();
+```
+
+Levels: `None`, `Error`, `Warn`, `Info` (default), `Debug`. The level applies to the
+native side and to the JS wrapper.
+
+## Enums
+
+| Enum | Values |
+|------|--------|
+| `DataBits` | `Five`, `Six`, `Seven`, `Eight` |
+| `Parity` | `None`, `Odd`, `Even` |
+| `StopBits` | `One`, `Two` |
+| `FlowControl` | `None`, `Software`, `Hardware` |
+| `ClearBuffer` | `Input`, `Output`, `All` |
+| `LogLevel` | `None`, `Error`, `Warn`, `Info`, `Debug` |
+
+Option and result types (`SerialportOptions`, `WatchOptions`, `WatchHandlers`,
+`WatchHandle`, `PortInfo`, `ExchangeOptions`, `ExchangeResponse`,
+`AtCommandOptions`, `AtCommandResult`, `AtSessionOptions`, `Capabilities`, …) are
+exported too; see [`guest-js/types.ts`](../guest-js/types.ts).
+
+## Errors
+
+| Message | When |
+|---------|------|
+| `Port is not open` | Method called before `open()` (JS-side check) |
+| `Serial port {path} is not open!` | Native `close` of a port that is not open |
+| `Port '{path}' not found` | Command on a path that was never opened |
+| `Failed to open serial port: …` / `Failed to open tcp://…: …` | Device or bridge cannot be opened (OS text follows) |
+| `no data received within {ms} ms` | `read()` / `readBinary()` timed out |
+| `Cannot read while watch is active; use watch or exchange` | `read()` during a `watch()` |
+| `A watch is already active …` | Second `watch()` on one port |
+| `exchange timed out after {ms} ms` | No final result code |
+| `exchange cancelled` / `transaction queue cancelled` | `cancelExchange()` hit the running / a queued job |
+| `invalid CMUX DLCI {n}: data channels are 1..=63` | `openMuxChannel()` out of range |
+
+Other failures carry the OS / driver text unchanged.

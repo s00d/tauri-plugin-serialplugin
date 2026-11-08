@@ -1,0 +1,81 @@
+# Migration guide
+
+## v3 → v4
+
+- **Rust:** the port I/O functions in `commands` are now `async` (they run on Tauri's
+  blocking pool instead of the main thread, so a `read` waiting for data no longer
+  freezes the UI). Add `.await`: `commands::open(app, serial, …).await?`.
+  MSRV is now 1.90.
+- **JS package:** `exports` now has separate `import`/`require` entries with their own
+  types (`index.d.cts`); the `development` condition pointing at `guest-js/*.ts` and
+  the `guest-js` sources in the npm tarball are gone.
+- **`read()`** now reads bytes and decodes them in JS with the port's `encoding` and a
+  streaming decoder (UTF-8 characters split across reads are kept). It no longer calls
+  the native `read` command.
+- **`watch()`** no longer uses the port's read `timeout` (1 s by default) as its batch
+  window. Without `timeout` / `serialDataFlushIntervalMs` data is delivered within
+  ~20 ms and as soon as `size` bytes are buffered.
+- **CMUX** is now real 3GPP 27.010 basic mode (0xF9 framing, SABM/UA, CLD); before,
+  the frames were not understood by modems. `openMuxChannel(dlci)` accepts 1–63.
+- **Android:** the plugin no longer offers the app for *every* USB device (the old
+  `device_filter.xml` had a catch-all entry); it matches the supported chips plus any
+  CDC-ACM device.
+- **Rust `commands::open`** takes two more optional arguments at the end: `dtr`,
+  `rts` (pass `None, None` for the old behaviour).
+- **Android:** USB Ethernet / RNDIS devices are no longer listed as serial ports;
+  FTDI ports open with a 1 ms latency timer.
+- **New:** `tcp://host:port` paths on every platform, `ble://` (feature `ble`),
+  `dtr` / `rts` options on open, `SerialPort.scanBlePorts()`; the plugin builds for
+  iOS.
+
+## v2 → v3
+
+In v2 you attached stream callbacks separately (`startListening` / `listen` / `disconnected`).
+In v3 one call — **`watch()`** — registers all of them; stop with the returned handle.
+
+```ts
+// v2
+await port.startListening();
+await port.listen((data) => console.log(data));
+await port.disconnected((reason) => console.log("gone", reason));
+await port.cancelListen();
+
+// v3 — same thing in one watch()
+const handle = await port.watch({
+  onData: (data) => console.log(data),
+  onDisconnect: (reason) => console.log("gone", reason), // replaces disconnected(fn)
+});
+await handle.unwatch();
+```
+
+| v2 | v3 |
+|----|-----|
+| `startListening()` + `listen(fn)` | `const handle = await port.watch({ onData: fn })` |
+| `disconnected(fn)` | pass `onDisconnect: fn` into the same `watch({ ... })` |
+| `cancelListen()` / `stopListening()` | `await handle.unwatch()` |
+
+Legacy Tauri events (`plugin-serialplugin-read-*`) and Android plugin triggers (`serialData`, `serialError`) are **no longer part of the public API**.
+
+**New in v3:** `SerialPort.getCapabilities()` — `{ transport, platform, version }` from Rust (`cfg!`), if the app needs to branch by platform (replaces ad-hoc `window` / `@tauri-apps/plugin-os` probing on the app side).
+
+**Breaking API changes (v3):**
+
+| Field / behavior | v2 | v3 |
+|------------------|-----|-----|
+| `AtCommandResult.raw` / `ExchangeResponse.raw` | `number[]` | `Uint8Array` |
+| `AtCommandResult.timedOut` | literal `false` | `boolean` (timeouts surfaced by native layer) |
+| `open()` | `void` | returns **canonical path** (Android re-keys to `UsbPath.sessionKey`; desktop echoes input) |
+| `cancel_read` | also detached watch on some builds | **does not** unwatch — use `close()` or `handle.unwatch()` |
+| TX queue after error | port could stay halted until reopen | next `exchange` / `sendAt` job runs normally (`stopOnError` only stops remaining phases in one `sendAtPhases` batch) |
+| Early RX before `exchange` | often lost or raced with wait | native hub keeps **idle** bytes; `exchange` replays them via `take_idle_bytes` after write (no extra line response needed) |
+
+### AT API (v3)
+
+| Was | Now |
+|-----|-----|
+| `port.at.enqueue('AT')` | `port.sendAt('AT')` |
+| `port.at.enqueuePhases(...)` | `port.sendAtPhases(...)` |
+| `port.at.sendSmsPdu(...)` | `port.sendSmsPdu(...)` |
+| `port.at.cancel()` | `port.cancelAt()` |
+| `new SerialPort({ atSession })` | `atSession` still applies on `open()` via `configureAtSession` |
+| Parallel `exchange()` throws | `exchange()` awaits turn in native queue |

@@ -12,13 +12,16 @@ Kotlin keeps `UsbDeviceConnection` and the raw fd. Rust duplicates the fd (`dup`
 
 ## Consumer app requirements
 
-1. Declare USB host in the app manifest (`uses-feature android.hardware.usb.host` optional).
-2. Ship a `device_filter.xml` aligned with [`device_filter.xml`](src/main/res/xml/device_filter.xml) / `ProbeTable::default_table()`.
-3. Request runtime USB permission before open (the plugin uses `PendingIntent.FLAG_MUTABLE` + `setPackage()`).
+None. The plugin's library manifest brings the USB host feature and the
+`device_filter.xml`, its `build.rs` adds the `USB_DEVICE_ATTACHED` intent filter to
+the app activity, and `open()` asks the user for USB permission
+(`PendingIntent.FLAG_MUTABLE` + `setPackage()`). Keep
+[`device_filter.xml`](src/main/res/xml/device_filter.xml) in sync with
+`ProbeTable::default_table()` (a test enforces it).
 
 ## JVM unit tests + Android Lint
 
-Gradle 8.9 / AGP 8.5 only **run** on JDK 11–21 (JDK 22+ dies with
+Gradle 8.14 / AGP 8.11 only **run** on JDK 17–21 (JDK 22+ dies with
 `Unsupported class file major version`). Prefer 17. The helper picks a
 compatible install even if your shell `JAVA_HOME` is 27:
 

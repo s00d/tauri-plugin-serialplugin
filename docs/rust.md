@@ -1,0 +1,98 @@
+# Using the plugin from Rust
+
+The JavaScript API is a thin layer over Rust; the same operations are available in
+your Tauri backend. Full item docs: [docs.rs](https://docs.rs/tauri-plugin-serialplugin/).
+
+## Setup
+
+```rust
+// src-tauri/src/lib.rs
+tauri::Builder::default()
+    .plugin(tauri_plugin_serialplugin::init())
+    .run(tauri::generate_context!())
+    .expect("error while running tauri application");
+```
+
+## The `SerialPort` state (recommended)
+
+The plugin manages a `tauri_plugin_serialplugin::api::SerialPort<R>`. Its methods
+are synchronous and may block (open, read with timeout), so call them from a
+blocking context, for example an `async` command plus `spawn_blocking`:
+
+```rust
+use tauri::State;
+use tauri_plugin_serialplugin::api::SerialPort;
+
+#[tauri::command]
+async fn modem_signal(serial: State<'_, SerialPort<tauri::Wry>>) -> Result<String, String> {
+    let serial = serial.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = "/dev/ttyUSB0".to_string();
+        serial.open(path.clone(), 115_200, None, None, None, None, Some(1000))?;
+        let reply = serial.at(path.clone(), "AT+CSQ".into(), None)?;
+        serial.close(path)?;
+        Ok::<_, tauri_plugin_serialplugin::error::Error>(reply.lines.join("\n"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+```
+
+Main methods (same names as the JS API in snake_case):
+
+| Group | Methods |
+|-------|---------|
+| Discovery | `available_ports(single_port_per_device)`, `managed_ports()`, `watch_ports(options, channel)`, `unwatch_ports(id)` |
+| Lifecycle | `open(path, baud, data_bits, flow, parity, stop_bits, timeout_ms)`, `open_with_lines(…, ModemLinesOnOpen { dtr, rts })`, `close(path)`, `close_all()`, `force_close(path)` |
+| I/O | `write(path, text)`, `write_binary(path, bytes)`, `read(path, timeout, size)`, `read_binary(…)`, `cancel_read(path)`, `watch(path, options, channel)`, `unwatch(id)` |
+| AT / exchange | `exchange(path, text, options)`, `exchange_binary(…)`, `at(path, command, options)`, `at_phases(path, phases)`, `send_sms_pdu(path, len, pdu, options)`, `configure_at_session(path, session)`, `cancel_exchange(path)` |
+| CMUX | `enable_mux(path, command, timeout_ms)`, `open_mux_channel(path, dlci)`, `disable_mux(path)` |
+| Settings / lines | `set_baud_rate`, `set_data_bits`, `set_flow_control`, `set_parity`, `set_stop_bits`, `set_timeout`, `write_request_to_send`, `write_data_terminal_ready`, `read_clear_to_send`, `read_data_set_ready`, `read_ring_indicator`, `read_carrier_detect`, `bytes_to_read`, `bytes_to_write`, `clear_buffer`, `set_break`, `clear_break` |
+
+Types live in `tauri_plugin_serialplugin::state` (`DataBits`, `Parity`,
+`StopBits`, `FlowControl`, `ClearBuffer`, `LogLevel`, `ModemLinesOnOpen`) and
+`tauri_plugin_serialplugin::events` (`WatchOptions`, `ExchangeOptions`,
+`SerialEvent`, …). Errors are `tauri_plugin_serialplugin::error::Error`, which
+serializes to its message string.
+
+## Calling the Tauri commands directly
+
+`tauri_plugin_serialplugin::commands` holds the functions behind the JS calls. The
+port I/O ones are `async` (they run on Tauri's blocking pool) and must be awaited;
+`managed_ports`, `set_log_level`, `get_log_level` and `capabilities` are
+synchronous.
+
+```rust
+use tauri::{AppHandle, State};
+use tauri_plugin_serialplugin::{api::SerialPort, commands};
+
+#[tauri::command]
+async fn open_default(
+    app: AppHandle<tauri::Wry>,
+    serial: State<'_, SerialPort<tauri::Wry>>,
+) -> Result<String, String> {
+    commands::open(app, serial, "COM3".into(), 9600, None, None, None, None, None, None, None)
+        .await
+        .map_err(|e| e.to_string())
+}
+```
+
+`commands::open` takes, after `app` and `serial`: `path`, `baud_rate`,
+`data_bits`, `flow_control`, `parity`, `stop_bits`, `timeout`, `dtr`, `rts`
+(all but the first two are `Option`).
+
+## Log level
+
+```rust
+use tauri_plugin_serialplugin::state::{set_log_level, LogLevel};
+
+set_log_level(LogLevel::Error); // before or after init(); JS can change it later
+```
+
+## Cargo features
+
+| Feature | |
+|---------|--|
+| `ble` | Serial over Bluetooth LE (`ble://`), desktop and iOS. Needs `libdbus-1-dev` on Linux. See [platforms](platforms.md#bluetooth-le-ble). |
+| `android-test-harness` | Fake USB transport for the JNI integration tests. Not for apps. |

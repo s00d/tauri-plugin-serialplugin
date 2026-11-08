@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Resolve a JAVA_HOME that can *run* Gradle 8.9 + AGP 8.5.
+# Resolve a JAVA_HOME that can *run* Gradle 8.14 + AGP 8.11.
 #
-# The daemon JVM must be 11–21. Newer JDKs (22+) fail with
+# The daemon JVM must be 17–21. Newer JDKs (22+) fail with
 # "Unsupported class file major version …" even if the project compiles to 11.
-# Preference: 17 → 21 → 11. Prints the path to stdout; errors on stderr.
+# Preference: 17 → 21. Prints the path to stdout; errors on stderr.
 set -euo pipefail
 
-MIN=11
+MIN=17
 MAX=21
-PREFER=(17 21 11)
+PREFER=(17 21)
 
 java_major() {
   local home="$1"
