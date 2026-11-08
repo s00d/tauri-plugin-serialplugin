@@ -442,17 +442,20 @@ fn set_timeout_takes_effect_and_hub_does_not_overwrite_it() {
         t.elapsed()
     );
 
-    let (sink, _rx) = old_sink();
-    m.watch("timeouts".into(), watch_opts(10, false), sink)
-        .unwrap();
-    thread::sleep(Duration::from_millis(150)); // the hub polls meanwhile
-    let t = Instant::now();
-    assert!(m.write("timeouts".into(), "x".into()).is_err());
-    assert!(
-        t.elapsed() < Duration::from_millis(500),
-        "{:?}",
-        t.elapsed()
-    );
+    // Windows keeps a single handle, so the hub's poll timeout applies there as in 4.x.
+    if !cfg!(windows) {
+        let (sink, _rx) = old_sink();
+        m.watch("timeouts".into(), watch_opts(10, false), sink)
+            .unwrap();
+        thread::sleep(Duration::from_millis(150)); // the hub polls meanwhile
+        let t = Instant::now();
+        assert!(m.write("timeouts".into(), "x".into()).is_err());
+        assert!(
+            t.elapsed() < Duration::from_millis(500),
+            "{:?}",
+            t.elapsed()
+        );
+    }
     m.close("timeouts".into()).unwrap();
 }
 
@@ -494,7 +497,9 @@ fn write_p99_under_3ms_with_reading_active() {
 fn disconnect_releases_both_handles_once_and_close_succeeds() {
     let fake = Fake::new();
     let m = manager_with("unplug", fake.port(true));
-    assert_eq!(fake.live(), 2, "reader + cloned writer");
+    // Windows keeps one handle (duplicated COM handles share their timeouts).
+    let handles = if cfg!(windows) { 1 } else { 2 };
+    assert_eq!(fake.live(), handles, "reader + cloned writer");
     let (sub, states) = core_sink();
     let sub = m.subscribe_core(sub);
     let (sink, rx) = old_sink();
