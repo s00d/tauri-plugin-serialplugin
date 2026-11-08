@@ -37,6 +37,13 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: iOS build check (plugin compiles; commands reject at runtime)
+        if: runner.os == 'macOS'
+        run: |
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          cargo clippy -p tauri-plugin-serialplugin --target aarch64-apple-ios -- -D warnings
+          cargo clippy -p tauri-plugin-serialplugin --target aarch64-apple-ios-sim -- -D warnings
+
       - name: Rust tests (plugin + android-usb-serial host tests)
         run: cargo test --workspace
 

@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+#[cfg(not(target_os = "ios"))]
 use crate::commands::*;
+#[cfg(not(target_os = "ios"))]
+use tauri::Manager;
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    Runtime,
 };
 
 #[cfg(target_os = "android")]
@@ -45,6 +48,7 @@ use std::sync::{Arc, Mutex};
 ///         .map_err(|e| e.to_string())
 /// }
 /// ```
+#[cfg(not(target_os = "ios"))]
 pub mod commands;
 
 /// Centralized logging module
@@ -57,17 +61,27 @@ pub mod logger;
 #[cfg(any(test, target_os = "android"))]
 mod jni_ready;
 
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 pub mod android;
+#[cfg(not(target_os = "ios"))]
 pub mod api;
+#[cfg(not(target_os = "ios"))]
 pub mod at;
+#[cfg(not(target_os = "ios"))]
 pub mod cmux;
+#[cfg(not(target_os = "ios"))]
 pub mod error;
+#[cfg(not(target_os = "ios"))]
 pub mod events;
+#[cfg(not(target_os = "ios"))]
 pub mod exchange;
+#[cfg(not(target_os = "ios"))]
 pub mod hub;
+#[cfg(not(target_os = "ios"))]
 pub mod port;
+#[cfg(not(target_os = "ios"))]
 pub mod state;
+#[cfg(not(target_os = "ios"))]
 pub mod sync_util;
 
 #[cfg(any(desktop, all(debug_assertions, target_os = "android")))]
@@ -95,6 +109,7 @@ pub mod mock_serial;
 ///         // .expect("error while running tauri application");
 /// }
 /// ```
+#[cfg(not(target_os = "ios"))]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("serialplugin")
         .invoke_handler(tauri::generate_handler![
@@ -172,6 +187,21 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     let _ = serial.close_all();
                 }
             }
+        })
+        .build()
+}
+
+/// iOS has no API for serial/USB-serial devices. The plugin still builds there so an
+/// app that ships desktop/Android serial support can also build for iOS; every
+/// command rejects with a clear error instead of failing at compile time.
+#[cfg(target_os = "ios")]
+pub fn init<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("serialplugin")
+        .invoke_handler(|invoke| {
+            invoke
+                .resolver
+                .reject("Serial ports are not supported on iOS");
+            true
         })
         .build()
 }

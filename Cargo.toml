@@ -57,6 +57,7 @@ windows = { level = "full", notes = "" }
 linux = { level = "full", notes = "" }
 macos = { level = "full", notes = "" }
 android = { level = "full", notes = "" }
+ios = { level = "none", notes = "Builds; every command rejects with \"Serial ports are not supported on iOS\"." }
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = [ "build" ] }
