@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased
+## [4.2.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.1...v4.2.2) (2026-11-14)
 
-No API changes: Rust, JS, invoke payloads and permissions are as in 4.2.1 (and 4.0.0).
+No API changes: Rust, JS, invoke payloads and permissions are as in 4.2.1 (and 4.0.0). serialplugin-core 0.2.2, android-usb-serial 0.1.5, serial-codec 0.1.1.
 
 ### Fixes
 
 * `read()` / `readBinary()` with `size`: bytes of the same chunk past `size` stay for the next read (or the watch, or the idle buffer); they were dropped. A chunk arriving while a read starts can no longer land behind it in the idle buffer.
 * `close()` racing a disconnect no longer fails with "not open": the disconnect is recorded before the port leaves the managed set (desktop and Android), and for each CMUX channel (`path#dlci=N`) before the channel leaves its map.
+* `tcp://` on Windows: a read into an empty buffer (`read({ size: 0 })`) returns at once; it waited for data or the read timeout.
 * Default (drain) exchanges: a late reply arriving while the drain starts can no longer slip into the idle buffer and complete the next command with a stale result.
 * `sendAtPhases()` / `sendSmsPdu()` with `stopOnError: false`: a phase whose exchange timed out reports `timedOut: true` (was always `false`). A modem error reply that mentions a timeout (`+CME ERROR: network timeout`) stays `timedOut: false`.
 * AT parser, `ATV0` (numeric) replies: CR-only line ends are handled when completing, splitting and demuxing, so a URC glued behind a result code is routed and a `+CUSD` split by CR is joined; a numeric result code (`0`, `4`, …) also ends a `+CUSD` quote left open, so later lines are not held back.
@@ -282,7 +283,7 @@ Full audit release. See the [migration guide](https://s00d.github.io/tauri-plugi
 * **android:** prevent app crashes when USB devices disconnect ([#43](https://github.com/s00d/tauri-plugin-serialplugin/issues/43)) ([70371fc](https://github.com/s00d/tauri-plugin-serialplugin/commit/70371fc65b4a26a777e992d41dc67d925ed8fea2))
 * **ci:** stop android-integration from installing removed SDK tools ([e032bbf](https://github.com/s00d/tauri-plugin-serialplugin/commit/e032bbf8d5ecbd24c9099c47a150f96e70df8e5e))
 
-## Unreleased
+## [4.2.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.1...v4.2.2) (2026-11-14)
 
 - Clear pending Java exceptions on failed USB JNI operations before detaching
   native threads, preventing an Android crash when reconnecting an unplugged dongle.

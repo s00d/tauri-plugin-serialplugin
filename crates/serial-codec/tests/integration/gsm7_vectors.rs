@@ -607,7 +607,7 @@ const DISAGREE: &[(&str, &str)] = &[
 
 #[test]
 fn gsm7_vectors() {
-    let v: Vec<Value> = serde_json::from_str(include_str!("fixtures/sms/gsm7.json")).unwrap();
+    let v: Vec<Value> = serde_json::from_str(include_str!("../fixtures/sms/gsm7.json")).unwrap();
     let mut failures = Vec::new();
     let mut stats: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     for e in &v {

@@ -1,4 +1,4 @@
-//! The root crate's integration tests in one binary (`autotests = false`): the plugin
+//! The root crate's integration tests in one binary (`tests/integration/`): the plugin
 //! through Tauri IPC (mock runtime), as a webview calls it. Desktop only: the tests use
 //! PTYs and the `serialport` crate, neither of which exists on Android or iOS.
 

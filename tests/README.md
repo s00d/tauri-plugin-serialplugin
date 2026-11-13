@@ -10,7 +10,7 @@ checks that the USB bridge returns the error with no pending Java exception.
 | Layer | What it proves | Where | CI job |
 |-------|----------------|-------|--------|
 | Jest | JS wrapper → `invoke` payload/shape | `tests/*.test.ts` | `test` (Ubuntu/macOS), `windows` |
-| Rust integration | Plugin through Tauri IPC (mock runtime): models + stories on PTY / TCP devices | `tests/integration.rs` (root); `crates/*/tests/integration.rs` | `test` (Ubuntu/macOS/Windows, `cargo test --workspace`; PTY stories are `cfg(unix)`, the root binary is desktop only) |
+| Rust integration | Plugin through Tauri IPC (mock runtime): models + stories on PTY / TCP devices | `tests/integration/` (root); `crates/*/tests/integration/` | `test` (Ubuntu/macOS/Windows, `cargo test --workspace`; PTY stories are `cfg(unix)`, the root binary is desktop only) |
 | golden | USB chipset byte parity | `crates/android-usb-serial` | `test` (Ubuntu/macOS) |
 | Desktop JNI bridge | Clears pending Java exceptions at the JNI boundary | `tests/jni-bridge` | `test` (Ubuntu only, requires JDK 17) |
 | Android Lint + Robolectric | API/static checks + fd/permission unit tests | `android/` (`lintDebug test`) | `test` Ubuntu only — JDK 11–21 via `scripts/java-home-for-gradle.sh` |
@@ -52,7 +52,7 @@ cargo nextest run --workspace --features android-usb-serial/fake-transport,andro
 cargo nextest run -p tauri-plugin-serialplugin device_model
 ```
 
-Each crate has one integration binary (`tests/integration.rs`, `autotests = false`).
+Each crate has one integration binary: `tests/integration/main.rs` with the other files as its modules (cargo builds a `tests/<dir>/main.rs` as one test target).
 Models (`*_model.rs`) run random action sequences against a small reference model and
 compare result kinds after every step; stories (`*_stories.rs` and the topic files) are
 Given/When/Then for what random steps cannot reach. Root suites:

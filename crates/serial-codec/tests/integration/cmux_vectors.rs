@@ -8,7 +8,7 @@ use serial_codec::cmux::{
 };
 
 fn fixtures() -> Vec<Value> {
-    serde_json::from_str(include_str!("fixtures/cmux.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/cmux.json")).unwrap()
 }
 
 fn hex(s: &str) -> Vec<u8> {

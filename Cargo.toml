@@ -8,7 +8,7 @@ resolver = "2"
 
 [package]
 name = "tauri-plugin-serialplugin"
-version = "4.2.1"
+version = "4.2.2"
 description = "Tauri plugin for serial port access (desktop and Android)."
 edition = "2021"
 authors = ["s00d"]
@@ -16,10 +16,7 @@ license = "Apache-2.0 OR MIT"
 rust-version = "1.90"
 links = "tauri-plugin-serialplugin"
 readme = "README.md"
-# One integration binary (tests/integration.rs) instead of one per file.
-autotests = false
 repository = "https://github.com/s00d/tauri-plugin-serialplugin"
-homepage = "https://github.com/s00d/tauri-plugin-serialplugin"
 documentation = "https://docs.rs/tauri-plugin-serialplugin"
 keywords = ["tauri-plugin", "serial", "serialport", "usb", "android"]
 categories = ["hardware-support", "api-bindings"]
@@ -32,8 +29,7 @@ exclude = [
     ".config/**",
     "docs/**",
     "banner.png",
-    # Rust and TS tests stay in git; cargo drops the `[[test]] integration` target from the
-    # published manifest (it prints a warning about it), which is intended.
+    # Rust (tests/integration/, one binary) and TS tests stay in git.
     "tests/**",
     "scripts/**",
     "crates/**",
@@ -79,9 +75,6 @@ macos = { level = "full", notes = "" }
 android = { level = "full", notes = "" }
 ios = { level = "partial", notes = "No local serial/USB API on iOS; serial-over-TCP (tcp://host:port) works." }
 
-[[test]]
-name = "integration"
-path = "tests/integration.rs"
 
 [build-dependencies]
 tauri-plugin = { version = "2", features = [ "build" ] }
@@ -90,11 +83,11 @@ tauri-plugin = { version = "2", features = [ "build" ] }
 tauri = { version = "2" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serial-codec = { path = "crates/serial-codec", version = "0.1.0" }
+serial-codec = { path = "crates/serial-codec", version = "0.1.1" }
 # Everything that is not Tauri glue lives here (usable from plain Rust).
 # `tauri`: the 4.0.0 API of the re-exported core modules (Tauri `Channel` helpers,
 # `From<PluginInvokeError>` on Android).
-serialplugin-core = { path = "crates/serialplugin-core", version = "0.2.1", features = ["tauri"] }
+serialplugin-core = { path = "crates/serialplugin-core", version = "0.2.2", features = ["tauri"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The core's log_* macros expand to `::log::…` on Android; android_log.rs installs the logcat sink.

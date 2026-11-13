@@ -34,11 +34,10 @@ dependencies = [
 
 [[package]]
 name = "android-usb-serial"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.23.1",
  "libc",
- "log",
  "nusb",
  "proptest",
  "serde",
@@ -3087,7 +3086,7 @@ dependencies = [
 
 [[package]]
 name = "serial-codec"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proptest",
  "regex-lite",
@@ -3119,7 +3118,7 @@ dependencies = [
 
 [[package]]
 name = "serialplugin-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "android-usb-serial",
  "btleplug",
@@ -3595,7 +3594,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-serialplugin"
-version = "4.2.1"
+version = "4.2.2"
 dependencies = [
  "glob",
  "log",

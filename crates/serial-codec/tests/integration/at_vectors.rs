@@ -45,15 +45,15 @@ struct Urc {
 }
 
 fn replies() -> Vec<Reply> {
-    serde_json::from_str(include_str!("fixtures/at_replies.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/at_replies.json")).unwrap()
 }
 
 fn urcs() -> Vec<Urc> {
-    serde_json::from_str(include_str!("fixtures/at_urc.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/at_urc.json")).unwrap()
 }
 
 fn cme_cms() -> Vec<Value> {
-    serde_json::from_str(include_str!("fixtures/cme_cms.json")).unwrap()
+    serde_json::from_str(include_str!("../fixtures/cme_cms.json")).unwrap()
 }
 
 /// What a V.250 verbose modem sends for these lines: `<CR><LF>text<CR><LF>`.

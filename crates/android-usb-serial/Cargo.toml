@@ -1,6 +1,6 @@
 [package]
 name = "android-usb-serial"
-version = "0.1.4"
+version = "0.1.5"
 description = "Pure Rust USB serial drivers for Android (and Linux), built on nusb"
 edition = "2021"
 rust-version = "1.85"
@@ -12,8 +12,6 @@ documentation = "https://docs.rs/android-usb-serial"
 authors = ["s00d"]
 keywords = ["usb", "serial", "android", "nusb", "serialport"]
 categories = ["hardware-support", "os::android-apis", "embedded"]
-# One integration-test binary (tests/integration.rs): links once instead of once per file.
-autotests = false
 # Library package; lockfile not required for consumers. Golden fixtures stay in crate.
 exclude = [
     "/target/",
@@ -34,8 +32,6 @@ fake-transport = ["dep:serde", "dep:serde_json", "dep:base64"]
 serialport-compat = ["dep:serialport"]
 
 [dependencies]
-log = "0.4"
-
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
@@ -73,5 +69,5 @@ required-features = ["fake-transport"]
 # (add `serialport-compat` for the adapter model). Without the feature cargo skips this target.
 [[test]]
 name = "integration"
-path = "tests/integration.rs"
+path = "tests/integration/main.rs"
 required-features = ["fake-transport"]

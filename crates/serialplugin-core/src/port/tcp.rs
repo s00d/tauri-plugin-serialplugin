@@ -148,9 +148,13 @@ impl TcpSerialPort {
 
 impl Read for TcpSerialPort {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        // Windows' recv into an empty buffer waits for data (or the timeout); unix returns 0.
+        if buf.is_empty() {
+            return Ok(0);
+        }
         match self.stream.read(buf) {
             // A closed socket is an unplugged device, not an empty read.
-            Ok(0) if !buf.is_empty() => Err(io::Error::new(
+            Ok(0) => Err(io::Error::new(
                 io::ErrorKind::UnexpectedEof,
                 "TCP serial bridge closed the connection",
             )),

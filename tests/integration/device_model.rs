@@ -1041,6 +1041,14 @@ fn check_settings(sp: &SerialPort<MockRuntime>, path: &str, port: &PortM, n: usi
     let sb: serialport::StopBits = serde_json::from_value::<st::StopBits>(core(s.stop))
         .unwrap()
         .into();
+    // Linux's pty driver forces CS8 and clears PARENB on every termios change
+    // (drivers/tty/pty.c, `pty_set_termios`): a PTY never keeps other data bits or parity.
+    let linux_pty = cfg!(target_os = "linux") && port.kind == Kind::Pty;
+    let (db, pa) = if linux_pty {
+        (serialport::DataBits::Eight, serialport::Parity::None)
+    } else {
+        (db, pa)
+    };
     assert_eq!(got.data_bits, db, "step {n}: {path} data bits");
     assert_eq!(got.flow, fc, "step {n}: {path} flow control");
     assert_eq!(got.parity, pa, "step {n}: {path} parity");

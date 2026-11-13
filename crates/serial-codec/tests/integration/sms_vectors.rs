@@ -746,7 +746,7 @@ const DISAGREE_DECODE: &[(&str, &str)] = &[
 
 #[test]
 fn pdu_decode_vectors() {
-    let v = load(include_str!("fixtures/sms/pdu_decode.json"));
+    let v = load(include_str!("../fixtures/sms/pdu_decode.json"));
     run("pdu_decode", &v, DISAGREE_DECODE, check_decode_entry);
 }
 
@@ -1212,7 +1212,7 @@ const DISAGREE_ENCODE: &[(&str, &str)] = &[
 
 #[test]
 fn pdu_encode_vectors() {
-    let v = load(include_str!("fixtures/sms/pdu_encode.json"));
+    let v = load(include_str!("../fixtures/sms/pdu_encode.json"));
     run("pdu_encode", &v, DISAGREE_ENCODE, check_encode_entry);
 }
 
@@ -1276,7 +1276,7 @@ const DISAGREE_GATEWAY: &[(&str, &str)] = &[
 
 #[test]
 fn gateway_golden_vectors() {
-    let v = load(include_str!("fixtures/sms/gateway_golden_external.json"));
+    let v = load(include_str!("../fixtures/sms/gateway_golden_external.json"));
     let v: Vec<Value> = v
         .into_iter()
         .map(|mut e| {
@@ -1291,7 +1291,7 @@ fn gateway_golden_vectors() {
 
 #[test]
 fn gateway_multipart_vectors() {
-    let v = load(include_str!("fixtures/sms/gateway_multipart.json"));
+    let v = load(include_str!("../fixtures/sms/gateway_multipart.json"));
     for e in &v {
         let mut asm = Reassembler::new();
         let mut text = None;
@@ -1323,7 +1323,7 @@ fn gateway_multipart_vectors() {
 
 #[test]
 fn gateway_codec_vectors() {
-    let v = load(include_str!("fixtures/sms/gateway_codec_golden.json"));
+    let v = load(include_str!("../fixtures/sms/gateway_codec_golden.json"));
     for e in &v {
         let b = hx(e["hex"].as_str().unwrap());
         let got = match e["encoding"].as_str().unwrap() {
@@ -1339,7 +1339,7 @@ fn gateway_codec_vectors() {
 #[test]
 fn gateway_bit8_vectors() {
     let v: Value =
-        serde_json::from_str(include_str!("fixtures/sms/gateway_bit8_external.json")).unwrap();
+        serde_json::from_str(include_str!("../fixtures/sms/gateway_bit8_external.json")).unwrap();
     for e in v["pdu_cases"].as_array().unwrap() {
         check_gateway_golden(e).unwrap();
     }
@@ -1371,7 +1371,7 @@ fn gateway_bit8_vectors() {
 
 #[test]
 fn gateway_rejected_vectors() {
-    let v = load(include_str!("fixtures/sms/gateway_rejected.json"));
+    let v = load(include_str!("../fixtures/sms/gateway_rejected.json"));
     for e in &v {
         let id = e["id"].as_str().unwrap();
         match id {

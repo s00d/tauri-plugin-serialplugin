@@ -125,7 +125,7 @@ const DISAGREE: &[(&str, &str)] = &[(
 
 #[test]
 fn ussd_vectors() {
-    let v: Vec<Value> = serde_json::from_str(include_str!("fixtures/ussd/ussd.json")).unwrap();
+    let v: Vec<Value> = serde_json::from_str(include_str!("../fixtures/ussd/ussd.json")).unwrap();
     let mut failures = Vec::new();
     let mut stats: BTreeMap<String, (usize, usize)> = BTreeMap::new();
     for e in &v {
