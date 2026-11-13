@@ -82,24 +82,28 @@ async fn adapter() -> io::Result<Adapter> {
     };
     let deadline = Instant::now() + POWER_ON_WAIT;
     loop {
-        match adapter.adapter_state().await.map_err(ble_err)? {
-            CentralState::PoweredOn => return Ok(adapter),
-            CentralState::PoweredOff => {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotConnected,
-                    "Bluetooth is off",
-                ))
-            }
-            CentralState::Unknown if Instant::now() < deadline => {
-                tokio::time::sleep(Duration::from_millis(50)).await
-            }
-            CentralState::Unknown => {
-                return Err(io::Error::new(
-                    io::ErrorKind::PermissionDenied,
-                    "Bluetooth is not available (off, or the app is not authorized to use it)",
-                ))
-            }
+        let state = adapter.adapter_state().await.map_err(ble_err)?;
+        match power_state(state, Instant::now() >= deadline) {
+            Some(ready) => return ready.map(|()| adapter),
+            None => tokio::time::sleep(Duration::from_millis(50)).await,
         }
+    }
+}
+
+/// What an adapter state means for opening: `None` = still Unknown, ask again (until
+/// `waited_enough`).
+fn power_state(state: CentralState, waited_enough: bool) -> Option<io::Result<()>> {
+    match state {
+        CentralState::PoweredOn => Some(Ok(())),
+        CentralState::PoweredOff => Some(Err(io::Error::new(
+            io::ErrorKind::NotConnected,
+            "Bluetooth is off",
+        ))),
+        CentralState::Unknown if !waited_enough => None,
+        CentralState::Unknown => Some(Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "Bluetooth is not available (off, or the app is not authorized to use it)",
+        ))),
     }
 }
 
@@ -131,32 +135,42 @@ pub fn scan(duration: Duration) -> io::Result<HashMap<String, HashMap<String, St
             let Ok(Some(props)) = p.properties().await else {
                 continue;
             };
-            if !props.services.contains(&NUS_SERVICE) {
-                continue;
-            }
-            let name = props
-                .local_name
-                .clone()
-                .unwrap_or_else(|| crate::state::UNKNOWN.to_string());
-            let info = HashMap::from([
-                ("type".to_string(), "BLE".to_string()),
-                ("product".to_string(), name),
-                (
-                    "manufacturer".to_string(),
-                    crate::state::UNKNOWN.to_string(),
-                ),
-                ("serial_number".to_string(), port_id(&p)),
-                ("vid".to_string(), crate::state::UNKNOWN.to_string()),
-                ("pid".to_string(), crate::state::UNKNOWN.to_string()),
-                (
-                    "rssi".to_string(),
-                    props.rssi.map(|r| r.to_string()).unwrap_or_default(),
-                ),
-            ]);
-            out.insert(format!("{BLE_SCHEME}{}", port_id(&p)), info);
+            out.extend(scan_entry(
+                &port_id(&p),
+                &props.services,
+                props.local_name,
+                props.rssi,
+            ));
         }
         Ok(out)
     })
+}
+
+/// The `available_ports`-shaped entry of one scanned device, `None` when it does not
+/// advertise the Nordic UART Service.
+fn scan_entry(
+    id: &str,
+    services: &[Uuid],
+    local_name: Option<String>,
+    rssi: Option<i16>,
+) -> Option<(String, HashMap<String, String>)> {
+    if !services.contains(&NUS_SERVICE) {
+        return None;
+    }
+    let unknown = || crate::state::UNKNOWN.to_string();
+    let info = HashMap::from([
+        ("type".to_string(), "BLE".to_string()),
+        ("product".to_string(), local_name.unwrap_or_else(unknown)),
+        ("manufacturer".to_string(), unknown()),
+        ("serial_number".to_string(), id.to_string()),
+        ("vid".to_string(), unknown()),
+        ("pid".to_string(), unknown()),
+        (
+            "rssi".to_string(),
+            rssi.map(|r| r.to_string()).unwrap_or_default(),
+        ),
+    ]);
+    Some((format!("{BLE_SCHEME}{id}"), info))
 }
 
 pub struct BleSerialPort {
@@ -587,6 +601,60 @@ mod tests {
 }
 
 #[cfg(test)]
+mod adapter_tests {
+    use super::*;
+
+    #[test]
+    fn power_states() {
+        assert!(matches!(
+            power_state(CentralState::PoweredOn, false),
+            Some(Ok(()))
+        ));
+        assert!(matches!(
+            power_state(CentralState::PoweredOn, true),
+            Some(Ok(()))
+        ));
+        for waited in [false, true] {
+            let off = power_state(CentralState::PoweredOff, waited)
+                .unwrap()
+                .unwrap_err();
+            assert_eq!(off.kind(), io::ErrorKind::NotConnected);
+        }
+        assert!(power_state(CentralState::Unknown, false).is_none());
+        let unknown = power_state(CentralState::Unknown, true)
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(unknown.kind(), io::ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn scan_lists_nus_devices_only() {
+        let other = Uuid::from_u128(0x180D);
+        assert_eq!(scan_entry("id-1", &[other], Some("hr".into()), None), None);
+        let (path, info) = scan_entry(
+            "id-2",
+            &[other, NUS_SERVICE],
+            Some("board".into()),
+            Some(-60),
+        )
+        .unwrap();
+        assert_eq!(path, "ble://id-2");
+        let get = |k: &str| info.get(k).cloned().unwrap();
+        assert_eq!(get("type"), "BLE");
+        assert_eq!(get("product"), "board");
+        assert_eq!(get("serial_number"), "id-2");
+        assert_eq!(get("rssi"), "-60");
+        for k in ["manufacturer", "vid", "pid"] {
+            assert_eq!(get(k), crate::state::UNKNOWN);
+        }
+        assert_eq!(info.len(), 7);
+        let (_, bare) = scan_entry("id-3", &[NUS_SERVICE], None, None).unwrap();
+        assert_eq!(bare["product"], crate::state::UNKNOWN);
+        assert_eq!(bare["rssi"], "");
+    }
+}
+
+#[cfg(test)]
 mod selection_tests {
     use super::*;
 
@@ -683,6 +751,13 @@ mod selection_tests {
         assert_eq!(
             scan_step(&one, "uuid-1", &mut first, t0, deadline),
             Some(Ok(Some(0)))
+        );
+        // Nothing seen: keep scanning until the deadline, then not found.
+        let mut first = None;
+        assert_eq!(scan_step(&[], "NUS", &mut first, t0, deadline), None);
+        assert_eq!(
+            scan_step(&[], "NUS", &mut first, deadline, deadline),
+            Some(Ok(None))
         );
         // The settle window never runs past the deadline.
         let mut first = None;

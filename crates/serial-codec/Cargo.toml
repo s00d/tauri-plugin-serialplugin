@@ -13,8 +13,11 @@ authors = ["s00d"]
 keywords = ["serial", "at-commands", "sms", "cmux", "parser"]
 categories = ["parser-implementations", "encoding", "hardware-support"]
 # Ship only the library: tests/fixtures hold vectors taken from GPL/LGPL projects
-# (see tests/fixtures/README.md) and stay in git only.
+# (see tests/fixtures/README.md) and stay in git only. cargo drops the `[[test]]` target
+# from the published manifest (with a warning), which is intended.
 include = ["/src/**", "/README.md", "/LICENSE"]
+# One integration-test binary (tests/integration.rs): links once instead of once per file.
+autotests = false
 
 [dependencies]
 serde = { version = "1.0.185", features = ["derive"] }
@@ -24,3 +27,7 @@ regex-lite = "0.1"
 serde_json = "1.0"
 # proptest 1.12 needs rustc 1.88; keep the dev build on the 1.85 MSRV.
 proptest = { version = ">=1.6, <1.12", default-features = false, features = ["std"] }
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"

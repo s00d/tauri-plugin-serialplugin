@@ -134,5 +134,13 @@ mod tests {
         let opts = ExchangeOptions::default().resolve();
         assert_eq!(opts.rx_prepare, RxPrepareMode::Drain);
         assert_eq!(opts.completion_mode, ExchangeCompletionMode::AtFinalLine);
+        for mode in [RxPrepareMode::None, RxPrepareMode::Purge] {
+            let opts = ExchangeOptions {
+                rx_prepare: Some(mode.clone()),
+                ..Default::default()
+            }
+            .resolve();
+            assert_eq!(opts.rx_prepare, mode);
+        }
     }
 }

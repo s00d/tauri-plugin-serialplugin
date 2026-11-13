@@ -68,12 +68,13 @@ impl ProbeTable {
         });
     }
 
-    /// Resolve driver for `(vid, pid)`; falls back to CDC-ACM when interfaces look CDC.
+    /// Resolve driver for `(vid, pid)`; unknown products fall back to CDC-ACM
+    /// ([`Self::port_count`] then tells whether the interfaces form any CDC port).
     pub fn find(
         &self,
         vendor_id: u16,
         product_id: u16,
-        interfaces: &[InterfaceInfo],
+        _interfaces: &[InterfaceInfo],
     ) -> DriverType {
         if let Some(entry) = self
             .entries
@@ -82,10 +83,8 @@ impl ProbeTable {
         {
             return entry.driver;
         }
-        if cdc_acm_port_count(interfaces) > 0 {
-            return DriverType::CdcAcm;
-        }
-        DriverType::CdcAcm // unreachable for unknown; caller checks port_count
+        // Unknown product: CDC ACM probing; the caller checks port_count (0 = not serial).
+        DriverType::CdcAcm
     }
 
     /// How many serial ports this driver + interface layout exposes.
@@ -134,38 +133,4 @@ pub fn cdc_acm_port_count(interfaces: &[InterfaceInfo]) -> usize {
     // A data interface alone is not a serial port: USB Ethernet (CDC-ECM/NCM) and
     // RNDIS phones have one too. Same rule as usb-serial-for-android.
     comm.min(data)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_table_finds_ftdi() {
-        let table = ProbeTable::default_table();
-        let driver = table.find(0x0403, 0x6001, &[]);
-        assert_eq!(driver, DriverType::Ftdi);
-    }
-
-    #[test]
-    fn cdc_probe_fn_fallback() {
-        let table = ProbeTable::default_table();
-        let ifaces = vec![
-            InterfaceInfo {
-                id: 0,
-                class: 2,
-                subclass: 2,
-                protocol: 0,
-            },
-            InterfaceInfo {
-                id: 1,
-                class: 10,
-                subclass: 0,
-                protocol: 0,
-            },
-        ];
-        let driver = table.find(0x9999, 0x0001, &ifaces);
-        assert_eq!(driver, DriverType::CdcAcm);
-        assert_eq!(table.port_count(driver, &ifaces), 1);
-    }
 }

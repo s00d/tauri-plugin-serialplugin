@@ -39,15 +39,3 @@ impl XonXoffFilter {
         out
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn filters_between_xoff_and_xon() {
-        let mut f = XonXoffFilter::new(true);
-        let out = f.filter(&[b'a', CHAR_XOFF, b'b', CHAR_XON, b'c']);
-        assert_eq!(out, vec![b'a', b'b', b'c']);
-    }
-}

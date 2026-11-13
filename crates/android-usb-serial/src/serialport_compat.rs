@@ -125,6 +125,23 @@ impl SerialPortInner {
         handle.try_read(scratch).map_err(usb_err)
     }
 
+    /// Send `change` applied to the current line config; only a config the driver
+    /// accepted becomes the port's (a rejected baud must not poison later setters).
+    /// The handle lock serializes setters (lock order: handle, then line_config); the
+    /// getters never wait on the control transfer.
+    ///
+    /// The stored config is the last one the driver fully accepted. A driver that fails
+    /// half way (CH34x: baud set, then the LCR write fails) leaves the chip partly
+    /// changed; the next setter sends the whole stored config again.
+    fn apply_line(&self, change: impl FnOnce(&mut LineConfig)) -> serialport::Result<()> {
+        let mut handle = self.handle.lock().unwrap();
+        let mut next = *self.line_config.lock().unwrap();
+        change(&mut next);
+        handle.set_line_config(next).map_err(sp_err)?;
+        *self.line_config.lock().unwrap() = next;
+        Ok(())
+    }
+
     fn map_purge(kind: ClearBuffer) -> PurgeKind {
         match kind {
             ClearBuffer::Input => PurgeKind::Rx,
@@ -193,25 +210,15 @@ impl Read for SerialPortAdapter {
             if n > 0 {
                 return Ok(n);
             }
-            match self.inner.refill_from_reader(&mut scratch) {
-                Ok(0) => {
+            // `usb_err` never yields TimedOut / WouldBlock: every reader error is final.
+            match self.inner.refill_from_reader(&mut scratch)? {
+                0 => {
                     if Instant::now() >= deadline {
                         return Ok(0);
                     }
                     thread::sleep(Duration::from_millis(READ_POLL_MS));
                 }
-                Ok(n) => self.inner.push_ring(&scratch[..n]),
-                Err(e) => {
-                    let kind = e.kind();
-                    if kind == io::ErrorKind::TimedOut || kind == io::ErrorKind::WouldBlock {
-                        if Instant::now() >= deadline {
-                            return Ok(0);
-                        }
-                        thread::sleep(Duration::from_millis(READ_POLL_MS));
-                    } else {
-                        return Err(e);
-                    }
-                }
+                n => self.inner.push_ring(&scratch[..n]),
             }
         }
     }
@@ -291,74 +298,48 @@ impl SerialPort for SerialPortAdapter {
     }
 
     fn set_baud_rate(&mut self, baud_rate: u32) -> serialport::Result<()> {
-        let mut cfg = self.inner.line_config.lock().unwrap();
-        cfg.baud_rate = baud_rate;
-        self.inner
-            .handle
-            .lock()
-            .unwrap()
-            .set_line_config(*cfg)
-            .map_err(sp_err)
+        self.inner.apply_line(|cfg| cfg.baud_rate = baud_rate)
     }
 
     fn set_data_bits(&mut self, data_bits: SpDataBits) -> serialport::Result<()> {
-        let mut cfg = self.inner.line_config.lock().unwrap();
-        cfg.data_bits = match data_bits {
-            SpDataBits::Five => DataBits::Five,
-            SpDataBits::Six => DataBits::Six,
-            SpDataBits::Seven => DataBits::Seven,
-            SpDataBits::Eight => DataBits::Eight,
-        };
-        self.inner
-            .handle
-            .lock()
-            .unwrap()
-            .set_line_config(*cfg)
-            .map_err(sp_err)
+        self.inner.apply_line(|cfg| {
+            cfg.data_bits = match data_bits {
+                SpDataBits::Five => DataBits::Five,
+                SpDataBits::Six => DataBits::Six,
+                SpDataBits::Seven => DataBits::Seven,
+                SpDataBits::Eight => DataBits::Eight,
+            }
+        })
     }
 
     fn set_flow_control(&mut self, flow_control: SpFlowControl) -> serialport::Result<()> {
-        let flow = match flow_control {
-            SpFlowControl::None => FlowControl::None,
-            SpFlowControl::Hardware => FlowControl::RtsCts,
-            SpFlowControl::Software => FlowControl::XonXoff,
-        };
+        let flow = flow_from_serialport(flow_control);
+        // The control transfer runs without the flow lock (`flow_control()` must not
+        // wait up to its timeout); the handle lock keeps the store in setter order.
+        let mut handle = self.inner.handle.lock().unwrap();
+        handle.set_flow_control(flow).map_err(sp_err)?;
+        // A mode the driver rejected must not show up in `flow_control()`.
         *self.inner.flow_control.lock().unwrap() = flow;
-        self.inner
-            .handle
-            .lock()
-            .unwrap()
-            .set_flow_control(flow)
-            .map_err(sp_err)
+        Ok(())
     }
 
     fn set_parity(&mut self, parity: SpParity) -> serialport::Result<()> {
-        let mut cfg = self.inner.line_config.lock().unwrap();
-        cfg.parity = match parity {
-            SpParity::None => Parity::None,
-            SpParity::Odd => Parity::Odd,
-            SpParity::Even => Parity::Even,
-        };
-        self.inner
-            .handle
-            .lock()
-            .unwrap()
-            .set_line_config(*cfg)
-            .map_err(sp_err)
+        self.inner.apply_line(|cfg| {
+            cfg.parity = match parity {
+                SpParity::None => Parity::None,
+                SpParity::Odd => Parity::Odd,
+                SpParity::Even => Parity::Even,
+            }
+        })
     }
 
     fn set_stop_bits(&mut self, stop_bits: SpStopBits) -> serialport::Result<()> {
-        let mut cfg = self.inner.line_config.lock().unwrap();
-        cfg.stop_bits = match stop_bits {
-            SpStopBits::One => StopBits::One,
-            SpStopBits::Two => StopBits::Two,
-        };
-        self.inner
-            .handle
-            .lock()
-            .unwrap()
-            .set_line_config(*cfg)
-            .map_err(sp_err)
+        self.inner.apply_line(|cfg| {
+            cfg.stop_bits = match stop_bits {
+                SpStopBits::One => StopBits::One,
+                SpStopBits::Two => StopBits::Two,
+            }
+        })
     }
 
     fn set_timeout(&mut self, timeout: Duration) -> serialport::Result<()> {

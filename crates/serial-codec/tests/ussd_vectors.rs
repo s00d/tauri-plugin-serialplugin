@@ -279,3 +279,56 @@ fn cbs_dcs_language() {
     let t = ussd::decode(&ussd::encode("fr\rSalut").unwrap(), 0x10).unwrap();
     assert_eq!(t.language.as_deref(), Some("fr"));
 }
+
+#[test]
+fn cbs_dcs_groups() {
+    use serial_codec::sms::pdu::Alphabet::*;
+    let d = |raw| {
+        let d = CbsDcs::decode(raw);
+        (d.alphabet, d.reserved)
+    };
+    assert_eq!(d(0x01), (Gsm7, false));
+    assert_eq!(d(0x20), (Gsm7, false));
+    assert_eq!(d(0x24), (Gsm7, false));
+    assert_eq!(d(0x25), (Gsm7, true));
+    assert_eq!(d(0x40), (Gsm7, false));
+    assert_eq!(d(0x44), (Bit8, false));
+    assert_eq!(d(0x48), (Ucs2, false));
+    assert_eq!(d(0x4C), (Gsm7, true));
+    assert_eq!(d(0x90), (Gsm7, false));
+    assert_eq!(d(0x94), (Bit8, false));
+    assert_eq!(d(0x98), (Ucs2, false));
+    assert_eq!(d(0xF0), (Gsm7, false));
+    assert_eq!(d(0xF4), (Bit8, false));
+}
+
+#[test]
+fn gsm7_text_without_language_prefix_keeps_a_cr_after_two_chars() {
+    let packed = ussd::encode("ab\rcd").unwrap();
+    let t = ussd::decode(&packed, 0x0F).unwrap();
+    assert_eq!((t.text.as_str(), t.language), ("ab\rcd", None));
+}
+
+#[test]
+fn unpack_keeps_two_crs_off_the_octet_boundary() {
+    // `A CR CR`: 21 bits in 3 octets; the second CR is data, not the extra CR.
+    let septets = [0x41, 0x0D, 0x0D];
+    let packed = ussd::pack_septets(&septets, 0);
+    assert_eq!(packed.len(), 3);
+    assert_eq!(ussd::unpack_septets(&packed, 0), septets);
+}
+
+#[test]
+fn cusd_unquoted_text_and_bare_ok() {
+    let c = parse_cusd("+CUSD: 0,abc,def").unwrap();
+    assert_eq!(
+        (c.raw.as_deref(), c.dcs, c.invalid_dcs),
+        (Some("abc,def"), None, None)
+    );
+    let c = parse_cusd("+CUSD: 0,abc,").unwrap();
+    assert_eq!((c.raw.as_deref(), c.dcs), (Some("abc,"), None));
+    let c = parse_cusd("+CUSD: 0,abc,15").unwrap();
+    assert_eq!((c.raw.as_deref(), c.dcs), (Some("abc"), Some(15)));
+    let c = parse_cusd("+CUSD: 2 OK").unwrap();
+    assert_eq!((c.status, c.raw), (CusdStatus::Terminated, None));
+}

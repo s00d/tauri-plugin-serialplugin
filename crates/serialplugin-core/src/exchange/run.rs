@@ -35,9 +35,8 @@ pub fn run_physical_exchange<H: RxHubHandle>(
             io.purge_rx()?;
         }
         RxPrepareMode::Drain => {
-            // Bytes left over from earlier traffic (e.g. a late reply to a timed-out
-            // exchange) are exactly what drain is meant to throw away.
-            drop(hub_shared.take_idle_bytes());
+            // The drain also drops idle bytes (a late reply to a timed-out exchange),
+            // atomically with installing its slot.
             hub_shared
                 .drain(
                     resolved.drain_idle_ms,

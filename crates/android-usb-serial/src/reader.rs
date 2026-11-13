@@ -57,31 +57,27 @@ impl SerialReader {
     }
 
     /// Non-blocking: copy one queued chunk into `buf`, or `Ok(0)` if empty.
+    ///
+    /// Chunks that arrived before a reader error are delivered before the error.
     pub fn try_read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if !self.leftover.is_empty() {
-            let n = self.leftover.len().min(buf.len());
-            buf[..n].copy_from_slice(&self.leftover[..n]);
-            self.leftover.drain(..n);
-            return Ok(n);
-        }
-        if let Some(err) = self.error.lock().unwrap().take() {
-            return Err(err);
-        }
-        match self.rx.try_recv() {
-            Ok(chunk) => {
-                let n = chunk.len().min(buf.len());
-                buf[..n].copy_from_slice(&chunk[..n]);
-                self.leftover = chunk[n..].to_vec();
-                Ok(n)
-            }
-            Err(TryRecvError::Empty) => Ok(0),
-            Err(TryRecvError::Disconnected) => {
-                if let Some(err) = self.error.lock().unwrap().take() {
-                    return Err(err);
+        if self.leftover.is_empty() {
+            match self.rx.try_recv() {
+                Ok(chunk) => self.leftover = chunk,
+                Err(empty_or_gone) => {
+                    if let Some(err) = self.error.lock().unwrap().take() {
+                        return Err(err);
+                    }
+                    return match empty_or_gone {
+                        TryRecvError::Empty => Ok(0),
+                        TryRecvError::Disconnected => Err(UsbSerialError::Disconnected),
+                    };
                 }
-                Err(UsbSerialError::Disconnected)
             }
         }
+        let n = self.leftover.len().min(buf.len());
+        buf[..n].copy_from_slice(&self.leftover[..n]);
+        self.leftover.drain(..n);
+        Ok(n)
     }
 
     /// Signal stop and join the reader (best-effort within a short timeout).
@@ -157,56 +153,5 @@ fn reader_loop(
                 break;
             }
         }
-    }
-}
-
-#[cfg(all(test, feature = "fake-transport"))]
-mod tests {
-    use super::*;
-    use crate::fake::FakeTransport;
-    use crate::transport::Transport;
-    use std::time::Instant;
-
-    #[test]
-    fn reader_delivers_injected_rx() {
-        let fake = FakeTransport::cdc_single_iface();
-        fake.push_rx(b"hello");
-        let bulk = fake.open_bulk_in(0x81, 64).unwrap();
-        let mut reader = SerialReader::start(bulk, 64, 100, vec![]);
-        let deadline = Instant::now() + Duration::from_secs(2);
-        let mut out = [0u8; 8];
-        let mut n = 0;
-        while n == 0 && Instant::now() < deadline {
-            n = reader.try_read(&mut out).unwrap();
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        assert_eq!(n, 5);
-        assert_eq!(&out[..5], b"hello");
-        reader.stop();
-    }
-}
-
-#[cfg(test)]
-mod leftover_tests {
-    use super::*;
-
-    /// A chunk larger than the caller's buffer used to lose its tail.
-    #[test]
-    fn try_read_keeps_the_rest_of_a_large_chunk() {
-        let (tx, rx) = mpsc::channel();
-        let mut r = SerialReader {
-            rx,
-            leftover: Vec::new(),
-            stop_tx: None,
-            join: None,
-            error: Arc::new(Mutex::new(None)),
-        };
-        tx.send(b"abcdef".to_vec()).unwrap();
-        let mut buf = [0u8; 4];
-        assert_eq!(r.try_read(&mut buf).unwrap(), 4);
-        assert_eq!(&buf, b"abcd");
-        assert_eq!(r.try_read(&mut buf).unwrap(), 2);
-        assert_eq!(&buf[..2], b"ef");
-        assert_eq!(r.try_read(&mut buf).unwrap(), 0);
     }
 }

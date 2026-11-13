@@ -89,10 +89,11 @@ class BleGattBridgeTest {
                 listOf(
                     BleLogic.ScanEntry("AA:BB:CC:DD:EE:FF", "Nordic_UART", -61),
                     BleLogic.ScanEntry("11:22:33:44:55:66", null, -90),
+                    BleLogic.ScanEntry("22:22:22:22:22:22", "", -1),
                 ),
             ),
         )
-        assertEquals(2, json.length())
+        assertEquals(3, json.length())
         val a = json.getJSONObject("ble://AA:BB:CC:DD:EE:FF")
         assertEquals("BLE", a.getString("type"))
         assertEquals("Nordic_UART", a.getString("product"))
@@ -100,6 +101,7 @@ class BleGattBridgeTest {
         assertEquals("-61", a.getString("rssi"))
         for (k in listOf("manufacturer", "vid", "pid")) assertEquals("Unknown", a.getString(k))
         assertEquals("Unknown", json.getJSONObject("ble://11:22:33:44:55:66").getString("product"))
+        assertEquals("empty name", "Unknown", json.getJSONObject("ble://22:22:22:22:22:22").getString("product"))
         assertEquals("{}", BleLogic.scanJson(emptyList()))
     }
 
@@ -107,7 +109,11 @@ class BleGattBridgeTest {
     fun deniedPermissionIsAClearErrorWithoutActivity() {
         // Robolectric grants nothing and the library manifest declares no BLE permission
         // (build.rs adds them to the app): a clear "not declared" error, no hang.
+        // Pin the app's declared permissions: without them (a runner that does not load
+        // the merged test manifest, e.g. PIT) the bridge cannot tell "not declared".
         val ctx = ApplicationProvider.getApplicationContext<Context>()
+        shadowOf(ctx.packageManager).getInternalMutablePackageInfo(ctx.packageName)
+            .requestedPermissions = arrayOf("android.permission.INTERNET")
         val bridge = BleGattBridge(ctx, null, object : BleGattBridge.NativeSink {
             override fun onBleData(handle: Long, data: ByteArray) {}
             override fun onBleDisconnected(handle: Long, reason: String) {}
@@ -137,6 +143,8 @@ class BleGattBridgeTest {
         val off = Intent(BluetoothAdapter.ACTION_STATE_CHANGED)
             .putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_TURNING_OFF)
         ctx.sendBroadcast(off)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals("reported by the first broadcast", listOf(7L to "Bluetooth turned off"), sink.disconnects.toList())
         ctx.sendBroadcast(Intent(off).putExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.STATE_OFF))
         shadowOf(Looper.getMainLooper()).idle()
         assertEquals(listOf(7L to "Bluetooth turned off"), sink.disconnects.toList())
@@ -217,6 +225,14 @@ class BleGattBridgeTest {
         }
         assertTrue("link gone is not busy: ${e.message}", e.message!!.contains("disconnected"))
 
+        // The budget ends exactly at the second try: no third one.
+        var n = 0
+        assertEquals(
+            BleLogic.ERROR_GATT_WRITE_REQUEST_BUSY,
+            BleLogic.startWhileBusy(10, { true }, { n++; BleLogic.ERROR_GATT_WRITE_REQUEST_BUSY }, c.now, c.sleep),
+        )
+        assertEquals(2, n)
+
         var once = 0
         assertEquals(-1, BleLogic.startWhileBusy(2_000, { true }, { once++; -1 }, c.now, c.sleep))
         assertEquals("non-busy failure is not retried", 1, once)
@@ -253,6 +269,7 @@ class BleGattBridgeTest {
             if (calls == 3) throw IOException("write failed: GATT status 133")
         }
         assertEquals("two 20-byte chunks went out", 40, n)
+        assertEquals("all of it", 50, q.write(data, 23) {})
         assertThrows(IOException::class.java) {
             q.write(data, 23) { throw IOException("BLE device disconnected") }
         }

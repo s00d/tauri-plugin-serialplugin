@@ -6,7 +6,8 @@
 use crate::error::{ReadOutcome, Result, UsbSerialError};
 use crate::transport::{BulkIn, BulkOut, ControlRequest, EndpointInfo, InterfaceInfo, Transport};
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 /// Captured control transfer (for golden parity assertions).
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ struct FakeState {
     endpoints: Vec<(u8, EndpointInfo)>,
     recorded: Vec<RecordedControl>,
     recorded_bulk_out: Vec<RecordedBulkOut>,
-    control_in_responses: Vec<Vec<u8>>,
+    control_in_responses: VecDeque<Vec<u8>>,
     interrupt_in_queue: VecDeque<u8>,
     rx_queue: VecDeque<u8>,
     tx_log: Vec<u8>,
@@ -50,6 +51,8 @@ struct FakeState {
 #[derive(Debug, Clone)]
 pub struct FakeTransport {
     inner: Arc<Mutex<FakeState>>,
+    /// Wakes an idle bulk/interrupt IN read when data or an error is queued.
+    arrived: Arc<Condvar>,
 }
 
 impl Default for FakeTransport {
@@ -68,6 +71,7 @@ impl FakeTransport {
     pub fn cdc_single_iface() -> Self {
         let t = Self {
             inner: Arc::new(Mutex::new(FakeState::default())),
+            arrived: Arc::new(Condvar::new()),
         };
         {
             let mut s = t.inner.lock().unwrap();
@@ -553,11 +557,13 @@ impl FakeTransport {
     pub fn push_rx(&self, data: &[u8]) {
         let mut s = self.inner.lock().unwrap();
         s.rx_queue.extend(data);
+        self.arrived.notify_all();
     }
 
     pub fn push_interrupt_in(&self, data: &[u8]) {
         let mut s = self.inner.lock().unwrap();
         s.interrupt_in_queue.extend(data);
+        self.arrived.notify_all();
     }
 
     /// Drain and return bytes written to bulk OUT (test asserts).
@@ -583,11 +589,16 @@ impl FakeTransport {
 
     /// Queue the next `control_in` response payload (FIFO).
     pub fn script_control_in_response(&self, data: Vec<u8>) {
-        self.inner.lock().unwrap().control_in_responses.push(data);
+        self.inner
+            .lock()
+            .unwrap()
+            .control_in_responses
+            .push_back(data);
     }
 
     pub fn inject_bulk_read_error(&self, msg: impl Into<String>) {
         self.inner.lock().unwrap().bulk_read_error = Some(msg.into());
+        self.arrived.notify_all();
     }
 
     /// Enable a scripted Quectel-like AT responder on bulk OUT (`AT\r` → `OK`, etc.).
@@ -635,6 +646,7 @@ impl FakeTransport {
 
 struct FakeBulkIn {
     inner: Arc<Mutex<FakeState>>,
+    arrived: Arc<Condvar>,
     interrupt: bool,
     endpoint: u8,
 }
@@ -648,8 +660,23 @@ impl Drop for FakeBulkIn {
 }
 
 impl BulkIn for FakeBulkIn {
-    fn read(&mut self, buf: &mut [u8], _timeout_ms: u32) -> Result<ReadOutcome> {
+    fn read(&mut self, buf: &mut [u8], timeout_ms: u32) -> Result<ReadOutcome> {
         let mut s = self.inner.lock().unwrap();
+        let queued = |s: &FakeState| {
+            s.bulk_read_error.is_some()
+                || !(if self.interrupt {
+                    &s.interrupt_in_queue
+                } else {
+                    &s.rx_queue
+                })
+                .is_empty()
+        };
+        if timeout_ms > 0 && !queued(&s) {
+            // Idle like a real pipe instead of spinning, but at most 1 ms whatever the
+            // timeout: readers check for a stop request between reads.
+            let wait = Duration::from_millis(u64::from(timeout_ms.min(1)));
+            s = self.arrived.wait_timeout(s, wait).unwrap().0;
+        }
         if let Some(err) = s.bulk_read_error.take() {
             return Err(UsbSerialError::Io(err));
         }
@@ -799,7 +826,7 @@ impl Transport for FakeTransport {
             index: req.index,
             data: req.data.clone(),
         });
-        if let Some(resp) = s.control_in_responses.pop() {
+        if let Some(resp) = s.control_in_responses.pop_front() {
             return Ok(resp);
         }
         Ok(req.data.clone())
@@ -809,6 +836,7 @@ impl Transport for FakeTransport {
         self.mark_endpoint_open(endpoint)?;
         Ok(Box::new(FakeBulkIn {
             inner: self.inner.clone(),
+            arrived: self.arrived.clone(),
             interrupt: false,
             endpoint,
         }))
@@ -826,6 +854,7 @@ impl Transport for FakeTransport {
         self.mark_endpoint_open(endpoint)?;
         Ok(Box::new(FakeBulkIn {
             inner: self.inner.clone(),
+            arrived: self.arrived.clone(),
             interrupt: true,
             endpoint,
         }))
@@ -840,36 +869,5 @@ impl FakeTransport {
         }
         s.open_endpoints.push(endpoint);
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod at_modem_tests {
-    use super::*;
-
-    #[test]
-    fn at_modem_replies_ok_and_csq_with_urc() {
-        let fake = FakeTransport::cdc_single_iface();
-        fake.enable_at_modem();
-        let mut out = fake.open_bulk_out(0x02, 64).unwrap();
-        out.write(b"AT\r", 1000).unwrap();
-        out.write(b"AT+CSQ\r", 1000).unwrap();
-        let mut s = fake.inner.lock().unwrap();
-        let rx: Vec<u8> = s.rx_queue.drain(..).collect();
-        let text = String::from_utf8_lossy(&rx);
-        assert!(text.contains("OK"), "{text}");
-        assert!(text.contains("+CREG:"), "{text}");
-        assert!(text.contains("+CSQ: 20,99"), "{text}");
-    }
-
-    #[test]
-    fn at_modem_unknown_at_returns_error() {
-        let fake = FakeTransport::cdc_single_iface();
-        fake.enable_at_modem();
-        let mut out = fake.open_bulk_out(0x02, 64).unwrap();
-        out.write(b"AT+FOO\r", 1000).unwrap();
-        let mut s = fake.inner.lock().unwrap();
-        let rx: Vec<u8> = s.rx_queue.drain(..).collect();
-        assert_eq!(String::from_utf8_lossy(&rx), "\r\nERROR\r\n");
     }
 }

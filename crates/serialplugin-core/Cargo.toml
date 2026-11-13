@@ -6,6 +6,9 @@ edition = "2021"
 rust-version = "1.90"
 license = "Apache-2.0 OR MIT"
 readme = "README.md"
+# One integration-test binary (tests/integration.rs): its tests run in parallel
+# instead of one binary after another.
+autotests = false
 repository = "https://github.com/s00d/tauri-plugin-serialplugin"
 homepage = "https://github.com/s00d/tauri-plugin-serialplugin/tree/main/crates/serialplugin-core"
 documentation = "https://docs.rs/serialplugin-core"
@@ -70,3 +73,11 @@ log = { version = "0.4", features = ["std"] }
 # Not on iOS: the crate links IOKit there; src/serialport_ios.rs stands in for it.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 serialport = "4.10"
+
+[dev-dependencies]
+# Property and model tests (`TestRunner::run` over an action enum and a reference model).
+proptest = "1.10"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"

@@ -43,5 +43,23 @@ mod tests {
         assert_eq!(paths, sorted);
         paths.dedup();
         assert_eq!(paths.len(), details.len());
+        // Exactly the ports serialport enumerates (the 4.x map has the same keys).
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        {
+            let mut raw: Vec<String> = serialport::available_ports()
+                .unwrap()
+                .into_iter()
+                .map(|p| p.port_name)
+                .collect();
+            raw.sort();
+            assert_eq!(paths, raw);
+            let mut keys: Vec<String> = SerialManager::new()
+                .available_ports(false)
+                .unwrap()
+                .into_keys()
+                .collect();
+            keys.sort();
+            assert_eq!(keys, raw);
+        }
     }
 }

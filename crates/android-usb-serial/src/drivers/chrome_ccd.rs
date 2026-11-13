@@ -3,7 +3,6 @@
 use super::{opened, Driver, EndpointPair, ModemStatus};
 use crate::config::{FlowControl, LineConfig, PurgeKind};
 use crate::error::{Result, UsbSerialError};
-use crate::reader::SerialReader;
 use crate::transport::SharedTransport;
 
 pub struct ChromeCcdDriver {
@@ -11,7 +10,6 @@ pub struct ChromeCcdDriver {
     iface: u8,
     endpoints: Option<EndpointPair>,
     transport: Option<SharedTransport>,
-    reader: Option<SerialReader>,
 }
 
 impl ChromeCcdDriver {
@@ -21,7 +19,6 @@ impl ChromeCcdDriver {
             iface: port_index as u8,
             endpoints: None,
             transport: None,
-            reader: None,
         }
     }
 }
@@ -36,9 +33,6 @@ impl Driver for ChromeCcdDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         if let Some(t) = &self.transport {
             let _ = t.release_interface(self.iface);
         }
@@ -51,10 +45,8 @@ impl Driver for ChromeCcdDriver {
         opened(self.endpoints.as_mut())?.write(t, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
@@ -86,7 +78,7 @@ impl Driver for ChromeCcdDriver {
     }
 
     fn modem_status(&mut self) -> Result<ModemStatus> {
-        Ok(ModemStatus::default())
+        Ok(Default::default())
     }
 
     fn bulk_in_mps(&self) -> u16 {

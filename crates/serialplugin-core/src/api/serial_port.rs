@@ -60,3 +60,46 @@ pub fn configure_at_session(
 ) -> Result<(), Error> {
     configure_at_session_on_path(virtual_ports, physical_tx_queue, path, session)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn virtual_ports() -> (Mutex<HashMap<String, VirtualPortRef>>, Arc<PortTxQueue>) {
+        let q = Arc::new(PortTxQueue::new());
+        let vp = VirtualPortRef {
+            physical_path: "phys".into(),
+            dlci: 2,
+            exchange_cancel: q.cancel_flag(),
+            tx_queue: q.clone(),
+        };
+        (
+            Mutex::new(HashMap::from([("phys#dlci=2".to_string(), vp)])),
+            q,
+        )
+    }
+
+    #[test]
+    fn tx_queue_of_a_virtual_path_or_the_physical_lookup() {
+        let (vps, q) = virtual_ports();
+        let got = get_tx_queue_from_maps(&vps, |_| Err(Error::new("no")), "phys#dlci=2").unwrap();
+        assert!(Arc::ptr_eq(&got, &q));
+        assert!(get_tx_queue_from_maps(&vps, |_| Err(Error::new("no")), "other").is_err());
+    }
+
+    #[test]
+    fn at_session_config_needs_a_known_port() {
+        let (vps, q) = virtual_ports();
+        let strict = || AtSessionConfig {
+            expect_ok: Some(true),
+            ..Default::default()
+        };
+        assert!(configure_at_session(&vps, None, "nope", strict()).is_err());
+        configure_at_session(&vps, None, "phys#dlci=2", strict()).unwrap();
+        assert!(q.at_session().expect_ok());
+        let phys = Arc::new(PortTxQueue::new());
+        configure_at_session(&vps, Some(phys.clone()), "phys", strict()).unwrap();
+        assert!(phys.at_session().expect_ok());
+    }
+}

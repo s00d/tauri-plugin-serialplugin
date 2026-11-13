@@ -52,20 +52,21 @@ pub fn port_info_from_type(port: SerialPortType) -> HashMap<String, String> {
     port_info
 }
 
-/// iOS has no local serial ports (only `tcp://` works there): an empty list.
-#[cfg(target_os = "ios")]
-pub fn enumerate_available_ports(
-    _single_port_per_device: bool,
-) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-    Ok(HashMap::new())
-}
-
 /// Enumerate available serial ports (desktop), with optional macOS de-duplication.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
+/// iOS has no local serial ports (only `tcp://` works there): an empty list.
+#[cfg(not(target_os = "android"))]
 pub fn enumerate_available_ports(
     single_port_per_device: bool,
 ) -> Result<HashMap<String, HashMap<String, String>>, Error> {
-    Ok(enumerate_with_locations(single_port_per_device)?.0)
+    #[cfg(target_os = "ios")]
+    {
+        let _ = single_port_per_device;
+        Ok(HashMap::new())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        Ok(enumerate_with_locations(single_port_per_device)?.0)
+    }
 }
 
 /// path -> 4.x info map.
@@ -329,5 +330,89 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert!(out.contains_key("/dev/bus/usb/001/002#0"));
         assert!(out.contains_key("/dev/bus/usb/001/003"));
+    }
+
+    /// Whatever order the map yields the ports in (each new map has its own hash
+    /// seed), the lowest index wins.
+    #[test]
+    fn android_lowest_index_wins_in_any_order() {
+        for _ in 0..64 {
+            let ports: HashMap<String, HashMap<String, String>> = ["#2", "#0", "#1", "#3"]
+                .iter()
+                .map(|i| (format!("/dev/bus/usb/001/002{i}"), info("USB")))
+                .collect();
+            let out = apply_android_single_port_per_device(ports, true);
+            assert_eq!(
+                out.keys().collect::<Vec<_>>(),
+                vec!["/dev/bus/usb/001/002#0"]
+            );
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    fn usb_type(serial: Option<&str>) -> SerialPortType {
+        SerialPortType::UsbPort(serialport::UsbPortInfo {
+            vid: 0x1a86,
+            pid: 0x7523,
+            serial_number: serial.map(Into::into),
+            manufacturer: serial.map(|_| "QinHeng".into()),
+            product: serial.map(|_| "CH340".into()),
+            #[cfg(feature = "usb-port-details")]
+            location: None,
+            #[cfg(feature = "usb-port-details")]
+            interface: None,
+        })
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn port_info_map_per_type() {
+        let get = |m: &HashMap<String, String>, k: &str| m.get(k).cloned().unwrap();
+        let usb = port_info_from_type(usb_type(Some("A1")));
+        assert_eq!(get(&usb, "type"), USB);
+        assert_eq!(get(&usb, "vid"), "6790");
+        assert_eq!(get(&usb, "pid"), "29987");
+        assert_eq!(get(&usb, "serial_number"), "A1");
+        assert_eq!(get(&usb, "manufacturer"), "QinHeng");
+        assert_eq!(get(&usb, "product"), "CH340");
+        let bare = port_info_from_type(usb_type(None));
+        for k in ["serial_number", "manufacturer", "product"] {
+            assert_eq!(get(&bare, k), UNKNOWN, "{k}");
+        }
+        for (t, name) in [
+            (SerialPortType::BluetoothPort, BLUETOOTH),
+            (SerialPortType::PciPort, PCI),
+            (SerialPortType::Unknown, UNKNOWN),
+        ] {
+            let m = port_info_from_type(t);
+            assert_eq!(get(&m, "type"), name);
+            assert_eq!(get(&m, "vid"), UNKNOWN);
+            assert_eq!(m.len(), 6);
+        }
+    }
+
+    /// The 4.x map lists exactly what serialport enumerates.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn enumeration_lists_the_system_ports() {
+        let mut raw: Vec<String> = raw_ports()
+            .unwrap()
+            .into_iter()
+            .map(|p| p.port_name)
+            .collect();
+        raw.sort();
+        let keys = |m: &HashMap<String, HashMap<String, String>>| {
+            let mut k: Vec<String> = m.keys().cloned().collect();
+            k.sort();
+            k
+        };
+        assert_eq!(keys(&enumerate_available_ports(false).unwrap()), raw);
+        let (map, locations) = enumerate_with_locations(false).unwrap();
+        assert_eq!(keys(&map), raw);
+        assert!(map.values().all(|info| info.len() == 6));
+        #[cfg(not(feature = "usb-port-details"))]
+        assert!(locations.is_empty());
+        #[cfg(feature = "usb-port-details")]
+        assert!(locations.keys().all(|k| raw.contains(k)));
     }
 }

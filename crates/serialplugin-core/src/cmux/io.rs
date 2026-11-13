@@ -107,5 +107,40 @@ mod tests {
             Duration::from_millis(1000)
         );
         assert_eq!(tx.lock().unwrap().as_slice(), b"frame");
+        // The trait method on the port gives the same timeout.
+        assert_eq!(
+            SerialPortIo(shared).write_timeout(960),
+            Duration::from_millis(3000)
+        );
+    }
+
+    #[test]
+    fn cmux_write_timeout_counts_the_data_bits() {
+        let mut port = MockSerialPort::new(); // 9600 baud, no parity, 1 stop bit
+        for (bits, per_char) in [
+            (serialport::DataBits::Five, 7u64),
+            (serialport::DataBits::Six, 8),
+            (serialport::DataBits::Seven, 9),
+            (serialport::DataBits::Eight, 10),
+        ] {
+            port.data_bits = bits;
+            // 9600 bytes: per_char seconds on the wire, twice that plus 1 s.
+            assert_eq!(
+                write_timeout(&port, 9600),
+                Duration::from_millis(2 * per_char * 1000 + 1000),
+                "{bits:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn default_write_timeout_is_one_second() {
+        struct Plain;
+        impl CmuxPhysicalIo for Plain {
+            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
+                Ok(())
+            }
+        }
+        assert_eq!(Plain.write_timeout(10_000), Duration::from_secs(1));
     }
 }

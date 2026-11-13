@@ -95,28 +95,37 @@ pub fn run_at_phases<R: ExchangeRunner>(
             AtPhaseWrite::Text(s) => normalize_at_command(s, session.append_cr()).into_bytes(),
             AtPhaseWrite::Binary(b) => b.clone(),
         };
-        let phase_result = (|| -> Result<crate::at::parse::AtCommandResult, Error> {
-            let response = runner.run_exchange_unqueued(path.clone(), payload, exchange_opts)?;
-            check_expect_ok(
-                session,
-                response.status,
-                &String::from_utf8_lossy(&response.raw),
-            )?;
-            Ok(crate::at::parse::AtCommandResult::from_exchange(
-                label.clone(),
-                response,
-            ))
-        })();
+        // `timed_out` comes from the exchange error only. `check_expect_ok`'s error quotes
+        // the modem's reply (`+CME ERROR: network timeout` is an answer, not a timeout).
+        // The runner returns an untyped `Error`; its exchange messages carry no device text.
+        let phase_result = runner
+            .run_exchange_unqueued(path.clone(), payload, exchange_opts)
+            .map_err(|e| {
+                let timed_out = crate::error::ErrorKind::from_message(&e.to_string())
+                    == crate::error::ErrorKind::Timeout;
+                (e, timed_out)
+            })
+            .and_then(|response| {
+                check_expect_ok(
+                    session,
+                    response.status,
+                    &String::from_utf8_lossy(&response.raw),
+                )
+                .map_err(|e| (e, false))?;
+                Ok(crate::at::parse::AtCommandResult::from_exchange(
+                    label.clone(),
+                    response,
+                ))
+            });
         match phase_result {
             Ok(r) => results.push(r),
-            Err(e) => {
+            Err((e, timed_out)) => {
                 if stop_on_error {
                     return Err(e);
                 }
-                results.push(crate::at::parse::AtCommandResult::failed(
-                    label,
-                    e.to_string(),
-                ));
+                let mut failed = crate::at::parse::AtCommandResult::failed(label, e.to_string());
+                failed.timed_out = timed_out;
+                results.push(failed);
             }
         }
     }
@@ -218,9 +227,10 @@ mod tests {
     use crate::at::parse::{AtResultFormat, ExchangeMatch, ExchangeResponse};
     use std::sync::Mutex;
 
-    /// Replies with canned bytes and parses them with the options it was given.
+    /// Replies with canned bytes (or a canned exchange error) and parses them with the
+    /// options it was given.
     struct FakeRunner {
-        replies: Mutex<Vec<&'static [u8]>>,
+        replies: Mutex<Vec<Result<&'static [u8], &'static str>>>,
         seen: Mutex<Vec<ExchangeOptions>>,
     }
 
@@ -231,7 +241,7 @@ mod tests {
             _payload: Vec<u8>,
             options: ExchangeOptions,
         ) -> Result<ExchangeResponse, Error> {
-            let raw = self.replies.lock().unwrap().remove(0).to_vec();
+            let raw = self.replies.lock().unwrap().remove(0)?.to_vec();
             let command = options.command.clone().unwrap_or_default();
             let prefixes = options.solicited_prefixes.clone().unwrap_or_default();
             self.seen.lock().unwrap().push(options);
@@ -248,7 +258,10 @@ mod tests {
     #[test]
     fn cmgs_reference_is_solicited_in_payload_phase() {
         let runner = FakeRunner {
-            replies: Mutex::new(vec![b"AT+CMGS=20\r\r\n> ", b"\r\n+CMGS: 12\r\n\r\nOK\r\n"]),
+            replies: Mutex::new(vec![
+                Ok(b"AT+CMGS=20\r\r\n> "),
+                Ok(b"\r\n+CMGS: 12\r\n\r\nOK\r\n"),
+            ]),
             seen: Mutex::new(Vec::new()),
         };
         let session = AtSessionConfig::default();
@@ -266,5 +279,88 @@ mod tests {
             .solicited_prefixes
             .as_ref()
             .is_some_and(|p| p.iter().any(|x| x == "+CMGS:")));
+    }
+
+    fn runner(replies: Vec<&'static [u8]>) -> FakeRunner {
+        FakeRunner {
+            replies: Mutex::new(replies.into_iter().map(Ok).collect()),
+            seen: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn text(s: &str) -> AtPhase {
+        AtPhase {
+            write: AtPhaseWrite::Text(s.into()),
+            completion_mode: None,
+            result_format: None,
+            timeout_ms: None,
+            command: None,
+            rx_prepare: None,
+        }
+    }
+
+    /// Only the first phase prepares RX (drain by default); later phases must not
+    /// eat the reply to the previous one.
+    #[test]
+    fn only_the_first_phase_prepares_rx() {
+        let r = runner(vec![b"\r\nOK\r\n", b"\r\nOK\r\n"]);
+        let results = run_at_phases(
+            &r,
+            &AtSessionConfig::default(),
+            "p".into(),
+            vec![text("AT"), text("ATE0")],
+        )
+        .unwrap();
+        assert_eq!(results.len(), 2);
+        let seen = r.seen.lock().unwrap();
+        assert_eq!(seen[0].rx_prepare, Some(RxPrepareMode::Drain));
+        assert_eq!(seen[1].rx_prepare, Some(RxPrepareMode::None));
+    }
+
+    #[test]
+    fn queued_phases_and_sms_run_on_the_tx_queue() {
+        let q = PortTxQueue::new();
+        let r = runner(vec![b"\r\nOK\r\n"]);
+        let results = queue_at_phases(&r, &q, "p".into(), vec![text("AT")]).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].command, "AT");
+
+        let r = runner(vec![b"AT+CMGS=2\r\r\n> ", b"\r\n+CMGS: 7\r\n\r\nOK\r\n"]);
+        let results = queue_send_sms_pdu(&r, &q, "p".into(), 2, b"00".to_vec(), None).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[1].solicited_body, vec!["+CMGS: 7".to_string()]);
+    }
+
+    /// Given a session with `expectOk` and `stopOnError: false`,
+    /// when one phase gets a modem error that mentions a timeout and the next phase's
+    /// exchange itself times out,
+    /// then only the exchange timeout is reported as `timed_out`; the modem's answer is not.
+    #[test]
+    fn timed_out_comes_from_the_exchange_not_the_modem_reply() {
+        let r = FakeRunner {
+            replies: Mutex::new(vec![
+                Ok(b"\r\n+CME ERROR: network timeout\r\n"),
+                Err("exchange timed out after 10 ms"),
+                Ok(b"\r\nOK\r\n"),
+            ]),
+            seen: Mutex::new(Vec::new()),
+        };
+        let session = AtSessionConfig {
+            expect_ok: Some(true),
+            stop_on_error: Some(false),
+            ..Default::default()
+        };
+        let results = run_at_phases(
+            &r,
+            &session,
+            "p".into(),
+            vec![text("AT+COPS?"), text("AT+CSQ"), text("AT")],
+        )
+        .unwrap();
+        let flags: Vec<(bool, bool)> = results
+            .iter()
+            .map(|x| (x.status == crate::at::parse::AtParseStatus::Ok, x.timed_out))
+            .collect();
+        assert_eq!(flags, vec![(false, false), (false, true), (true, false)]);
     }
 }

@@ -45,15 +45,37 @@ mod io_errors {
             let (tx, rx) = std::sync::mpsc::channel();
             let tx = Mutex::new(tx);
             let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
-                if matches!(event, SerialEvent::Disconnect { .. }) {
-                    let _ = tx.lock().unwrap().send(());
-                }
+                let _ = tx.lock().unwrap().send(event);
                 true
             });
-            let hub = super::super::PortRxHub::start(port, "unplugged".into());
-            hub.attach_watch_with(channel, 10, 64, false, None);
-            rx.recv_timeout(Duration::from_secs(3))
-                .expect("no Disconnect after persistent read errors");
+            // Attached before the first read, so it sees the first error.
+            let slot = crate::hub::shared::CoreWatchSlot::new(
+                1,
+                channel,
+                Arc::new(std::sync::atomic::AtomicBool::new(true)),
+                10,
+                64,
+                false,
+                None,
+            );
+            let hub =
+                super::super::PortRxHub::start_with(port, "unplugged".into(), None, Some(slot));
+            // The first error is reported at once (not after a second), the port is
+            // given up after a few in a row (50 ms apart), well before a second error
+            // report would be due.
+            let kinds: Vec<&str> = (0..2)
+                .map(|_| {
+                    match rx
+                        .recv_timeout(Duration::from_secs(2))
+                        .expect("no Disconnect after persistent read errors")
+                    {
+                        SerialEvent::Error { .. } => "error",
+                        SerialEvent::Disconnect { .. } => "disconnect",
+                        _ => "other",
+                    }
+                })
+                .collect();
+            assert_eq!(kinds, ["error", "disconnect"]);
             hub.stop();
         }
 
@@ -471,6 +493,7 @@ fn hub_loop(
                 shared.feed_bytes(&buf[..n], &mut routing);
                 shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
             }
+            // `Data(0)` that did not end the port: nothing to route.
             Ok(PollRead::Data(_)) => {}
             Ok(PollRead::Idle) => {
                 thread::sleep(Duration::from_millis(1));
@@ -506,10 +529,126 @@ fn hub_loop(
     }
 }
 
-#[cfg(all(test, unix, not(any(target_os = "android", target_os = "ios"))))]
+#[cfg(test)]
+#[cfg(all(unix, not(any(target_os = "android", target_os = "ios"))))]
 mod tests {
     use super::*;
+    use crate::hub::handle::RxHubHandle;
+    use crate::mock_serial::MockSerialPort;
     use std::io::Write;
+
+    fn mock_hub() -> PortRxHub {
+        let port: Arc<Mutex<Box<dyn SerialPort>>> =
+            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
+        PortRxHub::start(port, "mock".into())
+    }
+
+    fn wait_finished(hub: &PortRxHub) {
+        let t = Instant::now();
+        while !hub.is_finished() {
+            assert!(t.elapsed() < Duration::from_secs(2), "hub still running");
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    #[test]
+    fn eof_reads_count_only_with_a_read_buffer() {
+        let mut eof = 2;
+        // A zero-length read buffer: `Ok(0)` is no EOF signal, the count stays.
+        assert!(!note_eof(&PollRead::Data(0), 0, &mut eof));
+        assert_eq!(eof, 2);
+        assert!(
+            note_eof(&PollRead::Data(0), 8, &mut eof),
+            "third EOF in a row"
+        );
+        let mut eof = 0;
+        assert!(!note_eof(&PollRead::Data(0), 8, &mut eof));
+        assert_eq!(eof, 1);
+        assert!(!note_eof(&PollRead::Data(3), 8, &mut eof));
+        assert_eq!(eof, 0, "data resets the count");
+    }
+
+    #[test]
+    fn stop_requests_end_the_hub_thread() {
+        let hub = mock_hub();
+        assert!(!hub.is_finished());
+        hub.request_stop();
+        wait_finished(&hub);
+        let hub = mock_hub();
+        RxHubHandle::shutdown_hub(&hub);
+        wait_finished(&hub);
+    }
+
+    #[test]
+    fn hub_and_handle_calls_reach_the_shared_state() {
+        let hub = mock_hub();
+        let shared = hub.shared();
+        let sink: crate::events::EventSink = Arc::new(|_| true);
+        RxHubHandle::attach_watch_with(&hub, sink.clone(), 10, 64, false, None);
+        assert!(shared.has_watch());
+        RxHubHandle::detach_watch(&hub);
+        assert!(!shared.has_watch());
+        hub.attach_watch_with(sink, 10, 64, false, None);
+        hub.detach_watch();
+        assert!(!shared.has_watch());
+
+        let session = CmuxSession::new(
+            "mock".into(),
+            Arc::new(crate::cmux::SerialPortIo(Arc::new(Mutex::new(
+                Box::new(MockSerialPort::new()) as Box<dyn SerialPort>,
+            )))),
+        );
+        RxHubHandle::attach_cmux(&hub, session);
+        assert!(shared.cmux.lock().unwrap().is_some());
+        RxHubHandle::detach_cmux(&hub);
+        assert!(shared.cmux.lock().unwrap().is_none());
+
+        let options = crate::events::ExchangeOptions::default().resolve();
+        for via_handle in [false, true] {
+            let waiter = ExchangeWaiter::new(options.clone(), Arc::new(AtomicBool::new(false)));
+            if via_handle {
+                RxHubHandle::set_exchange_waiter(&hub, waiter);
+            } else {
+                hub.set_exchange_waiter(waiter);
+            }
+            assert!(shared.exchange_waiter.lock().unwrap().is_some());
+            if via_handle {
+                RxHubHandle::clear_exchange_waiter(&hub);
+            } else {
+                hub.clear_exchange_waiter();
+            }
+            assert!(shared.exchange_waiter.lock().unwrap().is_none());
+        }
+        for via_handle in [false, true] {
+            let waiter = ExchangeWaiter::new(options.clone(), Arc::new(AtomicBool::new(false)));
+            shared.set_exchange_waiter(waiter.clone());
+            if via_handle {
+                RxHubHandle::cancel_active_exchange(&hub);
+            } else {
+                hub.cancel_active_exchange();
+            }
+            assert_eq!(waiter.wait(2_000).unwrap_err(), "exchange cancelled");
+        }
+        hub.stop();
+    }
+
+    /// Bytes that arrive while a drain runs are the drain's result.
+    #[test]
+    fn drain_returns_the_bytes_read_during_it() {
+        let (_guard, mut master, slave) = crate::sync_util::pty_pair_locked();
+        let port: Arc<Mutex<Box<dyn SerialPort>>> = Arc::new(Mutex::new(Box::new(slave)));
+        let hub = Arc::new(PortRxHub::start(port, "pty".into()));
+        let bg = hub.clone();
+        let drainer =
+            thread::spawn(move || bg.drain(150, 2_000, Arc::new(AtomicBool::new(false)), vec![]));
+        thread::sleep(Duration::from_millis(30));
+        master.write_all(b"abc").unwrap();
+        assert_eq!(drainer.join().unwrap().unwrap(), b"abc");
+        match Arc::try_unwrap(hub) {
+            Ok(hub) => hub.stop(),
+            Err(_) => panic!("hub still shared"),
+        }
+    }
 
     /// The hub skipped `tick` while a drain was active, so an inter-byte-timeout frame
     /// waited for the whole drain window.
@@ -534,14 +673,15 @@ mod tests {
         master.write_all(&[1, 2]).unwrap();
         thread::sleep(Duration::from_millis(50)); // bytes reach the parser
         let shared = hub.shared();
-        let drainer = thread::spawn(move || {
-            shared.drain(2_000, 3_000, Arc::new(AtomicBool::new(false)), vec![])
-        });
+        let cancel = Arc::new(AtomicBool::new(false));
+        let drain_cancel = cancel.clone();
+        let drainer = thread::spawn(move || shared.drain(2_000, 3_000, drain_cancel, vec![]));
         let frame = rx
             .recv_timeout(Duration::from_millis(1_000))
             .expect("parser frame held back by the drain");
         assert_eq!(frame, vec![1, 2]);
         assert!(!drainer.is_finished(), "drain should still be running");
+        cancel.store(true, std::sync::atomic::Ordering::SeqCst);
         let _ = drainer.join();
         hub.stop();
     }

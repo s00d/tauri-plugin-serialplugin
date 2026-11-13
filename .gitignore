@@ -23,3 +23,6 @@ docs/content/3.reference/
 docs/content/9.changelog.md
 # nitro symlinks docs/dist to the generated output
 docs/dist
+# cargo-mutants output
+mutants.out
+mutants.out.old

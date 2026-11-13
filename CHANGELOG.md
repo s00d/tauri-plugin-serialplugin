@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+No API changes: Rust, JS, invoke payloads and permissions are as in 4.2.1 (and 4.0.0).
+
+### Fixes
+
+* `read()` / `readBinary()` with `size`: bytes of the same chunk past `size` stay for the next read (or the watch, or the idle buffer); they were dropped. A chunk arriving while a read starts can no longer land behind it in the idle buffer.
+* `close()` racing a disconnect no longer fails with "not open": the disconnect is recorded before the port leaves the managed set (desktop and Android), and for each CMUX channel (`path#dlci=N`) before the channel leaves its map.
+* Default (drain) exchanges: a late reply arriving while the drain starts can no longer slip into the idle buffer and complete the next command with a stale result.
+* `sendAtPhases()` / `sendSmsPdu()` with `stopOnError: false`: a phase whose exchange timed out reports `timedOut: true` (was always `false`). A modem error reply that mentions a timeout (`+CME ERROR: network timeout`) stays `timedOut: false`.
+* AT parser, `ATV0` (numeric) replies: CR-only line ends are handled when completing, splitting and demuxing, so a URC glued behind a result code is routed and a `+CUSD` split by CR is joined; a numeric result code (`0`, `4`, …) also ends a `+CUSD` quote left open, so later lines are not held back.
+* Android USB (android-usb-serial):
+  * CH34x: a baud rate the chip cannot produce within 3.1 % is rejected (`unsupported baud rate`) instead of programming a wrong or zero divisor.
+  * PL2303 HXN: a rate of 2^31 baud or more is rejected.
+  * FTDI: the flow-control mode (and the inline XON/XOFF RX filter) changes only after the chip accepted it.
+  * serialport adapter: a rejected line setting or flow mode is no longer kept as the port's config, and reading the config (`baud_rate()`, `flow_control()`, …) no longer waits for another thread's control transfer.
+  * `try_read`: chunks that arrived before a reader error are returned before the error.
+  * CDC-ACM: an IAD whose first interface is 255 no longer overflows.
+
+### Behaviour notes
+
+* A 4.x caller doing `read({ size: 4 })` on an 8-byte burst used to lose 4 bytes; it now gets them on its next read.
+* `serial_codec::at::split_lines` ends a `+CUSD:` line at a lone CR outside its quote and splits a glued `OK+URC` after a CR (`+CUSD: 0,"x",15\rOK` is now two lines).
+* `FakeTransport::script_control_in_response` (feature `fake-transport`) answers in FIFO order, as documented (it was LIFO).
+
+### Internal
+
+* Tests rewritten as proptest models and Given/When/Then stories, one integration binary per crate; mutation testing (cargo-mutants, PIT for the Kotlin bridge through `android/pitest.init.gradle`) documented in CONTRIBUTING.md, local only.
+
 ## [4.2.1](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.0...v4.2.1) (2026-11-08)
 
 No breaking API changes; serialplugin-core 0.2.1.

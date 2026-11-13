@@ -648,11 +648,12 @@ pub fn decode_user_data(udl: u8, ud: &[u8], udhi: bool, dcs: &Dcs) -> Result<Use
     let tables = udh.as_ref().map_or(Tables::DEFAULT, Udh::tables);
     let (payload, text) = if septets {
         let hdr_septets = (hdr * 8).div_ceil(7);
-        let count = udl
-            .checked_sub(hdr_septets)
-            .ok_or(PduError::Invalid("TP-UDHL"))?;
-        let fill = (hdr_septets * 7 - hdr * 8) as u8;
-        let s = gsm7::unpack(&ud[hdr..], fill, count);
+        if udl < hdr_septets {
+            return Err(PduError::Invalid("TP-UDHL"));
+        }
+        // Septets are aligned to the start of TP-UD: unpack them all, drop the header's.
+        let mut s = gsm7::unpack(ud, 0, udl);
+        s.drain(..hdr_septets);
         let text = gsm7::decode(&s, tables);
         (s, Some(text))
     } else {

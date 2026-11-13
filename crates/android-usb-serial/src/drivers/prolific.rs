@@ -3,7 +3,6 @@
 use super::{line_coding_bytes, opened, reply_bytes, Driver, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};
 use crate::error::{Result, UsbSerialError};
-use crate::reader::SerialReader;
 use crate::rx_filter::XonXoffRxFilter;
 use crate::transport::{BulkIn, ControlRequest, EndpointInfo, SharedTransport};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -87,7 +86,6 @@ pub struct ProlificDriver {
     parity: i32,
     endpoints: Option<ProlificEndpoints>,
     transport: Option<SharedTransport>,
-    reader: Option<SerialReader>,
     status: Arc<AtomicU8>,
     status_thread: Option<JoinHandle<()>>,
     stop_status_thread: Arc<AtomicBool>,
@@ -109,7 +107,6 @@ impl ProlificDriver {
             parity: -1,
             endpoints: None,
             transport: None,
-            reader: None,
             status: Arc::new(AtomicU8::new(0)),
             status_thread: None,
             stop_status_thread: Arc::new(AtomicBool::new(false)),
@@ -374,6 +371,13 @@ impl ProlificDriver {
             )));
         }
         if self.device_type == DeviceType::TypeHxn {
+            // dwDTERate is a plain rate here; 2^31 baud or more is no real rate (and
+            // would read as the divisor flag the HX path uses).
+            if baud_rate & (1 << 31) != 0 {
+                return Err(UsbSerialError::Unsupported(format!(
+                    "invalid baud rate: {baud_rate}"
+                )));
+            }
             return Ok(baud_rate);
         }
         if STANDARD_BAUD_RATES.contains(&baud_rate) {
@@ -513,9 +517,6 @@ impl Driver for ProlificDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         self.stop_status_thread();
         let _ = self.reset_device();
         if let Some(t) = &self.transport {
@@ -530,10 +531,8 @@ impl Driver for ProlificDriver {
         opened(self.endpoints.as_mut())?.data.write(t, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
@@ -657,26 +656,5 @@ impl Driver for ProlificDriver {
         } else {
             vec![]
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn filter_standard_baud() {
-        let mut d = ProlificDriver::new(0);
-        d.device_type = DeviceType::TypeHx;
-        assert_eq!(d.filter_baud_rate(115200).unwrap(), 115200);
-    }
-
-    #[test]
-    fn filter_custom_baud_hx() {
-        let mut d = ProlificDriver::new(0);
-        d.device_type = DeviceType::TypeHx;
-        let encoded = d.filter_baud_rate(500_000).unwrap();
-        assert_ne!(encoded, 500_000);
-        assert!(encoded & (1 << 31) != 0);
     }
 }

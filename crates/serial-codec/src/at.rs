@@ -198,12 +198,7 @@ pub fn derive_solicited_prefixes(command: &str) -> Vec<String> {
 fn part_header(part: &str) -> Option<String> {
     let part = part.trim();
     let b = part.as_bytes();
-    let digits = |mut i: usize| {
-        while b.get(i).is_some_and(u8::is_ascii_digit) {
-            i += 1;
-        }
-        i
-    };
+    let digits = |i: usize| i + b[i..].iter().take_while(|c| c.is_ascii_digit()).count();
     let mut i = 0;
     while let Some(&c) = b.get(i) {
         i = match c.to_ascii_uppercase() {
@@ -223,7 +218,7 @@ fn part_header(part: &str) -> Option<String> {
         };
     }
     match b.get(i) {
-        Some(c) if i > 0 && b"+^#$%*".contains(c) => command_header(&part[i..]),
+        Some(c) if b"+^#$%*".contains(c) => command_header(&part[i..]),
         _ => command_header(part),
     }
 }
@@ -259,86 +254,111 @@ const MAX_CUSD_SPAN: usize = 2_048;
 ///   open until the quote closes. A result code, another `+XXX:` line or 2 KiB end an
 ///   unclosed quote early (truncated `+CUSD`). Inside a `+CUSD` line CR/LF are kept.
 pub fn split_lines(text: &str) -> Vec<String> {
-    let segments: Vec<&str> = text.split('\n').collect();
-    group_segments(&segments, false).0
+    group_lines(text, false, false).0
 }
 
-/// Group LF-separated segments into logical lines. With `wait_for_quote`, an open
-/// `+CUSD` quote at the end stops the scan; the second value is how many segments
-/// were consumed (the rest must be fed again with more bytes).
-fn group_segments(segments: &[&str], wait_for_quote: bool) -> (Vec<String>, usize) {
+fn is_line_end(b: u8) -> bool {
+    b == b'\n' || b == b'\r'
+}
+
+/// Group text into logical lines: every CR or LF ends a line, except inside a `+CUSD`
+/// quote. With `wait_for_quote`, a `+CUSD` quote still open at the end stops the scan;
+/// the second value is then where the rest starts (always right after a line end, or
+/// 0): it must be fed again with more bytes. Judging piece by piece (a piece ends at
+/// any CR or LF) gives the same lines whether the text arrives at once or line by line.
+/// `numeric` (`ATV0`): a numeric result code also ends an open `+CUSD` quote.
+fn group_lines(text: &str, wait_for_quote: bool, numeric: bool) -> (Vec<String>, Option<usize>) {
+    let b = text.as_bytes();
     let mut out = Vec::new();
-    let mut i = 0;
-    while i < segments.len() {
+    let mut pos = 0;
+    while pos < b.len() {
+        let piece_start = pos;
         let emitted = out.len();
-        let mut rest = segments[i].trim_start();
-        if let Some(head) = glued_final_head(rest.trim_end()) {
+        let end = b[pos..]
+            .iter()
+            .position(|&c| is_line_end(c))
+            .map_or(b.len(), |e| pos + e);
+        let piece = &text[pos..end];
+        let mut start = pos + (piece.len() - piece.trim_start().len());
+        if let Some(head) = glued_final_head(text[start..end].trim_end()) {
             out.push(head.to_string());
-            rest = &rest[head.len()..];
+            start += head.len();
         }
-        let line = rest.trim_end();
-        if line.starts_with("+CUSD:") {
-            if has_open_quote(line) {
-                match close_cusd_quote(segments, i, line.len()) {
-                    QuoteEnd::Closed(j) => {
-                        let mut joined = rest.to_string();
-                        for seg in &segments[i + 1..=j] {
-                            joined.push('\n');
-                            joined.push_str(seg);
-                        }
-                        out.push(joined.trim_end().to_string());
-                        i = j + 1;
-                        continue;
-                    }
-                    QuoteEnd::Open if wait_for_quote => {
-                        out.truncate(emitted);
-                        return (out, i);
-                    }
-                    QuoteEnd::Open | QuoteEnd::Cut => {}
-                }
-            }
-            out.push(line.to_string());
-        } else {
-            for line in line.split('\r').map(str::trim).filter(|l| !l.is_empty()) {
+        if !text[start..].starts_with("+CUSD:") {
+            let line = text[start..end].trim();
+            if !line.is_empty() {
                 out.push(line.to_string());
             }
+            pos = end + 1;
+            continue;
         }
-        i += 1;
+        match cusd_line_end(text, start, numeric) {
+            CusdEnd::Line(e) => {
+                out.push(text[start..e].trim_end().to_string());
+                pos = e + 1;
+            }
+            CusdEnd::Open if wait_for_quote => {
+                out.truncate(emitted);
+                return (out, Some(piece_start));
+            }
+            // Cut by a result code, a URC line or the span cap, or still open at the
+            // end: the first piece is a truncated line, the rest is judged on its own.
+            CusdEnd::Cut | CusdEnd::Open => {
+                out.push(text[start..end].trim_end().to_string());
+                pos = end + 1;
+            }
+        }
     }
-    (out, segments.len())
+    (out, None)
 }
 
-enum QuoteEnd {
-    /// Quote closes in segment `j`.
-    Closed(usize),
-    /// Ended early by a modem line / size cap: keep the first segment as a truncated line.
+enum CusdEnd {
+    /// The line ends at this index (a line end outside the quote, or the text end).
+    Line(usize),
+    /// Ended early by a modem line / size cap.
     Cut,
-    /// No closing quote yet.
+    /// The quote is still open at the end of the text.
     Open,
 }
 
-fn close_cusd_quote(segments: &[&str], first: usize, first_len: usize) -> QuoteEnd {
-    let mut span = first_len;
-    for (j, seg) in segments.iter().enumerate().skip(first + 1) {
-        span += seg.len() + 1;
-        let seg = seg.trim();
-        if span > MAX_CUSD_SPAN || classify_final_line(seg).is_some() || is_urc_shape(seg) {
-            return QuoteEnd::Cut;
-        }
-        if has_open_quote(seg) {
-            return QuoteEnd::Closed(j);
+/// Where the `+CUSD` line starting at `start` ends: line ends inside its quote are
+/// text, unless the piece after one is a result code (with `numeric`, `ATV0` codes
+/// too), a URC line, or the line has grown past [`MAX_CUSD_SPAN`].
+fn cusd_line_end(text: &str, start: usize, numeric: bool) -> CusdEnd {
+    let b = text.as_bytes();
+    let mut quoted = false;
+    for i in start..b.len() {
+        match b[i] {
+            b'"' => quoted = !quoted,
+            c if is_line_end(c) && !quoted => return CusdEnd::Line(i),
+            c if is_line_end(c) => {
+                let next = b[i + 1..]
+                    .iter()
+                    .position(|&c| is_line_end(c))
+                    .map_or(b.len(), |e| i + 1 + e);
+                let piece = text[i + 1..next].trim();
+                if next - start > MAX_CUSD_SPAN
+                    || classify_final_line(piece).is_some()
+                    || (numeric && classify_numeric_final_line(piece).is_some())
+                    || is_urc_shape(piece)
+                {
+                    return CusdEnd::Cut;
+                }
+            }
+            _ => {}
         }
     }
-    QuoteEnd::Open
-}
-
-fn has_open_quote(s: &str) -> bool {
-    s.matches('"').count() % 2 == 1
+    if quoted {
+        CusdEnd::Open
+    } else {
+        CusdEnd::Line(b.len())
+    }
 }
 
 /// `OK+CUSD: …` → `Some("OK")`: a verbose final result glued to a URC line.
 fn glued_final_head(line: &str) -> Option<&str> {
-    let idx = line.find('+').filter(|&i| i > 0)?;
+    // A leading `+` gives an empty head, which is no final result.
+    let idx = line.find('+')?;
     let (head, rest) = line.split_at(idx);
     (classify_final_line(head).is_some() && is_urc_shape(rest)).then_some(head)
 }
@@ -564,11 +584,11 @@ fn classify_final_line_cased(line: &str, ignore_case: bool) -> Option<ExchangeMa
         "SEND OK" => Some(ExchangeMatch::SendOk),
         "SEND FAIL" => Some(ExchangeMatch::SendFail),
         s if s.starts_with("+CME ERROR:") => {
-            let (code, _) = parse_error_detail(&trimmed[11..], CME_TEXT_CODES);
+            let code = parse_error_detail(&trimmed[11..], CME_TEXT_CODES);
             Some(ExchangeMatch::CmeError { code })
         }
         s if s.starts_with("+CMS ERROR:") => {
-            let (code, _) = parse_error_detail(&trimmed[11..], CMS_TEXT_CODES);
+            let code = parse_error_detail(&trimmed[11..], CMS_TEXT_CODES);
             Some(ExchangeMatch::CmsError { code })
         }
         _ => None,
@@ -706,25 +726,22 @@ fn text_key(text: &str) -> String {
         .replace("isation", "ization")
 }
 
-/// `14` → (14, None); `10: SIM not inserted` → (10, text); `SIM busy` → (table, text).
-fn parse_error_detail(detail: &str, table: &[(&str, i32)]) -> (Option<i32>, Option<String>) {
+/// `14` → 14; `10: SIM not inserted` → 10; `SIM busy` → the table code (14).
+fn parse_error_detail(detail: &str, table: &[(&str, i32)]) -> Option<i32> {
     let detail = detail.trim();
     if let Ok(code) = detail.parse() {
-        return (Some(code), None);
+        return Some(code);
     }
-    if let Some((code, text)) = detail.split_once(':') {
+    if let Some((code, _)) = detail.split_once(':') {
         if let Ok(code) = code.trim().parse() {
-            let text = text.trim();
-            return (Some(code), (!text.is_empty()).then(|| text.to_string()));
+            return Some(code);
         }
     }
-    let text = detail.trim_matches('"').trim();
-    let key = text_key(text);
-    let code = table
+    let key = text_key(detail.trim_matches('"').trim());
+    table
         .iter()
         .find(|(message, _)| text_key(message) == key)
-        .map(|(_, code)| *code);
-    (code, (!text.is_empty()).then(|| text.to_string()))
+        .map(|(_, code)| *code)
 }
 
 /// What a reply line is, judged in order (see [`LineClassifier::feed`]).
@@ -824,14 +841,17 @@ pub fn parse_at_response(
         Some(end) => &raw[..=end],
         None => raw,
     };
-    let lines = split_lines(&String::from_utf8_lossy(complete));
+    let numeric = result_format == AtResultFormat::Numeric;
+    let lines = group_lines(&String::from_utf8_lossy(complete), false, numeric).0;
     let mut classifier = LineClassifier::new(command, &merged, result_format);
     let kinds: Vec<LineKind> = lines.iter().map(|l| classifier.feed(l)).collect();
-    let echo_idx = kinds.iter().position(|k| *k == LineKind::Echo);
-    let final_idx = kinds
+    // Only a final result after the echo ends the reply (the echo line itself is no
+    // final, so the search may start on it).
+    let from = kinds.iter().position(|k| *k == LineKind::Echo).unwrap_or(0);
+    let final_idx = kinds[from..]
         .iter()
         .rposition(|k| matches!(k, LineKind::Final(_)))
-        .filter(|&i| echo_idx.is_none_or(|e| i > e));
+        .map(|i| i + from);
     // Without a final result (substring / idle completion, a prompt, a timeout) every
     // line is body or URC.
     let final_pos = final_idx.unwrap_or(lines.len());
@@ -956,7 +976,8 @@ impl LineAssembler {
                 return Vec::new();
             };
             self.skipping = false;
-            chunk = &chunk[e + 1..];
+            // Keep the line end: it only adds an empty line, which is dropped.
+            chunk = &chunk[e..];
         }
         let Some(e) = chunk.iter().rposition(|&b| self.is_end(b)) else {
             self.partial.extend_from_slice(chunk);
@@ -969,20 +990,25 @@ impl LineAssembler {
         let end = self.partial.len() + e;
         self.partial.extend_from_slice(chunk);
         let text = String::from_utf8_lossy(&self.partial[..end]).into_owned();
-        let segments: Vec<&str> = text.split('\n').collect();
-        let (lines, used) = group_segments(&segments, true);
-        // LF is never part of a multi-byte sequence, so counting it in the raw bytes
-        // maps consumed segments back to a byte offset.
-        let cut = match used {
-            0 => 0,
-            n if n == segments.len() => end + 1,
-            n => self
-                .partial
+        let (lines, rest) = group_lines(&text, true, self.numeric);
+        // CR and LF are never part of a multi-byte sequence, so counting them in the
+        // raw bytes maps the consumed text back to a byte offset.
+        let cut = match rest {
+            None => end + 1,
+            Some(off) => match text.as_bytes()[..off]
                 .iter()
-                .enumerate()
-                .filter(|(_, &b)| b == b'\n')
-                .nth(n - 1)
-                .map_or(0, |(i, _)| i + 1),
+                .filter(|&&b| is_line_end(b))
+                .count()
+            {
+                0 => 0,
+                n => self
+                    .partial
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &b)| is_line_end(b))
+                    .nth(n - 1)
+                    .map_or(0, |(i, _)| i + 1),
+            },
         };
         self.partial.drain(..cut);
         if self.partial.len() > MAX_DEMUX_LINE {
@@ -1058,194 +1084,4 @@ pub fn urc_lines_from_drain(bytes: &[u8], solicited_prefixes: &[String]) -> Vec<
             LineKind::Echo | LineKind::Body => false,
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AtResultFormat as F;
-
-    #[test]
-    fn urc_after_echo_is_still_emitted() {
-        let mut demux = ExchangeDemux::new("AT+CSQ", &[]);
-        let urc = demux.process_chunk(b"AT+CSQ\r\r\n+CMTI: \"SM\",3\r\n+CSQ: 20,0\r\n\r\nOK\r\n");
-        assert_eq!(urc, vec!["+CMTI: \"SM\",3".to_string()]);
-    }
-
-    #[test]
-    fn sms_prompt_without_trailing_lf_completes() {
-        let m = at_intermediate_line_complete(b"AT+CMGS=20\r\r\n> ", F::Verbose);
-        assert!(
-            matches!(m, Some(ExchangeMatch::Intermediate { .. })),
-            "{m:?}"
-        );
-    }
-
-    #[test]
-    fn prompt_command_rejected_with_cms_error_completes() {
-        let m = at_intermediate_line_complete(b"AT+CMGS=20\r\r\n+CMS ERROR: 304\r\n", F::Verbose);
-        assert!(
-            matches!(
-                m,
-                Some(ExchangeMatch::CmsError {
-                    code: Some(304),
-                    ..
-                })
-            ),
-            "{m:?}"
-        );
-    }
-
-    /// Seen on a Quectel M26: `OK` and the first CMUX flags arrive in one read.
-    #[test]
-    fn trailing_bytes_after_final_line_do_not_hide_it() {
-        let m = at_final_line_complete(b"AT+CMUX=0\r\r\nOK\r\n\xF9\xF9\xF9\xF9", F::Verbose);
-        assert_eq!(m, Some(ExchangeMatch::Ok));
-    }
-
-    #[test]
-    fn parsed_status_ignores_trailing_bytes_and_urcs() {
-        let p = parse_at_response(
-            b"AT+CMUX=0\r\r\nOK\r\n\xF9\xF9",
-            "AT+CMUX=0",
-            &[],
-            F::Verbose,
-        );
-        assert_eq!(p.status, AtParseStatus::Ok);
-        let p = parse_at_response(b"AT\r\r\nOK\r\n\r\nRING\r\n", "AT", &[], F::Verbose);
-        assert_eq!(p.status, AtParseStatus::Ok);
-        assert_eq!(p.urc_lines, vec!["RING".to_string()]);
-    }
-
-    #[test]
-    fn non_utf8_noise_does_not_block_final_line() {
-        let m = at_final_line_complete(b"\xFF\xFEAT\r\r\nOK\r\n", F::Verbose);
-        assert_eq!(m, Some(ExchangeMatch::Ok));
-    }
-
-    #[test]
-    fn urc_in_same_read_after_ok_does_not_hide_it() {
-        let m = at_final_line_complete(b"AT\r\r\nOK\r\n\r\nRING\r\n", F::Verbose);
-        assert_eq!(m, Some(ExchangeMatch::Ok));
-        assert_eq!(at_final_line_complete(b"+CSQ: 20,0\r\n", F::Verbose), None);
-    }
-
-    use super::*;
-
-    #[test]
-    fn final_line_ok_only_at_end() {
-        let buf = b"AT\r\r\nOK\r\n";
-        assert!(matches!(
-            at_final_line_complete(buf, AtResultFormat::Verbose),
-            Some(ExchangeMatch::Ok)
-        ));
-        assert!(at_final_line_complete(b"AT\r\r\nO", AtResultFormat::Verbose).is_none());
-    }
-
-    #[test]
-    fn numeric_atv0_ok() {
-        let buf = b"AT\r\r\n0\r\n";
-        assert!(at_final_line_complete(buf, AtResultFormat::Verbose).is_none());
-        assert!(matches!(
-            at_final_line_complete(buf, AtResultFormat::Numeric),
-            Some(ExchangeMatch::Ok)
-        ));
-    }
-
-    #[test]
-    fn numeric_no_carrier_is_final() {
-        assert!(matches!(
-            at_final_line_complete(b"ATD\r\r\n3\r\n", AtResultFormat::Numeric),
-            Some(ExchangeMatch::NoCarrier)
-        ));
-    }
-
-    #[test]
-    fn numeric_one_is_intermediate_not_final() {
-        assert!(at_final_line_complete(b"ATD\r\r\n1\r\n", AtResultFormat::Numeric).is_none());
-        assert!(matches!(
-            at_intermediate_line_complete(b"ATD\r\r\n1\r\n", AtResultFormat::Numeric),
-            Some(ExchangeMatch::Intermediate { .. })
-        ));
-    }
-
-    #[test]
-    fn prompt_is_intermediate_complete() {
-        assert!(matches!(
-            at_intermediate_line_complete(b"AT+CMGS=1\r\r\n>\r\n", AtResultFormat::Verbose),
-            Some(ExchangeMatch::Intermediate { line }) if line == ">"
-        ));
-    }
-
-    #[test]
-    fn connect_is_not_final() {
-        assert!(
-            at_final_line_complete(b"ATD123\r\r\nCONNECT\r\n", AtResultFormat::Verbose).is_none()
-        );
-        assert!(classify_intermediate_line("CONNECT 9600"));
-    }
-
-    #[test]
-    fn no_carrier_is_final() {
-        assert!(matches!(
-            at_final_line_complete(b"ATD\r\r\nNO CARRIER\r\n", AtResultFormat::Verbose),
-            Some(ExchangeMatch::NoCarrier)
-        ));
-    }
-
-    #[test]
-    fn derive_prefix_csq() {
-        assert_eq!(
-            derive_solicited_prefixes("AT+CSQ"),
-            vec!["+CSQ:".to_string()]
-        );
-    }
-
-    #[test]
-    fn derive_prefix_syscfg() {
-        assert_eq!(
-            derive_solicited_prefixes("AT^SYSCFG?"),
-            vec!["^SYSCFG:".to_string()]
-        );
-    }
-
-    #[test]
-    fn csq_is_solicited_not_urc() {
-        let raw = b"AT+CSQ\r\r\n+CSQ: 20,99\r\nOK\r\n";
-        let parsed = parse_at_response(raw, "AT+CSQ", &[], AtResultFormat::Verbose);
-        assert_eq!(parsed.status, AtParseStatus::Ok);
-        assert!(parsed.solicited_body.iter().any(|l| l.starts_with("+CSQ:")));
-        assert!(parsed.urc_lines.is_empty());
-    }
-
-    #[test]
-    fn syscfg_solicited_with_derived_prefix() {
-        let raw = b"AT^SYSCFG?\r\r\n^SYSCFG: 2,2,3FFFFFFF,1,1\r\nOK\r\n";
-        let parsed = parse_at_response(raw, "AT^SYSCFG?", &[], AtResultFormat::Verbose);
-        assert!(parsed
-            .solicited_body
-            .iter()
-            .any(|l| l.starts_with("^SYSCFG:")));
-        assert!(parsed.urc_lines.is_empty());
-    }
-
-    #[test]
-    fn creg_in_blob_classified_as_urc_before_echo() {
-        let raw = b"+CREG: 1,2\r\nAT\r\r\nOK\r\n";
-        let parsed = parse_at_response(raw, "AT", &[], AtResultFormat::Verbose);
-        assert!(parsed.urc_lines.iter().any(|l| l.starts_with("+CREG:")));
-    }
-
-    #[test]
-    fn cme_error_text_status() {
-        let raw = b"AT+FOO\r\r\n+CME ERROR: SIM not inserted\r\n";
-        let parsed = parse_at_response(raw, "AT+FOO", &[], AtResultFormat::Verbose);
-        assert_eq!(parsed.status, AtParseStatus::Cme);
-    }
-
-    #[test]
-    fn demux_emits_urc_before_echo() {
-        let mut demux = ExchangeDemux::new("AT", &[]);
-        let urc = demux.process_chunk(b"+CREG: 1\r\nAT\r\n");
-        assert!(urc.iter().any(|l| l.starts_with("+CREG")));
-    }
 }

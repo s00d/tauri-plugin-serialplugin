@@ -179,11 +179,8 @@ fn platform_open(
             let listed = || {
                 serialport::available_ports().is_ok_and(|l| l.iter().any(|p| p.port_name == path))
             };
-            if err.kind() == ErrorKind::NotFound && listed() {
-                err.with_kind(ErrorKind::Busy)
-            } else {
-                err
-            }
+            let kind = open_error_kind(err.kind(), listed);
+            err.with_kind(kind)
         })?;
         if let Some(rts) = lines.rts {
             port.write_request_to_send(rts)
@@ -283,6 +280,16 @@ where
     F: FnOnce(&mut Box<dyn serialport::SerialPort>) -> Result<T, E>,
 {
     lock_with_deadline(port, lock_timeout, true, f)
+}
+
+/// Kind of a failed open: a device that is listed but "not found" is in use.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn open_error_kind(kind: ErrorKind, listed: impl FnOnce() -> bool) -> ErrorKind {
+    if kind == ErrorKind::NotFound && listed() {
+        ErrorKind::Busy
+    } else {
+        kind
+    }
 }
 
 /// Time `len` bytes take on the wire at the port's baud rate (11 bits a character).
@@ -420,8 +427,8 @@ impl WeakManager {
 /// Cheap to clone (all clones share the same ports). Methods block: call them from a
 /// plain thread or `tokio::task::spawn_blocking`, not straight from an async task.
 ///
-/// Lock order: `serialports` before `virtual_ports`; never hold a map lock across
-/// device I/O, thread spawn, or `JoinHandle` join.
+/// Lock order: `serialports` before `virtual_ports` and the disconnect tombstones;
+/// never hold a map lock across device I/O, thread spawn, or `JoinHandle` join.
 #[derive(Clone, Default)]
 pub struct SerialManager {
     #[doc(hidden)]
@@ -444,7 +451,16 @@ impl SerialManager {
         // listed until `close`, watches stay registered as on desktop and in 4.x).
         crate::android::registry::set_rust_state_fail(Box::new(move |path, reason| {
             if let Some(m) = manager.upgrade() {
-                let removed = crate::sync_util::lock_or_recover(&m.serialports).remove(path);
+                let removed = {
+                    let mut map = crate::sync_util::lock_or_recover(&m.serialports);
+                    let removed = map.remove(path);
+                    if removed.is_some() {
+                        // As on desktop: the tombstone lands under the map lock.
+                        crate::sync_util::lock_or_recover(&m.core.disconnected)
+                            .insert(path.to_string(), reason.to_string());
+                    }
+                    removed
+                };
                 if let Some(info) = removed {
                     m.release(path, info, reason);
                 }
@@ -2348,6 +2364,10 @@ impl SerialManager {
                 _ => false,
             };
             if same {
+                // Tombstone before the record leaves the map: a `close` racing the
+                // release must find one of the two, never neither ("not open").
+                crate::sync_util::lock_or_recover(&self.core.disconnected)
+                    .insert(path.to_string(), reason.to_string());
                 map.remove(path)
             } else {
                 None
@@ -2358,10 +2378,11 @@ impl SerialManager {
         }
     }
 
-    /// A port that disconnected (its record already out of the map): drop both handles,
-    /// the hub and its CMUX channels, keep a tombstone with `reason` for each (listed,
-    /// a late watch gets `Disconnect`, calls fail with it, `close` removes it), and send
-    /// `PortState::Disconnected`. Watches stay registered until `close` / `unwatch`.
+    /// A port that disconnected (its record already out of the map, its tombstone in):
+    /// drop both handles, the hub and its CMUX channels, give each channel a tombstone
+    /// with `reason` (listed, a late watch gets `Disconnect`, calls fail with it, `close`
+    /// removes it), and send `PortState::Disconnected`. The physical path's tombstone
+    /// is not added here. Watches stay registered until `close` / `unwatch`.
     fn release(&self, path: &str, info: SerialportInfo, reason: &str) {
         let channels: Vec<String> = {
             let mut virtuals = crate::sync_util::lock_or_recover(&self.virtual_ports);
@@ -2370,20 +2391,21 @@ impl SerialManager {
                 .filter(|(_, vp)| vp.physical_path == path)
                 .map(|(k, _)| k.clone())
                 .collect();
+            // Each channel's tombstone goes in under the same lock that removes it
+            // (order virtual_ports -> disconnected): a racing `close("p#dlci=N")` finds
+            // one of the two, never neither ("not open"). The physical path's tombstone
+            // went in with the record's removal; adding it again would revive it after
+            // a racing `close`.
+            let mut released = crate::sync_util::lock_or_recover(&self.core.disconnected);
             for k in &keys {
                 if let Some(vp) = virtuals.remove(k) {
+                    released.insert(k.clone(), reason.to_string());
                     vp.tx_queue.cancel_all();
                 }
             }
             keys
         };
         self.drop_writer(path);
-        {
-            let mut released = crate::sync_util::lock_or_recover(&self.core.disconnected);
-            for p in channels.iter().map(String::as_str).chain([path]) {
-                released.insert(p.to_string(), reason.to_string());
-            }
-        }
         if let PortState::Connected(cp) = info.state {
             // Dropping the hub handle detaches its (ending) thread; the reader goes with it.
             crate::sync_util::lock_or_recover(&cp.rx_hub).take();
@@ -2413,5 +2435,58 @@ impl crate::at::commands::ExchangeRunner for SerialManager {
         options: ExchangeOptions,
     ) -> Result<crate::at::parse::ExchangeResponse, Error> {
         SerialManager::run_exchange_unqueued(self, path, payload, options)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock_serial::MockSerialPort;
+
+    #[test]
+    fn wire_time_is_eleven_bits_a_byte() {
+        let mut port = MockSerialPort::new();
+        port.baud_rate = 9_600;
+        assert_eq!(wire_ms(&port, 96), 110);
+        assert_eq!(wire_ms(&port, 0), 0);
+        port.baud_rate = 0;
+        assert_eq!(wire_ms(&port, 1), 11_000, "baud 0 counts as 1");
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn listed_but_not_found_is_busy() {
+        assert_eq!(
+            open_error_kind(ErrorKind::NotFound, || true),
+            ErrorKind::Busy
+        );
+        assert_eq!(
+            open_error_kind(ErrorKind::NotFound, || false),
+            ErrorKind::NotFound
+        );
+        assert_eq!(
+            open_error_kind(ErrorKind::Other, || panic!("only asked for NotFound")),
+            ErrorKind::Other
+        );
+    }
+
+    /// `open` hands back the path it opened and the port is managed under it.
+    #[cfg(not(target_os = "android"))]
+    #[test]
+    fn open_returns_the_managed_path() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let path = format!("tcp://{}", listener.local_addr().unwrap());
+        let m = SerialManager::new();
+        assert!(
+            m.set_stop_bits(path.clone(), StopBits::Two).is_err(),
+            "not open yet"
+        );
+        let opened = m
+            .open(path.clone(), 115_200, None, None, None, None, None)
+            .unwrap();
+        assert_eq!(opened, path);
+        assert_eq!(m.managed_ports().unwrap(), vec![path.clone()]);
+        m.set_stop_bits(path.clone(), StopBits::Two).unwrap();
+        m.close(path).unwrap();
     }
 }

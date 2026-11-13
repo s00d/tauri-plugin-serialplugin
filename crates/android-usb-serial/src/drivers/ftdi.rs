@@ -5,7 +5,6 @@ use crate::config::{
     DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits, CHAR_XOFF, CHAR_XON,
 };
 use crate::error::{Result, UsbSerialError};
-use crate::reader::SerialReader;
 use crate::rx_filter::{FtdiHeaderFilter, XonXoffRxFilter};
 use crate::transport::{ControlRequest, SharedTransport};
 
@@ -20,7 +19,6 @@ pub struct FtdiDriver {
     data_config: u16,
     endpoints: Option<EndpointPair>,
     transport: Option<SharedTransport>,
-    reader: Option<SerialReader>,
 }
 
 impl FtdiDriver {
@@ -36,7 +34,6 @@ impl FtdiDriver {
             data_config: 0,
             endpoints: None,
             transport: None,
-            reader: None,
         }
     }
 
@@ -85,9 +82,6 @@ impl Driver for FtdiDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         if let Some(t) = &self.transport {
             let _ = t.release_interface(self.iface);
         }
@@ -100,10 +94,8 @@ impl Driver for FtdiDriver {
         opened(self.endpoints.as_mut())?.write(t, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
@@ -121,7 +113,6 @@ impl Driver for FtdiDriver {
     }
 
     fn set_flow_control(&mut self, flow: FlowControl) -> Result<()> {
-        self.flow = flow;
         let mut value = 0u16;
         let mut index = self.w_index();
         match flow {
@@ -134,7 +125,10 @@ impl Driver for FtdiDriver {
             }
             _ => return Err(UsbSerialError::Unsupported("flow control".into())),
         }
-        self.vendor_out(2, value, index)
+        self.vendor_out(2, value, index)?;
+        // Only a mode the chip accepted changes the RX filters (inline XON/XOFF strip).
+        self.flow = flow;
+        Ok(())
     }
 
     fn set_dtr(&mut self, value: bool) -> Result<()> {
@@ -289,12 +283,4 @@ pub fn ftdi_baud_encoding(
         index = (index << 8) | (port_index as u16 + 1);
     }
     Ok((value, index))
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn baud_zero_is_rejected_not_a_panic() {
-        assert!(super::ftdi_baud_encoding(0, false, 0).is_err());
-    }
 }

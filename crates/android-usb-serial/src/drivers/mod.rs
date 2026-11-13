@@ -79,7 +79,7 @@ pub trait Driver: Send {
     fn bulk_in_mps(&self) -> u16;
     fn take_bulk_in(&mut self) -> Option<Box<dyn BulkIn>>;
     fn rx_filters(&self) -> Vec<Box<dyn RxFilter>> {
-        Vec::new()
+        vec![]
     }
     fn start_reader(&mut self) -> Result<SerialReader> {
         let bulk = self

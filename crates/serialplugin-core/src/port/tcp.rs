@@ -72,17 +72,29 @@ fn enable_keepalive(stream: &TcpStream) -> io::Result<()> {
 /// Read errors as the hub expects them: a read timeout is `TimedOut` (benign), a
 /// dead connection is a disconnect kind.
 fn map_read_error(e: io::Error) -> io::Error {
-    match e.kind() {
+    let kind = read_error_kind(e.kind(), e.raw_os_error(), cfg!(windows));
+    if kind == e.kind() {
+        e
+    } else {
+        io::Error::new(kind, e)
+    }
+}
+
+/// WSAENETRESET: Windows reports failed keepalive probes with it.
+const WSAENETRESET: i32 = 10052;
+
+/// The kind [`map_read_error`] gives a socket read error (`windows`: the platform's
+/// codes; a parameter so both mappings are tested on every host).
+fn read_error_kind(kind: io::ErrorKind, os_code: Option<i32>, windows: bool) -> io::ErrorKind {
+    match kind {
         // Unix reports a read timeout as WouldBlock; serial callers expect TimedOut.
-        io::ErrorKind::WouldBlock => io::Error::new(io::ErrorKind::TimedOut, e),
+        io::ErrorKind::WouldBlock => io::ErrorKind::TimedOut,
         // Unix: SO_RCVTIMEO gives EAGAIN, so ETIMEDOUT here is failed keepalive probes.
         // (Windows uses WSAETIMEDOUT for both; it reports a keepalive drop as
         // WSAENETRESET below.)
-        #[cfg(unix)]
-        io::ErrorKind::TimedOut => io::Error::new(io::ErrorKind::ConnectionAborted, e),
-        #[cfg(windows)]
-        _ if e.raw_os_error() == Some(10052) => io::Error::new(io::ErrorKind::ConnectionReset, e),
-        _ => e,
+        io::ErrorKind::TimedOut if !windows => io::ErrorKind::ConnectionAborted,
+        _ if windows && os_code == Some(WSAENETRESET) => io::ErrorKind::ConnectionReset,
+        other => other,
     }
 }
 
@@ -153,8 +165,9 @@ impl Write for TcpSerialPort {
         self.stream.write(buf)
     }
 
+    // A TcpStream has no user-space write buffer (its `flush` does nothing).
     fn flush(&mut self) -> io::Result<()> {
-        self.stream.flush()
+        Ok(())
     }
 }
 
@@ -249,11 +262,13 @@ impl SerialPort for TcpSerialPort {
         let mut buf = [0u8; 4096];
         let pending = match self.stream.peek(&mut buf) {
             Ok(n) => n as u32,
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => 0,
-            Err(e) => {
-                let _ = self.stream.set_nonblocking(false);
-                return Err(e.into());
-            }
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => 0,
+                _ => {
+                    let _ = self.stream.set_nonblocking(false);
+                    return Err(e.into());
+                }
+            },
         };
         self.stream.set_nonblocking(false)?;
         Ok(pending)
@@ -274,8 +289,10 @@ impl SerialPort for TcpSerialPort {
             match (&self.stream).read(&mut buf) {
                 Ok(0) => break Ok(()),
                 Ok(_) => continue,
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => break Ok(()),
-                Err(e) => break Err(e.into()),
+                Err(e) => match e.kind() {
+                    io::ErrorKind::WouldBlock => break Ok(()),
+                    _ => break Err(e.into()),
+                },
             }
         };
         self.stream.set_nonblocking(false)?;
@@ -327,6 +344,10 @@ mod tests {
     fn keepalive_is_on_with_a_short_idle() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = connect(&listener);
+        assert_eq!(
+            port.name(),
+            Some(format!("tcp://{}", listener.local_addr().unwrap()))
+        );
         let sock = socket2::SockRef::from(&port.stream);
         assert!(sock.keepalive().unwrap());
         #[cfg(unix)]
@@ -340,18 +361,52 @@ mod tests {
         drop(clone);
     }
 
-    /// Unix reports a read timeout as WouldBlock; a dead keepalive is ETIMEDOUT.
+    /// Unix reports a read timeout as WouldBlock; a dead keepalive is ETIMEDOUT there
+    /// and WSAENETRESET on Windows.
     #[test]
     fn keepalive_timeout_reads_as_a_disconnect() {
-        let timeout = map_read_error(io::Error::from(io::ErrorKind::WouldBlock));
-        assert_eq!(timeout.kind(), io::ErrorKind::TimedOut);
+        use io::ErrorKind::*;
+        let timeout = map_read_error(io::Error::from(WouldBlock));
+        assert_eq!(timeout.kind(), TimedOut);
+        assert_eq!(
+            timeout.into_inner().unwrap().to_string(),
+            io::Error::from(WouldBlock).to_string()
+        );
         #[cfg(unix)]
         {
-            let dead = map_read_error(io::Error::from(io::ErrorKind::TimedOut));
-            assert_eq!(dead.kind(), io::ErrorKind::ConnectionAborted);
+            let dead = map_read_error(io::Error::from(TimedOut));
+            assert_eq!(dead.kind(), ConnectionAborted);
         }
-        let reset = map_read_error(io::Error::from(io::ErrorKind::ConnectionReset));
-        assert_eq!(reset.kind(), io::ErrorKind::ConnectionReset);
+        let reset = map_read_error(io::Error::from(ConnectionReset));
+        assert_eq!(reset.kind(), ConnectionReset);
+        assert!(
+            reset.get_ref().is_none(),
+            "an unmapped error is passed through as is"
+        );
+        for windows in [false, true] {
+            assert_eq!(read_error_kind(WouldBlock, None, windows), TimedOut);
+            assert_eq!(read_error_kind(Other, Some(WSAENETRESET), false), Other);
+        }
+        assert_eq!(read_error_kind(TimedOut, None, false), ConnectionAborted);
+        assert_eq!(read_error_kind(TimedOut, None, true), TimedOut);
+        assert_eq!(
+            read_error_kind(Other, Some(WSAENETRESET), true),
+            ConnectionReset
+        );
+        assert_eq!(read_error_kind(Other, Some(10053), true), Other);
+        assert_eq!(read_error_kind(Other, None, true), Other);
+    }
+
+    #[test]
+    fn socket_timeouts_are_never_zero() {
+        assert_eq!(
+            socket_timeout(Duration::ZERO),
+            Some(Duration::from_millis(1))
+        );
+        assert_eq!(
+            socket_timeout(Duration::from_millis(50)),
+            Some(Duration::from_millis(50))
+        );
     }
 
     /// The bridge going away ends the hub with `Disconnect`, not endless timeouts.

@@ -84,23 +84,14 @@ fn open_watch_with_parser_at_and_close_without_tauri() {
     modem.join().unwrap();
 }
 
-/// Audit p2: `unwatch` delivered the parser remainder from inside the manager's
-/// `serialports` lock, so a sink calling back into the manager deadlocked.
+/// Given a delimiter parser watch holding a line without its end (bytes already read),
+/// when `unwatch` delivers that remainder to a sink that calls back into the manager,
+/// then the sink runs (it is not called under the manager's `serialports` lock).
 #[test]
 fn unwatch_remainder_sink_may_call_back_into_manager() {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let path = format!("tcp://{}", listener.local_addr().unwrap());
-    std::thread::spawn(move || {
-        let (mut sock, _) = listener.accept().unwrap();
-        // After the watch is attached (bytes before it are discarded as idle RX).
-        std::thread::sleep(Duration::from_millis(300));
-        sock.write_all(b"partial-no-newline").unwrap();
-        std::thread::sleep(Duration::from_secs(10));
-    });
-    let serial = SerialManager::new();
-    let path = serial
-        .open(path, 115_200, None, None, None, None, None)
-        .unwrap();
+    use crate::common::{manager_with, Fake};
+    let fake = Fake::new();
+    let serial = manager_with("remainder", fake.port(true));
     let manager = serial.clone();
     let (tx, rx) = mpsc::channel();
     let tx = Mutex::new(tx);
@@ -115,9 +106,19 @@ fn unwatch_remainder_sink_may_call_back_into_manager() {
         serde_json::from_value(serde_json::json!({"type": "delimiter", "delimiter": [10]}))
             .unwrap();
     let id = serial
-        .watch_framed(path.clone(), WatchOptions::default(), Some(parser), sink)
+        .watch_framed(
+            "remainder".into(),
+            WatchOptions::default(),
+            Some(parser),
+            sink,
+        )
         .unwrap();
-    std::thread::sleep(Duration::from_millis(700)); // bytes sit in the parser
+    // One read: once "first" reached the sink, the rest of the chunk sits in the parser.
+    fake.push(b"first\npartial-no-newline");
+    let (first, _) = rx
+        .recv_timeout(Duration::from_secs(3))
+        .expect("first frame");
+    assert_eq!(first, b"first");
     let bg = serial.clone();
     std::thread::spawn(move || bg.unwatch(id));
     let (data, ports) = rx
@@ -125,5 +126,5 @@ fn unwatch_remainder_sink_may_call_back_into_manager() {
         .expect("unwatch deadlocked: sink ran under the serialports lock");
     assert_eq!(data, b"partial-no-newline");
     assert_eq!(ports, 1);
-    serial.close(path).unwrap();
+    serial.close("remainder".into()).unwrap();
 }

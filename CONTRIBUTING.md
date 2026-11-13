@@ -24,6 +24,35 @@ Faster local gate (no Android cross / Robolectric):
 ./scripts/ci-fast.sh
 ```
 
+Tests are scenarios, not one test per function: proptest models drive each crate through
+its public entry (the plugin through IPC) with random action sequences checked against a
+small reference model, plus Given/When/Then stories for timing and transport cases. Run
+them with `cargo nextest run` (`.config/nextest.toml` kills a hung test after 6 s).
+
+Mutation testing ([cargo-mutants](https://mutants.rs), config in `.cargo/mutants.toml`).
+A surviving ("missed") mutant means no scenario notices that change; extend a model or a
+story, not the config. It runs locally only (not in CI), one crate at a time. Point
+`TMPDIR` at `target/` so the scratch copies of the tree stay in the project (an interrupted
+run otherwise leaves them in the system temp dir):
+
+```bash
+cargo install --locked cargo-mutants
+export TMPDIR="$PWD/target/mutants-tmp" && mkdir -p "$TMPDIR"
+cargo mutants -p serial-codec
+cargo mutants -p android-usb-serial --features fake-transport,serialport-compat
+cargo mutants -p serialplugin-core --features ble
+cargo mutants -p tauri-plugin-serialplugin
+# only what your branch changed: add `--in-diff pr.diff` to any line above
+git diff origin/main.. > pr.diff
+```
+
+The Kotlin bridge code has the same check with PIT, applied from a local-only init script so
+consumer apps never load the plugin (report in `android/build/reports/pitest/`):
+
+```bash
+cd android && ./gradlew -I pitest.init.gradle pitestDebug
+```
+
 Playground app:
 
 ```bash

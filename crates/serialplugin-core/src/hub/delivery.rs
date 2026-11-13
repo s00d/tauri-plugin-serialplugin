@@ -112,3 +112,98 @@ impl CoreQueue {
         Arc::new(move |event| queue.push(CoreEvent::Event(event)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc::Receiver;
+    use std::time::Duration;
+
+    fn ev(e: SerialEvent) -> CoreEvent {
+        CoreEvent::Event(e)
+    }
+
+    fn data(n: usize) -> CoreEvent {
+        ev(SerialEvent::Data {
+            path: "p".into(),
+            data: vec![0; n],
+            size: n,
+        })
+    }
+
+    #[test]
+    fn cost_counts_the_payload_of_every_event() {
+        let p = || "p".to_string();
+        assert_eq!(cost(&data(10)), 74);
+        assert_eq!(
+            cost(&ev(SerialEvent::Urc {
+                path: p(),
+                line: "abcd".into()
+            })),
+            68
+        );
+        assert_eq!(
+            cost(&ev(SerialEvent::Error {
+                path: p(),
+                message: "abcde".into()
+            })),
+            69
+        );
+        assert_eq!(
+            cost(&ev(SerialEvent::Disconnect {
+                path: p(),
+                reason: "abcdef".into()
+            })),
+            70
+        );
+        assert_eq!(cost(&CoreEvent::Overflow { dropped_from: 9 }), 64);
+    }
+
+    /// A sink that blocks until released; `entered` reports each call.
+    fn gated() -> (CoreSink, Receiver<()>, mpsc::Sender<()>) {
+        let (entered_tx, entered) = mpsc::channel();
+        let (release, release_rx) = mpsc::channel::<()>();
+        let entered_tx = Mutex::new(entered_tx);
+        let release_rx = Mutex::new(release_rx);
+        let sink: CoreSink = Arc::new(move |_| {
+            let _ = entered_tx.lock().unwrap().send(());
+            let _ = release_rx.lock().unwrap().recv();
+            true
+        });
+        (sink, entered, release)
+    }
+
+    /// Capacity is checked as `queued + size > capacity`, and an event bigger than
+    /// the whole queue still goes through when nothing is queued.
+    #[test]
+    fn capacity_is_counted_in_bytes_of_queued_events() {
+        let (sink, entered, release) = gated();
+        let q = CoreQueue::spawn(sink, 130);
+        assert!(
+            q.push(data(500)),
+            "nothing queued: accepted whatever its size"
+        );
+        entered.recv_timeout(Duration::from_secs(2)).unwrap();
+        // The worker holds the first event (no longer queued).
+        assert!(q.push(data(1))); // 65 queued
+        assert!(q.push(data(1)), "65 + 65 = 130 fits"); // 130 queued
+        assert!(!q.push(data(1)), "195 > 130 overflows");
+        assert!(!q.alive());
+        drop(release);
+    }
+
+    #[test]
+    fn sink_saying_no_ends_the_queue_and_close_stops_pushes() {
+        let q = CoreQueue::spawn(Arc::new(|_| false), 1 << 20);
+        assert!(q.alive());
+        q.push(data(1));
+        let t = std::time::Instant::now();
+        while q.alive() {
+            assert!(t.elapsed() < Duration::from_secs(2), "still alive");
+            thread::sleep(Duration::from_millis(1));
+        }
+        let q = CoreQueue::spawn(Arc::new(|_| true), 1 << 20);
+        q.close();
+        assert!(!q.push(data(1)), "push after close");
+    }
+}

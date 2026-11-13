@@ -3,7 +3,6 @@
 use super::{opened, reply_bytes, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};
 use crate::error::{Result, UsbSerialError};
-use crate::reader::SerialReader;
 use crate::transport::{ControlRequest, SharedTransport};
 
 const LCR_ENABLE_RX: u16 = 0x80;
@@ -36,7 +35,6 @@ pub struct Ch34xDriver {
     rts_cts: bool,
     endpoints: Option<EndpointPair>,
     transport: Option<SharedTransport>,
-    reader: Option<SerialReader>,
 }
 
 impl Ch34xDriver {
@@ -49,7 +47,6 @@ impl Ch34xDriver {
             rts_cts: false,
             endpoints: None,
             transport: None,
-            reader: None,
         }
     }
 
@@ -113,9 +110,6 @@ impl Driver for Ch34xDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         if let Some(t) = &self.transport {
             for iface in t.interfaces() {
                 let _ = t.release_interface(iface.id);
@@ -130,10 +124,8 @@ impl Driver for Ch34xDriver {
         opened(self.endpoints.as_mut())?.write(t, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
@@ -264,7 +256,13 @@ impl Ch34xDriver {
                 factor >>= 3;
                 divisor -= 1;
             }
-            if factor > 0xfff0 {
+            // A rate past the chip leaves a factor of 0 (register 0x10000 wraps) or a
+            // few counts far off the request: reject a deviation of 3.1 % or more, as
+            // FTDI / PL2303 do.
+            let effective = BAUDBASE_FACTOR as f64
+                / (factor as f64 * f64::from(1u32 << (3 * (BAUDBASE_DIVMAX - divisor))));
+            if factor > 0xfff0 || factor == 0 || (1.0 - effective / f64::from(baud)).abs() >= 0.031
+            {
                 return Err(UsbSerialError::Unsupported(format!(
                     "unsupported baud rate: {baud}"
                 )));

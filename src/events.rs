@@ -36,15 +36,3 @@ const fn current_platform() -> &'static str {
         "unknown"
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn capabilities_has_version() {
-        let caps = Capabilities::current();
-        assert!(!caps.version.is_empty());
-        assert!(caps.transport == "desktop" || caps.transport == "mobile");
-    }
-}

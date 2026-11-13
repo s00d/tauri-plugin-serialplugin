@@ -827,7 +827,9 @@ impl CmuxSession {
     }
 }
 
-#[cfg(all(test, not(target_os = "android")))]
+// Two attributes: cargo-mutants skips modules marked plainly `#[cfg(test)]`.
+#[cfg(test)]
+#[cfg(not(target_os = "android"))]
 mod tests {
     use super::*;
     use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
@@ -1126,6 +1128,130 @@ mod tests {
         let t = CmuxTimers::from_command("AT+CMUX=0,0,5,31,0,101,1");
         assert_eq!(t, default);
         assert_eq!(CmuxTimers::from_command("AT+CMUX=0,0,5,31,,0").n2, 0);
+        // T1 alone turns retransmission on with the default N2.
+        assert_eq!(CmuxTimers::from_command("AT+CMUX=0,0,5,31,10").n2, 3);
+        // `new` / `with_n1`: one SABM per open (4.x).
+        let s = CmuxSession::new("p".into(), Arc::new(NoopIo));
+        assert_eq!(s.timers.n2, 0);
+        assert_eq!(s.timers.t1, default.t1);
+        assert_eq!(s.physical_path(), "p");
+    }
+
+    fn data_of(events: &Events) -> Vec<Vec<u8>> {
+        events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|e| match e {
+                SerialEvent::Data { data, .. } => Some(data.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn batch_waits_for_its_window_and_empty_ticks_send_nothing() {
+        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
+        s.register_dlci(1, "m#dlci=1".into());
+        s.register_dlci(2, "m#dlci=2".into());
+        let (slow, slow_ev) = event_sink();
+        let (fast, fast_ev) = event_sink();
+        s.set_watch_with(1, slow, 10_000, None);
+        s.set_watch_with(2, fast, 0, None);
+        s.tick();
+        assert!(fast_ev.lock().unwrap().is_empty(), "empty batch sent");
+        s.feed_physical_rx(&encode_uih(1, b"held"));
+        s.feed_physical_rx(&encode_uih(2, b"now"));
+        s.tick();
+        assert!(
+            slow_ev.lock().unwrap().is_empty(),
+            "batch sent before its window"
+        );
+        assert_eq!(data_of(&fast_ev), vec![b"now".to_vec()]);
+    }
+
+    #[test]
+    fn dead_core_watch_gets_nothing() {
+        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
+        s.register_dlci(1, "m#dlci=1".into());
+        let (sink, events) = event_sink();
+        assert!(s.add_core_watch(1, 3, sink, Arc::new(AtomicBool::new(false)), 0, None));
+        s.feed_physical_rx(&encode_uih(1, b"x"));
+        s.tick();
+        assert!(events.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn remove_core_watch_takes_only_that_stream() {
+        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
+        s.register_dlci(1, "m#dlci=1".into());
+        let (a, a_ev) = event_sink();
+        let (b, b_ev) = event_sink();
+        let alive = || Arc::new(AtomicBool::new(true));
+        assert!(s.add_core_watch(1, 7, a, alive(), 10_000, None));
+        assert!(s.add_core_watch(1, 8, b, alive(), 10_000, None));
+        s.feed_physical_rx(&encode_uih(1, b"abc"));
+        assert!(s.remove_core_watch(1, 8));
+        assert_eq!(data_of(&b_ev), vec![b"abc".to_vec()], "remainder of 8");
+        assert!(a_ev.lock().unwrap().is_empty(), "7 is still running");
+        assert!(s.remove_core_watch(1, 7));
+        assert_eq!(data_of(&a_ev), vec![b"abc".to_vec()]);
+        assert!(!s.remove_core_watch(1, 7));
+        assert!(!s.remove_core_watch(5, 7));
+        assert!(!s.add_core_watch(5, 9, event_sink().0, alive(), 0, None));
+    }
+
+    #[test]
+    fn cleared_waiter_leaves_data_to_the_watch() {
+        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
+        s.register_dlci(2, "m#dlci=2".into());
+        let (sink, events) = event_sink();
+        s.set_watch_with(2, sink, 0, None);
+        let waiter = ExchangeWaiter::new(test_options(), Arc::new(AtomicBool::new(false)));
+        s.set_exchange_waiter(2, waiter.clone());
+        s.clear_exchange_waiter(2);
+        s.feed_physical_rx(&encode_uih(2, b"AT\r\r\nOK\r\n"));
+        assert_eq!(data_of(&events), vec![b"AT\r\r\nOK\r\n".to_vec()]);
+        assert!(waiter.wait(10).is_err(), "the cleared waiter got the reply");
+    }
+
+    #[test]
+    fn unregister_sends_disc_and_forgets_the_channel() {
+        let (s, log) = fake_modem("AT+CMUX=0", |f| {
+            if f.kind == DISC {
+                encode_frame(f.dlci, true, UA | PF, &[])
+            } else {
+                Vec::new()
+            }
+        });
+        s.register_dlci(1, "m#dlci=1".into());
+        s.unregister_dlci(1);
+        assert!(!s.has_dlci(1));
+        wait_log(&log, "DISC", |f| {
+            count(f, |f| f.dlci == 1 && f.kind == DISC) == 1
+        });
+    }
+
+    #[test]
+    fn closed_hook_names_the_channel_or_the_multiplexer() {
+        let (s, _log) = fake_modem("AT+CMUX=0", |_| Vec::new());
+        let reasons: Arc<Mutex<Vec<(String, bool)>>> = Arc::default();
+        let seen = reasons.clone();
+        s.set_on_closed(Box::new(
+            move |_paths: &[String], reason: &str, whole: bool| {
+                seen.lock().unwrap().push((reason.to_string(), whole));
+            },
+        ));
+        s.register_dlci(1, "m#dlci=1".into());
+        s.feed_physical_rx(&encode_frame(1, true, DISC | PF, &[]));
+        s.feed_physical_rx(&encode_frame(0, true, DISC | PF, &[]));
+        assert_eq!(
+            reasons.lock().unwrap().as_slice(),
+            [
+                ("CMUX DLCI 1 closed by the modem".to_string(), false),
+                ("CMUX multiplexer closed by the modem".to_string(), true),
+            ]
+        );
     }
 
     #[test]
@@ -1206,9 +1332,9 @@ mod tests {
         // Without T1/N2 in the command the 4.x wait (the caller's timeout) still holds.
         let (s, _log) = fake_modem("AT+CMUX=0", |_| Vec::new());
         let start = Instant::now();
-        let err = s.open_dlci(0, Duration::from_millis(700)).unwrap_err();
-        assert_eq!(err, "no UA for CMUX DLCI 0 within 700 ms");
-        assert!(start.elapsed() >= Duration::from_millis(700));
+        let err = s.open_dlci(0, Duration::from_millis(200)).unwrap_err();
+        assert_eq!(err, "no UA for CMUX DLCI 0 within 200 ms");
+        assert!(start.elapsed() >= Duration::from_millis(200));
     }
 
     #[test]

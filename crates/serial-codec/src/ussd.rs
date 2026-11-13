@@ -11,9 +11,9 @@ const CR: u8 = 0x0D;
 /// carry a CR; when the text ends with CR exactly on an octet boundary another CR is
 /// appended, so the receiver can tell padding from data.
 pub fn pack_septets(septets: &[u8], fill_bits: u8) -> Vec<u8> {
-    let fill = usize::from(fill_bits % 8);
     let mut s = septets.to_vec();
-    let bits = fill + 7 * s.len();
+    // Only `bits % 8` matters, so `fill_bits` needs no `% 8` of its own.
+    let bits = usize::from(fill_bits) + 7 * s.len();
     // 7 spare bits → CR fill; CR ending on an octet boundary → extra CR.
     if bits % 8 == 1 || (bits % 8 == 0 && s.last() == Some(&CR)) {
         s.push(CR);

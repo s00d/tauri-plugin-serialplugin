@@ -66,21 +66,29 @@ pub(crate) fn usb_location(port: &serialport::SerialPortType) -> Option<String> 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn details_from_type(path: String, port: serialport::SerialPortType) -> PortDetails {
     use serialport::SerialPortType as T;
+    #[cfg(feature = "usb-port-details")]
     let location = usb_location(&port);
     match port {
-        T::UsbPort(info) => PortDetails {
-            path,
-            port_type: PortType::Usb,
-            vid: Some(info.vid),
-            pid: Some(info.pid),
-            serial_number: info.serial_number,
-            manufacturer: info.manufacturer,
-            product: info.product,
+        T::UsbPort(info) => {
+            #[allow(unused_mut)]
+            let mut d = PortDetails {
+                path,
+                port_type: PortType::Usb,
+                vid: Some(info.vid),
+                pid: Some(info.pid),
+                serial_number: info.serial_number,
+                manufacturer: info.manufacturer,
+                product: info.product,
+                ..Default::default()
+            };
+            // Without the feature serialport has no interface / location: `None`.
             #[cfg(feature = "usb-port-details")]
-            interface: info.interface,
-            location,
-            ..Default::default()
-        },
+            {
+                d.interface = info.interface;
+                d.location = location;
+            }
+            d
+        }
         T::BluetoothPort => PortDetails {
             path,
             port_type: PortType::Bluetooth,
@@ -269,6 +277,84 @@ mod tests {
         assert_eq!(bt.port_type, PortType::Bluetooth);
     }
 
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn every_type_keeps_its_path_and_usb_fields() {
+        let usb = details_from_type(
+            "/dev/ttyUSB7".into(),
+            serialport::SerialPortType::UsbPort(serialport::UsbPortInfo {
+                vid: 1,
+                pid: 2,
+                serial_number: Some("S".into()),
+                manufacturer: Some("M".into()),
+                product: Some("P".into()),
+                #[cfg(feature = "usb-port-details")]
+                location: None,
+                #[cfg(feature = "usb-port-details")]
+                interface: None,
+            }),
+        );
+        assert_eq!(
+            usb,
+            PortDetails {
+                path: "/dev/ttyUSB7".into(),
+                port_type: PortType::Usb,
+                vid: Some(1),
+                pid: Some(2),
+                serial_number: Some("S".into()),
+                manufacturer: Some("M".into()),
+                product: Some("P".into()),
+                ..Default::default()
+            }
+        );
+        use serialport::SerialPortType as T;
+        for (t, kind) in [
+            (T::BluetoothPort, PortType::Bluetooth),
+            (T::PciPort, PortType::Pci),
+            (T::Unknown, PortType::Unknown),
+        ] {
+            let d = details_from_type("/dev/x".into(), t);
+            assert_eq!(d.path, "/dev/x");
+            assert_eq!(d.port_type, kind);
+        }
+    }
+
+    /// The typed list holds exactly the ports serialport enumerates, in path order.
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    #[test]
+    fn detailed_list_matches_the_system_ports() {
+        let raw: Vec<String> = crate::port::list::raw_ports()
+            .unwrap()
+            .into_iter()
+            .map(|p| p.port_name)
+            .collect();
+        let paths: Vec<String> = available_ports_detailed()
+            .unwrap()
+            .into_iter()
+            .map(|d| d.path)
+            .collect();
+        assert_eq!(paths, raw);
+    }
+
+    #[test]
+    fn from_info_map_keeps_path_text_fields_and_types() {
+        let map = HashMap::from([
+            ("type".to_string(), "Bluetooth".to_string()),
+            ("serial_number".to_string(), "SN".to_string()),
+            ("product".to_string(), "Prod".to_string()),
+        ]);
+        let d = details_from_info_map("/dev/rfcomm0".into(), &map);
+        assert_eq!(d.path, "/dev/rfcomm0");
+        assert_eq!(d.port_type, PortType::Bluetooth);
+        assert_eq!(d.serial_number.as_deref(), Some("SN"));
+        assert_eq!(d.product.as_deref(), Some("Prod"));
+        let pci = HashMap::from([("type".to_string(), "PCI".to_string())]);
+        assert_eq!(
+            details_from_info_map("p".into(), &pci).port_type,
+            PortType::Pci
+        );
+    }
+
     /// Android and iOS go through the 4.x map: hex ("0x1A86") or decimal vid/pid,
     /// "Unknown" becomes `None`.
     #[test]
@@ -295,8 +381,21 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn serial_links_maps_targets_to_link_names() {
-        let root = std::env::temp_dir().join(format!("sp-links-{}", std::process::id()));
+        // Removed on drop too, so a failed assert (or a mutant) leaves no temp dir behind.
+        struct Cleanup(std::path::PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        // Next to the test binary (inside cargo's target dir), not the system temp dir.
+        let exe = std::env::current_exe().unwrap();
+        let root = exe
+            .parent()
+            .unwrap()
+            .join(format!("sp-links-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
+        let _cleanup = Cleanup(root.clone());
         let by_id = root.join("by-id");
         std::fs::create_dir_all(&by_id).unwrap();
         let dev = root.join("ttyUSB0");

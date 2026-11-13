@@ -171,20 +171,19 @@ impl Deframer {
 
     fn parse_one(&self, pos: usize) -> Parse {
         let b = &self.buf[pos..];
-        if b.len() < 4 {
+        let [_, addr, control, len0, ..] = *b else {
             return Parse::Need;
-        }
-        let (addr, control) = (b[1], b[2]);
+        };
         if addr & 0x01 == 0 {
             return Parse::Bad;
         }
-        let (len, len_octets) = if b[3] & 0x01 != 0 {
-            ((b[3] >> 1) as usize, 1)
+        let (len, len_octets) = if len0 & 0x01 != 0 {
+            ((len0 >> 1) as usize, 1)
         } else {
-            if b.len() < 5 {
+            let Some(&len1) = b.get(4) else {
                 return Parse::Need;
-            }
-            (((b[3] >> 1) as usize) | ((b[4] as usize) << 7), 2)
+            };
+            (((len0 >> 1) as usize) | ((len1 as usize) << 7), 2)
         };
         if len > self.max_info {
             return Parse::Bad;
@@ -221,97 +220,4 @@ enum Parse {
     Need,
     Bad,
     Frame(DecodedFrame, usize),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// 27.010 reference: SABM with P on DLCI 0 is `F9 03 3F 01 1C F9`.
-    #[test]
-    fn sabm_dlci0_matches_spec_vector() {
-        assert_eq!(
-            encode_frame(0, true, SABM | PF, &[]),
-            vec![0xF9, 0x03, 0x3F, 0x01, 0x1C, 0xF9]
-        );
-    }
-
-    #[test]
-    fn uih_roundtrip_with_flag_bytes_split_across_reads() {
-        let payload = b"AT\r\xF9\xF9 data";
-        let frame = encode_uih(1, payload);
-        let mut def = Deframer::default();
-        let (a, b) = frame.split_at(5);
-        assert!(def.feed(a).is_empty());
-        let frames = def.feed(b);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].dlci, 1);
-        assert_eq!(frames[0].kind, UIH);
-        assert_eq!(frames[0].payload, payload);
-    }
-
-    #[test]
-    fn long_payload_is_split_into_n1_frames_and_back_to_back_frames_share_flags() {
-        let payload: Vec<u8> = (0..100u8).collect();
-        let mut stream = encode_uih(2, &payload);
-        // A modem may send frames with a single shared flag between them.
-        let second = encode_uih(3, b"OK");
-        stream.extend_from_slice(&second[1..]);
-        let frames = Deframer::default().feed(&stream);
-        let data: Vec<u8> = frames
-            .iter()
-            .filter(|f| f.dlci == 2)
-            .flat_map(|f| f.payload.clone())
-            .collect();
-        assert_eq!(data, payload);
-        assert!(frames.iter().all(|f| f.payload.len() <= TX_N1));
-        assert_eq!(frames.last().unwrap().payload, b"OK");
-    }
-
-    #[test]
-    fn two_octet_length_roundtrip() {
-        let info = vec![0x55u8; 200];
-        let frame = encode_frame(5, true, UIH, &info);
-        assert_eq!(frame[3] & 0x01, 0, "EA must be 0 for a 2-octet length");
-        let frames = Deframer::default().feed(&frame);
-        assert_eq!(frames[0].payload, info);
-    }
-
-    #[test]
-    fn garbage_and_bad_fcs_are_skipped() {
-        let mut stream = vec![0x00, 0xF9, 0x12, 0xF9];
-        let mut bad = encode_uih(1, b"x");
-        let fcs_at = bad.len() - 2;
-        bad[fcs_at] ^= 0xFF;
-        stream.extend_from_slice(&bad);
-        stream.extend_from_slice(&encode_uih(1, b"good"));
-        let frames = Deframer::default().feed(&stream);
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].payload, b"good");
-    }
-
-    /// The old resync did `Vec::remove(0)` per bad flag: 1 MiB of `F9 00` took 17 s.
-    #[test]
-    fn resync_over_a_large_noise_read_is_linear() {
-        let mut stream: Vec<u8> = [FLAG, 0x00].repeat(1 << 19);
-        stream.extend_from_slice(&encode_uih(1, b"good"));
-        let t = std::time::Instant::now();
-        let frames = Deframer::default().feed(&stream);
-        assert!(
-            t.elapsed() < std::time::Duration::from_secs(5),
-            "{:?}",
-            t.elapsed()
-        );
-        assert_eq!(frames.len(), 1);
-        assert_eq!(frames[0].payload, b"good");
-    }
-
-    #[test]
-    fn info_field_is_limited_to_15_bits() {
-        let info = vec![0x55u8; MAX_INFO];
-        let frames = Deframer::with_max_info(MAX_INFO).feed(&encode_frame(1, true, UIH, &info));
-        assert_eq!(frames[0].payload, info);
-        let too_long = std::panic::catch_unwind(|| encode_frame(1, true, UIH, &[0; MAX_INFO + 1]));
-        assert!(too_long.is_err(), "32768 bytes would encode as length 0");
-    }
 }

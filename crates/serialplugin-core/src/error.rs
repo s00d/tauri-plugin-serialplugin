@@ -40,15 +40,8 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::Io(_) => None,
-            Error::SerialPort(_) => None,
-            Error::String(_) => None,
-        }
-    }
-}
+/// No variant keeps its cause (they are stored as text), so `source()` is `None`.
+impl std::error::Error for Error {}
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
@@ -280,5 +273,39 @@ impl From<Error> for CoreError {
 impl Serialize for CoreError {
     fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn io_kinds_map_to_core_kinds() {
+        use io::ErrorKind as K;
+        for (io_kind, kind) in [
+            (K::NotFound, ErrorKind::NotFound),
+            (K::PermissionDenied, ErrorKind::PermissionDenied),
+            (K::TimedOut, ErrorKind::Timeout),
+            (K::WouldBlock, ErrorKind::Timeout),
+            (K::BrokenPipe, ErrorKind::Disconnected),
+            (K::UnexpectedEof, ErrorKind::Disconnected),
+            (K::AddrInUse, ErrorKind::Busy),
+            (K::ResourceBusy, ErrorKind::Busy),
+            (K::Interrupted, ErrorKind::Cancelled),
+            (K::InvalidData, ErrorKind::Other),
+        ] {
+            assert_eq!(ErrorKind::from_io(io_kind), kind, "{io_kind:?}");
+        }
+    }
+
+    #[test]
+    fn core_error_message_is_the_legacy_text() {
+        let e = CoreError::new(ErrorKind::Busy, Error::String("port busy".into()));
+        assert_eq!(e.message(), "port busy");
+        let io = CoreError::io("Failed to write".into(), io::Error::other("gone"));
+        assert_eq!(io.message(), "Failed to write: gone");
+        assert!(std::error::Error::source(&io).is_some());
+        assert!(std::error::Error::source(&Error::Io("x".into())).is_none());
     }
 }

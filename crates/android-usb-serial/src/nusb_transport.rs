@@ -421,6 +421,8 @@ fn endpoint_interface(endpoints: &HashMap<u8, Vec<EndpointInfo>>, ep_addr: u8) -
     )))
 }
 
+// `parse_control` is private and only runs against a real nusb device, which no
+// public-API test on the fake transport can reach.
 #[cfg(test)]
 mod tests {
     use super::*;

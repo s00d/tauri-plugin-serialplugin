@@ -113,3 +113,23 @@ impl ConnectedPort {
         self.port.lock().unwrap()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mock_serial::MockSerialPort;
+
+    #[test]
+    fn state_reasons_and_connected_port() {
+        assert_eq!(PortState::Closed.not_connected_reason(), "Port is closed");
+        assert_eq!(
+            PortState::Opening.not_connected_reason(),
+            "Port is still opening"
+        );
+        let mut info = SerialportInfo::new(Box::new(MockSerialPort::new()));
+        assert_eq!(info.state.not_connected_reason(), "Port is connected");
+        assert!(info.connected_port_mut().is_some());
+        info.state = PortState::Opening;
+        assert!(info.connected_port_mut().is_none());
+    }
+}

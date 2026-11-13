@@ -294,10 +294,10 @@ class BleGattBridge(
         fun onBleDisconnected(handle: Long, reason: String)
     }
 
-    private class GattStatus(val what: String, val status: Int) :
+    private class GattStatus(what: String, val status: Int) :
         IOException("$what failed: GATT status $status")
 
-    private class NotStarted(what: String, val code: Int) :
+    private class NotStarted(what: String, code: Int) :
         IOException("$what could not start (code $code${if (code == BleLogic.ERROR_GATT_WRITE_REQUEST_BUSY || code == BleLogic.PRE33_REFUSED) ": GATT stayed busy" else ""})")
 
     private inner class Conn(val handle: Long) {

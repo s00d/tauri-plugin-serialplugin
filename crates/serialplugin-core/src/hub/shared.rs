@@ -713,9 +713,12 @@ impl RxHubShared {
             route_exchange_chunk(self, &path, chunk, state, waiter);
             return;
         }
-        if route_read_slot_chunk(self, chunk) {
-            return;
-        }
+        // A read takes what fits; the rest of the chunk goes on to the next consumer.
+        let chunk = match route_read_slot_chunk(self, chunk) {
+            Some(taken) if taken == chunk.len() => return,
+            Some(taken) => &chunk[taken..],
+            None => chunk,
+        };
         let cores = self.has_core_watches();
         if self.has_watch() || cores {
             route_watch_chunk(self, &path, chunk, state);
@@ -842,28 +845,25 @@ impl RxHubShared {
         let wait = Duration::from_millis(timeout_ms);
         let deadline = Instant::now() + wait;
 
-        let mut initial = Vec::new();
-        {
-            let mut idle = crate::sync_util::lock_or_recover(&self.idle);
-            if !idle.is_empty() {
-                if fill {
-                    let n = max_bytes.min(idle.len());
-                    initial.extend(idle.drain(..n));
-                    if initial.len() >= max_bytes {
-                        return Ok(initial);
-                    }
-                } else {
-                    let n = idle.len().min(max_bytes);
-                    return Ok(idle.drain(..n).collect());
-                }
-            }
-        }
-
+        // Idle hand-off and slot install happen under one idle lock: a chunk routed in
+        // between would otherwise land in `idle` behind an installed slot (see `push_idle`).
         let (tx, rx) = mpsc::sync_channel(1);
         {
+            let mut idle = crate::sync_util::lock_or_recover(&self.idle);
             let mut guard = crate::sync_util::lock_or_recover(&self.read_slot);
             if guard.is_some() {
                 return Err("read already in progress".into());
+            }
+            let mut initial = Vec::new();
+            if !idle.is_empty() {
+                let n = max_bytes.min(idle.len());
+                if !fill {
+                    return Ok(idle.drain(..n).collect());
+                }
+                initial.extend(idle.drain(..n));
+                if initial.len() >= max_bytes {
+                    return Ok(initial);
+                }
             }
             *guard = Some(ReadSlot {
                 max_bytes,
@@ -1006,6 +1006,8 @@ impl RxHubShared {
     }
 
     /// Soft-drain via the hub thread (single reader); URC lines are emitted on the watch channel.
+    /// Bytes already in the idle buffer are dropped with the drained ones (a late reply to
+    /// a timed-out exchange is exactly what a drain throws away).
     pub fn drain(
         &self,
         idle_ms: u64,
@@ -1016,10 +1018,15 @@ impl RxHubShared {
         let wait = Duration::from_millis(max_ms.saturating_add(500));
         let (tx, rx) = mpsc::sync_channel(1);
         {
+            // Under the idle lock (order: idle, then drain): a chunk `feed_bytes` routes
+            // to idle while the slot goes in lands either before (cleared here) or after
+            // (`push_idle` hands it to the slot), never in idle behind the drain.
+            let mut idle = crate::sync_util::lock_or_recover(&self.idle);
             let mut guard = crate::sync_util::lock_or_recover(&self.drain);
             if guard.is_some() {
                 return Err("drain already in progress".into());
             }
+            idle.clear();
             *guard = Some(DrainSlot {
                 idle_ms,
                 cancel,
@@ -1132,20 +1139,19 @@ pub(crate) fn route_watch_chunk(
     }
 }
 
-/// Feed a read slot. Returns `false` if there is no slot (fall through).
-pub(crate) fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) -> bool {
+/// Feed a read slot: the bytes it took, or `None` if there is no slot (fall through).
+/// A read takes at most its size; the caller routes the rest of the chunk on (they
+/// were once dropped).
+pub(crate) fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) -> Option<usize> {
+    let taken;
     let completed = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.read_slot);
         let ready = {
-            let Some(slot) = guard.as_mut() else {
-                return false;
-            };
+            let slot = guard.as_mut()?;
             let remaining = slot.max_bytes.saturating_sub(slot.buffer.len());
-            if remaining > 0 {
-                let n = chunk.len().min(remaining);
-                slot.buffer.extend_from_slice(&chunk[..n]);
-            }
-            remaining == 0 || !slot.fill || slot.buffer.len() >= slot.max_bytes
+            taken = chunk.len().min(remaining);
+            slot.buffer.extend_from_slice(&chunk[..taken]);
+            !slot.fill || slot.buffer.len() >= slot.max_bytes
         };
         if !ready {
             None
@@ -1157,7 +1163,7 @@ pub(crate) fn route_read_slot_chunk(shared: &RxHubShared, chunk: &[u8]) -> bool 
     if let Some((tx, result)) = completed {
         let _ = tx.send(result);
     }
-    true
+    Some(taken)
 }
 
 pub(crate) fn tick_read_slot(shared: &RxHubShared) {
@@ -1188,7 +1194,6 @@ pub(crate) fn try_complete_drain(shared: &RxHubShared) {
     let completed = {
         let mut guard = crate::sync_util::lock_or_recover(&shared.drain);
         let kind = match guard.as_ref() {
-            None => None,
             Some(d) if d.cancel.load(Ordering::SeqCst) => Some(DrainCompleteKind::Cancel),
             Some(d) if Instant::now() >= d.deadline => Some(DrainCompleteKind::Buffer),
             Some(d)
@@ -1234,16 +1239,24 @@ pub(crate) fn finish_read_slot(shared: &RxHubShared, result: Result<Vec<u8>, Str
 
 pub(crate) fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     let mut idle = crate::sync_util::lock_or_recover(&shared.idle);
-    // A waiter may have been installed after `feed_bytes` checked for one.
+    // A drain, waiter or read slot may have been installed after `feed_bytes` checked
+    // for one (lock order: idle, then drain / exchange_waiter / read_slot). A drain
+    // first, as in `feed_bytes`: idle bytes left behind it would reach the next exchange.
+    if route_drain_chunk(shared, chunk) {
+        return;
+    }
     if let Some(waiter) = crate::sync_util::lock_or_recover(&shared.exchange_waiter).as_ref() {
         waiter.push_bytes(chunk);
         return;
     }
+    // Same for a read slot installed after `feed_bytes` checked for one.
+    let chunk = match route_read_slot_chunk(shared, chunk) {
+        Some(taken) => &chunk[taken..],
+        None => chunk,
+    };
     idle.extend_from_slice(chunk);
-    if idle.len() > IDLE_BUFFER_CAP {
-        let excess = idle.len() - IDLE_BUFFER_CAP;
-        idle.drain(..excess);
-    }
+    let excess = idle.len().saturating_sub(IDLE_BUFFER_CAP);
+    idle.drain(..excess);
 }
 
 /// End the drain with `result`; URCs it collected still reach the watch.
@@ -1293,6 +1306,9 @@ pub(crate) fn flush_watch_data(
     }
 }
 #[cfg(test)]
+mod model;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::at::parse::ExchangeMatch;
@@ -1341,8 +1357,9 @@ mod tests {
         }
     }
 
-    /// Completion used to re-run over the whole buffer on every chunk (a 256 KiB reply
-    /// in 64-byte reads took 3.4 s in release).
+    /// A long reply in small reads completes in every mode. (Completion used to re-run
+    /// over the whole buffer on every chunk; `exchange::completion` tests pin the
+    /// window each chunk looks at, which keeps it linear.)
     #[test]
     fn exchange_completion_is_linear_in_the_reply() {
         let line = b"+CPBR: 1,\"+10000000001\",145,\"Name\"\r\n".repeat(2);
@@ -1355,9 +1372,8 @@ mod tests {
                 waiter_options(mode.clone(), AtResultFormat::Verbose),
                 Arc::new(AtomicBool::new(false)),
             );
-            let t = Instant::now();
             waiter.push_bytes(b"AT+CPBR=1,9999\r\r\n");
-            for _ in 0..(1 << 13) {
+            for _ in 0..(1 << 8) {
                 for part in line.chunks(64) {
                     waiter.push_bytes(part);
                 }
@@ -1371,11 +1387,6 @@ mod tests {
                 "{mode:?}: {m:?}"
             );
             assert!(raw.ends_with(b"OK\r\n"));
-            assert!(
-                t.elapsed() < Duration::from_secs(5),
-                "{mode:?}: {:?}",
-                t.elapsed()
-            );
         }
     }
 
@@ -1558,87 +1569,7 @@ mod tests {
         assert!(waiter.wait(100).is_ok());
     }
 
-    #[test]
-    fn fail_all_waiters_completes_exchange_immediately() {
-        let cancel = Arc::new(AtomicBool::new(false));
-        let options = ResolvedExchangeOptions {
-            timeout_ms: 5000,
-            max_bytes: 4096,
-            terminators: vec![],
-            idle_ms: None,
-            rx_prepare: RxPrepareMode::Drain,
-            drain_idle_ms: 50,
-            drain_max_ms: 200,
-            completion_mode: ExchangeCompletionMode::AtFinalLine,
-            result_format: AtResultFormat::Verbose,
-            command: Some("AT".into()),
-            solicited_prefixes: vec![],
-        };
-        let shared = RxHubShared::new();
-        let waiter = ExchangeWaiter::new(options, cancel);
-        shared.set_exchange_waiter(waiter.clone());
-        shared.fail_all_waiters("usb error");
-        let result = waiter.wait(100);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("usb error"));
-    }
-
-    #[test]
-    fn push_drain_idle_completes_via_tick() {
-        let shared = Arc::new(RxHubShared::new());
-        let cancel = Arc::new(AtomicBool::new(false));
-        let shared_bg = shared.clone();
-        let drain_handle = thread::spawn(move || shared_bg.drain(20, 5000, cancel, vec![]));
-        thread::sleep(Duration::from_millis(5));
-        let mut routing = HubRoutingState::new("port".into());
-        shared.feed_bytes(b"AT\r\n", &mut routing);
-        thread::sleep(Duration::from_millis(30));
-        shared.tick("port", &mut routing);
-        let result = drain_handle.join().unwrap();
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), b"AT\r\n");
-    }
-
-    #[test]
-    fn read_request_returns_idle_bytes_without_watch() {
-        let shared = Arc::new(RxHubShared::new());
-        crate::sync_util::lock_or_recover(&shared.idle).extend_from_slice(b"hello");
-        let result = shared.read_request(64, 100, false).expect("read");
-        assert_eq!(result, b"hello");
-    }
-
-    #[test]
-    fn read_request_fill_accumulates_until_max() {
-        let shared = Arc::new(RxHubShared::new());
-        let shared_bg = shared.clone();
-        let reader = thread::spawn(move || shared_bg.read_request(6, 500, true));
-        thread::sleep(Duration::from_millis(5));
-        shared.feed_bytes(b"abc", &mut HubRoutingState::new("p".into()));
-        shared.feed_bytes(b"def", &mut HubRoutingState::new("p".into()));
-        let result = reader.join().unwrap().expect("fill read");
-        assert_eq!(result, b"abcdef");
-    }
-
-    #[test]
-    fn read_request_rejects_second_concurrent_slot() {
-        let shared = Arc::new(RxHubShared::new());
-        let shared_bg = shared.clone();
-        let reader = thread::spawn(move || shared_bg.read_request(64, 5000, false));
-        thread::sleep(Duration::from_millis(5));
-        let err = shared.read_request(64, 100, false).unwrap_err();
-        assert!(err.contains("already in progress"));
-        shared.fail_all_waiters("cleanup");
-        let _ = reader.join();
-    }
-
-    #[test]
-    fn purge_buffers_clears_idle() {
-        let shared = Arc::new(RxHubShared::new());
-        crate::sync_util::lock_or_recover(&shared.idle).extend_from_slice(b"stale");
-        shared.purge_buffers();
-        assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
-    }
-
+    // Kept: the 64 KiB cap, which the model's small chunks never reach.
     #[test]
     fn idle_buffer_drops_oldest_beyond_cap() {
         let shared = Arc::new(RxHubShared::new());
@@ -1647,38 +1578,7 @@ mod tests {
         assert!(crate::sync_util::lock_or_recover(&shared.idle).len() <= IDLE_BUFFER_CAP);
     }
 
-    #[test]
-    fn fail_all_waiters_completes_read_slot() {
-        let shared = Arc::new(RxHubShared::new());
-        let shared_bg = shared.clone();
-        let reader = thread::spawn(move || shared_bg.read_request(64, 5000, false));
-        thread::sleep(Duration::from_millis(5));
-        shared.fail_all_waiters("usb error");
-        let result = reader.join().unwrap();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("usb error"));
-    }
-
-    #[test]
-    fn take_idle_bytes_returns_early_rx_before_waiter() {
-        let shared = Arc::new(RxHubShared::new());
-        shared.feed_bytes(b"early", &mut HubRoutingState::new("p".into()));
-        let stale = shared.take_idle_bytes();
-        assert_eq!(stale, b"early");
-    }
-
-    #[test]
-    fn read_request_rejects_when_watch_active() {
-        let shared = Arc::new(RxHubShared::new());
-        let channel = {
-            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
-            c
-        };
-        shared.attach_watch_with(channel, 100, 1024, false, None);
-        let err = shared.read_request(64, 100, false).unwrap_err();
-        assert!(err.contains("watch"));
-    }
-
+    // Kept beside the model (`model.rs`): the real `recv_timeout` path; the model ends reads by deadline + tick.
     #[test]
     fn read_request_times_out_without_bytes() {
         let shared = Arc::new(RxHubShared::new());
@@ -1693,77 +1593,7 @@ mod tests {
         );
     }
 
-    #[test]
-    fn attach_watch_clears_idle() {
-        let shared = Arc::new(RxHubShared::new());
-        shared.feed_bytes(b"stale", &mut HubRoutingState::new("p".into()));
-        assert!(!crate::sync_util::lock_or_recover(&shared.idle).is_empty());
-        let channel = {
-            let c: crate::events::EventSink = Arc::new(|_: SerialEvent| true);
-            c
-        };
-        shared.attach_watch_with(channel, 100, 1024, false, None);
-        assert!(crate::sync_util::lock_or_recover(&shared.idle).is_empty());
-    }
-
-    // --- Oneshot slot model (post Condvar) ---
-
-    fn mock_read_slot(tx: ByteResultTx, buffer: Vec<u8>, max_bytes: usize, fill: bool) -> ReadSlot {
-        ReadSlot {
-            max_bytes,
-            fill,
-            timeout_ms: 100,
-            buffer,
-            deadline: Instant::now() + Duration::from_secs(5),
-            tx,
-        }
-    }
-
-    #[test]
-    fn route_read_slot_chunk_returns_false_when_no_slot() {
-        let shared = RxHubShared::new();
-        assert!(!route_read_slot_chunk(&shared, b"x"));
-    }
-
-    #[test]
-    fn route_read_slot_chunk_completing_removes_slot_before_post() {
-        let shared = RxHubShared::new();
-        let (tx, rx) = mpsc::sync_channel(1);
-        *crate::sync_util::lock_or_recover(&shared.read_slot) =
-            Some(mock_read_slot(tx, Vec::new(), 3, false));
-        assert!(route_read_slot_chunk(&shared, b"xyz"));
-        assert!(crate::sync_util::lock_or_recover(&shared.read_slot).is_none());
-        assert_eq!(rx.recv().unwrap().unwrap(), b"xyz");
-    }
-
-    #[test]
-    fn feed_bytes_read_fallthrough_to_idle_when_slot_gone() {
-        // Mirror drain fallthrough: route_read_slot_chunk false → idle, no drop.
-        let shared = RxHubShared::new();
-        shared.feed_bytes(b"saved", &mut HubRoutingState::new("p".into()));
-        assert_eq!(
-            &crate::sync_util::lock_or_recover(&shared.idle)[..],
-            b"saved"
-        );
-    }
-
-    #[test]
-    fn tick_read_slot_deadline_takes_whole_slot() {
-        let shared = RxHubShared::new();
-        let (tx, rx) = mpsc::sync_channel(1);
-        *crate::sync_util::lock_or_recover(&shared.read_slot) = Some(ReadSlot {
-            max_bytes: 64,
-            fill: false,
-            timeout_ms: 50,
-            buffer: b"late".to_vec(),
-            deadline: Instant::now() - Duration::from_millis(1),
-            tx,
-        });
-        tick_read_slot(&shared);
-        assert!(crate::sync_util::lock_or_recover(&shared.read_slot).is_none());
-        assert_eq!(rx.recv().unwrap().unwrap(), b"late");
-    }
-
+    // Kept: drain ends by idle time, which the model (deadline only) does not drive.
     #[test]
     fn try_complete_drain_takes_whole_slot() {
         let shared = RxHubShared::new();
@@ -1827,39 +1657,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn route_drain_chunk_returns_false_when_no_slot() {
-        let shared = RxHubShared::new();
-        assert!(!route_drain_chunk(&shared, b"x"));
-    }
-
-    #[test]
-    fn feed_bytes_without_drain_goes_to_idle() {
-        let shared = RxHubShared::new();
-        shared.feed_bytes(b"saved", &mut HubRoutingState::new("p".into()));
-        assert_eq!(
-            &crate::sync_util::lock_or_recover(&shared.idle)[..],
-            b"saved"
-        );
-    }
-
-    #[test]
-    fn drain_rejects_second_concurrent_slot() {
-        let shared = Arc::new(RxHubShared::new());
-        let cancel = Arc::new(AtomicBool::new(false));
-        let shared_bg = shared.clone();
-        let handle = thread::spawn(move || {
-            shared_bg.drain(10_000, 5_000, Arc::new(AtomicBool::new(false)), vec![])
-        });
-        wait_until_drain_slot(&shared);
-        let err = shared
-            .drain(10, 100, cancel, vec![])
-            .expect_err("second drain");
-        assert!(err.contains("already in progress"), "unexpected: {err}");
-        finish_drain(&shared, Ok(Vec::new()));
-        let _ = handle.join();
-    }
-
+    // Kept: the timeout reclaim races of drain / read are not model steps.
     #[test]
     fn drain_timeout_recovers_result_already_posted() {
         let shared = Arc::new(RxHubShared::new());
@@ -2024,19 +1822,6 @@ mod tests {
         let bytewise = run(transcript.chunks(1).collect());
         assert_eq!(oneshot, bytewise);
         assert!(matches!(oneshot, ExchangeMatch::Ok));
-    }
-
-    #[test]
-    fn fail_all_waiters_during_active_drain_completes_with_error() {
-        let shared = Arc::new(RxHubShared::new());
-        let shared_bg = shared.clone();
-        let handle = thread::spawn(move || {
-            shared_bg.drain(10_000, 5_000, Arc::new(AtomicBool::new(false)), vec![])
-        });
-        wait_until_drain_slot(&shared);
-        shared.fail_all_waiters("usb error");
-        let err = handle.join().unwrap().expect_err("drain must fail");
-        assert!(err.contains("usb error"), "unexpected: {err}");
     }
 
     // --- Native parser on the watch ---
@@ -2399,6 +2184,208 @@ mod tests {
         assert!(
             matches!(got.last(), Some(SerialEvent::Disconnect { path, .. }) if path == "phys#dlci=2"),
             "{got:?}"
+        );
+    }
+
+    // ------------------------------------------------ mutation-test coverage
+
+    type Recorded = Arc<Mutex<Vec<SerialEvent>>>;
+
+    fn core_slot(
+        batch_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
+    ) -> (CoreWatchSlot, Recorded) {
+        let (sink, events) = recording_channel();
+        let slot = CoreWatchSlot::new(
+            1,
+            sink,
+            Arc::new(AtomicBool::new(true)),
+            batch_ms,
+            read_size,
+            route_urc,
+            framer,
+        );
+        (slot, events)
+    }
+
+    fn data_of(routing: &HubRoutingState) -> Vec<Vec<u8>> {
+        data_frames(&evs(&routing.pending_events))
+    }
+
+    #[test]
+    fn idle_buffer_holds_64_kib() {
+        let shared = RxHubShared::new();
+        shared.feed_bytes(&[7u8; 10_000], &mut HubRoutingState::new("p".into()));
+        assert_eq!(shared.buffered_len(), 10_000);
+        assert_eq!(IDLE_BUFFER_CAP, 64 * 1024);
+    }
+
+    #[test]
+    fn plain_watch_flushes_on_its_timer_with_the_line_tail() {
+        let shared = RxHubShared::new();
+        let (sink, _) = recording_channel();
+        shared.attach_watch_with(sink, 0, 1024, true, None);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"abc", &mut routing);
+        assert_eq!(
+            shared.pending_watch_bytes(&routing),
+            0,
+            "held by the line router"
+        );
+        shared.tick("p", &mut routing);
+        assert_eq!(data_of(&routing), vec![b"abc".to_vec()]);
+
+        let shared = RxHubShared::new();
+        let (sink, _) = recording_channel();
+        shared.attach_watch_with(sink, 10_000, 1024, false, None);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"abcde", &mut routing);
+        assert_eq!(shared.pending_watch_bytes(&routing), 5);
+        shared.tick("p", &mut routing);
+        assert!(
+            routing.pending_events.is_empty(),
+            "flushed before the window"
+        );
+    }
+
+    #[test]
+    fn flush_now_sends_the_line_tail() {
+        let shared = RxHubShared::new();
+        let (sink, _) = recording_channel();
+        shared.attach_watch_with(sink, 10_000, 1024, true, None);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"abc", &mut routing);
+        shared.flush_watch_now(&mut routing);
+        assert_eq!(data_of(&routing), vec![b"abc".to_vec()]);
+    }
+
+    #[test]
+    fn parser_watch_gets_the_line_tail_on_its_timer() {
+        let shared = RxHubShared::new();
+        let (sink, _) = recording_channel();
+        let three = || parser(serde_json::json!({"type": "byteLength", "length": 3}));
+        shared.attach_watch_with(sink, 0, 1024, true, three());
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"abc", &mut routing);
+        assert!(routing.pending_events.is_empty(), "held by the line router");
+        shared.tick("p", &mut routing);
+        assert_eq!(data_of(&routing), vec![b"abc".to_vec()]);
+
+        // The same for a `watch_core` stream.
+        let shared = RxHubShared::new();
+        let (slot, _) = core_slot(0, 1024, true, three());
+        shared.attach_core_watch(slot);
+        let mut routing = HubRoutingState::new("p".into());
+        shared.feed_bytes(b"abc", &mut routing);
+        assert!(routing.pending_events.is_empty());
+        shared.tick("p", &mut routing);
+        assert_eq!(data_of(&routing), vec![b"abc".to_vec()]);
+    }
+
+    #[test]
+    fn core_watch_batches_by_timer_and_size() {
+        let tick_once = |slot: CoreWatchSlot, bytes: &[u8]| {
+            let shared = RxHubShared::new();
+            shared.attach_core_watch(slot);
+            let mut routing = HubRoutingState::new("p".into());
+            shared.feed_bytes(bytes, &mut routing);
+            shared.tick("p", &mut routing);
+            data_of(&routing)
+        };
+        assert!(tick_once(core_slot(10_000, 1024, false, None).0, b"abc").is_empty());
+        assert_eq!(
+            tick_once(core_slot(0, 1024, false, None).0, b"abc"),
+            vec![b"abc".to_vec()]
+        );
+        assert_eq!(
+            tick_once(core_slot(10_000, 4, false, None).0, b"abcdef"),
+            vec![b"abcdef".to_vec()],
+            "a full read size goes out before the window"
+        );
+        assert_eq!(
+            tick_once(core_slot(0, 1024, true, None).0, b"abc"),
+            vec![b"abc".to_vec()],
+            "line tail on the timer"
+        );
+    }
+
+    #[test]
+    fn emit_urc_to_sends_one_urc() {
+        let (sink, events) = recording_channel();
+        emit_urc_to(&sink, "p", "+CREG: 1");
+        assert!(matches!(
+            events.lock().unwrap().as_slice(),
+            [SerialEvent::Urc { path, line }] if path == "p" && line == "+CREG: 1"
+        ));
+    }
+
+    #[test]
+    fn closing_flag_and_emit() {
+        let shared = RxHubShared::new();
+        assert!(!shared.is_closing());
+        shared.mark_closing();
+        assert!(shared.is_closing());
+        let (sink, events) = recording_channel();
+        shared.attach_watch_with(sink, 10, 64, false, None);
+        shared.emit(SerialEvent::Error {
+            path: "p".into(),
+            message: "m".into(),
+        });
+        assert_eq!(events.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn framer_deadline_and_read_size_cover_every_watch() {
+        let shared = RxHubShared::new();
+        assert_eq!(shared.next_framer_deadline(), None);
+        assert_eq!(shared.read_size(), None);
+        let ibt = || parser(serde_json::json!({"type": "interByteTimeout", "interval": 500}));
+        shared.attach_core_watch(core_slot(10, 16, false, None).0);
+        shared.attach_core_watch(core_slot(10, 64, false, ibt()).0);
+        assert_eq!(shared.read_size(), Some(64));
+        shared.feed_bytes(b"x", &mut HubRoutingState::new("p".into()));
+        assert!(shared.next_framer_deadline().is_some(), "core parser armed");
+        let (sink, _) = recording_channel();
+        shared.attach_watch_with(sink, 10, 8, false, ibt());
+        assert_eq!(shared.read_size(), Some(8), "the old watch's size wins");
+    }
+
+    fn drain_slot(tx: ByteResultTx, idle_ms: u64, deadline: Instant, buffer: &[u8]) -> DrainSlot {
+        DrainSlot {
+            idle_ms,
+            cancel: Arc::new(AtomicBool::new(false)),
+            buffer: buffer.to_vec(),
+            last_byte_at: None,
+            started_at: Instant::now(),
+            deadline,
+            solicited_prefixes: vec![],
+            tx,
+        }
+    }
+
+    #[test]
+    fn drain_urcs_reach_core_watches_without_an_old_watch() {
+        let shared = RxHubShared::for_path("p".into());
+        let (slot, events) = core_slot(10, 64, true, None);
+        shared.attach_core_watch(slot);
+        let (tx, _rx) = mpsc::sync_channel(1);
+        *crate::sync_util::lock_or_recover(&shared.drain) = Some(drain_slot(
+            tx,
+            10_000,
+            Instant::now() + Duration::from_secs(10),
+            b"\r\n+CREG: 1\r\n",
+        ));
+        finish_drain(&shared, Ok(Vec::new()));
+        assert!(
+            events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|e| matches!(e, SerialEvent::Urc { line, .. } if line == "+CREG: 1")),
+            "{:?}",
+            events.lock().unwrap()
         );
     }
 }

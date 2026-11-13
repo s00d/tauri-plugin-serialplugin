@@ -125,19 +125,29 @@ fn max_buf(v: Option<usize>) -> Result<usize, ConfigError> {
 }
 
 fn find(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
-    if from > hay.len() || needle.len() > hay.len() - from {
-        return None;
-    }
-    hay[from..]
+    hay.get(from..)?
         .windows(needle.len())
         .position(|w| w == needle)
         .map(|p| p + from)
+}
+
+/// First index of the tail of a `len`-byte buffer that may still hold the start of a
+/// `marker_len`-byte marker: the last `marker_len - 1` bytes.
+fn tail_start(len: usize, marker_len: usize) -> usize {
+    len.saturating_sub(marker_len - 1)
 }
 
 fn emit(out: &mut Vec<Vec<u8>>, frame: &[u8]) {
     if !frame.is_empty() {
         out.push(frame.to_vec());
     }
+}
+
+/// Move every whole `size`-byte chunk at the front of `buf` to `out`.
+fn take_chunks(buf: &mut Vec<u8>, size: usize, out: &mut Vec<Vec<u8>>) {
+    let full = buf.len() / size * size;
+    out.extend(buf[..full].chunks(size).map(<[u8]>::to_vec));
+    buf.drain(..full);
 }
 
 fn take_flush(buf: &mut Vec<u8>) -> Option<Vec<u8>> {
@@ -401,7 +411,7 @@ impl DelimiterFramer {
 impl Framer for DelimiterFramer {
     fn push(&mut self, data: &[u8], _now: Instant, out: &mut Vec<Vec<u8>>) {
         // Only the tail that can still hold part of a delimiter needs rescanning.
-        let mut from = self.buf.len().saturating_sub(self.delimiter.len() - 1);
+        let mut from = tail_start(self.buf.len(), self.delimiter.len());
         self.buf.extend_from_slice(data);
         let mut start = 0;
         while let Some(pos) = find(&self.buf, &self.delimiter, from.max(start)) {
@@ -417,10 +427,7 @@ impl Framer for DelimiterFramer {
         }
         self.buf.drain(..start);
         // ponytail: an overlong line is cut at max bytes, like a full receive buffer.
-        while self.buf.len() >= self.max {
-            let rest = self.buf.split_off(self.max);
-            out.push(std::mem::replace(&mut self.buf, rest));
-        }
+        take_chunks(&mut self.buf, self.max, out);
     }
 
     fn flush(&mut self) -> Option<Vec<u8>> {
@@ -436,11 +443,7 @@ struct ByteLengthFramer {
 impl Framer for ByteLengthFramer {
     fn push(&mut self, data: &[u8], _now: Instant, out: &mut Vec<Vec<u8>>) {
         self.buf.extend_from_slice(data);
-        let full = self.buf.len() / self.length * self.length;
-        for frame in self.buf[..full].chunks(self.length) {
-            out.push(frame.to_vec());
-        }
-        self.buf.drain(..full);
+        take_chunks(&mut self.buf, self.length, out);
     }
 
     fn flush(&mut self) -> Option<Vec<u8>> {
@@ -563,7 +566,7 @@ impl Framer for ReadyFramer {
             emit(out, &self.tail[rest.max(keep)..]);
             self.tail = Vec::new();
         } else {
-            let cut = self.tail.len().saturating_sub(self.delimiter.len() - 1);
+            let cut = tail_start(self.tail.len(), self.delimiter.len());
             self.tail.drain(..cut);
         }
     }
@@ -681,7 +684,7 @@ impl Framer for StartEndFramer {
                 Some(s) => s,
                 None => {
                     let Some(s) = find(&self.buf, &self.start, self.scan_from) else {
-                        let tail = self.buf.len().saturating_sub(self.start.len() - 1);
+                        let tail = tail_start(self.buf.len(), self.start.len());
                         self.scan_from = tail.max(consumed);
                         break;
                     };
@@ -691,7 +694,7 @@ impl Framer for StartEndFramer {
                 }
             };
             let Some(e) = find(&self.buf, &self.end, self.scan_from) else {
-                let tail = self.buf.len().saturating_sub(self.end.len() - 1);
+                let tail = tail_start(self.buf.len(), self.end.len());
                 self.scan_from = tail.max(s + self.start.len());
                 break;
             };

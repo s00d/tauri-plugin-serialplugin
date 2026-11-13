@@ -1,12 +1,9 @@
 //! CDC ACM driver.
 
-use super::{line_coding_bytes, opened, Driver, EndpointPair, ModemStatus, WRITE_TIMEOUT_MS};
+use super::{line_coding_bytes, opened, Driver, EndpointPair, ModemStatus};
 use crate::config::{FlowControl, LineConfig, PurgeKind};
 use crate::error::{ReadOutcome, Result, UsbSerialError};
-use crate::reader::SerialReader;
-use crate::transport::{
-    BulkIn, ControlRequest, SharedTransport, USB_RECIP_INTERFACE, USB_TYPE_CLASS,
-};
+use crate::transport::{BulkIn, ControlRequest, SharedTransport};
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -116,8 +113,9 @@ fn parse_serial_state_notification(data: &[u8], control_index: u8) -> Option<u16
         return None;
     }
     let payload_size = usize::from(u16::from_le_bytes([data[6], data[7]]));
-    // SERIAL_STATE carries 2 UART-state bytes; allow longer transfers (host padding).
-    if payload_size < 2 || data.len() < 8 + 2 {
+    // SERIAL_STATE carries 2 UART-state bytes (data.len() >= 10 was checked above);
+    // allow longer transfers (host padding).
+    if payload_size < 2 {
         return None;
     }
     Some(u16::from_le_bytes([data[8], data[9]]))
@@ -134,7 +132,6 @@ pub struct CdcAcmDriver {
     transport: Option<SharedTransport>,
     control_claimed: bool,
     data_claimed: bool,
-    reader: Option<SerialReader>,
     notification_reader: Option<CdcNotificationReader>,
 }
 
@@ -151,21 +148,13 @@ impl CdcAcmDriver {
             transport: None,
             control_claimed: false,
             data_claimed: false,
-            reader: None,
             notification_reader: None,
         }
     }
 
     fn acm_control(&self, request: u8, value: u16, data: Vec<u8>) -> Result<()> {
         let transport = opened(self.transport.as_ref())?;
-        let req = ControlRequest {
-            request_type: USB_TYPE_CLASS | USB_RECIP_INTERFACE,
-            request,
-            value,
-            index: self.control_index as u16,
-            data,
-            timeout_ms: WRITE_TIMEOUT_MS,
-        };
+        let req = ControlRequest::class_out(request, value, u16::from(self.control_index), data);
         transport.control_out(&req)?;
         Ok(())
     }
@@ -175,7 +164,9 @@ impl CdcAcmDriver {
         let desc = transport.raw_device_descriptor();
         let is_iad = desc.len() >= 7 && desc[4] == 0xEF && desc[5] == 0x02 && desc[6] == 0x01;
         if is_iad {
-            if let Some((ctrl, data)) = resolve_iad_pair(transport, self.port_index) {
+            if let Some((ctrl, data)) =
+                resolve_iad_pair(&transport.raw_descriptors(), self.port_index)
+            {
                 self.control_iface = ctrl;
                 self.data_iface = data;
                 self.control_index = ctrl;
@@ -220,23 +211,25 @@ impl CdcAcmDriver {
     }
 }
 
-fn resolve_iad_pair(transport: &SharedTransport, port_index: usize) -> Option<(u8, u8)> {
-    let raw = transport.raw_descriptors();
+fn resolve_iad_pair(raw: &[u8], port_index: usize) -> Option<(u8, u8)> {
     let mut iad_ports: Vec<(u8, u8)> = Vec::new();
-    let mut pos = 0usize;
-    while pos + 2 <= raw.len() {
-        let len = raw[pos] as usize;
-        if len < 2 || pos + len > raw.len() {
+    let mut rest = raw;
+    while let [len, ..] = *rest {
+        let len = len as usize;
+        if len < 2 || len > rest.len() {
             break;
         }
-        if raw[pos + 1] == 0x0B && len >= 8 && raw[pos + 4] == 2 && raw[pos + 5] == 2 {
-            let first = raw[pos + 2];
-            let count = raw[pos + 3];
+        let (descriptor, tail) = rest.split_at(len);
+        // IAD (bDescriptorType 0x0B) of a CDC function: bFunctionClass 2, subclass 2 (ACM).
+        if let [_, 0x0B, first, count, 2, 2, _, _, ..] = *descriptor {
+            // `first` 255 has no data interface after it: not a usable pair.
             if count >= 2 {
-                iad_ports.push((first, first + 1));
+                if let Some(data) = first.checked_add(1) {
+                    iad_ports.push((first, data));
+                }
             }
         }
-        pos += len;
+        rest = tail;
     }
     iad_ports.get(port_index).copied()
 }
@@ -279,9 +272,6 @@ impl Driver for CdcAcmDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         if let Some(mut r) = self.notification_reader.take() {
             r.stop();
         }
@@ -304,10 +294,8 @@ impl Driver for CdcAcmDriver {
         opened(self.endpoints.as_mut())?.write(transport, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
@@ -325,13 +313,13 @@ impl Driver for CdcAcmDriver {
 
     fn set_dtr(&mut self, value: bool) -> Result<()> {
         self.dtr = value;
-        let v = (self.rts as u16) << 1 | (self.dtr as u16);
+        let v = ((self.rts as u16) << 1) | (self.dtr as u16);
         self.acm_control(SET_CONTROL_LINE_STATE, v, vec![])
     }
 
     fn set_rts(&mut self, value: bool) -> Result<()> {
         self.rts = value;
-        let v = (self.rts as u16) << 1 | (self.dtr as u16);
+        let v = ((self.rts as u16) << 1) | (self.dtr as u16);
         self.acm_control(SET_CONTROL_LINE_STATE, v, vec![])
     }
 
@@ -357,5 +345,20 @@ impl Driver for CdcAcmDriver {
     fn take_bulk_in(&mut self) -> Option<Box<dyn crate::transport::BulkIn>> {
         let transport = self.transport.as_ref()?;
         self.endpoints.as_mut()?.take_in(transport)
+    }
+}
+
+// The driver model (tests/driver_model.rs) covers every frame rule it can feed
+// as a whole interrupt transfer. A transfer shorter than a frame cannot be fed
+// that way: the fake merges queued bytes into one read, so this rule stays here.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_transfer_shorter_than_a_frame_is_skipped() {
+        let frame = [0xA1, 0x20, 0, 0, 0, 0, 2, 0, 0x0B, 0];
+        assert_eq!(parse_serial_state_notification(&frame, 0), Some(0x0B));
+        assert_eq!(parse_serial_state_notification(&frame[..9], 0), None);
     }
 }

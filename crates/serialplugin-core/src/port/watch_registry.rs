@@ -72,9 +72,10 @@ pub fn send_event(channel: &tauri::ipc::Channel<SerialEvent>, event: SerialEvent
 }
 
 pub fn send_event_to(channel: &EventSink, event: SerialEvent) {
-    if !channel(event) {
-        crate::log_warn!("Failed to send serial event: receiver is gone");
+    if channel(event) {
+        return;
     }
+    crate::log_warn!("Failed to send serial event: receiver is gone");
 }
 
 #[cfg(test)]
@@ -82,9 +83,15 @@ mod tests {
     #[test]
     fn duplicate_watch_id_is_rejected() {
         let id = 0xD0D0_0001;
+        assert!(!super::contains(id));
         super::register(id, "dup-a".into()).unwrap();
         assert!(super::contains(id));
         assert!(super::register(id, "dup-b".into()).is_err());
+        // One watch per port, whatever the id.
+        assert!(super::register(id + 1, "dup-a".into()).is_err());
+        super::register(id + 1, "dup-c".into()).unwrap();
         assert_eq!(super::unregister(id).as_deref(), Some("dup-a"));
+        assert_eq!(super::unregister(id + 1).as_deref(), Some("dup-c"));
+        assert!(!super::contains(id));
     }
 }

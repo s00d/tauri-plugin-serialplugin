@@ -303,9 +303,14 @@ pub fn encode_submit(req: &SubmitRequest) -> Result<Vec<(usize, String)>> {
         let body: Vec<u8> = part.concat();
         let (udl, packed) = match u.alphabet {
             Alphabet::Gsm7 => {
+                // Septets are aligned to the start of TP-UD: pack zero septets over the
+                // header (and its fill bits), then drop the header's octets.
                 let hdr_septets = (udh_len * 8).div_ceil(7);
-                let fill = (hdr_septets * 7 - udh_len * 8) as u8;
-                (hdr_septets + body.len(), gsm7::pack(&body, fill))
+                let mut septets = vec![0; hdr_septets];
+                septets.extend_from_slice(&body);
+                let mut packed = gsm7::pack(&septets, 0);
+                packed.drain(..udh_len);
+                (septets.len(), packed)
             }
             _ => (udh_len + body.len(), body),
         };

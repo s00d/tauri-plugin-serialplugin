@@ -12,6 +12,8 @@ documentation = "https://docs.rs/android-usb-serial"
 authors = ["s00d"]
 keywords = ["usb", "serial", "android", "nusb", "serialport"]
 categories = ["hardware-support", "os::android-apis", "embedded"]
+# One integration-test binary (tests/integration.rs): links once instead of once per file.
+autotests = false
 # Library package; lockfile not required for consumers. Golden fixtures stay in crate.
 exclude = [
     "/target/",
@@ -59,13 +61,17 @@ libc = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 base64 = "0.23"
+# proptest 1.12 needs rustc 1.88; keep the dev build on the 1.85 MSRV.
+proptest = { version = ">=1.6, <1.12", default-features = false, features = ["std"] }
 
 [[bin]]
 name = "golden_record"
 path = "src/bin/golden_record.rs"
 required-features = ["fake-transport"]
 
+# The tests drive the drivers through FakeTransport: `cargo test --features fake-transport`
+# (add `serialport-compat` for the adapter model). Without the feature cargo skips this target.
 [[test]]
-name = "disconnect_test"
-path = "tests/disconnect_test.rs"
-required-features = ["fake-transport", "serialport-compat"]
+name = "integration"
+path = "tests/integration.rs"
+required-features = ["fake-transport"]

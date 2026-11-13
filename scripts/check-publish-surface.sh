@@ -63,6 +63,8 @@ cargo package --list --allow-dirty >"$LIST"
 for bad in \
   '^examples/' \
   '^\.github/' \
+  '^\.cargo/' \
+  '^\.config/' \
   '^docs/' \
   '^banner\.png$' \
   '^tests/' \

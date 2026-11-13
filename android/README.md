@@ -37,14 +37,14 @@ runs in CI on Ubuntu together with Robolectric.
 
 Stable sources: [`examples/serialport-test/android-integration/`](../examples/serialport-test/android-integration/).
 
-Uses `FakeTransport` via `android-test-harness` (no Kotlin USB fakes). This is the supported way to exercise the JNI/fd path on an **emulator**: macOS cannot pass a host USB serial adapter into the AVD, so real Quectel/WCH sticks stay on desktop (`SERIAL_SMOKE_PORT`) or a physical phone with USB host.
+Uses `FakeTransport` via `android-test-harness` (no Kotlin USB fakes). This is the supported way to exercise the JNI/fd path on an **emulator**: macOS cannot pass a host USB serial adapter into the AVD, so real Quectel/WCH sticks stay on desktop (`SERIALPLUGIN_MODEM`) or a physical phone with USB host.
 
 ```bash
 # Emulator (arm64 AVD) or device — FakeTransport, no real USB:
 ANDROID_INTEGRATION_NDK_ARCH=arm64-v8a ./scripts/android-integration-ci.sh all
 
 # Desktop Mac smoke against a real AT modem (e.g. Quectel on /dev/cu.wchusbserial*):
-SERIAL_SMOKE_PORT=/dev/cu.wchusbserial210 cargo test --lib smoke_real_serial -- --ignored --nocapture
+SERIALPLUGIN_MODEM=/dev/cu.wchusbserial210 cargo nextest run -p tauri-plugin-serialplugin modem_live --no-capture
 ```
 
 Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testFakeEnableAtModem`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`, `testEnumerateJsonFromWorkerThread`.

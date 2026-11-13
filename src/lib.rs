@@ -166,35 +166,3 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         })
         .build()
 }
-
-#[cfg(test)]
-mod tests {
-    #[cfg(not(target_os = "android"))]
-    mod acl_smoke_test;
-    #[cfg(not(target_os = "android"))]
-    mod api_compat_test;
-    #[cfg(not(target_os = "android"))]
-    mod available_ports_options_test;
-    #[cfg(not(target_os = "android"))]
-    mod command_inventory_test;
-    #[cfg(not(target_os = "android"))]
-    mod commands_test;
-    #[cfg(not(target_os = "android"))]
-    mod desktop_api_test;
-    #[cfg(not(target_os = "android"))]
-    mod error_test;
-    #[cfg(not(target_os = "android"))]
-    mod invoke_contract_test;
-    #[cfg(not(target_os = "android"))]
-    mod ipc_test;
-    #[cfg(not(target_os = "android"))]
-    mod mock_serial;
-    #[cfg(not(target_os = "android"))]
-    mod serial_test;
-    #[cfg(not(target_os = "android"))]
-    mod state_test;
-    #[cfg(not(target_os = "android"))]
-    mod tcp_test;
-    #[cfg(not(target_os = "android"))]
-    mod watch_registry_test;
-}

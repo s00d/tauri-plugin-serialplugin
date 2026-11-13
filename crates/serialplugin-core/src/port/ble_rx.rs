@@ -75,12 +75,14 @@ impl RxFeed {
     pub(crate) fn push(&self, chunk: Vec<u8>) -> bool {
         let n = chunk.len();
         if self.queued.load(Ordering::Acquire) + n > self.cap {
-            if !self.dropping.swap(true, Ordering::Relaxed) {
-                crate::log_warn!(
-                    "[BLE] RX queue full ({} bytes unread): dropping notifications until it is read",
-                    self.cap
-                );
+            // Warn once per overflow run.
+            if self.dropping.swap(true, Ordering::Relaxed) {
+                return false;
             }
+            crate::log_warn!(
+                "[BLE] RX queue full ({} bytes unread): dropping notifications until it is read",
+                self.cap
+            );
             return false;
         }
         self.dropping.store(false, Ordering::Relaxed);

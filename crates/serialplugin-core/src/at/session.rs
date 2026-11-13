@@ -152,4 +152,120 @@ mod tests {
         assert_eq!(normalize_at_command("AT\r\n", true), "AT\r\n");
         assert_eq!(normalize_at_command("AT\r", false), "AT\r");
     }
+
+    fn json(o: &ExchangeOptions) -> serde_json::Value {
+        serde_json::to_value(o).unwrap()
+    }
+
+    #[test]
+    fn session_flags_default_and_follow_the_config() {
+        let d = AtSessionConfig::default();
+        assert!(d.stop_on_error());
+        assert!(!d.expect_ok());
+        assert!(d.append_cr());
+        let s = AtSessionConfig {
+            stop_on_error: Some(false),
+            expect_ok: Some(true),
+            append_cr: Some(false),
+            ..Default::default()
+        };
+        assert!(!s.stop_on_error());
+        assert!(s.expect_ok());
+        assert!(!s.append_cr());
+    }
+
+    fn session() -> AtSessionConfig {
+        AtSessionConfig {
+            default_timeout_ms: Some(700),
+            default_terminators: Some(vec!["READY".into()]),
+            default_idle_ms: Some(30),
+            default_rx_prepare: Some(RxPrepareMode::Purge),
+            default_solicited_prefixes: Some(vec!["+X:".into()]),
+            result_format: Some(AtResultFormat::Numeric),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn merge_exchange_takes_session_defaults_then_per_command_values() {
+        let merged = session().merge_exchange("AT+X", None);
+        assert_eq!(
+            json(&merged),
+            json(&ExchangeOptions {
+                timeout_ms: Some(700),
+                terminators: Some(vec!["READY".into()]),
+                idle_ms: Some(30),
+                rx_prepare: Some(RxPrepareMode::Purge),
+                completion_mode: Some(ExchangeCompletionMode::AtFinalLine),
+                result_format: Some(AtResultFormat::Numeric),
+                command: Some("AT+X".into()),
+                solicited_prefixes: Some(vec!["+X:".into()]),
+                ..Default::default()
+            })
+        );
+        let per = AtCommandOptions {
+            timeout_ms: Some(9),
+            terminators: Some(vec!["T".into()]),
+            idle_ms: Some(8),
+            rx_prepare: Some(RxPrepareMode::None),
+            completion_mode: Some(ExchangeCompletionMode::Substring),
+            result_format: Some(AtResultFormat::Verbose),
+            solicited_prefixes: Some(vec!["+Y:".into()]),
+            append_cr: None,
+        };
+        let merged = session().merge_exchange("AT+Y", Some(&per));
+        assert_eq!(
+            json(&merged),
+            json(&ExchangeOptions {
+                timeout_ms: Some(9),
+                terminators: Some(vec!["T".into()]),
+                idle_ms: Some(8),
+                rx_prepare: Some(RxPrepareMode::None),
+                completion_mode: Some(ExchangeCompletionMode::Substring),
+                result_format: Some(AtResultFormat::Verbose),
+                command: Some("AT+Y".into()),
+                solicited_prefixes: Some(vec!["+Y:".into()]),
+                ..Default::default()
+            })
+        );
+    }
+
+    #[test]
+    fn merge_phase_takes_the_phase_then_session_defaults() {
+        let phase = AtPhase {
+            write: AtPhaseWrite::Text("AT+P".into()),
+            completion_mode: Some(ExchangeCompletionMode::AtIntermediate),
+            result_format: None,
+            timeout_ms: Some(11),
+            command: None,
+            rx_prepare: None,
+        };
+        assert_eq!(
+            json(&session().merge_phase(&phase, "AT+P")),
+            json(&ExchangeOptions {
+                timeout_ms: Some(11),
+                terminators: Some(vec!["READY".into()]),
+                idle_ms: Some(30),
+                rx_prepare: Some(RxPrepareMode::Purge),
+                completion_mode: Some(ExchangeCompletionMode::AtIntermediate),
+                result_format: Some(AtResultFormat::Numeric),
+                command: Some("AT+P".into()),
+                solicited_prefixes: Some(vec!["+X:".into()]),
+                ..Default::default()
+            })
+        );
+    }
+
+    #[test]
+    fn expect_ok_rejects_other_statuses_only_when_set() {
+        use crate::at::parse::AtParseStatus;
+        let strict = AtSessionConfig {
+            expect_ok: Some(true),
+            ..Default::default()
+        };
+        assert!(check_expect_ok(&strict, AtParseStatus::Ok, "OK").is_ok());
+        assert!(check_expect_ok(&strict, AtParseStatus::Error, "ERROR").is_err());
+        let lax = AtSessionConfig::default();
+        assert!(check_expect_ok(&lax, AtParseStatus::Error, "ERROR").is_ok());
+    }
 }

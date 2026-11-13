@@ -1,0 +1,5 @@
+# `cargo nextest run`: every test gets a hard limit, so a hang (or a mutant that makes
+# code spin) fails in seconds instead of waiting for an outer watchdog. The slowest
+# test takes ~1 s alone; the margin is for a loaded host.
+[profile.default]
+slow-timeout = { period = "3s", terminate-after = 2 }

@@ -338,8 +338,9 @@ pub fn pack(septets: &[u8], fill_bits: u8) -> Vec<u8> {
         let bit = fill + i * 7;
         let v = u16::from(s & 0x7F) << (bit % 8);
         out[bit / 8] |= v as u8;
-        if v > 0xFF {
-            out[bit / 8 + 1] |= (v >> 8) as u8;
+        // A septet that spills over always has its next octet; otherwise this ORs 0.
+        if let Some(next) = out.get_mut(bit / 8 + 1) {
+            *next |= (v >> 8) as u8;
         }
     }
     out

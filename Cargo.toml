@@ -16,6 +16,8 @@ license = "Apache-2.0 OR MIT"
 rust-version = "1.90"
 links = "tauri-plugin-serialplugin"
 readme = "README.md"
+# One integration binary (tests/integration.rs) instead of one per file.
+autotests = false
 repository = "https://github.com/s00d/tauri-plugin-serialplugin"
 homepage = "https://github.com/s00d/tauri-plugin-serialplugin"
 documentation = "https://docs.rs/tauri-plugin-serialplugin"
@@ -25,8 +27,13 @@ categories = ["hardware-support", "api-bindings"]
 exclude = [
     "examples/**",
     ".github/**",
+    # Local tooling config (cargo-mutants, nextest).
+    ".cargo/**",
+    ".config/**",
     "docs/**",
     "banner.png",
+    # Rust and TS tests stay in git; cargo drops the `[[test]] integration` target from the
+    # published manifest (it prints a warning about it), which is intended.
     "tests/**",
     "scripts/**",
     "crates/**",
@@ -34,8 +41,8 @@ exclude = [
     "test-results/**",
     "android/src/test/**",
     "android/BUILD_INSTRUCTIONS.md",
-    # Rust unit tests (src/lib.rs only declares them under #[cfg(test)]).
-    "src/tests/**",
+    # Local-only PIT mutation testing (`./gradlew -I pitest.init.gradle pitestDebug`).
+    "android/pitest.init.gradle",
     # npm package and JS tooling.
     "guest-js/**",
     "dist-js/**",
@@ -72,6 +79,10 @@ macos = { level = "full", notes = "" }
 android = { level = "full", notes = "" }
 ios = { level = "partial", notes = "No local serial/USB API on iOS; serial-over-TCP (tcp://host:port) works." }
 
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
 [build-dependencies]
 tauri-plugin = { version = "2", features = [ "build" ] }
 
@@ -90,8 +101,14 @@ serialplugin-core = { path = "crates/serialplugin-core", version = "0.2.1", feat
 log = { version = "0.4", features = ["std"] }
 
 [dev-dependencies]
-# `test` feature only for this crate's unit tests — keep it off the published dependency graph.
+# `test` feature only for this crate's integration tests — keep it off the published dependency graph.
 tauri = { version = "2", features = ["test"] }
+# Model tests (tests/*_model.rs). One proptest 1.x per build: the workspace crates pin
+# theirs below 1.12.
+proptest = "1.10"
+# The test harness gives the mock app the plugin's default permission set as its ACL.
+tauri-utils = "2"
+glob = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
 serialport = "4.10"

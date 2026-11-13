@@ -859,9 +859,7 @@ impl Cds {
                 st: None,
             });
         }
-        if a.len() < 7 {
-            return None;
-        }
+        // Text mode needs all 7 fields: `st` (index 6) is required below.
         Some(Cds {
             mode: SmsMode::Text,
             length: None,

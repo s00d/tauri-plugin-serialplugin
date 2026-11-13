@@ -5,18 +5,14 @@ use crate::xonxoff::XonXoffFilter;
 const FTDI_READ_HEADER: usize = 2;
 
 /// Strip FTDI 2-byte status headers from bulk IN data.
+/// Every `mps`-sized packet starts with the header; a packet of header bytes only
+/// (always the last one) carries no data.
 pub fn strip_ftdi_header(packet: &[u8], mps: usize) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut pos = 0;
-    while pos < packet.len() {
-        let chunk = (pos + mps).min(packet.len());
-        if chunk - pos <= FTDI_READ_HEADER {
-            break;
-        }
-        out.extend_from_slice(&packet[pos + FTDI_READ_HEADER..chunk]);
-        pos += mps;
-    }
-    out
+    packet
+        .chunks(mps.max(1))
+        .flat_map(|chunk| chunk.get(FTDI_READ_HEADER..).unwrap_or_default())
+        .copied()
+        .collect()
 }
 
 pub trait RxFilter: Send {

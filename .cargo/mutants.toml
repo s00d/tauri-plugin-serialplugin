@@ -1,0 +1,98 @@
+# cargo-mutants (https://mutants.rs) — mutation testing of the Rust crates.
+# Run per crate (features differ), see CONTRIBUTING.md:
+#   cargo mutants -p serial-codec
+#   cargo mutants -p android-usb-serial --features fake-transport,serialport-compat
+#   cargo mutants -p serialplugin-core --features ble
+#   cargo mutants -p tauri-plugin-serialplugin
+# Local only (no CI job). Branch check: `--in-diff pr.diff` (see CONTRIBUTING.md).
+# Loops are written as plain `while` / `loop`: a mutant that makes one spin is caught
+# by the test timeout, not hidden by an artificial bound.
+
+# Code that is not compiled or not testable on a desktop host: mutants there
+# would build and "survive" without telling anything.
+exclude_globs = [
+    "src/android_log.rs",
+    "crates/serialplugin-core/src/android/**",
+    "crates/serialplugin-core/src/jni_ready.rs",
+    "crates/serialplugin-core/src/serialport_ios.rs",
+    "crates/serialplugin-core/src/port/ble_android.rs",
+    # Real USB (libusb/nusb) needs hardware.
+    "crates/android-usb-serial/src/nusb_transport.rs",
+    # Dev tool that records golden fixtures, not library code.
+    "crates/android-usb-serial/src/bin/**",
+    # Test doubles.
+    "crates/serialplugin-core/src/mock_serial.rs",
+    "crates/android-usb-serial/src/fake.rs",
+]
+
+# Debug output and log wording are not behaviour.
+exclude_re = [
+    "impl Debug",
+    "impl fmt::Debug",
+    # serialplugin-core: functions compiled only on Android, Windows or with the
+    # `tauri` feature (core mutants run with `--features ble` on a desktop host, so
+    # these build without the code and "survive"; cargo-mutants ignores `cfg`).
+    "From<tauri::plugin::mobile::PluginInvokeError>",
+    "replace channel_sink ",
+    "replace register_mobile_hub with",
+    "replace SerialManager::setup_teardown with",
+    # Plugin wrapper of the same Android-only call (`#[cfg(target_os = "android")]`).
+    "replace SerialPort<R>::setup_teardown with",
+    "phase_gap_hook",
+    "replace windows_full_serials ",
+    "match arm \\(Some\\(current\\), Some\\(instances\\)\\) in available_ports_detailed",
+    "::attach_watch with \\(\\)",
+    "replace CmuxSession::set_watch with \\(\\)",
+    "replace emit_urc with \\(\\)",
+    "replace RxHubShared::dispatch_pending_events with",
+    # Feature `usb-port-details` off: `usb_location` is always `None`, so this one is
+    # equivalent here (killed by `quectel_ports_differ_by_interface_number` with
+    # `--features ble,usb-port-details`).
+    "replace usb_location -> Option<String> with None",
+    # Android-only remap: on desktop `platform_open` always returns the requested path.
+    "replace != with == in SerialManager::open_core_with",
+    "delete ! in SerialManager::open_core_with",
+    # Equivalent: `|` of disjoint bit flags (`SABM | PF`, `(dlci << 2) | 0x03`) equals `^`.
+    "replace \\| with \\^ in CmuxSession::(unregister_dlci|open_dlci)",
+    # Same in the drivers and codecs: every `|` there joins disjoint bit fields
+    # (register flags, nibbles, address/length octets), where `^` gives the same value.
+    "replace \\| with \\^ in (Ch34xDriver::(set_line_config|set_break|initialize|set_baud)|Cp21xxDriver::open|FtdiDriver::(open|set_flow_control)|ftdi_baud_encoding|CdcAcmDriver::(set_dtr|set_rts)|ControlRequest::class_(in|out)|encode_address|encode_frame|Deframer::parse_one|PacketLengthFramer::push|hex_decode|encode_submit|encode_semi_octets|to_bcd|Timestamp::encode|Dcs::encode)$",
+    # Equivalent: the write timeout is raised only when needed; `>=` re-sets the same value.
+    "replace > with >= in write_all_split",
+    # Equivalent: a subdivisor of 0 sets no bits, the same as the `_` arm.
+    "delete match arm 0 in ftdi_baud_encoding",
+    # Equivalent: `Timestamp::encode` checks the range up front for clarity; its round
+    # trip through `decode` rejects the same values, so a weakened check changes nothing.
+    "replace \\|\\| with && in Timestamp::encode",
+    # Equivalent: `decode` only yields 1970–2069, where the century rules never apply.
+    "in days_in_month$",
+    # Equivalent: `0 < seq <= total` already implies `total > 0`.
+    "replace > with >= in Udh::concat",
+    # Equivalent: the loop and the check after it bound the factor the same way
+    # (upstream's form); a factor of exactly 0xfff0 is no reachable rate.
+    "replace > with >= in Ch34xDriver::set_baud",
+    # Equivalent: two Android paths of one device with the same port index ("x" and
+    # "x#0") tie; which one wins depends on HashMap order either way.
+    "replace < with <= in apply_android_single_port_per_device",
+    # port/ble.rs (desktop BLE): these need a real Bluetooth adapter and device
+    # (btleplug `Adapter` / `Peripheral` cannot be built without one). Their pure
+    # parts are split out and tested: `power_state`, `scan_entry`, `scan_step`,
+    # `pick_peripheral`, `block_on_write`, `ble_rx`.
+    "for BleSerialPort>",
+    "^replace port_id -> String with ",
+    "^replace scan -> io::Result<",
+    " in adapter$",
+    " in open_nus$",
+    " in find_peripheral$",
+]
+
+# Lib + integration tests (a subset of what the build phase compiles, so no rebuild);
+# doctests are slow to build for every mutant.
+additional_cargo_test_args = ["--lib", "--tests"]
+
+# nextest enforces the per-test limit in .config/nextest.toml: a mutant that hangs one
+# test fails in seconds, not at the whole-suite watchdog.
+test_tool = "nextest"
+
+# Serial/TCP tests use real timeouts; some headroom, a hung mutant still fails fast.
+timeout_multiplier = 1.5

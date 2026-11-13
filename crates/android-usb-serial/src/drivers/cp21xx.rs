@@ -5,7 +5,6 @@ use crate::config::{
     DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits, CHAR_XOFF, CHAR_XON,
 };
 use crate::error::{Result, UsbSerialError};
-use crate::reader::SerialReader;
 use crate::transport::{ControlRequest, SharedTransport};
 
 const REQTYPE_HOST_TO_DEVICE: u8 = 0x41;
@@ -44,7 +43,6 @@ pub struct Cp21xxDriver {
     is_restricted_port: bool,
     endpoints: Option<EndpointPair>,
     transport: Option<SharedTransport>,
-    reader: Option<SerialReader>,
 }
 
 impl Cp21xxDriver {
@@ -57,7 +55,6 @@ impl Cp21xxDriver {
             is_restricted_port: false,
             endpoints: None,
             transport: None,
-            reader: None,
         }
     }
 
@@ -133,9 +130,6 @@ impl Driver for Cp21xxDriver {
     }
 
     fn close(&mut self) -> Result<()> {
-        if let Some(mut r) = self.reader.take() {
-            r.stop();
-        }
         let _ = self.cfg_out(SILABSER_IFC_ENABLE_REQUEST_CODE, UART_DISABLE);
         if let Some(t) = &self.transport {
             let _ = t.release_interface(self.iface);
@@ -149,10 +143,8 @@ impl Driver for Cp21xxDriver {
         opened(self.endpoints.as_mut())?.write(t, data)
     }
 
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        if let Some(reader) = &mut self.reader {
-            return reader.try_read(buf);
-        }
+    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
+        // Data arrives through `start_reader`; there is no synchronous read path.
         Ok(0)
     }
 
