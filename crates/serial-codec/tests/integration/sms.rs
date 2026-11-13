@@ -763,7 +763,19 @@ proptest! {
         (dcs, udh, payload) in ud_parts(),
         cut in any::<usize>(),
     ) {
-        // TP-UDHI promises a header: an empty one when the generator drew none.
+        // TP-UDHI promises a header: an empty one when the generator drew none. Its UDHL
+        // octet (2 septets) was not reserved by the generator: trim the payload to fit.
+        let payload = if udhi && udh.is_none() {
+            let d = Dcs::decode(dcs);
+            let max = match (d.alphabet, d.compressed) {
+                (Alphabet::Gsm7, false) => 158,
+                (Alphabet::Ucs2, false) => 138,
+                _ => 139,
+            };
+            payload.into_iter().take(max).collect()
+        } else {
+            payload
+        };
         let udh = if udhi { Some(udh.unwrap_or_default()) } else { None };
         let fo = 0x02 | u8::from(mms) << 2 | u8::from(lp) << 3 | u8::from(srq) << 5 | u8::from(udhi) << 6;
         let mut b = vec![fo, mr];
