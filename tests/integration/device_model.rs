@@ -1043,7 +1043,10 @@ fn check_settings(sp: &SerialPort<MockRuntime>, path: &str, port: &PortM, n: usi
         .into();
     // Linux's pty driver forces CS8 and clears PARENB on every termios change
     // (drivers/tty/pty.c, `pty_set_termios`): a PTY never keeps other data bits or parity.
-    let linux_pty = cfg!(target_os = "linux") && port.kind == Kind::Pty;
+    #[cfg(target_os = "linux")]
+    let linux_pty = port.kind == Kind::Pty;
+    #[cfg(not(target_os = "linux"))]
+    let linux_pty = false;
     let (db, pa) = if linux_pty {
         (serialport::DataBits::Eight, serialport::Parity::None)
     } else {
