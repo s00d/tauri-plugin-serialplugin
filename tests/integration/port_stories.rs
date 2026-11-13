@@ -261,11 +261,13 @@ fn a_pending_read_refuses_a_second_and_fails_on_disconnect() {
             )
         })
     };
-    // Which read holds the slot is not observable: probe with short reads until one is
-    // refused. A probe that held the slot itself refuses the first read: start it again.
+    // Which read holds the slot is not observable: probe with zero-timeout reads until one
+    // is refused. A probe holds the slot only while installing it (no timer: a 1 ms wait is
+    // ~15 ms on Windows, and back-to-back probes then starve the first read). A probe that
+    // held the slot itself refuses the first read: start it again.
     let mut first = start_read();
     eventually("a second read refused as Busy", || {
-        let probe = kind(plugin.invoke("read_binary", json!({ "path": path, "timeout": 1 })));
+        let probe = kind(plugin.invoke("read_binary", json!({ "path": path, "timeout": 0 })));
         if probe == Err(ErrorKind::Busy) {
             return true;
         }
