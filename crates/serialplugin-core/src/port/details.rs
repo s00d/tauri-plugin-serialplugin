@@ -1,4 +1,4 @@
-//! Typed per-port details ([`available_ports_detailed`]): numeric vid/pid, USB
+//! Typed per-port details (`available_ports_detailed`): numeric vid/pid, USB
 //! interface number, physical location and Linux `/dev/serial` links. The 4.x string
 //! map of [`SerialManager::available_ports`](crate::SerialManager::available_ports)
 //! is unchanged.

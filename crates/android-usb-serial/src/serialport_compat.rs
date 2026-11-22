@@ -1,7 +1,7 @@
 //! `serialport` crate compatibility layer — full [`serialport::SerialPort`] on Android USB.
 //!
 //! Enable with Cargo feature `serialport-compat` (default). Wrap a [`crate::SerialPortHandle`]
-//! in [`SerialPortAdapter`] after
+//! in [`SerialPortAdapter`](crate::serialport_compat::SerialPortAdapter) after
 //! [`crate::open_port`].
 
 use crate::config::{DataBits, FlowControl, LineConfig, Parity, PurgeKind, StopBits};

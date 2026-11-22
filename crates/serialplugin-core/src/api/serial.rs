@@ -351,8 +351,9 @@ fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error>
     let _ = path;
     match info.state {
         PortState::Connected(cp) => {
-            // Joined with the slot unlocked: a sink may still be asking for it.
-            let hub = crate::sync_util::lock_or_recover(&cp.rx_hub).take();
+            // Joined with the slot unlocked: a sink may still be asking for it. The hub
+            // stays in the slot, so a call that still has `cp` starts no new one.
+            let hub = crate::sync_util::lock_or_recover(&cp.rx_hub).clone();
             if let Some(hub) = hub {
                 #[cfg(target_os = "android")]
                 crate::android::registry::global_registry().unregister(path);
@@ -680,9 +681,10 @@ impl SerialManager {
         let paths = self.managed_ports()?;
         let mut errors = vec![];
 
-        // Sorted: a port's CMUX channels (`path#dlci=N`) come after it, but close first, as
-        // closing the port closes them too.
-        for path in paths.into_iter().rev() {
+        // CMUX channels first: closing their port closes them too.
+        let (channels, ports): (Vec<_>, Vec<_>) =
+            paths.into_iter().partition(|p| parse_mux_path(p).is_some());
+        for path in channels.into_iter().chain(ports) {
             if let Err(e) = self.close(path) {
                 errors.push(e.to_string());
             }
@@ -1566,7 +1568,9 @@ impl SerialManager {
         struct DesktopExchangeIo<'a> {
             port: &'a PortArc,
             writer: Option<PortArc>,
-            timeout_ms: u64,
+            /// For the handle, which the hub holds during a read: not less than a plain write
+            /// waits, however short the exchange's own timeout (it runs from the write on).
+            lock_timeout: Duration,
         }
         impl crate::exchange::io::ExchangeIo for DesktopExchangeIo<'_> {
             fn purge_rx(&self) -> Result<(), Error> {
@@ -1574,12 +1578,9 @@ impl SerialManager {
                     Some(w) => (w, false),
                     None => (self.port, true),
                 };
-                lock_with_deadline(
-                    port,
-                    Duration::from_millis(self.timeout_ms.min(5000)),
-                    io_timeout,
-                    |port| port.clear(ClearBuffer::Input.into()).map_err(Error::from),
-                )
+                lock_with_deadline(port, self.lock_timeout, io_timeout, |port| {
+                    port.clear(ClearBuffer::Input.into()).map_err(Error::from)
+                })
             }
             fn write_payload(&self, payload: &[u8]) -> Result<(), Error> {
                 if let Some(w) = &self.writer {
@@ -1587,15 +1588,11 @@ impl SerialManager {
                         .map(|_| ())
                         .map_err(Error::from);
                 }
-                with_port_try_lock(
-                    self.port,
-                    Duration::from_millis(self.timeout_ms.min(5000)),
-                    |port| {
-                        write_all_port(port, payload, "exchange write")
-                            .map(|_| ())
-                            .map_err(Error::from)
-                    },
-                )
+                with_port_try_lock(self.port, self.lock_timeout, |port| {
+                    write_all_port(port, payload, "exchange write")
+                        .map(|_| ())
+                        .map_err(Error::from)
+                })
             }
         }
 
@@ -1612,7 +1609,9 @@ impl SerialManager {
             &DesktopExchangeIo {
                 port: &cp.port,
                 writer: self.writer_of(&path, &cp),
-                timeout_ms: resolved_timeout,
+                lock_timeout: Duration::from_millis(
+                    resolved_timeout.clamp(PORT_LOCK_TIMEOUT_MS, 5000),
+                ),
             },
             &command,
             &user_solicited,
@@ -2364,8 +2363,9 @@ impl SerialManager {
         crate::sync_util::lock_or_recover(&self.core.writers).remove(path);
     }
 
-    /// Start the RX hub if it is not running (it is restarted after an intentional
-    /// stop; after a disconnect the port is gone, so it never restarts on a dead fd).
+    /// Start the RX hub if it is not running. An error once the port is being closed or has
+    /// disconnected (the caller found it just before): no hub runs, and nothing is sent, on
+    /// a port that is gone.
     fn ensure_rx_hub(&self, cp: &ConnectedPortHandle, path: &str) -> Result<(), Error> {
         self.start_rx_hub(cp, path, None)
     }
@@ -2383,7 +2383,10 @@ impl SerialManager {
             .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
         let needs_start = match guard.as_ref() {
             None => true,
-            Some(hub) => hub.is_finished(),
+            Some(hub) => {
+                hub.shared().check_open().map_err(Error::String)?;
+                hub.is_finished()
+            }
         };
         if needs_start {
             let manager = self.downgrade();
@@ -2482,10 +2485,11 @@ impl SerialManager {
         };
         self.drop_writer(path);
         if let PortState::Connected(cp) = info.state {
-            // Dropping the hub handle detaches its (ending) thread; the reader goes with it.
-            crate::sync_util::lock_or_recover(&cp.rx_hub).take();
+            // The (ending) hub stays in its slot: a call that still has `cp` starts no new
+            // one on the dead port.
             #[cfg(target_os = "android")]
             crate::android::registry::global_registry().unregister(path);
+            drop(cp);
         }
         log_info!("{} released after disconnect: {}", path, reason);
         // The I/O error kind is in `reason`; an unplug is `Disconnected` on every

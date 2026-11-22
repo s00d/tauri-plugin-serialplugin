@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 type RustStateFailFn = Box<dyn Fn(&str, &str) + Send + Sync>;
 static RUST_STATE_FAIL: OnceLock<RustStateFailFn> = OnceLock::new();
 
-/// Called from [`SerialPort::setup_teardown`] to drop Rust port map entries after USB failure.
+/// Called from [`SerialManager::setup_teardown`](crate::SerialManager::setup_teardown) to drop Rust port map entries after USB failure.
 pub fn set_rust_state_fail(f: RustStateFailFn) {
     let _ = RUST_STATE_FAIL.set(f);
 }
@@ -183,7 +183,7 @@ pub mod test_harness {
         crate::android::driver_host::global_host().write(path, data)
     }
 
-    /// Install an AT exchange waiter on the hub for [path] (debug JNI harness).
+    /// Install an AT exchange waiter on the hub for `path` (debug JNI harness).
     pub fn exchange_begin(path: &str, command: &str) -> Result<(), String> {
         use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
         use crate::exchange::options::ResolvedExchangeOptions;

@@ -508,7 +508,12 @@ impl Sut {
     /// Wait for the `n`th command, answer it, and take the result.
     fn answer(&mut self, call: &Call, running: Running, n: usize) {
         let want = format!("{COMMAND}\r").len() * n;
-        self.device.wait_written("the command", |w| w.len() >= want);
+        eventually("the command, or the end of its exchange", || {
+            self.device.written().len() >= want || running.is_finished()
+        });
+        if self.device.written().len() < want {
+            panic!("ended before its command: {:?}", running.join().unwrap());
+        }
         assert_eq!(self.device.written().len(), want, "one command at a time");
         let (body, end) = call.reply();
         match call.end {

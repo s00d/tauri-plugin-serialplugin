@@ -8,6 +8,8 @@ JS, invoke payloads and permissions are as in 4.2.3; the Rust API only gains and
 
 * `unwatch()`: what the watch still held (its batch, a URC line not ended yet) is delivered to it before it returns, also on CMUX channels; it was dropped, or delivered to the next `watch()` on the port. An event being delivered on another thread is waited for: nothing reaches the sink after `unwatch()` returned, also when it races `close()` or the modem leaving multiplexer mode. Bytes read while it detaches stay for the next reader.
 * `close()`: nothing reaches a watch after it returned, also with an exchange in flight or an `unwatch()` running on another thread. Exchanges, reads and queued commands on the port and its CMUX channels fail (kind `Cancelled`) before it waits for the RX thread; an exchange on a CMUX channel ran into its timeout.
+* An exchange that starts while its port is closed or lost fails at once (kind `Cancelled` / `Disconnected`); it could start a new RX thread on the closed port, send its command and wait out its timeout.
+* Ports with one handle (Windows, `tcp://`, `ble://`, Android): an exchange with a short timeout waits for the handle at least 250 ms, as other writes do; with 20 ms it could fail as busy before its command was sent.
 * Two sinks that close each other's ports no longer deadlock.
 * A watch sink that panics ends its own watch only; it killed the port's RX thread, and with it every other stream on the port. The same for `watch_core`, `subscribe_core` and port-list sinks.
 * CMUX: on unplug, exchanges and flow-controlled writes waiting on a channel fail at once (kind `Disconnected`), before any sink runs, instead of at their timeout; a channel the modem had closed does not report `Disconnected` a second time.

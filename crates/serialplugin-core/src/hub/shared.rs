@@ -544,6 +544,17 @@ impl RxHubShared {
         }
     }
 
+    /// The port is neither being closed nor lost.
+    pub(crate) fn check_open(&self) -> Result<(), String> {
+        if self.is_closing() {
+            return Err(PORT_CLOSED.into());
+        }
+        if self.disconnected.load(Ordering::SeqCst) {
+            return Err("Serial port disconnected".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_closing(&self) -> bool {
         self.closing.load(Ordering::SeqCst)
     }

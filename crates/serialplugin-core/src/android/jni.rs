@@ -1,5 +1,5 @@
 //! JNI bridge: Kotlin lifecycle/USB events → Rust hub.
-//! RX path: Rust USB bulk-IN reader → [`serialport::SerialPort`] ring → [`PortRxHub`] poll.
+//! RX path: Rust USB bulk-IN reader → [`serialport::SerialPort`] ring → [`PortRxHub`](crate::hub::PortRxHub) poll.
 
 #[cfg(target_os = "android")]
 use crate::android::registry::{
