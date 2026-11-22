@@ -1,6 +1,6 @@
 [package]
 name = "serial-codec"
-version = "0.1.1"
+version = "0.1.2"
 description = "Serial byte stream framing (Node serialport parser parity), AT response and URC parsing, SMS PDU (GSM 7-bit / UCS-2), USSD and 3GPP 27.010 CMUX frames"
 edition = "2021"
 rust-version = "1.85"

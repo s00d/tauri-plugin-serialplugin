@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+No API changes since 4.2.3. serialplugin-core 0.2.4, android-usb-serial 0.1.7, serial-codec 0.1.2, new serialplugin-testing 0.1.0.
+
+### Fixes
+
+* `unwatch()`: the bytes the watch still held (its batch, a URC line not ended yet) are delivered to it before it returns, also on CMUX channels; they were dropped, or delivered to the next `watch()` on the port.
+* `close()` with an exchange in flight waits for the port's reader thread: nothing arrives after it returned.
+* CMUX: on unplug, exchanges and flow-controlled writes waiting on a channel fail at once (kind `Disconnected`) instead of at their timeout; a channel the modem had closed does not report `Disconnected` a second time.
+* CMUX: flow control (MSC) of a channel's previous life no longer holds the reopened channel; a write on a channel path left from an earlier multiplexer session is an error instead of `Ok`.
+* A watch with `size: 0` no longer stops the port's reads.
+* A panicking event sink no longer stops the delivery to the other sinks.
+* serial-codec: a bare `+CNMI:` line is not taken for a test response.
+
+### New
+
+* [`serialplugin-testing`](https://docs.rs/serialplugin-testing): fake serial devices for your tests: an in-memory port, an AT modem with a 27.010 multiplexer, TCP and PTY peers. See the Testing guide.
+
+### Internal
+
+* Tests are models and stories through the public API (TESTING.md). The documentation site is built by the release job.
+
 ## [4.2.3](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.2...v4.2.3) (2026-11-22)
 
 No API changes since 4.2.2. serialplugin-core 0.2.3, android-usb-serial 0.1.6.
