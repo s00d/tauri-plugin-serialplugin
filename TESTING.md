@@ -21,6 +21,8 @@ go through the public API only.
   `fake-transport`).
 - A real modem: `SERIALPLUGIN_MODEM=/dev/cu.… cargo nextest run -p tauri-plugin-serialplugin story_modem`
   (queries only; without the variable it prints SKIP and passes).
+- The same modem, pulled out and put back by you when it says so:
+  `SERIALPLUGIN_REPLUG=/dev/cu.… cargo test --test it story_replug -- --nocapture`.
 
 ## Layout
 

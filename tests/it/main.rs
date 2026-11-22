@@ -14,4 +14,5 @@ mod story_config;
 mod story_exchange;
 mod story_modem;
 mod story_ports;
+mod story_replug;
 mod story_watch;

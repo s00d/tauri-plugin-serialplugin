@@ -372,6 +372,12 @@ impl Events {
         self.take(message)
     }
 
+    /// The next message, or `None` when none came in time.
+    pub fn message_within(&mut self, time: std::time::Duration) -> Option<Value> {
+        let message = self.rx.recv_timeout(time).ok()?;
+        Some(self.take(message))
+    }
+
     pub fn try_message(&mut self) -> Option<Value> {
         let message = self.rx.try_recv().ok()?;
         Some(self.take(message))
