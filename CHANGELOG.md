@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [4.2.3](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.2...v4.2.3) (2026-11-22)
 
 No API changes since 4.2.2. serialplugin-core 0.2.3, android-usb-serial 0.1.6.
 
