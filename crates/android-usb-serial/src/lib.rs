@@ -82,6 +82,11 @@
 //!   for hardware.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+// The nusb items the docs link exist on these targets only (docs.rs builds Linux).
+#![cfg_attr(
+    not(any(target_os = "android", target_os = "linux")),
+    allow(rustdoc::broken_intra_doc_links)
+)]
 
 /// Line / flow / purge configuration types.
 pub mod config;
@@ -106,7 +111,7 @@ pub mod xonxoff;
 
 #[cfg(feature = "fake-transport")]
 #[cfg_attr(docsrs, doc(cfg(feature = "fake-transport")))]
-/// In-memory [`Transport`](crate::transport::Transport) for golden parity and harnesses.
+/// In-memory [`Transport`] for golden parity and harnesses.
 pub mod fake;
 
 #[cfg(any(target_os = "android", target_os = "linux"))]

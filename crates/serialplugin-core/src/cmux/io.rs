@@ -22,7 +22,7 @@ pub trait CmuxPhysicalIo: Send + Sync {
 pub struct SerialPortIo(pub Arc<Mutex<Box<dyn SerialPort>>>);
 
 impl CmuxPhysicalIo for SerialPortIo {
-    /// Writes with a timeout from the wire time ([`write_timeout`]), then puts the
+    /// Writes with a timeout from the wire time (`write_timeout`), then puts the
     /// port's own timeout back.
     fn write_all(&self, data: &[u8]) -> Result<(), String> {
         let mut port = self

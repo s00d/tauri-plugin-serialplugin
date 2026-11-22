@@ -1,7 +1,7 @@
 //! Serial port core of `tauri-plugin-serialplugin`, usable from plain Rust (no Tauri).
 //!
 //! [`SerialManager`] owns every open port: one RX hub thread per port, watch streams
-//! with native framing ([`events::WatchOptions::parser`]), request/response
+//! with native framing ([`SerialManager::watch_framed`]), request/response
 //! [`exchange`](SerialManager::exchange), queued AT commands, GSM 07.10 CMUX virtual
 //! channels, `tcp://host:port` bridges and (feature `ble`) Bluetooth LE serial.
 //! Events are delivered to an [`EventSink`] closure you pass to

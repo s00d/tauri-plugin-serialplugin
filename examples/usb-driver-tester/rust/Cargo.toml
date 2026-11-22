@@ -11,6 +11,3 @@ crate-type = ["cdylib"]
 [dependencies]
 android-usb-serial = { path = "../../../crates/android-usb-serial", features = ["fake-transport"] }
 log = "0.4"
-
-[target.'cfg(target_os = "android")'.dependencies]
-jni = "0.21"

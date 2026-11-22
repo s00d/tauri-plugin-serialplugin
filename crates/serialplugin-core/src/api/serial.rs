@@ -1116,7 +1116,7 @@ impl SerialManager {
     }
 
     /// [`Self::watch`] with a native parser: each complete frame becomes exactly one
-    /// [`SerialEvent::Data`](crate::events::SerialEvent::Data) (the batch timer no longer
+    /// [`SerialEvent::Data`] (the batch timer no longer
     /// applies). An invalid config fails before the watch starts. With
     /// [`WatchOptions::route_urc`] the URC split runs first and only non-URC lines reach
     /// the parser. On unwatch, close or disconnect the parser's buffered remainder is

@@ -10,12 +10,14 @@ async fn get_ports_programmatically(
     app: tauri::AppHandle,
     serial: tauri::State<'_, tauri_plugin_serialplugin::api::SerialPort<tauri::Wry>>,
 ) -> Result<String, String> {
-    let available_ports = tauri_plugin_serialplugin::commands::available_ports(app.clone(), serial.clone(), None)
-        .await
-        .map_err(|e| format!("Failed to get available ports: {}", e))?;
+    let available_ports =
+        tauri_plugin_serialplugin::commands::available_ports(app.clone(), serial.clone(), None)
+            .await
+            .map_err(|e| format!("Failed to get available ports: {}", e))?;
 
-    let managed_ports = tauri_plugin_serialplugin::commands::managed_ports(app.clone(), serial.clone())
-        .map_err(|e| format!("Failed to get managed ports: {}", e))?;
+    let managed_ports =
+        tauri_plugin_serialplugin::commands::managed_ports(app.clone(), serial.clone())
+            .map_err(|e| format!("Failed to get managed ports: {}", e))?;
 
     Ok(format!(
         "=== Programmatic Port List Retrieval ===\n\

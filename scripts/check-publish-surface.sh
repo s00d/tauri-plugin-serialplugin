@@ -98,11 +98,4 @@ for need in '^permissions/default.toml$' '^android/src/main/AndroidManifest.xml$
 done
 echo "ok: cargo package surface ($(wc -l <"$LIST" | tr -d ' ') files)"
 
-if command -v cargo-public-api >/dev/null 2>&1 || cargo public-api --help >/dev/null 2>&1; then
-  echo "==> cargo public-api"
-  cargo public-api || true
-else
-  echo "skip: cargo-public-api not installed"
-fi
-
 echo "PUBLISH SURFACE OK"

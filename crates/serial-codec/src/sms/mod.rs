@@ -5,7 +5,7 @@
 //! - [`ucs2`]: UTF-16BE user data, surrogate pairs included.
 //! - [`pdu`]: decode SMS-DELIVER / SMS-SUBMIT / SMS-STATUS-REPORT, encode SMS-SUBMIT
 //!   (with automatic concatenation).
-//! - [`concat`]: multipart reassembly keyed by (type, address, reference, total).
+//! - [`mod@concat`]: multipart reassembly keyed by (type, address, reference, total).
 //!
 //! All decoders are byte based and return errors for malformed input; none panic.
 

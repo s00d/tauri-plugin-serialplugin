@@ -54,6 +54,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: rustdoc
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --features serialplugin-core/ble,android-usb-serial/fake-transport,android-usb-serial/serialport-compat
+
       # `--target all` also covers the Android / iOS-only dependencies.
       - name: serialplugin-core has no Tauri dependency
         shell: bash

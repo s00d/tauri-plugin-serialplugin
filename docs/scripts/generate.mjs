@@ -295,7 +295,7 @@ function parseCommands(src) {
       params,
       returns: ok.replace(/\s+/g, ' '),
       // "See <site>/reference/commands" lines point back at this very page.
-      doc: doc.filter((l) => !/^See (docs\/|https:\/\/s00d\.github\.io\/)/.test(l)).join('\n').trim(),
+      doc: doc.filter((l) => !/^See <?(docs\/|https:\/\/s00d\.github\.io\/)/.test(l)).join('\n').trim(),
     })
     doc = []
     i = j - 1

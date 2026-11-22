@@ -62,7 +62,7 @@ pub(crate) fn check_tcp_allowed(allowlist: Option<&[String]>, path: &str) -> Res
 }
 
 /// Lists all available serial ports on the system
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn available_ports<R: Runtime>(
     _app: AppHandle<R>,
@@ -76,7 +76,7 @@ pub async fn available_ports<R: Runtime>(
 }
 
 /// Lists all currently managed serial ports
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub fn managed_ports<R: Runtime>(
     _app: AppHandle<R>,
@@ -86,7 +86,7 @@ pub fn managed_ports<R: Runtime>(
 }
 
 /// Cancels an in-flight poll `read` on a serial port (does not stop an active `watch`).
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn cancel_read<R: Runtime>(
     _app: AppHandle<R>,
@@ -97,7 +97,7 @@ pub async fn cancel_read<R: Runtime>(
 }
 
 /// Closes a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn close<R: Runtime>(
     _app: AppHandle<R>,
@@ -108,7 +108,7 @@ pub async fn close<R: Runtime>(
 }
 
 /// Closes all open serial ports
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn close_all<R: Runtime>(
     _app: AppHandle<R>,
@@ -118,7 +118,7 @@ pub async fn close_all<R: Runtime>(
 }
 
 /// Forcefully closes a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn force_close<R: Runtime>(
     _app: AppHandle<R>,
@@ -129,7 +129,7 @@ pub async fn force_close<R: Runtime>(
 }
 
 /// Opens a serial port with the specified configuration
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn open<R: Runtime>(
@@ -165,7 +165,7 @@ pub async fn open<R: Runtime>(
 }
 
 /// Writes string data to a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn write<R: Runtime>(
     _app: AppHandle<R>,
@@ -177,7 +177,7 @@ pub async fn write<R: Runtime>(
 }
 
 /// Writes binary data to a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn write_binary<R: Runtime>(
     _app: AppHandle<R>,
@@ -189,7 +189,7 @@ pub async fn write_binary<R: Runtime>(
 }
 
 /// Reads string data from a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read<R: Runtime>(
     _app: AppHandle<R>,
@@ -202,7 +202,7 @@ pub async fn read<R: Runtime>(
 }
 
 /// Reads binary data from a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read_binary<R: Runtime>(
     _app: AppHandle<R>,
@@ -215,7 +215,7 @@ pub async fn read_binary<R: Runtime>(
 }
 
 /// Returns runtime capabilities (transport, platform, version) without window probing.
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub fn capabilities() -> Result<Capabilities, Error> {
     Ok(Capabilities::current())
@@ -223,7 +223,7 @@ pub fn capabilities() -> Result<Capabilities, Error> {
 
 /// Streams serial port events through a Tauri IPC channel (the 4.0.0 entry point, no
 /// parser). The IPC `watch` command is [`framed::watch`], which also takes `parser`.
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 pub async fn watch<R: Runtime>(
     _app: AppHandle<R>,
     serial: State<'_, SerialPort<R>>,
@@ -260,7 +260,7 @@ pub mod framed {
 }
 
 /// Stops a watch session by channel id.
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn unwatch<R: Runtime>(
     _app: AppHandle<R>,
@@ -295,7 +295,7 @@ pub async fn unwatch_ports<R: Runtime>(
 }
 
 /// Sets the baud rate for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_baud_rate<R: Runtime>(
     _app: AppHandle<R>,
@@ -307,7 +307,7 @@ pub async fn set_baud_rate<R: Runtime>(
 }
 
 /// Sets the number of data bits for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_data_bits<R: Runtime>(
     _app: AppHandle<R>,
@@ -319,7 +319,7 @@ pub async fn set_data_bits<R: Runtime>(
 }
 
 /// Sets the flow control mode for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_flow_control<R: Runtime>(
     _app: AppHandle<R>,
@@ -331,7 +331,7 @@ pub async fn set_flow_control<R: Runtime>(
 }
 
 /// Sets the parity checking mode for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_parity<R: Runtime>(
     _app: AppHandle<R>,
@@ -343,7 +343,7 @@ pub async fn set_parity<R: Runtime>(
 }
 
 /// Sets the number of stop bits for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_stop_bits<R: Runtime>(
     _app: AppHandle<R>,
@@ -355,7 +355,7 @@ pub async fn set_stop_bits<R: Runtime>(
 }
 
 /// Sets the read timeout for a serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_timeout<R: Runtime>(
     _app: AppHandle<R>,
@@ -371,7 +371,7 @@ pub async fn set_timeout<R: Runtime>(
 }
 
 /// Sets the RTS (Request To Send) control signal
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn write_request_to_send<R: Runtime>(
     _app: AppHandle<R>,
@@ -383,7 +383,7 @@ pub async fn write_request_to_send<R: Runtime>(
 }
 
 /// Sets the DTR (Data Terminal Ready) control signal
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn write_data_terminal_ready<R: Runtime>(
     _app: AppHandle<R>,
@@ -395,7 +395,7 @@ pub async fn write_data_terminal_ready<R: Runtime>(
 }
 
 /// Reads the CTS (Clear To Send) control signal state
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read_clear_to_send<R: Runtime>(
     _app: AppHandle<R>,
@@ -406,7 +406,7 @@ pub async fn read_clear_to_send<R: Runtime>(
 }
 
 /// Reads the DSR (Data Set Ready) control signal state
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read_data_set_ready<R: Runtime>(
     _app: AppHandle<R>,
@@ -417,7 +417,7 @@ pub async fn read_data_set_ready<R: Runtime>(
 }
 
 /// Reads the RI (Ring Indicator) control signal state
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read_ring_indicator<R: Runtime>(
     _app: AppHandle<R>,
@@ -428,7 +428,7 @@ pub async fn read_ring_indicator<R: Runtime>(
 }
 
 /// Reads the CD (Carrier Detect) control signal state
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn read_carrier_detect<R: Runtime>(
     _app: AppHandle<R>,
@@ -439,7 +439,7 @@ pub async fn read_carrier_detect<R: Runtime>(
 }
 
 /// Gets the number of bytes available to read from the serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn bytes_to_read<R: Runtime>(
     _app: AppHandle<R>,
@@ -450,7 +450,7 @@ pub async fn bytes_to_read<R: Runtime>(
 }
 
 /// Gets the number of bytes available to write to the serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn bytes_to_write<R: Runtime>(
     _app: AppHandle<R>,
@@ -461,7 +461,7 @@ pub async fn bytes_to_write<R: Runtime>(
 }
 
 /// Clears the specified buffer of the serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn clear_buffer<R: Runtime>(
     _app: AppHandle<R>,
@@ -473,7 +473,7 @@ pub async fn clear_buffer<R: Runtime>(
 }
 
 /// Sets the break condition on the serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn set_break<R: Runtime>(
     _app: AppHandle<R>,
@@ -484,7 +484,7 @@ pub async fn set_break<R: Runtime>(
 }
 
 /// Clears the break condition on the serial port
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn clear_break<R: Runtime>(
     _app: AppHandle<R>,
@@ -495,7 +495,7 @@ pub async fn clear_break<R: Runtime>(
 }
 
 /// Sets the global log level for the plugin
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub fn set_log_level<R: Runtime>(
     _app: AppHandle<R>,
@@ -507,7 +507,7 @@ pub fn set_log_level<R: Runtime>(
 }
 
 /// Gets the current global log level
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub fn get_log_level<R: Runtime>(
     _app: AppHandle<R>,
@@ -517,7 +517,7 @@ pub fn get_log_level<R: Runtime>(
 }
 
 /// Write and read-until-response (AT-style exchange).
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn exchange<R: Runtime>(
     _app: AppHandle<R>,
@@ -535,7 +535,7 @@ pub async fn exchange<R: Runtime>(
 }
 
 /// Cancel an in-flight exchange on a port.
-/// See https://s00d.github.io/tauri-plugin-serialplugin/reference/commands
+/// See <https://s00d.github.io/tauri-plugin-serialplugin/reference/commands>
 #[tauri::command]
 pub async fn cancel_exchange<R: Runtime>(
     _app: AppHandle<R>,

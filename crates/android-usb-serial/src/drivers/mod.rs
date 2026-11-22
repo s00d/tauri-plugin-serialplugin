@@ -1,7 +1,7 @@
 //! USB serial driver implementations.
 //!
-//! Each chip family implements the [`Driver`](crate::drivers::Driver) trait. Prefer
-//! [`crate::open_port`], which calls [`create_driver`](crate::drivers::create_driver)
+//! Each chip family implements the [`Driver`] trait. Prefer
+//! [`crate::open_port`], which calls [`create_driver`]
 //! after [`crate::ProbeTable`] selection.
 
 mod cdc_acm;

@@ -29,7 +29,8 @@ fn run_fake_matrix(driver: DriverType, fake: FakeTransport) -> Result<(), String
     }
     fake.script_control_in_response(vec![0]);
     let transport: Arc<dyn Transport> = Arc::new(fake);
-    let mut port = android_usb_serial::device::open_port(transport, 0).map_err(|e| e.to_string())?;
+    let mut port =
+        android_usb_serial::device::open_port(transport, 0).map_err(|e| e.to_string())?;
     if port
         .set_line_config(LineConfig {
             baud_rate: 115_200,
@@ -59,7 +60,11 @@ fn run_real_fd_test(fd: i32, vendor_id: u16, product_id: u16) -> String {
     let mut lines = Vec::new();
     let table = ProbeTable::default_table();
     let driver = table.find(vendor_id, product_id, &[]);
-    lines.push(format!("probe {} → {}", hex_vid_pid(vendor_id, product_id), driver_name(driver)));
+    lines.push(format!(
+        "probe {} → {}",
+        hex_vid_pid(vendor_id, product_id),
+        driver_name(driver)
+    ));
 
     let device = match from_raw_fd(fd) {
         Ok(d) => d,

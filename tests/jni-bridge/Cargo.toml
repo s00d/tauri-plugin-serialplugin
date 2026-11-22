@@ -11,3 +11,7 @@ publish = false
 jni = { version = "0.21", features = ["invocation"] }
 serde = "1.0"
 serialport = { version = "4.10.1", default-features = false }
+
+# The included core sources have features this crate does not declare.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("tauri"))'] }

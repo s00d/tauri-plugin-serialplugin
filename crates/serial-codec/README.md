@@ -131,6 +131,6 @@ Minimum Rust version: 1.85.
 
 ## License
 
-[MPL-2.0](LICENSE). You can use the crate in any project, open or closed source,
+[MPL-2.0](https://github.com/s00d/tauri-plugin-serialplugin/blob/main/crates/serial-codec/LICENSE). You can use the crate in any project, open or closed source,
 under any license. If you distribute a modified version of this crate's files,
 those files must stay MPL-2.0 and their source must be published.
