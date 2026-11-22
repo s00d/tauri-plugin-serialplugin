@@ -38,9 +38,14 @@ public API cannot make; each such module says why in its first line.
 - A step that cannot be observed in the current state is skipped by the model, not by a
   generator filter. Every case starts clean: what a case leaves behind is removed in `Drop`.
 - No timing: no sleeps, no real-time limits. Wait for events (an event on a channel, a command
-  the modem logged, a held device call); `WAIT` only bounds how long a failure takes. Per-test
-  timeouts are in `.config/nextest.toml`. Delays a test needs (flush interval, T1) are small
-  settings, not sleeps in the test. "Nothing arrives" is proved by a later event that did.
+  the modem logged, a held device call); `WAIT` only bounds how long a failure takes. Delays a
+  test needs (flush interval, T1) are small settings, not sleeps in the test. "Nothing arrives"
+  is proved by a later event that did. Where no event announces a state, `eventually` polls
+  for it; its interval (1 ms) is no synchronisation.
+- Bytes the host read are not yet bytes it handled: before a step that depends on it, wait for
+  `FakeDevice::wait_handled`, or for a second stream that got them.
+- Per-test timeouts are in `.config/nextest.toml`. CI runs `cargo test` without per-test
+  limits: there a hang costs the job's timeout, so run nextest before pushing.
 - Logs of long runs go to `target/logs/<task>.log`.
 
 ## Running

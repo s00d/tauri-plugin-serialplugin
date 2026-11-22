@@ -53,6 +53,11 @@ pub use serialplugin_core::{log_debug, log_error, log_info, log_warn};
 /// from plain Rust / headless apps.
 pub use serialplugin_core;
 
+/// The snippets of the testing guide run as doctests.
+#[cfg(all(doctest, not(any(target_os = "android", target_os = "ios"))))]
+#[doc = include_str!("../docs/content/2.guides/6.testing.md")]
+struct TestingGuide;
+
 #[cfg(target_os = "android")]
 pub use serialplugin_core::android;
 pub mod api;

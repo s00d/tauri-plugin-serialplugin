@@ -6,10 +6,15 @@ use std::sync::Arc;
 /// Receives the events of one [`SerialManager::watch`](crate::SerialManager::watch).
 ///
 /// Called on the port's RX thread, so keep it short (push into a channel for heavy
-/// work); the last events of a watch (parser remainder on unwatch / close / re-watch)
-/// may run on the caller's thread instead. Events arrive in order, one call at a time
-/// per port, never under a manager lock: the sink may call back into the manager.
-/// Return `false` once the receiver is gone; the failure is logged.
+/// work); the last events of a watch (parser remainder on unwatch / close) may run on
+/// the caller's thread instead. Events arrive in order, one call at a time per watch,
+/// never under a manager lock: the sink may call back into the manager.
+/// Return `false` once the receiver is gone; the failure is logged. A panic is caught
+/// and ends the watch.
+///
+/// Nothing arrives after `unwatch` / `close` returned: they wait for a call in progress on
+/// another thread, so a thread must not call them while it holds a lock its sink takes.
+/// Called from a sink they wait for no other thread.
 pub type EventSink = Arc<dyn Fn(SerialEvent) -> bool + Send + Sync>;
 
 /// Receives [`PortListEvent`]s of one [`SerialManager::watch_ports`](crate::SerialManager::watch_ports).
@@ -108,7 +113,8 @@ pub struct WatchOptions {
 /// back into the manager, `at()` on the same port included. Events wait in a bounded
 /// queue ([`SerialManager::set_core_queue_capacity`](crate::SerialManager::set_core_queue_capacity),
 /// default [`DEFAULT_CORE_QUEUE_BYTES`]); when it is full the sink gets one
-/// [`CoreEvent::Overflow`] and is unsubscribed. Returning `false` unsubscribes too.
+/// [`CoreEvent::Overflow`] and is unsubscribed. Returning `false` unsubscribes too, and so
+/// does a panic (it is caught).
 pub type CoreSink = Arc<dyn Fn(CoreEvent) -> bool + Send + Sync>;
 
 /// Default per-subscription queue of the core's Rust receivers (4 MiB of event data).

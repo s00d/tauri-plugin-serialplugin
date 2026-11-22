@@ -493,10 +493,7 @@ impl Sut {
         let channel = |dlci: u8| mux_path(PATH, dlci);
         match a {
             Action::Enable => {
-                let options = MuxOptions {
-                    refuse: [REFUSED].into(),
-                    ..Default::default()
-                };
+                let options = MuxOptions::default().refuse([REFUSED]);
                 let modem = Modem::new().silent("AT+W").mux(options);
                 self.logs.push(modem.log());
                 self.device.modem(modem);
@@ -559,14 +556,15 @@ impl Sut {
                 core_kind(m.unwatch_core(self.cores[i].0))
             }
             Action::ModemCloses(dlci, disc) => {
+                // A command, or an (unsolicited) response.
                 let kind = if *disc { mux::DISC } else { mux::DM };
                 self.device
-                    .send(&mux::frame(*dlci, true, kind | mux::PF, &[]));
+                    .send(&mux::frame(*dlci, !*disc, kind | mux::PF, &[]));
                 Ok(())
             }
             Action::ModemLeaves(how) => {
                 self.device.send(&match how {
-                    Leave::Disc => mux::frame(0, true, mux::DISC | mux::PF, &[]),
+                    Leave::Disc => mux::frame(0, false, mux::DISC | mux::PF, &[]),
                     Leave::Dm => mux::frame(0, true, mux::DM | mux::PF, &[]),
                     Leave::Cld => mux::control(mux::CLD, &[]),
                 });
@@ -598,19 +596,11 @@ impl Sut {
         }
     }
 
-    /// The hub handled everything the modem sent (it is back in a read).
-    fn routed(&self) {
-        self.device.wait_read();
-        self.device.hold_reads(true);
-        self.device.wait_held(1);
-        self.device.hold_reads(false);
-    }
-
     fn check(&mut self, model: &Model) {
         if model.unplugged {
             self.device.wait_closed();
         } else {
-            self.routed();
+            self.device.wait_handled();
         }
         // Writes that no longer wait: sent, or failed with their channel.
         let done: Vec<u8> = self

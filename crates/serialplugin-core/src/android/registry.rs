@@ -55,7 +55,8 @@ impl MobilePortRegistry {
         };
 
         handle.exchange_cancel.store(true, Ordering::SeqCst);
-        hub.shared().fail_all_waiters(reason);
+        // No sink runs before everything that waits has failed.
+        hub.shared().fail_waiters(reason);
         handle.tx_queue.cancel_all();
         hub.shared().emit_disconnect(path, reason);
 

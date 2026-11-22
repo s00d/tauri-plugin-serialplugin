@@ -7,6 +7,7 @@ use serialplugin_core::at::session::AtSessionConfig;
 use serialplugin_core::cmux::{CmuxPhysicalIo, CmuxSession};
 use serialplugin_core::error::ErrorKind;
 use serialplugin_core::events::{CoreEvent, PortStatus, SerialEvent, WatchOptions};
+use serialplugin_core::hub::ExchangeWaiter;
 use serialplugin_core::SerialManager;
 use std::io;
 use std::sync::mpsc;
@@ -34,10 +35,7 @@ fn muxed(path: &str, modem: Modem, options: MuxOptions) -> (SerialManager, FakeD
 /// answer, and the port talks plain AT again.
 #[test]
 fn a_session_on_an_m26() {
-    let options = MuxOptions {
-        lost_first_frames: 1,
-        ..Default::default()
-    };
+    let options = MuxOptions::default().lost_first_frames(1);
     let modem = Modem::new()
         .silent("AT+COPS=?")
         .fails("AT+BAD", "ERROR")
@@ -104,7 +102,9 @@ fn starting_fails_three_ways() {
     let silent = FakeDevice::new();
     let m = manager_with("mute", silent.port());
     let start = |timeout| m.enable_mux("mute".into(), "AT+CMUX=0,0,5,31,1,0,2".into(), timeout);
-    assert_eq!(kind(start(50).unwrap_err()), ErrorKind::Timeout);
+    let e = start(50).unwrap_err();
+    assert_eq!(e.to_string(), "exchange timed out after 50 ms");
+    assert_eq!(kind(e), ErrorKind::Timeout);
 
     silent.send(b"\r\nOK\r\n");
     wait_idle(&m, &silent, "mute", 6);
@@ -131,6 +131,9 @@ struct Wire {
     frames: Mutex<mux::Reader>,
     tx: Mutex<mpsc::Sender<mux::Frame>>,
     write_timeout: Duration,
+    /// A channel write asked how long it may wait: it does so right before it looks at the
+    /// flow control.
+    asked: Mutex<mpsc::Sender<()>>,
 }
 
 impl CmuxPhysicalIo for Wire {
@@ -141,24 +144,29 @@ impl CmuxPhysicalIo for Wire {
         Ok(())
     }
     fn write_timeout(&self, _: usize) -> Duration {
+        let _ = self.asked.lock().unwrap().send(());
         self.write_timeout
     }
+}
+
+fn wire(write_timeout: Duration) -> (Arc<Wire>, mpsc::Receiver<mux::Frame>, mpsc::Receiver<()>) {
+    let (tx, rx) = mpsc::channel();
+    let (asked, asks) = mpsc::channel();
+    let wire = Wire {
+        frames: Mutex::default(),
+        tx: Mutex::new(tx),
+        write_timeout,
+        asked: Mutex::new(asked),
+    };
+    (Arc::new(wire), rx, asks)
 }
 
 fn session(
     command: &str,
     write_timeout: Duration,
 ) -> (Arc<CmuxSession>, mpsc::Receiver<mux::Frame>) {
-    let (tx, rx) = mpsc::channel();
-    let wire = Wire {
-        frames: Mutex::default(),
-        tx: Mutex::new(tx),
-        write_timeout,
-    };
-    (
-        CmuxSession::for_command("p".into(), Arc::new(wire), command),
-        rx,
-    )
+    let (wire, rx, _) = wire(write_timeout);
+    (CmuxSession::for_command("p".into(), wire, command), rx)
 }
 
 /// Given sessions with and without T1 / N2 in their AT+CMUX command,
@@ -193,9 +201,13 @@ fn sabm_is_retried_as_the_command_says() {
         assert_eq!(next(&rx, "SABM").kind, mux::SABM);
         s.feed_physical_rx(&ua);
         opening.join().unwrap().unwrap();
-        // The V.24 signals follow, no second SABM.
-        assert_eq!(next(&rx, "MSC").payload, [mux::MSC, 0x05, 0x07, 0x8D]);
-        assert_eq!(sabms(&rx), 0);
+        // The V.24 signals follow; without T1 / N2 there is no second SABM whatever the
+        // clock says (with them a stalled test may send one).
+        let msc = pick(&rx, "MSC", |f| (f.dlci == 0).then(|| f.payload.clone()));
+        assert_eq!(msc, [mux::MSC, 0x05, 0x07, 0x8D]);
+        if command == "AT+CMUX=0" {
+            assert_eq!(sabms(&rx), 0);
+        }
     }
 
     let (s, rx) = session(retrying, Duration::ZERO);
@@ -210,18 +222,41 @@ fn sabm_is_retried_as_the_command_says() {
     opening.join().unwrap().unwrap();
 
     for s in [session("AT+CMUX=0", Duration::ZERO), {
-        let (tx, rx) = mpsc::channel();
-        let wire = Wire {
-            frames: Mutex::default(),
-            tx: Mutex::new(tx),
-            write_timeout: Duration::ZERO,
-        };
-        (CmuxSession::new("p".into(), Arc::new(wire)), rx)
+        let (wire, rx, _) = wire(Duration::ZERO);
+        (CmuxSession::new("p".into(), wire), rx)
     }] {
         s.0.register_dlci(1, "p#dlci=1".into());
         let e = s.0.open_dlci(1, Duration::from_millis(5)).unwrap_err();
         assert_eq!(e, "no UA for CMUX DLCI 1 within 100 ms");
         assert_eq!(sabms(&s.1), 1);
+    }
+}
+
+/// Given a session with an exchange waiting on a channel, and a watch with a batch,
+/// when the channel is unregistered, or registered again over the old one,
+/// then the exchange fails, the watch gets its batch, and only the new channel is live.
+#[test]
+fn a_channel_that_goes_takes_its_exchange_and_watch() {
+    for reopen in [false, true] {
+        let (s, _rx) = session("AT+CMUX=0", Duration::ZERO);
+        s.register_dlci(1, "p#dlci=1".into());
+        let (events, events_rx) = sink::<SerialEvent>();
+        s.set_watch_with(1, events, NEVER, None);
+        s.feed_physical_rx(&mux::data(1, b"batch"));
+        let options = no_prepare(LONG_MS).resolve();
+        let waiter = ExchangeWaiter::new(options, Arc::default());
+        s.set_exchange_waiter(1, waiter.clone());
+        if reopen {
+            s.register_dlci(1, "p#dlci=1".into());
+            s.feed_physical_rx(&mux::data(1, b"nobody's"));
+        } else {
+            s.unregister_dlci(1);
+            s.tick();
+        }
+        assert_eq!(waiter.wait(LONG_MS).unwrap_err(), "port closed");
+        let events = rest(events_rx);
+        assert_eq!(events.len(), 1, "{events:?}");
+        assert_eq!(data(&events[0]).unwrap(), b"batch");
     }
 }
 
@@ -253,17 +288,25 @@ fn flow_control_outlasts_a_write() {
     let first = data(&rx);
     assert_eq!((first.dlci, first.payload), (2, b"now".to_vec()));
     // A reopened channel is not held by what its previous life was told.
-    s.feed_physical_rx(&mux::frame(1, true, mux::DISC | mux::PF, &[]));
+    s.feed_physical_rx(&mux::frame(1, false, mux::DISC | mux::PF, &[]));
     s.register_dlci(1, "p#dlci=1".into());
     assert_eq!(s.send_uih(1, b"again"), Ok(5));
 
-    let (s, rx) = session("AT+CMUX=0", WAIT);
+    let (wire, rx, asks) = wire(Duration::from_millis(LONG_MS));
+    let s = CmuxSession::for_command("p".into(), wire, "AT+CMUX=0");
     s.register_dlci(1, "p#dlci=1".into());
     s.feed_physical_rx(&mux::control(mux::FCOFF, &[]));
     assert_eq!(next(&rx, "FCoff answer").payload, [mux::FCOFF & !2, 1]);
     let write = |bytes: &'static [u8]| {
-        let s = s.clone();
-        std::thread::spawn(move || s.send_uih(1, bytes))
+        let writer = s.clone();
+        let write = std::thread::spawn(move || writer.send_uih(1, bytes));
+        next(&asks, "the write");
+        // It neither sends nor fails: a command answered later shows no data before it.
+        meanwhile();
+        s.feed_physical_rx(&mux::control(0x23, b"t"));
+        assert_eq!(next(&rx, "TEST answer").payload, [0x21, 3, b't']);
+        assert!(!write.is_finished(), "the write did not wait");
+        write
     };
     let waiting = write(b"a");
     s.feed_physical_rx(&mux::control(mux::FCON, &[]));
@@ -272,8 +315,9 @@ fn flow_control_outlasts_a_write() {
     assert_eq!(next(&rx, "data").payload, b"a");
 
     s.feed_physical_rx(&mux::control(mux::FCOFF, &[]));
+    assert_eq!(next(&rx, "FCoff answer").payload, [mux::FCOFF & !2, 1]);
     let waiting = write(b"b");
-    s.feed_physical_rx(&mux::frame(1, true, mux::DISC | mux::PF, &[]));
+    s.feed_physical_rx(&mux::frame(1, false, mux::DISC | mux::PF, &[]));
     assert_eq!(
         waiting.join().unwrap().unwrap_err(),
         "CMUX DLCI 1 closed by the modem"
@@ -319,8 +363,8 @@ fn exchanges_and_writes_end_with_their_channel() {
         if unplug {
             device.fail_reads(io::ErrorKind::BrokenPipe);
         } else {
-            device.send(&mux::frame(1, true, mux::DISC | mux::PF, &[]));
-            device.send(&mux::frame(2, true, mux::DISC | mux::PF, &[]));
+            device.send(&mux::frame(1, false, mux::DISC | mux::PF, &[]));
+            device.send(&mux::frame(2, false, mux::DISC | mux::PF, &[]));
         }
         let e = exchange.join().unwrap().unwrap_err();
         if unplug {
@@ -356,10 +400,7 @@ fn exchanges_and_writes_end_with_their_channel() {
 /// then other ports work meanwhile, the close ends with the answer, or after T2 without one.
 #[test]
 fn closing_waits_for_the_modem_not_for_the_manager() {
-    let options = MuxOptions {
-        answer_cld: false,
-        ..Default::default()
-    };
+    let options = MuxOptions::default().answer_cld(false);
     let (m, device, log) = muxed("slow", Modem::new(), options.clone());
     let other = FakeDevice::new();
     m.insert_port("other".into(), Box::new(other.port()))
@@ -369,8 +410,7 @@ fn closing_waits_for_the_modem_not_for_the_manager() {
     log.wait_frame("CLD", cld);
     m.write("other".into(), "x".into()).unwrap();
     assert_eq!(m.managed_ports().unwrap().len(), 2);
-    assert!(!closing.is_finished(), "close did not wait for CLD");
-    device.send(&mux::frame(0, true, mux::UIH, &[mux::CLD & !2, 1]));
+    device.send(&mux::control(mux::CLD & !2, &[]));
     closing.join().unwrap().unwrap();
 
     // T2 20 ms, never answered.

@@ -16,7 +16,7 @@ use serialport::SerialPort;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// A manager with `port` open as `path`.
 pub fn manager_with(path: &str, port: impl SerialPort + 'static) -> SerialManager {
@@ -127,8 +127,68 @@ pub fn next_state(rx: &Receiver<CoreEvent>, path: &str) -> PortStatus {
 pub fn settle(mut done: impl FnMut() -> bool) {
     let deadline = Instant::now() + WAIT;
     while !done() && Instant::now() < deadline {
-        std::thread::yield_now();
+        std::thread::park_timeout(Duration::from_millis(1));
     }
+}
+
+/// What happened, in order.
+pub type Log = Arc<Mutex<Vec<String>>>;
+
+pub fn note(log: &Log, what: impl Into<String>) {
+    log.lock().unwrap().push(what.into());
+}
+
+/// A sink that stays in each event until its [`Gate`] opens; the log gets `in X` and
+/// `out X` of each. `X`: the bytes of `Data`, or the kind of the event.
+pub fn gated(log: &Log) -> (Sink<SerialEvent>, Gate) {
+    let (entered, entries) = mpsc::channel();
+    let (open, opened) = mpsc::channel::<()>();
+    let locked = Mutex::new((entered, opened));
+    let log = log.clone();
+    let sink = Arc::new(move |event| {
+        let what = match &event {
+            SerialEvent::Data { data, .. } => String::from_utf8_lossy(data).into_owned(),
+            SerialEvent::Disconnect { .. } => "Disconnect".into(),
+            other => panic!("unexpected {other:?}"),
+        };
+        note(&log, format!("in {what}"));
+        let locked = locked.lock().unwrap();
+        let _ = locked.0.send(what.clone());
+        let _ = locked.1.recv();
+        note(&log, format!("out {what}"));
+        true
+    });
+    (sink, Gate { entries, open })
+}
+
+/// Holds a [`gated`] sink; opens when dropped, also by a failing test.
+pub struct Gate {
+    entries: Receiver<String>,
+    #[allow(dead_code)]
+    open: mpsc::Sender<()>,
+}
+
+impl Gate {
+    /// Wait until the sink is in `what`.
+    pub fn wait_in(&self, what: &str) {
+        assert_eq!(next(&self.entries, what), what);
+    }
+}
+
+/// Another port from open to close with a command in between: whatever could have happened
+/// by now has. (It proves nothing by itself: it gives a call that wrongly did not wait the
+/// time to show it in the log.)
+pub fn meanwhile() {
+    let device = FakeDevice::with_modem(Modem::new());
+    let m = manager_with("meanwhile", device.port());
+    m.at("meanwhile".into(), "AT".into(), None).unwrap();
+    m.close("meanwhile".into()).unwrap();
+}
+
+/// Join a call that must end without help.
+pub fn ends<T>(what: &str, call: JoinHandle<T>) -> T {
+    eventually(what, || call.is_finished());
+    call.join().unwrap()
 }
 
 /// What is left of a stream whose sender is gone.

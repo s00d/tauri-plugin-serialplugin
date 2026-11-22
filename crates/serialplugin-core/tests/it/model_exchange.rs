@@ -478,14 +478,6 @@ impl Sut {
         self.m.cancel_read(PATH.into()).is_ok()
     }
 
-    /// The hub read and routed everything sent (it is back in a read).
-    fn routed(&self) {
-        self.device.wait_read();
-        self.device.hold_reads(true);
-        self.device.wait_held(1);
-        self.device.hold_reads(false);
-    }
-
     /// Send `bytes` as reads cut at `cuts`.
     fn send(&self, bytes: &[u8], cuts: &[usize]) {
         let mut rest = bytes;
@@ -522,12 +514,12 @@ impl Sut {
         match call.end {
             End::Cancel => {
                 self.send(&body, &call.cuts);
-                self.routed();
+                self.device.wait_handled();
                 self.m.cancel_exchange(PATH.into()).unwrap();
             }
             End::Unplug => {
                 self.send(&body, &call.cuts);
-                self.routed();
+                self.device.wait_handled();
                 self.device.fail_reads(io::ErrorKind::BrokenPipe);
             }
             End::Silence => {}
@@ -563,11 +555,11 @@ impl Sut {
             Action::Rx(lines, cuts) => {
                 let text: String = lines.iter().map(|l| format!("{}\r\n", l.text())).collect();
                 self.send(text.as_bytes(), cuts);
-                self.routed();
+                self.device.wait_handled();
             }
             Action::Tail(text) => {
                 self.device.send(text.as_bytes());
-                self.routed();
+                self.device.wait_handled();
             }
             Action::Watch(view) => {
                 let (sink, got) = recorder(*view);
@@ -781,7 +773,7 @@ fn any_cut_of_a_reply_completes_the_same() {
         failure_persistence: None,
         ..Config::default()
     });
-    // Up to 64 phone-book sized lines: the cost is linear, so this stays quick.
+    // Up to 64 phone-book sized lines; `a_long_reply_completes` has the long ones.
     let input = (call(), 0usize..64, vec(1usize..70, 1..40));
     let result = runner.run(&input, |(call, filler, cuts)| {
         let line = "\r\n+CPBR: 1,\"+10000000001\",145,\"Name\"\r\n";
@@ -820,5 +812,34 @@ fn any_cut_of_a_reply_completes_the_same() {
     });
     if let Err(e) = result {
         panic!("{e}");
+    }
+}
+
+/// Given a reply of a mebibyte that comes in small reads,
+/// when a waiter collects it, in each completion mode,
+/// then it completes with every byte. (Completion looks at what is new only: looking at the
+/// whole reply with each read would take minutes here, past the per-test limit.)
+#[test]
+fn a_long_reply_completes() {
+    let line = b"\r\n+CPBR: 1,\"+10000000001\",145,\"Name\"\r\n";
+    let modes = [
+        (None, None, &b"\r\nOK\r\n"[..]),
+        (None, Some(AtResultFormat::Numeric), b"0\r"),
+        (Some(ExchangeCompletionMode::Substring), None, b"\r\nOK\r\n"),
+    ];
+    for (completion_mode, result_format, end) in modes {
+        let reply = [&line.repeat((1 << 20) / line.len())[..], end].concat();
+        let options = ExchangeOptions {
+            command: Some("AT+CPBR=1,9999".into()),
+            max_bytes: Some(2 << 20),
+            completion_mode,
+            result_format,
+            ..Default::default()
+        };
+        let waiter = ExchangeWaiter::new(options.resolve(), Arc::new(AtomicBool::new(false)));
+        for read in reply.chunks(64) {
+            waiter.push_bytes(read);
+        }
+        assert_eq!(waiter.wait(0).unwrap().0.len(), reply.len());
     }
 }

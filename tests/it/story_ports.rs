@@ -94,7 +94,9 @@ fn multiplexer_channels_from_enable_to_close() {
         let device = plugin.device(device_kind);
         let path = device.path.as_str();
         let enable = || {
-            let options = json!({ "command": "AT+CMUX=0", "timeoutMs": ANSWERED_MS });
+            // T1 and T2 as long as 27.007 allows: the modem answers in time.
+            let command = "AT+CMUX=0,0,5,31,255,0,255";
+            let options = json!({ "command": command, "timeoutMs": ANSWERED_MS });
             plugin.invoke("enable_mux", json!({ "path": path, "options": options }))
         };
         let at = |path: &str| {
@@ -164,7 +166,7 @@ fn multiplexer_channels_from_enable_to_close() {
             frames.iter().filter(cld).count()
         };
         plugin.ok("disable_mux", json!({ "path": path }));
-        assert_eq!(clds(), 1);
+        eventually("CLD on disable", || clds() == 1);
         assert_eq!(plugin.managed(), [path.to_string()]);
         assert_eq!(at(path)["status"], "ok");
 

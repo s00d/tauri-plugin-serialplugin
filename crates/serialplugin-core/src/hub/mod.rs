@@ -4,6 +4,7 @@ pub(crate) mod delivery;
 pub mod desktop;
 pub mod handle;
 pub mod shared;
+pub(crate) mod stream;
 
 pub use desktop::PortRxHub;
 pub use handle::RxHubHandle;

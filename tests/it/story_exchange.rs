@@ -159,7 +159,8 @@ fn session_defaults_hold_for_every_command() {
                 polls
             })
         };
-        assert_eq!(kind(at("ATMUTE")), ErrorKind::Timeout);
+        // The session's time, not a default.
+        assert_eq!(at("ATMUTE"), Err(json!("exchange timed out after 50 ms")));
         stop.store(true, Ordering::SeqCst);
         assert!(polls.join().unwrap() > 0);
 

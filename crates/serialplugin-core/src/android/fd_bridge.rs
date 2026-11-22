@@ -1,4 +1,5 @@
-//! JNI bridge: Kotlin UsbFdBridge → Rust fd API.
+//! JNI bridge: Kotlin UsbFdBridge → Rust fd API. `tests/jni-bridge` compiles this file
+//! (cfg `test`) and runs it on a desktop JVM.
 
 #[cfg(any(target_os = "android", test))]
 use crate::error::Error;
@@ -161,49 +162,4 @@ pub fn call_close_device_fd(device_name: &str) -> Result<(), Error> {
         )?;
         Ok(())
     })
-}
-
-#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
-mod tests {
-    //! In `src/`: private Android code, checked on a desktop JVM.
-    use super::*;
-
-    #[test]
-    fn failed_java_call_is_cleared_before_returning_to_caller() {
-        let args = jni::InitArgsBuilder::new().build().unwrap();
-        init_java_vm(JavaVM::new(args).unwrap());
-        // Keep the thread attached so we can inspect the exception state after
-        // with_env returns, before thread teardown could deliver it to Java.
-        let env = JVM.get().unwrap().attach_current_thread().unwrap();
-        let result: Result<(), Error> = with_env(|env| {
-            let invalid = env.new_string("not-a-number")?;
-            env.call_static_method(
-                "java/lang/Integer",
-                "parseInt",
-                "(Ljava/lang/String;)I",
-                &[JValue::Object(&JObject::from(invalid))],
-            )?;
-            Ok(())
-        });
-        let pending = env.exception_check().unwrap();
-        // Also clear on test failure so the failing regression cannot kill the JVM.
-        env.exception_clear().unwrap();
-        assert!(!pending, "failed JNI call leaked a pending Java exception");
-        assert!(result.unwrap_err().to_string().contains("not-a-number"));
-        assert_eq!(with_env(|_| Ok(42)).unwrap(), 42);
-        assert_eq!(
-            with_env::<(), _>(|_| Err(Error::new("native failure")))
-                .unwrap_err()
-                .to_string(),
-            "native failure"
-        );
-        // A Throwable with a null message must still be cleared.
-        let result: Result<(), Error> = with_env(|env| {
-            let exception = env.new_object("java/io/IOException", "()V", &[])?;
-            env.throw(jni::objects::JThrowable::from(exception))?;
-            Err(Error::new("JNI failure"))
-        });
-        assert!(result.is_err());
-        assert!(!env.exception_check().unwrap());
-    }
 }

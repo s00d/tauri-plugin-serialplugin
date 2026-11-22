@@ -1,16 +1,24 @@
 //! An in-memory serial device.
 
-use crate::{eventually, Modem};
+use crate::{Modem, WAIT};
 use serialport::{ClearBuffer, DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-type Responder = Box<dyn FnMut(&[u8], usize) -> Vec<u8> + Send>;
+type Responder = Box<dyn FnMut(&FakeDevice, &[u8], usize) -> Vec<u8> + Send>;
 
 /// Modem status lines a [`FakeDevice`] reports.
+///
+/// ```
+/// use serialplugin_testing::Lines;
+///
+/// let lines = Lines::default().cts(false).ring(true);
+/// assert!(!lines.cts && lines.dsr && lines.ring && !lines.carrier);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Lines {
     /// Clear to send.
     pub cts: bool,
@@ -31,6 +39,32 @@ impl Default for Lines {
             ring: false,
             carrier: false,
         }
+    }
+}
+
+impl Lines {
+    /// Set clear to send.
+    pub fn cts(mut self, on: bool) -> Self {
+        self.cts = on;
+        self
+    }
+
+    /// Set data set ready.
+    pub fn dsr(mut self, on: bool) -> Self {
+        self.dsr = on;
+        self
+    }
+
+    /// Set the ring indicator.
+    pub fn ring(mut self, on: bool) -> Self {
+        self.ring = on;
+        self
+    }
+
+    /// Set carrier detect.
+    pub fn carrier(mut self, on: bool) -> Self {
+        self.carrier = on;
+        self
     }
 }
 
@@ -89,10 +123,19 @@ struct State {
     hold_writes: bool,
     hold_reads: bool,
     held: usize,
+    /// Read calls in progress.
+    reading: usize,
     driver_pending: Option<u32>,
     out_pending: u32,
+    /// Handles of the host.
     ports: usize,
+    /// Handles of the test.
+    handles: usize,
     responder: Option<Responder>,
+    /// Writes the responder has not answered yet.
+    unanswered: VecDeque<Vec<u8>>,
+    /// A writer runs the responder (without the lock): it answers the writes of others too.
+    answering: bool,
 }
 
 #[derive(Clone)]
@@ -109,17 +152,99 @@ impl Shared {
         out
     }
 
+    fn notify(&self) {
+        self.0 .1.notify_all();
+    }
+
     /// Block while `gate` holds, counted as a held call.
-    fn pass(&self, gate: impl Fn(&State) -> bool) -> MutexGuard<'_, State> {
-        let mut state = self.lock();
+    fn pass<'a>(
+        &'a self,
+        mut state: MutexGuard<'a, State>,
+        gate: impl Fn(&State) -> bool,
+    ) -> MutexGuard<'a, State> {
         if gate(&state) {
             state.held += 1;
+            self.notify();
             while gate(&state) {
                 state = self.0 .1.wait(state).unwrap_or_else(|e| e.into_inner());
             }
             state.held -= 1;
+            self.notify();
         }
         state
+    }
+
+    /// Wait until `done` holds; panics with `what` after [`WAIT`].
+    fn wait(&self, what: &str, done: impl Fn(&State) -> bool) {
+        let deadline = Instant::now() + WAIT;
+        let mut state = self.lock();
+        while !done(&state) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                drop(state);
+                panic!("never: {what}");
+            }
+            let woken = self.0 .1.wait_timeout(state, left);
+            state = woken.unwrap_or_else(|e| e.into_inner()).0;
+        }
+    }
+
+    /// Answer the writes not answered yet, in order.
+    fn answer(&self) {
+        /// The responder while it is out; a panic in it puts it back.
+        struct Out<'a> {
+            shared: &'a Shared,
+            responder: Option<Responder>,
+            done: bool,
+        }
+        impl Drop for Out<'_> {
+            fn drop(&mut self) {
+                if self.done {
+                    return;
+                }
+                self.shared.change(|s| {
+                    if s.responder.is_none() {
+                        s.responder = self.responder.take();
+                    }
+                    s.answering = false;
+                });
+            }
+        }
+        {
+            let mut state = self.lock();
+            if state.answering || state.responder.is_none() {
+                return;
+            }
+            state.answering = true;
+        }
+        let device = FakeDevice::handle(self.clone());
+        let mut out = Out {
+            shared: self,
+            responder: None,
+            done: false,
+        };
+        while !out.done {
+            let mut state = self.lock();
+            // The first one, or one an answer has set meanwhile.
+            let mut replaced = None;
+            if let Some(new) = state.responder.take() {
+                replaced = out.responder.replace(new);
+            }
+            let next = state.unanswered.pop_front();
+            let unread = state.rx.len();
+            if next.is_none() {
+                state.responder = out.responder.take();
+                state.answering = false;
+                out.done = true;
+            }
+            // The responder may use its device, also when it is dropped.
+            drop(state);
+            drop(replaced);
+            if let (Some(bytes), Some(responder)) = (next, &mut out.responder) {
+                let reply = responder(&device, &bytes, unread);
+                self.change(|s| s.rx.extend(reply));
+            }
+        }
     }
 }
 
@@ -142,8 +267,29 @@ impl Shared {
 /// port.read_exact(&mut buf).unwrap();
 /// assert_eq!(&buf, b"pong");
 /// ```
-#[derive(Clone)]
+///
+/// Dropping the last `FakeDevice` ends [`hold_reads`](Self::hold_reads) and
+/// [`hold_writes`](Self::hold_writes), so a test that fails while it holds the host does not
+/// hang on the way out.
 pub struct FakeDevice(Shared);
+
+impl Clone for FakeDevice {
+    fn clone(&self) -> Self {
+        Self::handle(self.0.clone())
+    }
+}
+
+impl Drop for FakeDevice {
+    fn drop(&mut self) {
+        self.0.change(|s| {
+            s.handles -= 1;
+            if s.handles == 0 {
+                s.hold_reads = false;
+                s.hold_writes = false;
+            }
+        });
+    }
+}
 
 impl Default for FakeDevice {
     fn default() -> Self {
@@ -182,12 +328,21 @@ impl FakeDevice {
             hold_writes: false,
             hold_reads: false,
             held: 0,
+            reading: 0,
             driver_pending: None,
             out_pending: 0,
             ports: 0,
+            handles: 0,
             responder: None,
+            unanswered: VecDeque::new(),
+            answering: false,
         };
-        Self(Shared(Arc::new((Mutex::new(state), Condvar::new()))))
+        Self::handle(Shared(Arc::new((Mutex::new(state), Condvar::new()))))
+    }
+
+    fn handle(shared: Shared) -> Self {
+        shared.change(|s| s.handles += 1);
+        Self(shared)
     }
 
     /// A device where `modem` answers what the host writes.
@@ -227,9 +382,18 @@ impl FakeDevice {
         self.0.lock().rx.len()
     }
 
-    /// Wait until the host read everything sent.
+    /// Wait until the host read everything sent. It may still be handling it: see
+    /// [`wait_handled`](Self::wait_handled).
     pub fn wait_read(&self) {
-        eventually("the host read every byte", || self.unread() == 0);
+        self.0.wait("the host read every byte", |s| s.rx.is_empty());
+    }
+
+    /// Wait until the host read everything sent and asks for more: a host that reads and
+    /// handles the bytes on one thread has handled them by then.
+    pub fn wait_handled(&self) {
+        self.0.wait("the host handled every byte", |s| {
+            s.rx.is_empty() && s.reading > 0
+        });
     }
 
     /// Everything the host wrote so far.
@@ -239,7 +403,7 @@ impl FakeDevice {
 
     /// Wait until what the host wrote satisfies `done`; returns it.
     pub fn wait_written(&self, what: &str, done: impl Fn(&[u8]) -> bool) -> Vec<u8> {
-        eventually(what, || done(&self.0.lock().written));
+        self.0.wait(what, |s| done(&s.written));
         self.written()
     }
 
@@ -253,19 +417,25 @@ impl FakeDevice {
         self.0.lock().calls.clone()
     }
 
-    /// Answer every write: `reply` gets the written bytes and returns what the device sends.
-    pub fn respond(&self, mut reply: impl FnMut(&[u8]) -> Vec<u8> + Send + 'static) {
-        self.0
-            .change(|s| s.responder = Some(Box::new(move |bytes, _| reply(bytes))));
+    /// Answer every write: `reply` gets the device and the written bytes and returns what
+    /// the device sends. Writes are answered one at a time, in order; one made while `reply`
+    /// runs (by another handle, or by `reply` itself) is answered after it.
+    ///
+    /// Use the device it is given: a `FakeDevice` captured by `reply` is never dropped.
+    pub fn respond(&self, mut reply: impl FnMut(&FakeDevice, &[u8]) -> Vec<u8> + Send + 'static) {
+        self.set_responder(Box::new(move |device, bytes, _| reply(device, bytes)));
     }
 
     /// Let `modem` answer what the host writes.
     pub fn modem(&self, mut modem: Modem) {
-        self.0.change(|s| {
-            s.responder = Some(Box::new(move |bytes, unread| {
-                modem.feed_with_unread(bytes, unread)
-            }));
-        });
+        self.set_responder(Box::new(move |_, bytes, unread| {
+            modem.feed_with_unread(bytes, unread)
+        }));
+    }
+
+    fn set_responder(&self, responder: Responder) {
+        // The old one is dropped without the lock.
+        let _old = self.0.change(|s| s.responder.replace(responder));
     }
 
     /// Every read fails with `kind` from now on (an unplugged device).
@@ -293,6 +463,20 @@ impl FakeDevice {
         self.0.change(|s| s.eof_left = usize::MAX);
     }
 
+    /// The device works again: undoes [`fail_reads`](Self::fail_reads),
+    /// [`fail_reads_times`](Self::fail_reads_times), [`fail_writes`](Self::fail_writes),
+    /// [`stall_writes`](Self::stall_writes), [`eof`](Self::eof) and
+    /// [`eof_times`](Self::eof_times).
+    pub fn recover(&self) {
+        self.0.change(|s| {
+            s.read_error = None;
+            s.read_errors_left.0 = 0;
+            s.write_error = None;
+            s.stall_writes = false;
+            s.eof_left = 0;
+        });
+    }
+
     /// The next `n` reads return `Ok(0)`.
     pub fn eof_times(&self, n: usize) {
         self.0.change(|s| s.eof_left = n);
@@ -303,12 +487,13 @@ impl FakeDevice {
         self.0.lock().eof_reads
     }
 
-    /// While on, writes block in the device.
+    /// While on, writes block in the device. Ends when the last `FakeDevice` is dropped.
     pub fn hold_writes(&self, on: bool) {
         self.0.change(|s| s.hold_writes = on);
     }
 
-    /// While on, reads block in the device.
+    /// While on, reads block in the device, also one that waits for data already (its
+    /// timeout starts again when it is let go). Ends when the last `FakeDevice` is dropped.
     pub fn hold_reads(&self, on: bool) {
         self.0.change(|s| s.hold_reads = on);
     }
@@ -320,7 +505,8 @@ impl FakeDevice {
 
     /// Wait until `n` calls are blocked in the device.
     pub fn wait_held(&self, n: usize) {
-        eventually("the host is blocked in the device", || self.held() == n);
+        self.0
+            .wait("the host is blocked in the device", |s| s.held == n);
     }
 
     /// Set the status lines.
@@ -345,7 +531,7 @@ impl FakeDevice {
 
     /// Wait until the host dropped every handle.
     pub fn wait_closed(&self) {
-        eventually("the host closed the port", || self.open_ports() == 0);
+        self.0.wait("the host closed the port", |s| s.ports == 0);
     }
 }
 
@@ -376,6 +562,49 @@ impl FakePort {
     fn settings(&self) -> Settings {
         self.shared.lock().settings.clone()
     }
+
+    fn read_locked<'a>(
+        &'a self,
+        mut state: MutexGuard<'a, State>,
+        buf: &mut [u8],
+    ) -> (MutexGuard<'a, State>, io::Result<usize>) {
+        let mut deadline = Instant::now() + self.timeout;
+        let fails = |kind| Err(io::Error::new(kind, "fake device: read error"));
+        loop {
+            if state.hold_reads {
+                state = self.shared.pass(state, |s| s.hold_reads);
+                deadline = Instant::now() + self.timeout;
+            }
+            if let Some(kind) = state.read_error {
+                return (state, fails(kind));
+            }
+            if let (left @ 1.., kind) = state.read_errors_left {
+                state.read_errors_left.0 = left - 1;
+                return (state, fails(kind));
+            }
+            if state.eof_left > 0 {
+                if state.eof_left != usize::MAX {
+                    state.eof_left -= 1;
+                }
+                state.eof_reads += 1;
+                return (state, Ok(0));
+            }
+            if !state.rx.is_empty() {
+                let n = buf.len().min(state.rx.len());
+                for (slot, byte) in buf.iter_mut().zip(state.rx.drain(..n)) {
+                    *slot = byte;
+                }
+                return (state, Ok(n));
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                let e = io::Error::new(io::ErrorKind::TimedOut, "fake device: no data");
+                return (state, Err(e));
+            }
+            let woken = self.shared.0 .1.wait_timeout(state, left);
+            state = woken.unwrap_or_else(|e| e.into_inner()).0;
+        }
+    }
 }
 
 impl Drop for FakePort {
@@ -389,51 +618,20 @@ impl Read for FakePort {
         if buf.is_empty() {
             return Ok(0);
         }
-        let mut state = self.shared.pass(|s| s.hold_reads);
-        let deadline = Instant::now() + self.timeout;
-        loop {
-            if let Some(kind) = state.read_error {
-                return Err(io::Error::new(kind, "fake device: read error"));
-            }
-            if let (left @ 1.., kind) = state.read_errors_left {
-                state.read_errors_left.0 = left - 1;
-                return Err(io::Error::new(kind, "fake device: read error"));
-            }
-            if state.eof_left > 0 {
-                if state.eof_left != usize::MAX {
-                    state.eof_left -= 1;
-                }
-                state.eof_reads += 1;
-                return Ok(0);
-            }
-            if !state.rx.is_empty() {
-                let n = buf.len().min(state.rx.len());
-                for (slot, byte) in buf.iter_mut().zip(state.rx.drain(..n)) {
-                    *slot = byte;
-                }
-                return Ok(n);
-            }
-            let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                return Err(io::Error::new(
-                    io::ErrorKind::TimedOut,
-                    "fake device: no data",
-                ));
-            }
-            state = self
-                .shared
-                .0
-                 .1
-                .wait_timeout(state, left)
-                .unwrap_or_else(|e| e.into_inner())
-                .0;
-        }
+        let mut state = self.shared.lock();
+        state.reading += 1;
+        self.shared.notify();
+        let (mut state, result) = self.read_locked(state, buf);
+        state.reading -= 1;
+        drop(state);
+        self.shared.notify();
+        result
     }
 }
 
 impl Write for FakePort {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut state = self.shared.pass(|s| s.hold_writes);
+        let mut state = self.shared.pass(self.shared.lock(), |s| s.hold_writes);
         if let Some(kind) = state.write_error {
             return Err(io::Error::new(kind, "fake device: write error"));
         }
@@ -446,19 +644,12 @@ impl Write for FakePort {
             ));
         }
         state.written.extend(buf);
-        // Without the lock: the responder may use its device.
-        if let Some(mut responder) = state.responder.take() {
-            let unread = state.rx.len();
-            drop(state);
-            let reply = responder(buf, unread);
-            state = self.shared.lock();
-            if state.responder.is_none() {
-                state.responder = Some(responder);
-            }
-            state.rx.extend(reply);
+        if state.responder.is_some() || state.answering {
+            state.unanswered.push_back(buf.to_vec());
         }
         drop(state);
-        self.shared.0 .1.notify_all();
+        self.shared.notify();
+        self.shared.answer();
         Ok(buf.len())
     }
 

@@ -8,6 +8,7 @@
 //! not come through here: as in 4.x its sink runs on the RX side.
 
 use crate::events::{CoreEvent, CoreSink, SerialEvent};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
@@ -47,7 +48,8 @@ impl CoreQueue {
             .spawn(move || {
                 for (event, size) in rx {
                     q.fetch_sub(size, Ordering::SeqCst);
-                    if !sink(event) {
+                    // A sink that panics is gone, as one that says no.
+                    if !catch_unwind(AssertUnwindSafe(|| sink(event))).unwrap_or(false) {
                         a.store(false, Ordering::SeqCst);
                         break;
                     }

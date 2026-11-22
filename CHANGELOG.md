@@ -2,17 +2,29 @@
 
 ## Unreleased
 
-No API changes since 4.2.3. serialplugin-core 0.2.4, android-usb-serial 0.1.7, serial-codec 0.1.2, new serialplugin-testing 0.1.0.
+JS, invoke payloads and permissions are as in 4.2.3; the Rust API only gains android-usb-serial's `FakeTransport::inject_interrupt_read_error` (feature `fake-transport`). serialplugin-core 0.2.4, android-usb-serial 0.1.7, serial-codec 0.1.2, new serialplugin-testing 0.1.0.
 
 ### Fixes
 
-* `unwatch()`: the bytes the watch still held (its batch, a URC line not ended yet) are delivered to it before it returns, also on CMUX channels; they were dropped, or delivered to the next `watch()` on the port.
-* `close()` with an exchange in flight waits for the port's reader thread: nothing arrives after it returned.
-* CMUX: on unplug, exchanges and flow-controlled writes waiting on a channel fail at once (kind `Disconnected`) instead of at their timeout; a channel the modem had closed does not report `Disconnected` a second time.
+* `unwatch()`: what the watch still held (its batch, a URC line not ended yet) is delivered to it before it returns, also on CMUX channels; it was dropped, or delivered to the next `watch()` on the port. An event being delivered on another thread is waited for: nothing reaches the sink after `unwatch()` returned, also when it races `close()` or the modem leaving multiplexer mode. Bytes read while it detaches stay for the next reader.
+* `close()`: nothing reaches a watch after it returned, also with an exchange in flight or an `unwatch()` running on another thread. Exchanges, reads and queued commands on the port and its CMUX channels fail (kind `Cancelled`) before it waits for the RX thread; an exchange on a CMUX channel ran into its timeout.
+* Two sinks that close each other's ports no longer deadlock.
+* A watch sink that panics ends its own watch only; it killed the port's RX thread, and with it every other stream on the port. The same for `watch_core`, `subscribe_core` and port-list sinks.
+* CMUX: on unplug, exchanges and flow-controlled writes waiting on a channel fail at once (kind `Disconnected`), before any sink runs, instead of at their timeout; a channel the modem had closed does not report `Disconnected` a second time.
 * CMUX: flow control (MSC) of a channel's previous life no longer holds the reopened channel; a write on a channel path left from an earlier multiplexer session is an error instead of `Ok`.
+* A `read()` that times out no longer ends another `read()` that started meanwhile (the same for drains).
 * A watch with `size: 0` no longer stops the port's reads.
-* A panicking event sink no longer stops the delivery to the other sinks.
 * serial-codec: a bare `+CNMI:` line is not taken for a test response.
+
+### Behaviour notes
+
+* `unwatch()` and `close()` wait for a watch sink that runs on another thread: do not call them while holding a lock the sink takes (4.2.3 returned without waiting, and the event arrived later). Called from inside a sink they wait for no other thread; a port closed from a sink is released shortly after `close()` returned.
+* While one thread is in `unwatch()`, a new `watch()` on the path is refused as busy until that returned.
+* Commands queued behind another one when the port is closed fail with "transaction queue cancelled" (`Cancelled`; was "Port … not found").
+* Bytes that find only streams whose sink is gone (it panicked, or a `watch_core` sink returned `false`) are the next reader's; one chunk was lost.
+* `unwatch_core()` never runs or waits for the port's old watch sink (it could deliver that watch's events).
+* serialplugin-core, direct users: `CmuxSession::send_uih` on a DLCI that is not registered is an error; the `line_router`, `combined_buffer`, `flush_at` and `pending_events` fields of `HubRoutingState` stay, but the hub neither fills nor reads them.
+* android-usb-serial, `FakeTransport`: `push_interrupt_in` queues one transfer (an empty push is an empty read; they were merged), and `inject_bulk_read_error` no longer hits interrupt reads.
 
 ### New
 
@@ -20,7 +32,7 @@ No API changes since 4.2.3. serialplugin-core 0.2.4, android-usb-serial 0.1.7, s
 
 ### Internal
 
-* Tests are models and stories through the public API (TESTING.md). The documentation site is built by the release job.
+* Tests are models and stories through the public API (TESTING.md). The documentation site is built by the release job. The serialplugin-core package no longer contains its tests (they did not compile there).
 
 ## [4.2.3](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.2...v4.2.3) (2026-11-22)
 

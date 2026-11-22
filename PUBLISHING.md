@@ -40,7 +40,7 @@ token is stored anywhere.
    - <https://crates.io/crates/serialplugin-core/settings>
    - <https://crates.io/crates/android-usb-serial/settings>
    - <https://crates.io/crates/serial-codec/settings>
-   - <https://crates.io/crates/serialplugin-testing/settings> (after its first publish by hand)
+   - <https://crates.io/crates/serialplugin-testing/settings>
 2. **npm**: <https://www.npmjs.com/package/tauri-plugin-serialplugin-api/access> -> Trusted
    Publisher -> GitHub Actions. User `s00d`, repository `tauri-plugin-serialplugin`, workflow
    filename `ci.yml`, environment `crates-io`.
@@ -48,5 +48,7 @@ token is stored anywhere.
    -> environment `crates-io` (created on the first run) -> required reviewers.
 
 The environment must match the `environment:` of the `release` job, otherwise the token
-exchange is refused. A new crate cannot be created through trusted publishing: publish it by
-hand once, then add its publisher.
+exchange is refused. A new crate cannot be created through trusted publishing: publish a
+`0.0.0` placeholder (an empty `lib.rs`) by hand once, then add its publisher. Not the real
+version: the release would find it on crates.io with files changed since the last tag, and
+refuse it.

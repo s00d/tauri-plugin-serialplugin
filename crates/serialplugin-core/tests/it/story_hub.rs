@@ -139,7 +139,7 @@ fn a_drain_takes_the_bytes_and_nothing_else_waits_for_it() {
         Some(idle_gap.unwrap().build().unwrap()),
     );
     device.send(&[1, 2]);
-    device.wait_read();
+    device.wait_handled();
     let cancel = Arc::new(AtomicBool::new(false));
     let draining = thread::spawn({
         let cancel = cancel.clone();
@@ -188,7 +188,7 @@ fn urcs_in_a_drain_reach_the_watch() {
             let ticking = thread::spawn(move || {
                 while !stop.load(Ordering::SeqCst) {
                     hub.tick("hub", &mut routing);
-                    thread::yield_now();
+                    thread::park_timeout(std::time::Duration::from_millis(1));
                 }
             });
             assert!(draining.join().unwrap().is_ok());
@@ -225,6 +225,40 @@ fn callers_end_by_their_own_clock() {
     let [empty, kept] = drains.map(|d| d.join().unwrap());
     assert_eq!(empty.unwrap_err(), "drain timed out waiting for hub");
     assert_eq!(kept.unwrap(), b"kept");
+}
+
+/// Given a watch sink that puts an event behind each one it gets (a stream faster than its
+/// sink),
+/// when a caller delivers, and then detaches the watch,
+/// then each call delivers what was queued before it, not for ever, and nothing after the end.
+#[test]
+fn a_caller_delivers_what_was_queued_before_it() {
+    let shared = Arc::new(RxHubShared::for_path("hub".into()));
+    let calls = Arc::new(Mutex::new(0));
+    let (count, weak) = (calls.clone(), Arc::downgrade(&shared));
+    let event = || SerialEvent::Urc {
+        path: "hub".into(),
+        line: "+CREG: 1".into(),
+    };
+    let endless: Sink<SerialEvent> = Arc::new(move |e| {
+        let mut count = count.lock().unwrap();
+        *count += 1;
+        assert!(*count < 100, "delivered for ever");
+        drop(count);
+        weak.upgrade().unwrap().emit(e);
+        true
+    });
+    shared.attach_watch_with(endless, NEVER, 64, false, None);
+    let calls = || *calls.lock().unwrap();
+    shared.emit(event());
+    assert_eq!(calls(), 1);
+    shared.deliver_queued();
+    assert_eq!(calls(), 2);
+    shared.detach_watch();
+    assert_eq!(calls(), 3);
+    shared.deliver_queued();
+    shared.emit(event());
+    assert_eq!(calls(), 3);
 }
 
 /// Given a hand-fed hub (the Android push model),

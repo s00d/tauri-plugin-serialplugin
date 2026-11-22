@@ -352,7 +352,7 @@ fn wait_for(what: &str, f: impl Fn() -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !f() {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
-        std::thread::yield_now();
+        std::thread::park_timeout(Duration::from_millis(1));
     }
 }
 
@@ -499,8 +499,11 @@ impl Sut {
             Step::AttachCore => {
                 let (sink, got) = recorder();
                 let id = m.next_core;
-                let alive = Arc::new(AtomicBool::new(true));
-                shared.attach_core_watch(CoreWatchSlot::new(id, sink, alive, 0, 1024, false, None));
+                let target = Target::Core {
+                    sink,
+                    alive: Arc::new(AtomicBool::new(true)),
+                };
+                shared.attach_core_watch(CoreWatchSlot::new(id, target, 0, 1024, false, None));
                 sut.cores.insert(id, got);
                 sut.attached.push(id);
             }
@@ -604,4 +607,89 @@ fn hub_routing_matches_the_model() {
     if let Err(e) = result {
         panic!("{e}");
     }
+}
+
+/// Given a read (or a drain) whose slot the hub has taken while its caller gives up,
+/// when another caller's slot is in by then,
+/// then the caller that gave up leaves it alone.
+#[test]
+fn a_caller_that_gives_up_takes_only_its_own_slot() {
+    /// Run `call`, and once it has its slot in `place`, put `theirs` there instead.
+    fn swap<S: 'static>(
+        call: impl FnOnce() -> Result<Vec<u8>, String> + Send + 'static,
+        place: impl Fn() -> std::sync::MutexGuard<'static, Option<S>>,
+        theirs: S,
+    ) -> Result<Vec<u8>, String> {
+        let caller = std::thread::spawn(call);
+        let mut theirs = Some(theirs);
+        let mut own = None;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while own.is_none() {
+            assert!(Instant::now() < deadline, "no slot");
+            std::thread::park_timeout(Duration::from_millis(1));
+            let mut slot = place();
+            if slot.is_some() {
+                own = slot.take();
+                *slot = theirs.take();
+            }
+        }
+        // The hub has its slot (and answers it late).
+        let result = caller.join().unwrap();
+        drop(own);
+        result
+    }
+    let shared: &'static RxHubShared = Box::leak(Box::new(RxHubShared::new()));
+    let (tx, rx) = mpsc::sync_channel(1);
+    let read = swap(
+        || shared.read_request(4, 100, false),
+        || shared.read_slot.lock().unwrap(),
+        ReadSlot {
+            id: u64::MAX,
+            max_bytes: 4,
+            fill: false,
+            timeout_ms: READ_MS,
+            buffer: Vec::new(),
+            deadline: Instant::now() + Duration::from_secs(60),
+            tx,
+        },
+    );
+    assert_eq!(read.unwrap_err(), "no data received within 100 ms");
+    shared.feed_bytes(b"mine", &mut HubRoutingState::new(PATH.into()));
+    assert_eq!(rx.try_recv().unwrap(), Ok(b"mine".to_vec()));
+
+    let (tx, rx) = mpsc::sync_channel(1);
+    let drain = swap(
+        || shared.drain(60_000, 0, Arc::default(), Vec::new()),
+        || shared.drain.lock().unwrap(),
+        DrainSlot {
+            id: u64::MAX,
+            idle_ms: 60_000,
+            cancel: Arc::default(),
+            buffer: b"mine".to_vec(),
+            last_byte_at: None,
+            started_at: Instant::now(),
+            deadline: Instant::now() + Duration::from_secs(60),
+            solicited_prefixes: Vec::new(),
+            tx,
+        },
+    );
+    assert_eq!(drain.unwrap_err(), "drain timed out waiting for hub");
+    shared.fail_all_waiters("ended");
+    assert_eq!(rx.try_recv().unwrap(), Err("ended".into()));
+}
+
+/// Given a hub whose port is being closed,
+/// when a caller that had the hub in hand starts a read, a drain or an exchange,
+/// then it fails at once: no hub thread will.
+#[test]
+fn nothing_waits_on_a_port_that_is_being_closed() {
+    let shared = RxHubShared::new();
+    shared.begin_close();
+    let read = shared.read_request(4, READ_MS, true);
+    assert_eq!(read.unwrap_err(), PORT_CLOSED);
+    let drain = shared.drain(READ_MS, READ_MS, Arc::default(), Vec::new());
+    assert_eq!(drain.unwrap_err(), PORT_CLOSED);
+    let waiter = ExchangeWaiter::new(ExchangeOptions::default().resolve(), Arc::default());
+    shared.set_exchange_waiter(waiter.clone());
+    assert_eq!(waiter.wait(READ_MS).unwrap_err(), PORT_CLOSED);
 }

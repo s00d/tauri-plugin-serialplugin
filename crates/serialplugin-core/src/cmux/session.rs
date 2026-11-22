@@ -5,7 +5,8 @@ use crate::cmux::frame::{
 };
 use crate::cmux::io::CmuxPhysicalIo;
 use crate::events::SerialEvent;
-use crate::hub::shared::Outbox;
+use crate::hub::shared::{Outbox, PORT_CLOSED};
+use crate::hub::stream::{EventStream, Target, WatchOwner};
 use crate::hub::ExchangeWaiter;
 use serial_codec::framing::Framer;
 use std::collections::{HashMap, HashSet};
@@ -19,6 +20,8 @@ pub struct DlciChannel {
     pub path: String,
     pub exchange_waiter: Mutex<Option<Arc<ExchangeWaiter>>>,
     watches: Mutex<DlciWatches>,
+    /// Being closed by the app: exchanges and writes fail at once.
+    closing: AtomicBool,
     /// The session's outbox: events are queued under `watches`, in production order,
     /// and delivered by the session once no lock is held.
     outbox: Arc<Outbox>,
@@ -32,43 +35,39 @@ struct DlciWatches {
 }
 
 impl DlciWatches {
-    fn each(&mut self, mut f: impl FnMut(&mut DlciWatchSlot)) {
-        self.core.retain(|(_, w)| w.alive());
-        self.old.iter_mut().for_each(&mut f);
+    /// The watches whose sink is not gone; the old one is returned if its is (drop it with
+    /// no lock held).
+    fn each(&mut self, mut f: impl FnMut(&mut DlciWatchSlot)) -> Option<DlciWatchSlot> {
+        self.core.retain(|(_, w)| !w.target.gone());
         self.core.iter_mut().for_each(|(_, w)| f(w));
+        match self.old.as_mut() {
+            Some(old) if !old.target.gone() => {
+                f(old);
+                None
+            }
+            _ => self.old.take(),
+        }
     }
 }
 
 struct DlciWatchSlot {
-    channel: crate::events::EventSink,
+    target: Target,
     batch_timeout_ms: u64,
     flush_at: Instant,
     /// Native parser: each frame is one `Data` event, no batching.
     framer: Option<Box<dyn Framer>>,
     buffer: Vec<u8>,
-    /// `watch_core` only: cleared once the subscriber is gone.
-    alive: Option<Arc<AtomicBool>>,
 }
 
 impl DlciWatchSlot {
-    fn new(
-        channel: crate::events::EventSink,
-        batch_timeout_ms: u64,
-        framer: Option<Box<dyn Framer>>,
-        alive: Option<Arc<AtomicBool>>,
-    ) -> Self {
+    fn new(target: Target, batch_timeout_ms: u64, framer: Option<Box<dyn Framer>>) -> Self {
         Self {
-            channel,
+            target,
             batch_timeout_ms,
             flush_at: Instant::now(),
             framer,
             buffer: Vec::new(),
-            alive,
         }
-    }
-
-    fn alive(&self) -> bool {
-        self.alive.as_ref().is_none_or(|a| a.load(Ordering::SeqCst))
     }
 
     fn take_due(&mut self) -> bool {
@@ -122,6 +121,7 @@ impl DlciChannel {
             path,
             exchange_waiter: Mutex::new(None),
             watches: Mutex::new(DlciWatches::default()),
+            closing: AtomicBool::new(false),
             outbox,
         }
     }
@@ -138,19 +138,47 @@ impl DlciChannel {
         batch_timeout_ms: u64,
         framer: Option<Box<dyn Framer>>,
     ) {
-        crate::sync_util::lock_or_recover(&self.watches).old =
-            Some(DlciWatchSlot::new(channel, batch_timeout_ms, framer, None));
+        self.attach_stream(channel, batch_timeout_ms, framer);
+    }
+
+    /// [`Self::attach_watch_with`]; the stream is the watch's identity. A watch it replaces
+    /// ends with its tail queued.
+    fn attach_stream(
+        &self,
+        channel: crate::events::EventSink,
+        batch_timeout_ms: u64,
+        framer: Option<Box<dyn Framer>>,
+    ) -> Arc<EventStream> {
+        let stream = self.outbox.stream(channel);
+        let slot = DlciWatchSlot::new(Target::Old(stream.clone()), batch_timeout_ms, framer);
+        let mut guard = crate::sync_util::lock_or_recover(&self.watches);
+        let mut replaced = guard.old.replace(slot);
+        if let Some(old) = replaced.as_mut() {
+            self.end_slot(old, None);
+        }
+        // Unlocked before the replaced watch's sink is dropped.
+        drop(guard);
+        stream
+    }
+
+    /// Take the old watch (if `which` accepts it); its tail is queued.
+    fn take_watch(&self, which: impl Fn(&DlciWatchSlot) -> bool) -> Option<DlciWatchSlot> {
+        let mut guard = crate::sync_util::lock_or_recover(&self.watches);
+        if !guard.old.as_ref().is_some_and(which) {
+            return None;
+        }
+        let mut slot = guard.old.take();
+        if let Some(slot) = slot.as_mut() {
+            self.end_slot(slot, None);
+        }
+        slot
     }
 
     /// Stop the watch; its batch and its parser's remainder are queued as the last `Data`
     /// (after the frames already queued). The session delivers them on its next RX, tick
     /// or [`CmuxSession::clear_watch`] (which calls this and delivers).
     pub fn detach_watch(&self) {
-        let mut guard = crate::sync_util::lock_or_recover(&self.watches);
-        if let Some(mut slot) = guard.old.take() {
-            let rest = slot.finish();
-            self.queue_frames(&slot.channel, rest);
-        }
+        self.take_watch(|_| true);
     }
 
     fn attach_core_watch(&self, id: u64, slot: DlciWatchSlot) {
@@ -159,62 +187,95 @@ impl DlciChannel {
             .push((id, slot));
     }
 
-    /// Remove a `watch_core` stream; its batch and remainder are queued last.
+    /// Remove a `watch_core` stream; its batch and remainder are sent last.
     fn detach_core_watch(&self, id: u64) -> bool {
         let mut guard = crate::sync_util::lock_or_recover(&self.watches);
         let Some(i) = guard.core.iter().position(|(c, _)| *c == id) else {
             return false;
         };
         let (_, mut slot) = guard.core.remove(i);
-        let rest = slot.finish();
-        self.queue_frames(&slot.channel, rest);
+        self.end_slot(&mut slot, None);
+        drop(guard);
         true
     }
 
-    /// Physical link lost: queue the batch / parser remainder, then `Disconnect`.
-    fn queue_disconnect(&self, reason: &str) {
-        let mut guard = crate::sync_util::lock_or_recover(&self.watches);
-        guard.each(|slot| {
-            let frames = slot.finish();
-            self.queue_frames(&slot.channel, frames);
-            self.outbox.push([(
-                slot.channel.clone(),
-                SerialEvent::Disconnect {
-                    path: self.path.clone(),
-                    reason: reason.to_string(),
-                },
-            )]);
-        });
+    /// End every watch: its batch and parser remainder, then `last`.
+    fn end_watches(&self, last: Option<&SerialEvent>) {
+        let ended = {
+            let mut guard = crate::sync_util::lock_or_recover(&self.watches);
+            let mut watches = std::mem::take(&mut *guard);
+            let gone = watches.each(|slot| self.end_slot(slot, last));
+            (watches, gone)
+        };
+        // Unlocked: it drops the sinks.
+        drop(ended);
     }
 
-    /// Queue `Data` events; called with the `watches` lock held so the order is the
-    /// production order whatever thread queues next.
-    fn queue_frames(&self, channel: &crate::events::EventSink, frames: Vec<Vec<u8>>) {
-        self.outbox.push(frames.into_iter().map(|data| {
-            (
-                channel.clone(),
-                SerialEvent::Data {
-                    path: self.path.clone(),
-                    size: data.len(),
-                    data,
-                },
-            )
-        }));
+    /// The slot's remainder, then `last`: nothing more is sent.
+    fn end_slot(&self, slot: &mut DlciWatchSlot, last: Option<&SerialEvent>) {
+        let mut events = self.data_events(slot.finish());
+        events.extend(last.cloned());
+        slot.target.end(&mut events);
+    }
+
+    /// Fail the exchange in flight.
+    fn fail_exchange(&self, reason: &str) {
+        if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).as_ref() {
+            waiter.fail_with_reason(reason.to_string());
+        }
+    }
+
+    fn is_closing(&self) -> bool {
+        self.closing.load(Ordering::SeqCst)
+    }
+
+    /// The app closes the channel: exchanges and writes on it fail from now on.
+    fn begin_close(&self) {
+        self.closing.store(true, Ordering::SeqCst);
+        self.fail_exchange(PORT_CLOSED);
+    }
+
+    fn set_exchange_waiter(&self, waiter: Arc<ExchangeWaiter>) {
+        *crate::sync_util::lock_or_recover(&self.exchange_waiter) = Some(waiter);
+        if self.is_closing() {
+            self.fail_exchange(PORT_CLOSED);
+        }
+    }
+
+    fn data_events(&self, frames: Vec<Vec<u8>>) -> Vec<SerialEvent> {
+        let event = |data: Vec<u8>| SerialEvent::Data {
+            path: self.path.clone(),
+            size: data.len(),
+            data,
+        };
+        frames.into_iter().map(event).collect()
+    }
+
+    /// Run `f` over the watches; its frames are sent under the `watches` lock, so the order
+    /// is the production order whatever thread sends next.
+    fn each_watch(&self, mut f: impl FnMut(&mut DlciWatchSlot) -> Vec<Vec<u8>>) {
+        let gone = crate::sync_util::lock_or_recover(&self.watches).each(|slot| {
+            let frames = f(slot);
+            slot.target.send(&mut self.data_events(frames));
+        });
+        drop(gone);
     }
 
     fn push_stream(&self, payload: &[u8]) {
-        crate::sync_util::lock_or_recover(&self.watches).each(|slot| {
-            let frames = slot.push(payload);
-            self.queue_frames(&slot.channel, frames);
-        });
+        self.each_watch(|slot| slot.push(payload));
     }
 
     /// Parser timers and batches whose timeout elapsed with no new frame.
     fn tick(&self) {
-        crate::sync_util::lock_or_recover(&self.watches).each(|slot| {
-            let frames = slot.poll();
-            self.queue_frames(&slot.channel, frames);
-        });
+        self.each_watch(DlciWatchSlot::poll);
+    }
+}
+
+impl WatchOwner for DlciChannel {
+    fn stop(&self, stream: &Arc<EventStream>) {
+        // The slot (and with it the sink) is dropped with no lock held.
+        drop(self.take_watch(|slot| slot.target.is(stream)));
+        self.outbox.settle(stream);
     }
 }
 
@@ -430,7 +491,11 @@ impl CmuxSession {
 
     pub fn register_dlci(&self, dlci: u8, virtual_path: String) -> Arc<DlciChannel> {
         let ch = Arc::new(DlciChannel::new(virtual_path, self.outbox.clone()));
-        crate::sync_util::lock_or_recover(&self.channels).insert(dlci, ch.clone());
+        let replaced = crate::sync_util::lock_or_recover(&self.channels).insert(dlci, ch.clone());
+        if let Some(old) = replaced {
+            old.begin_close();
+            old.end_watches(None);
+        }
         crate::sync_util::lock_or_recover(&self.closed).remove(&dlci);
         // An MSC FC of the channel's previous life does not hold the new one.
         crate::sync_util::lock_or_recover(&self.tx)
@@ -444,11 +509,11 @@ impl CmuxSession {
         crate::sync_util::lock_or_recover(&self.tx)
             .held_dlcis
             .remove(&dlci);
-        let removed = crate::sync_util::lock_or_recover(&self.channels)
-            .remove(&dlci)
-            .is_some();
+        let removed = crate::sync_util::lock_or_recover(&self.channels).remove(&dlci);
         self.wake_writers();
-        if removed {
+        if let Some(ch) = removed {
+            ch.begin_close();
+            ch.end_watches(None);
             // Wait (up to T1) for the UA / DM: a CLD sent while the DISC is still in
             // progress is answered by the M26 only after ~0.5 s, past T2.
             let (tx, rx) = mpsc::channel();
@@ -548,10 +613,11 @@ impl CmuxSession {
         for (d, ch) in gone {
             crate::sync_util::lock_or_recover(&self.closed).insert(d);
             let reason = format!("CMUX DLCI {d} closed by the modem");
-            if let Some(waiter) = crate::sync_util::lock_or_recover(&ch.exchange_waiter).as_ref() {
-                waiter.fail_with_reason(reason.clone());
-            }
-            ch.queue_disconnect(&reason);
+            ch.fail_exchange(&reason);
+            ch.end_watches(Some(&SerialEvent::Disconnect {
+                path: ch.path.clone(),
+                reason,
+            }));
             paths.push(ch.path.clone());
         }
         self.wake_writers();
@@ -567,14 +633,17 @@ impl CmuxSession {
 
     /// Batch-timeout flush for virtual-channel watches (called from the hub tick).
     pub fn tick(&self) {
-        let channels: Vec<_> = crate::sync_util::lock_or_recover(&self.channels)
-            .values()
-            .cloned()
-            .collect();
-        for ch in channels {
+        for ch in self.channels() {
             ch.tick();
         }
         self.outbox.deliver();
+    }
+
+    fn channels(&self) -> Vec<Arc<DlciChannel>> {
+        crate::sync_util::lock_or_recover(&self.channels)
+            .values()
+            .cloned()
+            .collect()
     }
 
     fn channel(&self, dlci: u8) -> Option<Arc<DlciChannel>> {
@@ -587,18 +656,39 @@ impl CmuxSession {
     /// exchange in flight on a channel fails, and every channel watch gets its remainder,
     /// then `Disconnect` with the channel's virtual path.
     pub fn emit_disconnect(&self, reason: &str) {
+        self.disconnect_queued(reason);
+        self.deliver_queued();
+    }
+
+    /// [`Self::emit_disconnect`] without running the sinks: their last events are queued.
+    pub(crate) fn disconnect_queued(&self, reason: &str) {
         self.end(reason);
-        let channels: Vec<_> = crate::sync_util::lock_or_recover(&self.channels)
-            .values()
-            .cloned()
-            .collect();
-        for ch in channels {
-            if let Some(waiter) = crate::sync_util::lock_or_recover(&ch.exchange_waiter).as_ref() {
-                waiter.fail_with_reason(reason.to_string());
-            }
-            ch.queue_disconnect(reason);
+        let channels = self.channels();
+        for ch in &channels {
+            ch.fail_exchange(reason);
         }
+        for ch in channels {
+            ch.end_watches(Some(&SerialEvent::Disconnect {
+                path: ch.path.clone(),
+                reason: reason.to_string(),
+            }));
+        }
+    }
+
+    /// Deliver queued events. Call with no lock held.
+    pub(crate) fn deliver_queued(&self) {
         self.outbox.deliver();
+    }
+
+    /// The app closes `dlci` (`None`: the port, so every channel): what waits on it fails
+    /// now, so a sink in an exchange does not hold up the close.
+    pub(crate) fn begin_close(&self, dlci: Option<u8>) {
+        let channels = match dlci {
+            Some(dlci) => self.channel(dlci).into_iter().collect(),
+            None => self.channels(),
+        };
+        channels.iter().for_each(|ch| ch.begin_close());
+        self.wake_writers();
     }
 
     /// 4.0.0 API (feature `tauri`): [`Self::set_watch_with`] for a Tauri channel, no parser.
@@ -624,18 +714,34 @@ impl CmuxSession {
         batch_timeout_ms: u64,
         framer: Option<Box<dyn Framer>>,
     ) {
-        if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
-            ch.attach_watch_with(channel, batch_timeout_ms, framer);
-        }
+        self.attach_stream(dlci, channel, batch_timeout_ms, framer);
+    }
+
+    /// [`Self::set_watch_with`]; `None`: no such channel.
+    pub(crate) fn attach_stream(
+        &self,
+        dlci: u8,
+        channel: crate::events::EventSink,
+        batch_timeout_ms: u64,
+        framer: Option<Box<dyn Framer>>,
+    ) -> Option<(Arc<DlciChannel>, Arc<EventStream>)> {
+        let ch = self.channel(dlci)?;
+        let stream = ch.attach_stream(channel, batch_timeout_ms, framer);
+        Some((ch, stream))
     }
 
     /// Stop the channel watch; its batch and parser remainder are the last `Data`, before
-    /// this returns. The sink runs here, so call with no manager lock held.
+    /// this returns (a sink that calls it does not wait for another thread's delivery). The
+    /// sink runs here, so call with no manager lock held.
     pub fn clear_watch(&self, dlci: u8) {
-        if let Some(ch) = self.channel(dlci) {
-            ch.detach_watch();
+        let slot = self.channel(dlci).and_then(|ch| ch.take_watch(|_| true));
+        if let Some(DlciWatchSlot {
+            target: Target::Old(stream),
+            ..
+        }) = slot
+        {
+            self.outbox.settle(&stream);
         }
-        self.outbox.deliver_all();
     }
 
     /// Add a `watch_core` stream on `dlci` (its own batch / parser). `false`: no channel.
@@ -643,33 +749,26 @@ impl CmuxSession {
         &self,
         dlci: u8,
         id: u64,
-        sink: crate::events::EventSink,
-        alive: Arc<AtomicBool>,
+        target: Target,
         batch_timeout_ms: u64,
         framer: Option<Box<dyn Framer>>,
     ) -> bool {
         let Some(ch) = self.channel(dlci) else {
             return false;
         };
-        ch.attach_core_watch(
-            id,
-            DlciWatchSlot::new(sink, batch_timeout_ms, framer, Some(alive)),
-        );
+        ch.attach_core_watch(id, DlciWatchSlot::new(target, batch_timeout_ms, framer));
         true
     }
 
-    /// Remove a `watch_core` stream; its remainder is delivered here (no lock held).
+    /// Remove a `watch_core` stream; its remainder goes to its queue.
     pub(crate) fn remove_core_watch(&self, dlci: u8, id: u64) -> bool {
-        let removed = self
-            .channel(dlci)
-            .is_some_and(|ch| ch.detach_core_watch(id));
-        self.outbox.deliver_all();
-        removed
+        self.channel(dlci)
+            .is_some_and(|ch| ch.detach_core_watch(id))
     }
 
     pub fn set_exchange_waiter(&self, dlci: u8, waiter: Arc<ExchangeWaiter>) {
         if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
-            *crate::sync_util::lock_or_recover(&ch.exchange_waiter) = Some(waiter);
+            ch.set_exchange_waiter(waiter);
         }
     }
 
@@ -682,9 +781,7 @@ impl CmuxSession {
     /// Fail the in-flight exchange waiter on `dlci` (used by `cancel_exchange`).
     pub fn cancel_active_exchange(&self, dlci: u8) {
         if let Some(ch) = crate::sync_util::lock_or_recover(&self.channels).get(&dlci) {
-            if let Some(waiter) = crate::sync_util::lock_or_recover(&ch.exchange_waiter).as_ref() {
-                waiter.fail_with_reason("exchange cancelled".into());
-            }
+            ch.fail_exchange("exchange cancelled");
         }
     }
 
@@ -701,8 +798,10 @@ impl CmuxSession {
             if crate::sync_util::lock_or_recover(&self.closed).contains(&dlci) {
                 return Err(format!("CMUX DLCI {dlci} closed by the modem"));
             }
-            if !self.has_dlci(dlci) {
-                return Err(format!("CMUX DLCI {dlci} is closed"));
+            match self.channel(dlci) {
+                None => return Err(format!("CMUX DLCI {dlci} is closed")),
+                Some(ch) if ch.is_closing() => return Err(PORT_CLOSED.into()),
+                Some(_) => {}
             }
             let held = if gate.fc_off {
                 "CMUX flow control off (FCoff)".to_string()

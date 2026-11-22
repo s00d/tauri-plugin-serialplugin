@@ -1,4 +1,5 @@
-#![doc = include_str!("../README.md")]
+// Its snippets run as doctests of serialplugin-core, which one of them uses.
+#![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![warn(missing_docs)]
 //!
 //! ## Independence
@@ -20,11 +21,14 @@ use std::time::{Duration, Instant};
 /// the event they wait for.
 pub const WAIT: Duration = Duration::from_secs(10);
 
-/// Poll `done` (a state no event announces) until it holds.
+/// Poll `done` (a state no event announces) until it holds; panics with `what` after
+/// [`WAIT`].
+///
+/// It looks every millisecond. That is a polling interval, not a delay anything depends on.
 pub fn eventually(what: &str, mut done: impl FnMut() -> bool) {
     let deadline = Instant::now() + WAIT;
     while !done() {
         assert!(Instant::now() < deadline, "never: {what}");
-        std::thread::yield_now();
+        std::thread::park_timeout(Duration::from_millis(1));
     }
 }

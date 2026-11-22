@@ -79,7 +79,7 @@ fn every_failure_has_its_kind_and_its_4x_text() {
         (ErrorKind::Cancelled, "exchange cancelled".into())
     );
 
-    device.respond(|_| vec![b'x'; 9]);
+    device.respond(|_, _| vec![b'x'; 9]);
     let options = ExchangeOptions {
         max_bytes: Some(9),
         ..no_prepare(LONG_MS)

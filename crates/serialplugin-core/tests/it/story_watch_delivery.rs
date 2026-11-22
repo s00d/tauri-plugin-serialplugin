@@ -36,7 +36,7 @@ fn a_close_delivers_the_tail() {
     m.watch_core("bye".into(), watch_opts(NEVER, false), readline(), core)
         .unwrap();
     device.send(b"head\ntail-data");
-    device.wait_read();
+    device.wait_handled();
     // A command in flight holds the hub too; the close ends it.
     let command = background(&m, |m| {
         m.exchange("bye".into(), "AT+HANG\r".into(), no_prepare(LONG_MS))
@@ -157,10 +157,8 @@ fn a_sink_that_says_no_is_removed() {
         .unwrap();
     device.send(b"a");
     eventually("its delivery ended", || ended.load(Ordering::SeqCst));
-    // `b` reaches the dead stream, which the hub then drops; `c` finds no watch.
+    // The dead stream takes nothing more.
     device.send(b"b");
-    device.wait_read();
-    device.send(b"c");
     wait_idle(&m, &device, "gone", 1);
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(m.unwatch_core(id).unwrap_err().kind(), ErrorKind::NotFound);
@@ -276,6 +274,50 @@ fn batches_lines_and_timers() {
     device.send(b"idle");
     wait_idle(&m, &device, "zero", 4);
     m.close("zero".into()).unwrap();
+}
+
+/// Given `watch_core` streams of several sizes, then an old watch beside them,
+/// when more bytes wait than any of them asks for,
+/// then the hub reads as much as the biggest stream takes at once, and with the old watch as
+/// much as that one takes.
+#[test]
+fn reads_are_as_big_as_the_biggest_stream_or_the_old_watch() {
+    let device = FakeDevice::new();
+    let m = manager_with("size", device.port());
+    let sized = |size| WatchOptions {
+        size: Some(size),
+        ..watch_opts(0, false)
+    };
+    let streams = [16, 4096].map(|size| {
+        let (events, rx) = sink::<CoreEvent>();
+        m.watch_core("size".into(), sized(size), None, events)
+            .unwrap();
+        rx
+    });
+    // The bytes of the first read once `n` wait, then the rest.
+    let first_read = |n: usize| {
+        // The read in progress may have begun with the size before.
+        device.send(b"x");
+        streams
+            .iter()
+            .for_each(|rx| assert_eq!(next_data(rx), b"x"));
+        device.hold_reads(true);
+        device.wait_held(1);
+        device.send(&vec![b'y'; n]);
+        device.hold_reads(false);
+        let first = streams.each_ref().map(|rx| next_data(rx).len());
+        for (rx, first) in streams.iter().zip(first) {
+            collect(rx, n - first);
+        }
+        first
+    };
+    assert_eq!(first_read(5000), [4096; 2]);
+    let (events, _rx) = sink::<SerialEvent>();
+    let old = m.watch("size".into(), sized(8), events).unwrap();
+    assert_eq!(first_read(20), [8; 2]);
+    m.unwatch(old).unwrap();
+    assert_eq!(first_read(5000), [4096; 2]);
+    m.close("size".into()).unwrap();
 }
 
 /// Given a command draining the port, with a `route_urc` stream and a plain one,

@@ -42,6 +42,8 @@ enum Action {
     CloseAll,
     /// The device fails and `close` follows at once: `close` must succeed exactly once.
     CloseRacingDisconnect(usize),
+    /// The device sends bytes, and the watch ends at once, whether the hub has them or not.
+    Race(usize, Vec<u8>, RaceEnd),
     Watch(usize),
     Unwatch(usize),
     WatchCore(usize),
@@ -78,6 +80,14 @@ enum Action {
         p: usize,
         eof: bool,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RaceEnd {
+    Unwatch,
+    Close,
+    /// The device fails before `close`.
+    CloseOnFailure,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -170,6 +180,8 @@ struct Model {
     subscribers: Vec<Option<Vec<(usize, State)>>>,
     reads: Vec<Result<Vec<u8>, ErrorKind>>,
     exchanges: Vec<Result<Vec<u8>, ErrorKind>>,
+    /// The watch that ended in a [`Action::Race`], and the bytes it raced.
+    race: Option<(usize, Vec<u8>)>,
 }
 
 const BROKEN_PIPE: &str = "Serial port disconnected: fake device: read error";
@@ -186,6 +198,30 @@ impl Model {
             subscribers: vec![Some(Vec::new())],
             reads: Vec::new(),
             exchanges: Vec::new(),
+            race: None,
+        }
+    }
+
+    /// Who won a [`Action::Race`]: what the watch had when the call returned is final; a
+    /// port still open has the rest.
+    fn raced(&mut self, got: &Got) {
+        let Some((i, bytes)) = self.race.take() else {
+            return;
+        };
+        let watch = &mut self.watches[i];
+        let p = watch.path;
+        let old = watch.data.len();
+        assert!(got.data.len() >= old, "the watch lost bytes");
+        let n = got.data.len() - old;
+        assert!(n <= bytes.len() && got.data[old..] == bytes[..n]);
+        watch.data.extend_from_slice(&bytes[..n]);
+        assert!(got.disconnects <= 1);
+        watch.disconnects = got.disconnects;
+        if matches!(self.ports[p], Port::Open { .. }) {
+            assert_eq!(got.disconnects, 0);
+            if !self.watched(p) {
+                self.idle(p).extend_from_slice(&bytes[n..]);
+            }
         }
     }
 
@@ -298,6 +334,35 @@ impl Model {
                 self.ports[*p] = Port::Absent;
                 self.state(*p, State::ClosedOrDisconnected(BROKEN_PIPE.into()));
                 Ok(())
+            }
+            Race(p, bytes, end) => {
+                let i = self
+                    .watches
+                    .iter()
+                    .position(|r| r.path == *p && r.attached)?;
+                let cores = self.cores.iter().any(|r| r.path == *p && r.registered);
+                if *end != RaceEnd::Unwatch && cores {
+                    return None; // what a core stream gets after `close` is not bounded by it
+                }
+                self.watches[i].registered = false;
+                self.watches[i].attached = false;
+                self.race = Some((i, bytes.clone()));
+                match end {
+                    // The streams get the bytes whoever else does.
+                    RaceEnd::Unwatch => {
+                        for r in self.cores.iter_mut().filter(|r| r.path == *p && r.attached) {
+                            r.data.extend_from_slice(bytes);
+                        }
+                        Ok(())
+                    }
+                    RaceEnd::Close => self.close(*p),
+                    RaceEnd::CloseOnFailure => {
+                        self.forget(*p);
+                        self.ports[*p] = Port::Absent;
+                        self.state(*p, State::ClosedOrDisconnected(BROKEN_PIPE.into()));
+                        Ok(())
+                    }
+                }
             }
             Watch(p) => {
                 if self.watches.iter().any(|r| r.path == *p && r.registered) {
@@ -505,6 +570,7 @@ impl Model {
             Action::Push(p, b) => Action::Push(pick(p)?, b),
             Action::Disconnect { p, eof } => Action::Disconnect { p: pick(p)?, eof },
             Action::CloseRacingDisconnect(p) => Action::CloseRacingDisconnect(pick(p)?),
+            Action::Race(p, b, end) => Action::Race(pick(p)?, b, end),
             Action::ReadThenPush {
                 p,
                 max,
@@ -580,12 +646,14 @@ struct Sut {
     subscribers: Vec<(SubscriptionId, Receiver<CoreEvent>, Vec<(usize, State)>)>,
     reads: Vec<Result<Vec<u8>, ErrorKind>>,
     exchanges: Vec<Result<Vec<u8>, ErrorKind>>,
+    /// What the watch of a [`Action::Race`] had when the call returned.
+    raced: Option<Got>,
 }
 
 /// The fake answers a write that starts with '?' with the rest of it and "\n".
 fn answering_device() -> FakeDevice {
     let fake = FakeDevice::new();
-    fake.respond(|bytes| match bytes.split_first() {
+    fake.respond(|_, bytes| match bytes.split_first() {
         Some((b'?', body)) => [body, b"\n"].concat(),
         _ => Vec::new(),
     });
@@ -609,6 +677,7 @@ impl Sut {
             subscribers: vec![(id, rx, Vec::new())],
             reads: Vec::new(),
             exchanges: Vec::new(),
+            raced: None,
         }
     }
 
@@ -621,7 +690,8 @@ impl Sut {
         self.names[p].clone()
     }
 
-    fn step(&mut self, a: &Action) -> Kind {
+    /// `race`: the watch that ends in a [`Action::Race`].
+    fn step(&mut self, a: &Action, race: Option<usize>) -> Kind {
         use Action::*;
         let m = self.m.clone();
         match a {
@@ -646,6 +716,24 @@ impl Sut {
                 let again = core_kind(m.close_core(self.name(*p)));
                 assert_eq!(again, Err(ErrorKind::NotFound), "close succeeded twice");
                 first
+            }
+            Race(p, bytes, end) => {
+                let i = race.unwrap();
+                let device = self.device(*p);
+                device.send(bytes);
+                if *end == RaceEnd::CloseOnFailure {
+                    device.fail_reads(io::ErrorKind::BrokenPipe);
+                }
+                let result = match end {
+                    RaceEnd::Unwatch => to_kind(m.unwatch(self.watch_ids[i])),
+                    _ => core_kind(m.close_core(self.name(*p))),
+                };
+                let got = self.watches[i].lock().unwrap();
+                self.raced = Some(Got {
+                    data: got.data.clone(),
+                    disconnects: got.disconnects,
+                });
+                result
             }
             Watch(p) => {
                 let (sink, got) = watch_recorder();
@@ -800,7 +888,7 @@ impl Sut {
                 "never settled: {}",
                 self.diff(model)
             );
-            std::thread::yield_now();
+            std::thread::park_timeout(std::time::Duration::from_millis(1));
         }
         assert_eq!(self.diff(model), "");
     }
@@ -1016,7 +1104,10 @@ fn action() -> impl Strategy<Value = Action> {
         1 => p().prop_map(Action::ForceClose),
         1 => Just(Action::CloseAll),
         1 => p().prop_map(Action::CloseRacingDisconnect),
-        2 => p().prop_map(Action::Watch),
+        3 => (p(), bytes(1..8), prop::sample::select(vec![
+            RaceEnd::Unwatch, RaceEnd::Unwatch, RaceEnd::Close, RaceEnd::CloseOnFailure,
+        ])).prop_map(|(p, b, end)| Action::Race(p, b, end)),
+        3 => p().prop_map(Action::Watch),
         1 => any::<usize>().prop_map(Action::Unwatch),
         2 => p().prop_map(Action::WatchCore),
         1 => any::<usize>().prop_map(Action::UnwatchCore),
@@ -1033,7 +1124,8 @@ fn action() -> impl Strategy<Value = Action> {
         1 => (p(), clear).prop_map(|(p, c)| Action::Clear(p, c)),
         3 => (p(), setting()).prop_map(|(p, s)| Action::Set(p, s)),
         1 => (p(), any::<[bool; 4]>(), any::<u32>()).prop_map(|(p, [cts, dsr, ring, carrier], n)| {
-            Action::Status(p, Lines { cts, dsr, ring, carrier }, n)
+            let lines = Lines::default().cts(cts).dsr(dsr).ring(ring).carrier(carrier);
+            Action::Status(p, lines, n)
         }),
         2 => (p(), any::<bool>()).prop_map(|(p, eof)| Action::Disconnect { p, eof }),
     ]
@@ -1051,8 +1143,11 @@ fn run_case(actions: &[Action]) {
         let Some(want) = model.step(&a) else {
             continue;
         };
-        let got = sut.step(&a);
+        let got = sut.step(&a, model.race.as_ref().map(|r| r.0));
         assert_eq!(got, want, "result of {a:?}");
+        if let Some(got) = sut.raced.take() {
+            model.raced(&got);
+        }
         sut.check(&model);
     }
     sut.m.close_all().unwrap();

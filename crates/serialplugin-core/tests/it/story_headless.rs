@@ -53,10 +53,12 @@ fn a_tcp_bridge_from_open_to_close() {
 #[cfg(unix)]
 #[test]
 fn a_pty_from_open_to_close() {
-    let (master, slave, path) = peer::pty();
-    let _server = peer::serve(Box::new(master), modem());
+    let peer::Pty {
+        device, host, path, ..
+    } = peer::pty();
+    let _server = peer::serve(Box::new(device), modem());
     let m = SerialManager::new();
-    m.insert_port(path.clone(), Box::new(slave)).unwrap();
+    m.insert_port(path.clone(), Box::new(host)).unwrap();
     use_modem(&m, &path);
     m.close(path).unwrap();
 }

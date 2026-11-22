@@ -27,6 +27,7 @@ const FLAG: u8 = 0xF9;
 
 /// One frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Frame {
     /// Channel; 0 is control.
     pub dlci: u8,
@@ -36,6 +37,18 @@ pub struct Frame {
     pub kind: u8,
     /// Information field.
     pub payload: Vec<u8>,
+}
+
+impl Frame {
+    /// A frame; `kind` is the control octet without the P/F bit.
+    pub fn new(dlci: u8, cr: bool, kind: u8, payload: &[u8]) -> Self {
+        Self {
+            dlci,
+            cr,
+            kind,
+            payload: payload.to_vec(),
+        }
+    }
 }
 
 /// 27.010 §5.2.1.6: reflected CRC-8, polynomial x^8 + x^2 + x + 1, ones complement.
@@ -49,7 +62,9 @@ fn fcs(header: &[u8]) -> u8 {
     0xFF - crc
 }
 
-/// A frame as sent on the wire; `control` carries the P/F bit when it is set.
+/// A frame as sent on the wire; `control` carries the P/F bit when it is set. The modem is
+/// the responder (27.010 §5.2.1.2): `cr` is false in its commands (DISC) and data, true in
+/// its responses (UA, DM).
 pub fn frame(dlci: u8, cr: bool, control: u8, payload: &[u8]) -> Vec<u8> {
     let mut header = vec![dlci << 2 | u8::from(cr) << 1 | 1, control];
     match payload.len() {
@@ -85,46 +100,55 @@ pub struct Reader {
 impl Reader {
     /// The frames completed by `bytes`.
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<Frame> {
+        self.push(bytes);
+        std::iter::from_fn(|| self.next_frame()).collect()
+    }
+
+    pub(crate) fn push(&mut self, bytes: &[u8]) {
         self.buf.extend(bytes);
-        let mut out = Vec::new();
+    }
+
+    /// What is left behind the last frame.
+    pub(crate) fn into_rest(self) -> Vec<u8> {
+        let start = self.buf.iter().take_while(|b| **b == FLAG).count();
+        self.buf[start..].to_vec()
+    }
+
+    /// The next complete frame.
+    pub(crate) fn next_frame(&mut self) -> Option<Frame> {
         loop {
             let Some(start) = self.buf.iter().position(|b| *b == FLAG) else {
                 self.buf.clear();
-                return out;
+                return None;
             };
             self.buf.drain(..start);
             // Flags between frames may be shared or repeated.
             while self.buf.get(1) == Some(&FLAG) {
                 self.buf.remove(0);
             }
-            let Some(head) = self.buf.get(1..4) else {
-                return out;
-            };
+            let head = self.buf.get(1..4)?;
             let (len, header_len) = if head[2] & 1 == 1 {
                 (usize::from(head[2] >> 1), 3)
             } else {
-                let Some(high) = self.buf.get(4) else {
-                    return out;
-                };
+                let high = self.buf.get(4)?;
                 (usize::from(head[2] >> 1) | usize::from(*high) << 7, 4)
             };
             let end = 1 + header_len + len;
-            let Some(tail) = self.buf.get(end..end + 2) else {
-                return out;
-            };
+            let tail = self.buf.get(end..end + 2)?;
             let header = &self.buf[1..1 + header_len];
             if tail != [fcs(header), FLAG] {
                 self.buf.remove(0);
                 continue;
             }
-            out.push(Frame {
+            let frame = Frame {
                 dlci: header[0] >> 2,
                 cr: header[0] & 2 != 0,
                 kind: header[1] & !PF,
                 payload: self.buf[1 + header_len..end].to_vec(),
-            });
+            };
             // The closing flag may open the next frame.
             self.buf.drain(..end + 1);
+            return Some(frame);
         }
     }
 }

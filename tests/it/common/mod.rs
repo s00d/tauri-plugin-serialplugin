@@ -9,7 +9,7 @@ use serialplugin_testing::WAIT;
 use std::collections::{BTreeMap, HashMap};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::JoinHandle;
@@ -25,6 +25,7 @@ use tauri::webview::InvokeRequest;
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_serialplugin::api::SerialPort;
 use tauri_plugin_serialplugin::error::ErrorKind;
+use tauri_plugin_serialplugin::events::{CoreEvent, SerialEvent, SubscriptionId, WatchOptions};
 use tauri_plugin_serialplugin::state::PortState;
 
 /// Exchange timeout of commands that get an answer: it only bounds a failure.
@@ -223,13 +224,33 @@ impl Plugin {
         self.ok("unwatch", json!({ "channelId": events.id }));
     }
 
-    /// Wait until the hub read everything the device sent and holds `idle` bytes nobody took.
+    /// Wait until the hub read everything the device sent and holds `idle` (not 0: that is
+    /// also so before the bytes came) bytes nobody took. On a watched port: [`Self::fence`].
     pub fn settled(&self, path: &str, idle: usize) {
         let sp = self.sp();
         serialplugin_testing::eventually(&format!("{path} holds {idle} bytes"), || {
             hub_buffered(&sp, path) == idle
                 && self.invoke("bytes_to_read", json!({ "path": path })) == Ok(json!(idle))
         });
+    }
+
+    /// A second stream on the watched `path`: it shows what the hub handed to the watch.
+    pub fn fence(&self, path: &str) -> Fence {
+        let count = Arc::new(AtomicUsize::new(0));
+        let seen = count.clone();
+        let sp = self.sp();
+        let options = WatchOptions {
+            serial_data_flush_interval_ms: Some(0),
+            ..Default::default()
+        };
+        let sink = Arc::new(move |event| {
+            if let CoreEvent::Event(SerialEvent::Data { data, .. }) = event {
+                seen.fetch_add(data.len(), Ordering::SeqCst);
+            }
+            true
+        });
+        let id = sp.watch_core(path.into(), options, None, sink).unwrap();
+        Fence { sp, id, count }
     }
 
     /// Run the app; the user closes its only window at once.
@@ -271,6 +292,28 @@ fn invoke(webview: &WebviewWindow<MockRuntime>, cmd: &str, args: Value) -> Resul
         invoke_key: INVOKE_KEY.to_string(),
     };
     get_ipc_response(webview, request).map(|b| b.deserialize::<Value>().expect("json response"))
+}
+
+/// See [`Plugin::fence`]; the stream ends with it.
+pub struct Fence {
+    sp: SerialPort<MockRuntime>,
+    id: SubscriptionId,
+    count: Arc<AtomicUsize>,
+}
+
+impl Fence {
+    /// Wait until the hub has handed out `n` bytes since the fence stands.
+    pub fn wait(&self, n: usize) {
+        serialplugin_testing::eventually(&format!("the hub routed {n} bytes"), || {
+            self.count.load(Ordering::SeqCst) >= n
+        });
+    }
+}
+
+impl Drop for Fence {
+    fn drop(&mut self) {
+        let _ = self.sp.unwatch_core(self.id);
+    }
 }
 
 // ---------------------------------------------------------------- events
@@ -398,8 +441,8 @@ impl Device {
         let (side, path) = match kind {
             #[cfg(unix)]
             Kind::Pty => {
-                let (master, _slave, path) = peer::pty();
-                (Side::Pty(master), path)
+                let peer::Pty { device, path, .. } = peer::pty();
+                (Side::Pty(device), path)
             }
             Kind::Tcp => {
                 let (listener, path) = peer::tcp_listener();

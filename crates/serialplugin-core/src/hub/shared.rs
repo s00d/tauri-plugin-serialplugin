@@ -5,15 +5,17 @@ use crate::cmux::CmuxSession;
 use crate::events::{EventSink, SerialEvent};
 use crate::exchange::completion::Completion;
 use crate::exchange::options::ResolvedExchangeOptions;
+use crate::hub::stream::{call_sink, EventStream, Target, WatchOwner};
 use serial_codec::framing::Framer;
-use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError, SyncSender};
 use std::sync::{Arc, Condvar, Mutex};
-use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
 pub(crate) const IDLE_BUFFER_CAP: usize = 64 * 1024;
+
+/// What waits on a port (or CMUX channel) fails with this when it is closed.
+pub(crate) const PORT_CLOSED: &str = "port closed";
 
 type ExchangeDone = Arc<(
     Mutex<Option<Result<(Vec<u8>, ExchangeMatch), String>>>,
@@ -159,89 +161,7 @@ impl LineRouter {
 /// `unwatch` racing the hub cannot drop frames that were already decoded).
 pub type QueuedEvent = (EventSink, SerialEvent);
 
-/// Ordered event delivery for one hub (or one CMUX session).
-///
-/// Events are queued under the lock of the watch that produced them, so the queue holds
-/// them in production order whichever thread queued them, and sinks run with no hub or
-/// manager lock held, so a sink may call back into the manager. One thread delivers at a
-/// time; a thread that finds delivery in progress leaves its events to it (also when a
-/// sink re-enters).
-#[derive(Default)]
-pub struct Outbox {
-    state: Mutex<OutboxState>,
-    /// An event was delivered, or delivery ended.
-    progress: Condvar,
-}
-
-#[derive(Default)]
-struct OutboxState {
-    queue: VecDeque<QueuedEvent>,
-    delivering: Option<ThreadId>,
-    queued: u64,
-    delivered: u64,
-}
-
-impl Outbox {
-    pub(crate) fn push(&self, events: impl IntoIterator<Item = QueuedEvent>) {
-        let mut s = crate::sync_util::lock_or_recover(&self.state);
-        let before = s.queue.len();
-        s.queue.extend(events);
-        s.queued += (s.queue.len() - before) as u64;
-    }
-
-    /// Deliver queued events. Call with no lock held.
-    // ponytail: whoever finds the queue idle delivers everything, including events
-    // the hub queues meanwhile; with a sink slower than the stream an `unwatch` caller
-    // keeps delivering for the new watch. Hand back to the hub thread if that matters.
-    pub(crate) fn deliver(&self) {
-        /// The event's sink returned (or panicked: the queue must not wedge).
-        struct Delivered<'a>(&'a Outbox);
-        impl Drop for Delivered<'_> {
-            fn drop(&mut self) {
-                let mut s = crate::sync_util::lock_or_recover(&self.0.state);
-                s.delivered += 1;
-                if thread::panicking() {
-                    s.delivering = None;
-                }
-                self.0.progress.notify_all();
-            }
-        }
-        let mut s = crate::sync_util::lock_or_recover(&self.state);
-        if s.delivering.is_some() {
-            return;
-        }
-        s.delivering = Some(thread::current().id());
-        while let Some((sink, ev)) = s.queue.pop_front() {
-            drop(s);
-            {
-                let _delivered = Delivered(self);
-                crate::port::watch_registry::send_event_to(&sink, ev);
-                drop(sink);
-            }
-            s = crate::sync_util::lock_or_recover(&self.state);
-        }
-        s.delivering = None;
-        self.progress.notify_all();
-    }
-
-    /// [`Self::deliver`], then wait until everything queued before this call is delivered,
-    /// also by another thread. Called from a sink, it returns: that delivery goes on when
-    /// the sink returns.
-    pub(crate) fn deliver_all(&self) {
-        let target = crate::sync_util::lock_or_recover(&self.state).queued;
-        loop {
-            self.deliver();
-            let s = crate::sync_util::lock_or_recover(&self.state);
-            match s.delivering {
-                _ if s.delivered >= target => return,
-                Some(t) if t == thread::current().id() => return,
-                // Ended (a sink panicked) with events left.
-                None => {}
-                Some(_) => drop(self.progress.wait(s)),
-            }
-        }
-    }
-}
+pub use crate::hub::stream::Outbox;
 
 /// 4.0.0 API (feature `tauri`): [`emit_urc_to`] for a Tauri channel.
 #[cfg(feature = "tauri")]
@@ -253,17 +173,19 @@ pub fn emit_urc(channel: &tauri::ipc::Channel<SerialEvent>, path: &str, line: &s
 }
 
 pub fn emit_urc_to(channel: &crate::events::EventSink, path: &str, line: &str) {
-    let _ = (channel)(SerialEvent::Urc {
+    let event = SerialEvent::Urc {
         path: path.to_string(),
         line: line.to_string(),
-    });
+    };
+    let _ = call_sink(channel, event);
 }
 
 /// Per-port routing state shared between desktop poll loop and Android push feed.
 ///
 /// Since 4.2 each watch owns its line router and batch, and events are queued in the hub as
 /// they are produced: [`Self::line_router`], [`Self::combined_buffer`], [`Self::flush_at`]
-/// and [`Self::pending_events`] stay for the 4.x API and are always empty.
+/// and [`Self::pending_events`] stay for the 4.x API only. The hub neither fills nor reads
+/// them: [`RxHubShared::deliver_queued`] delivers what a routing call produced.
 pub struct HubRoutingState {
     pub path: String,
     /// Not used any more.
@@ -301,8 +223,7 @@ impl HubRoutingState {
 /// The line router's unterminated tail follows on the batch timer.
 pub(crate) struct CoreWatchSlot {
     pub(crate) id: u64,
-    pub(crate) sink: EventSink,
-    pub(crate) alive: Arc<AtomicBool>,
+    pub(crate) target: Target,
     pub(crate) batch_timeout_ms: u64,
     pub(crate) read_size: usize,
     pub(crate) route_urc: bool,
@@ -313,10 +234,10 @@ pub(crate) struct CoreWatchSlot {
 }
 
 impl CoreWatchSlot {
+    /// `id` 0: the old watch.
     pub(crate) fn new(
         id: u64,
-        sink: EventSink,
-        alive: Arc<AtomicBool>,
+        target: Target,
         batch_timeout_ms: u64,
         read_size: usize,
         route_urc: bool,
@@ -324,8 +245,7 @@ impl CoreWatchSlot {
     ) -> Self {
         Self {
             id,
-            sink,
-            alive,
+            target,
             batch_timeout_ms,
             read_size,
             route_urc,
@@ -336,46 +256,35 @@ impl CoreWatchSlot {
         }
     }
 
-    fn alive(&self) -> bool {
-        self.alive.load(Ordering::SeqCst)
-    }
-
-    fn push(&self, out: &mut Vec<QueuedEvent>, event: SerialEvent) {
-        out.push((self.sink.clone(), event));
-    }
-
     /// Bytes past the URC split: into the parser (one event per frame) or the batch.
-    fn sink_bytes(&mut self, path: &str, bytes: &[u8], out: &mut Vec<QueuedEvent>) {
+    fn sink_bytes(&mut self, path: &str, bytes: &[u8], out: &mut Vec<SerialEvent>) {
         match self.framer.as_mut() {
             Some(f) => {
                 let mut frames = Vec::new();
                 f.push(bytes, Instant::now(), &mut frames);
-                push_frames(path, &self.sink, frames, out);
+                push_frames(path, frames, out);
             }
             None => self.buffer.extend_from_slice(bytes),
         }
     }
 
-    fn feed(&mut self, path: &str, chunk: &[u8], out: &mut Vec<QueuedEvent>) {
+    fn feed(&mut self, path: &str, chunk: &[u8], out: &mut Vec<SerialEvent>) {
         if !self.route_urc {
             self.sink_bytes(path, chunk, out);
             return;
         }
         for action in self.line_router.route_streaming(chunk, &[]) {
             match action {
-                RxRouteAction::UrcLine(line) => self.push(
-                    out,
-                    SerialEvent::Urc {
-                        path: path.to_string(),
-                        line,
-                    },
-                ),
+                RxRouteAction::UrcLine(line) => out.push(SerialEvent::Urc {
+                    path: path.to_string(),
+                    line,
+                }),
                 RxRouteAction::StreamData(bytes) => self.sink_bytes(path, &bytes, out),
             }
         }
     }
 
-    fn tick(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+    fn tick(&mut self, path: &str, out: &mut Vec<SerialEvent>) {
         let timer = self.flush_at.elapsed() >= Duration::from_millis(self.batch_timeout_ms);
         if self.framer.is_some() {
             if timer {
@@ -389,7 +298,7 @@ impl CoreWatchSlot {
             if let Some(f) = self.framer.as_mut() {
                 f.poll(Instant::now(), &mut frames);
             }
-            push_frames(path, &self.sink, frames, out);
+            push_frames(path, frames, out);
             return;
         }
         if timer || self.buffer.len() >= self.read_size.max(1) {
@@ -399,23 +308,31 @@ impl CoreWatchSlot {
     }
 
     /// Line-router tail and batch out now (parser state kept).
-    fn flush_buffers(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+    fn flush_buffers(&mut self, path: &str, out: &mut Vec<SerialEvent>) {
         let partial = self.line_router.take_partial();
         if !partial.is_empty() {
             self.sink_bytes(path, &partial, out);
         }
         let data = std::mem::take(&mut self.buffer);
         if !data.is_empty() {
-            self.push(out, data_event(path, data));
+            out.push(data_event(path, data));
         }
     }
 
     /// End of stream: batch, then the parser's remainder.
-    fn finish(&mut self, path: &str, out: &mut Vec<QueuedEvent>) {
+    fn finish(&mut self, path: &str, out: &mut Vec<SerialEvent>) {
         self.flush_buffers(path, out);
         if let Some(rest) = self.framer.as_mut().and_then(|f| f.flush()) {
-            self.push(out, data_event(path, rest));
+            out.push(data_event(path, rest));
         }
+    }
+
+    /// [`Self::finish`], then `last`: nothing more is sent.
+    fn end(&mut self, path: &str, last: Option<&SerialEvent>) {
+        let mut out = Vec::new();
+        self.finish(path, &mut out);
+        out.extend(last.cloned());
+        self.target.end(&mut out);
     }
 }
 
@@ -427,20 +344,13 @@ fn data_event(path: &str, data: Vec<u8>) -> SerialEvent {
     }
 }
 
-fn push_frames(
-    path: &str,
-    channel: &EventSink,
-    frames: Vec<Vec<u8>>,
-    pending: &mut Vec<QueuedEvent>,
-) {
-    pending.extend(
-        frames
-            .into_iter()
-            .map(|f| (channel.clone(), data_event(path, f))),
-    );
+fn push_frames(path: &str, frames: Vec<Vec<u8>>, out: &mut Vec<SerialEvent>) {
+    out.extend(frames.into_iter().map(|f| data_event(path, f)));
 }
 
 pub(crate) struct DrainSlot {
+    /// Whose slot this is: a caller that gives up takes only its own.
+    pub(crate) id: u64,
     pub(crate) idle_ms: u64,
     pub(crate) cancel: Arc<AtomicBool>,
     pub(crate) buffer: Vec<u8>,
@@ -452,6 +362,8 @@ pub(crate) struct DrainSlot {
 }
 
 pub(crate) struct ReadSlot {
+    /// See [`DrainSlot::id`].
+    pub(crate) id: u64,
     pub(crate) max_bytes: usize,
     pub(crate) fill: bool,
     pub(crate) timeout_ms: u64,
@@ -470,11 +382,13 @@ pub struct RxHubShared {
     pub(crate) cmux: Mutex<Option<Arc<CmuxSession>>>,
     /// `watch_core` streams (any number, beside the one old watch).
     pub(crate) core_watches: Mutex<Vec<CoreWatchSlot>>,
-    /// Set by an intentional close: a read error from now on is not a `Disconnect`.
+    /// Set by an intentional close: a read error from now on is not a `Disconnect`, and
+    /// waiters fail at once.
     closing: AtomicBool,
     /// `Disconnect` went out (it is sent once, even when two paths report the loss).
     disconnected: AtomicBool,
     outbox: Outbox,
+    next_slot: AtomicU64,
     /// Port path, for events sent outside the hub thread (watch remainder on detach).
     path: String,
 }
@@ -503,6 +417,7 @@ impl RxHubShared {
             closing: AtomicBool::new(false),
             disconnected: AtomicBool::new(false),
             outbox: Outbox::default(),
+            next_slot: AtomicU64::new(0),
         }
     }
 
@@ -527,38 +442,69 @@ impl RxHubShared {
         route_urc: bool,
         framer: Option<Box<dyn Framer>>,
     ) {
+        self.attach_stream(channel, batch_timeout_ms, read_size, route_urc, framer);
+    }
+
+    /// [`Self::attach_watch_with`]; the stream is the watch's identity. A watch it replaces
+    /// ends with its tail queued.
+    pub(crate) fn attach_stream(
+        &self,
+        channel: EventSink,
+        batch_timeout_ms: u64,
+        read_size: usize,
+        route_urc: bool,
+        framer: Option<Box<dyn Framer>>,
+    ) -> Arc<EventStream> {
         crate::sync_util::lock_or_recover(&self.idle).clear();
-        *crate::sync_util::lock_or_recover(&self.watch) = Some(CoreWatchSlot::new(
+        let stream = self.outbox.stream(channel);
+        let slot = CoreWatchSlot::new(
             0,
-            channel,
-            Arc::new(AtomicBool::new(true)),
+            Target::Old(stream.clone()),
             batch_timeout_ms,
             read_size,
             route_urc,
             framer,
-        ));
+        );
+        let mut watch = crate::sync_util::lock_or_recover(&self.watch);
+        let mut replaced = watch.replace(slot);
+        if let Some(old) = replaced.as_mut() {
+            old.end(&self.path, None);
+        }
+        // Unlocked before the replaced watch's sink is dropped.
+        drop(watch);
+        stream
+    }
+
+    /// Take the old watch (if `which` accepts it); its tail is queued.
+    fn take_watch(&self, which: impl Fn(&CoreWatchSlot) -> bool) -> Option<CoreWatchSlot> {
+        let mut watch = crate::sync_util::lock_or_recover(&self.watch);
+        if !watch.as_ref().is_some_and(which) {
+            return None;
+        }
+        let mut slot = watch.take();
+        if let Some(slot) = slot.as_mut() {
+            slot.end(&self.path, None);
+        }
+        slot
     }
 
     /// Stop the watch; its batch, its unfinished line and its parser's remainder go out
-    /// last, after everything already decoded, before this returns (unless a sink calls
-    /// it). Call with no lock held (the sink runs here); under locks use
-    /// [`Self::detach_watch_queued`] + [`Self::deliver_queued`].
+    /// last, after everything already decoded, before this returns (a sink that calls it
+    /// does not wait for another thread's delivery). Call with no lock held (the sink runs
+    /// here); under locks use [`Self::detach_watch_queued`] + [`Self::deliver_queued`].
     pub fn detach_watch(&self) {
-        self.detach_watch_queued();
-        self.outbox.deliver_all();
+        if let Some(CoreWatchSlot {
+            target: Target::Old(stream),
+            ..
+        }) = self.take_watch(|_| true)
+        {
+            self.outbox.settle(&stream);
+        }
     }
 
     /// [`Self::detach_watch`] without running the sink: its last events are queued.
     pub fn detach_watch_queued(&self) {
-        let mut watch = crate::sync_util::lock_or_recover(&self.watch);
-        let Some(mut slot) = watch.take() else {
-            return;
-        };
-        let mut events = Vec::new();
-        slot.finish(&self.path, &mut events);
-        self.outbox.push(events);
-        // Unlocked before the slot's sink is dropped.
-        drop(watch);
+        self.take_watch(|_| true);
     }
 
     /// Add a `watch_core` stream (bytes from now on; idle bytes are dropped, as on attach).
@@ -568,18 +514,15 @@ impl RxHubShared {
     }
 
     /// Remove a `watch_core` stream; its batch and parser remainder go out last.
-    /// `false` when no such stream. Call with no lock held.
+    /// `false` when no such stream.
     pub(crate) fn detach_core_watch(&self, id: u64) -> bool {
         let mut cores = crate::sync_util::lock_or_recover(&self.core_watches);
         let Some(i) = cores.iter().position(|c| c.id == id) else {
             return false;
         };
         let mut slot = cores.remove(i);
-        let mut events = Vec::new();
-        slot.finish(&self.path, &mut events);
-        self.outbox.push(events);
+        slot.end(&self.path, None);
         drop(cores);
-        self.outbox.deliver_all();
         true
     }
 
@@ -587,30 +530,68 @@ impl RxHubShared {
         !crate::sync_util::lock_or_recover(&self.core_watches).is_empty()
     }
 
-    /// Mark an intentional close: no `Disconnect` from here on.
-    pub(crate) fn mark_closing(&self) {
+    /// An intentional close begins: no `Disconnect` from here on, and what waits (or starts
+    /// to wait) fails, so a sink in an exchange does not hold up the close.
+    pub(crate) fn begin_close(&self) {
         self.closing.store(true, Ordering::SeqCst);
+        self.fail_waiters(PORT_CLOSED);
+    }
+
+    /// Called by whoever installed a waiter, drain or read slot.
+    fn fail_if_closing(&self) {
+        if self.is_closing() {
+            self.fail_waiters(PORT_CLOSED);
+        }
     }
 
     pub(crate) fn is_closing(&self) -> bool {
         self.closing.load(Ordering::SeqCst)
     }
 
-    /// Run `f` over the old watch, then the live `watch_core` streams (dead ones are
-    /// dropped first); what it produces is queued under the watch's lock, so nothing of a
-    /// watch is queued once it is detached.
-    fn each_watch(&self, mut f: impl FnMut(&mut CoreWatchSlot, &mut Vec<QueuedEvent>)) {
+    /// Run `f` over the old watch, then the `watch_core` streams (those whose sink is gone
+    /// are dropped first); what it produces is sent under the watch's lock, so nothing of a
+    /// watch is queued once it is detached. `false`: there was no watch.
+    fn each_watch(&self, mut f: impl FnMut(&mut CoreWatchSlot, &mut Vec<SerialEvent>)) -> bool {
         let mut events = Vec::new();
-        if let Some(watch) = crate::sync_util::lock_or_recover(&self.watch).as_mut() {
-            f(watch, &mut events);
-            self.outbox.push(std::mem::take(&mut events));
-        }
+        let mut any = false;
+        let mut visit = |slot: &mut CoreWatchSlot| {
+            any = true;
+            f(slot, &mut events);
+            slot.target.send(&mut events);
+        };
+        let gone = {
+            let mut watch = crate::sync_util::lock_or_recover(&self.watch);
+            match watch.as_mut() {
+                Some(slot) if !slot.target.gone() => {
+                    visit(slot);
+                    None
+                }
+                _ => watch.take(),
+            }
+        };
+        // Unlocked: it drops the sink.
+        drop(gone);
         let mut cores = crate::sync_util::lock_or_recover(&self.core_watches);
-        cores.retain(CoreWatchSlot::alive);
-        for core in cores.iter_mut() {
-            f(core, &mut events);
+        cores.retain(|c| !c.target.gone());
+        cores.iter_mut().for_each(visit);
+        any
+    }
+
+    /// End every watch: its tail, then `last`.
+    fn end_watches(&self, path: &str, last: Option<&SerialEvent>) {
+        let old = {
+            let mut watch = crate::sync_util::lock_or_recover(&self.watch);
+            let mut old = watch.take();
+            if let Some(slot) = old.as_mut() {
+                slot.end(path, last);
+            }
+            old
+        };
+        drop(old);
+        let mut cores = crate::sync_util::lock_or_recover(&self.core_watches);
+        for mut slot in cores.drain(..) {
+            slot.end(path, last);
         }
-        self.outbox.push(events);
     }
 
     /// Queue copies of `event` for the old watch and every `watch_core` stream (`urc_only`:
@@ -619,7 +600,7 @@ impl RxHubShared {
         self.each_watch(|c, out| {
             // Id 0: the old watch gets URCs of exchanges and drains either way (4.x).
             if c.id == 0 || !urc_only || c.route_urc {
-                c.push(out, event.clone());
+                out.push(event.clone());
             }
         });
     }
@@ -677,6 +658,8 @@ impl RxHubShared {
             waiter.push_bytes(&std::mem::take(&mut *idle));
         }
         *crate::sync_util::lock_or_recover(&self.exchange_waiter) = Some(waiter);
+        drop(idle);
+        self.fail_if_closing();
     }
 
     pub fn clear_exchange_waiter(&self) {
@@ -714,12 +697,10 @@ impl RxHubShared {
             Some(taken) => &chunk[taken..],
             None => chunk,
         };
-        if self.has_watch() || self.has_core_watches() {
-            state.exchange_demux = None;
-            self.each_watch(|c, out| c.feed(&state.path, chunk, out));
-            return;
+        state.exchange_demux = None;
+        if !self.each_watch(|c, out| c.feed(&state.path, chunk, out)) {
+            push_idle(self, chunk);
         }
-        push_idle(self, chunk);
     }
 
     /// Idle timers for push model: drain completion + watch batch flush + read deadlines.
@@ -735,6 +716,12 @@ impl RxHubShared {
 
     /// Immediately fail exchange waiters, active drain, and pending read (USB error teardown).
     pub fn fail_all_waiters(&self, reason: &str) {
+        self.fail_waiters(reason);
+        self.outbox.deliver();
+    }
+
+    /// [`Self::fail_all_waiters`] without running a sink (the URCs of a drain are queued).
+    pub(crate) fn fail_waiters(&self, reason: &str) {
         if let Some(waiter) = crate::sync_util::lock_or_recover(&self.exchange_waiter).take() {
             waiter.fail_with_reason(reason.to_string());
         }
@@ -786,6 +773,7 @@ impl RxHubShared {
         // Idle hand-off and slot install happen under one idle lock: a chunk routed in
         // between would otherwise land in `idle` behind an installed slot (see `push_idle`).
         let (tx, rx) = mpsc::sync_channel(1);
+        let id = self.next_slot.fetch_add(1, Ordering::Relaxed);
         {
             let mut idle = crate::sync_util::lock_or_recover(&self.idle);
             let mut guard = crate::sync_util::lock_or_recover(&self.read_slot);
@@ -804,6 +792,7 @@ impl RxHubShared {
                 }
             }
             *guard = Some(ReadSlot {
+                id,
                 max_bytes,
                 fill,
                 timeout_ms,
@@ -813,10 +802,14 @@ impl RxHubShared {
             });
         }
 
+        self.fail_if_closing();
+
         match rx.recv_timeout(wait) {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
-                if let Some(slot) = crate::sync_util::lock_or_recover(&self.read_slot).take() {
+                let mine = crate::sync_util::lock_or_recover(&self.read_slot)
+                    .take_if(|slot| slot.id == id);
+                if let Some(slot) = mine {
                     if slot.buffer.is_empty() {
                         Err(format!("no data received within {} ms", timeout_ms))
                     } else {
@@ -848,38 +841,39 @@ impl RxHubShared {
         self.each_watch(|c, out| c.flush_buffers(&state.path, out));
     }
 
-    /// Send `Disconnect` on the watches, after their batch and parser's remainder.
-    /// CMUX channel watches get the same (remainder, then `Disconnect` on their path).
+    /// Send `Disconnect` on the watches, after their batch and parser's remainder: their
+    /// last event. CMUX channel watches get the same on their path, and what waits on a
+    /// channel fails before any sink runs.
     /// Once per hub: a second call (Android reports a USB failure from the hub loop
     /// and from `fail_port`) does nothing.
     pub fn emit_disconnect(&self, path: &str, reason: &str) {
         if self.disconnected.swap(true, Ordering::SeqCst) {
             return;
         }
-        self.each_watch(|c, out| {
-            c.finish(path, out);
-            c.push(
-                out,
-                SerialEvent::Disconnect {
-                    path: path.to_string(),
-                    reason: reason.to_string(),
-                },
-            );
-        });
-        self.outbox.deliver();
         let session = crate::sync_util::lock_or_recover(&self.cmux).clone();
+        if let Some(session) = &session {
+            session.disconnect_queued(reason);
+        }
+        let event = SerialEvent::Disconnect {
+            path: path.to_string(),
+            reason: reason.to_string(),
+        };
+        self.end_watches(path, Some(&event));
+        self.outbox.deliver();
         if let Some(session) = session {
-            session.emit_disconnect(reason);
+            session.deliver_queued();
         }
     }
 
-    /// Port going away: what the watches still hold is queued.
+    /// Port going away: the watches end, what they still hold is queued.
     pub fn finish_watch_stream(&self, state: &mut HubRoutingState) {
-        self.each_watch(|c, out| c.finish(&state.path, out));
+        self.end_watches(&state.path, None);
     }
 
     pub fn has_watch(&self) -> bool {
-        crate::sync_util::lock_or_recover(&self.watch).is_some()
+        crate::sync_util::lock_or_recover(&self.watch)
+            .as_ref()
+            .is_some_and(|w| !w.target.gone())
     }
 
     /// 4.0.0 API (feature `tauri`): deliver `events` to the current watch.
@@ -887,7 +881,7 @@ impl RxHubShared {
     pub fn dispatch_pending_events(&self, events: Vec<SerialEvent>) {
         self.each_watch(|c, out| {
             if c.id == 0 {
-                events.iter().for_each(|e| c.push(out, e.clone()));
+                out.extend(events.iter().cloned());
             }
         });
         self.outbox.deliver();
@@ -897,14 +891,16 @@ impl RxHubShared {
     /// produced for, even if the watch was detached since. Call with no lock held, after
     /// every routing call.
     pub fn dispatch_queued_events(&self, events: Vec<QueuedEvent>) {
-        self.outbox.push(events);
         self.outbox.deliver();
+        for (sink, event) in events {
+            let _ = call_sink(&sink, event);
+        }
     }
 
-    /// Everything queued so far has been delivered when this returns (unless a sink calls
-    /// it). Call with no lock held.
+    /// Everything queued so far has been delivered when this returns (in a sink: unless
+    /// another thread is delivering it). Call with no lock held.
     pub(crate) fn settle_events(&self) {
-        self.outbox.deliver_all();
+        self.outbox.settle_all();
     }
 
     /// Soft-drain via the hub thread (single reader); URC lines are emitted on the watch channel.
@@ -919,6 +915,7 @@ impl RxHubShared {
     ) -> Result<Vec<u8>, String> {
         let wait = Duration::from_millis(max_ms.saturating_add(500));
         let (tx, rx) = mpsc::sync_channel(1);
+        let id = self.next_slot.fetch_add(1, Ordering::Relaxed);
         {
             // Under the idle lock (order: idle, then drain): a chunk `feed_bytes` routes
             // to idle while the slot goes in lands either before (cleared here) or after
@@ -930,6 +927,7 @@ impl RxHubShared {
             }
             idle.clear();
             *guard = Some(DrainSlot {
+                id,
                 idle_ms,
                 cancel,
                 buffer: Vec::new(),
@@ -941,12 +939,16 @@ impl RxHubShared {
             });
         }
 
+        self.fail_if_closing();
+
         match rx.recv_timeout(wait) {
             Ok(result) => result,
             Err(RecvTimeoutError::Timeout) => {
-                let slot = crate::sync_util::lock_or_recover(&self.drain).take();
-                if let Some(slot) = slot {
-                    emit_drain_urcs(self, &slot);
+                let mine =
+                    crate::sync_util::lock_or_recover(&self.drain).take_if(|slot| slot.id == id);
+                if let Some(slot) = mine {
+                    queue_drain_urcs(self, &slot);
+                    self.outbox.deliver();
                     if slot.buffer.is_empty() {
                         Err("drain timed out waiting for hub".into())
                     } else {
@@ -1081,7 +1083,8 @@ pub(crate) fn try_complete_drain(shared: &RxHubShared) {
     };
     // The drain lock is released: the URC sink may touch the drain slot.
     if let Some((k, d)) = completed {
-        emit_drain_urcs(shared, &d);
+        queue_drain_urcs(shared, &d);
+        shared.outbox.deliver();
         let result = match k {
             DrainCompleteKind::Cancel => Err("exchange cancelled".into()),
             DrainCompleteKind::Buffer => Ok(d.buffer),
@@ -1126,18 +1129,17 @@ pub(crate) fn push_idle(shared: &RxHubShared, chunk: &[u8]) {
     idle.drain(..excess);
 }
 
-/// End the drain with `result`; URCs it collected still reach the watch.
+/// End the drain with `result`; URCs it collected are queued for the watch.
 pub(crate) fn finish_drain(shared: &RxHubShared, result: Result<Vec<u8>, String>) {
     let drain = crate::sync_util::lock_or_recover(&shared.drain).take();
     if let Some(drain) = drain {
-        emit_drain_urcs(shared, &drain);
+        queue_drain_urcs(shared, &drain);
         let _ = drain.tx.send(result);
     }
 }
 
-/// Send the URC lines of a finished drain on the watch channel (if any).
-/// Call with the drain lock released.
-fn emit_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
+/// Queue the URC lines of a finished drain for the watch channel (if any).
+fn queue_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
     if drain.buffer.is_empty() {
         return;
     }
@@ -1152,7 +1154,14 @@ fn emit_drain_urcs(shared: &RxHubShared, drain: &DrainSlot) {
         };
         shared.fan_out(&event, true);
     }
-    shared.outbox.deliver();
+}
+
+impl WatchOwner for RxHubShared {
+    fn stop(&self, stream: &Arc<EventStream>) {
+        // The slot (and with it the sink) is dropped with no lock held.
+        drop(self.take_watch(|slot| slot.target.is(stream)));
+        self.outbox.settle(stream);
+    }
 }
 
 #[cfg(test)]

@@ -144,6 +144,8 @@ struct PortM {
 #[derive(Clone, Debug)]
 struct ChanM {
     kind: WatchKind,
+    /// Bytes it was given in all.
+    fed: usize,
     /// Bytes that must have arrived; with a parser, its frames.
     delivered: Vec<u8>,
     frames: Vec<Vec<u8>>,
@@ -157,6 +159,7 @@ impl ChanM {
     fn new(kind: WatchKind) -> Self {
         Self {
             kind,
+            fed: 0,
             delivered: Vec::new(),
             frames: Vec::new(),
             held: Vec::new(),
@@ -166,6 +169,7 @@ impl ChanM {
     }
 
     fn feed(&mut self, data: &[u8]) {
+        self.fed += data.len();
         match self.kind {
             WatchKind::Plain => self.delivered.extend(data),
             WatchKind::LongBatch => self.held.extend(data),
@@ -565,6 +569,8 @@ struct Sut {
     /// The device's path; before there is one (and after it is gone) a path no device has.
     paths: [String; SLOTS],
     chans: Vec<ChanS>,
+    /// Beside the watch of each port that has one.
+    fences: [Option<Fence>; SLOTS],
 }
 
 impl Sut {
@@ -574,6 +580,7 @@ impl Sut {
             devices: Default::default(),
             paths: std::array::from_fn(|_| Self::no_device()),
             chans: Vec::new(),
+            fences: Default::default(),
         }
     }
 
@@ -864,6 +871,21 @@ impl Sut {
         })
     }
 
+    /// The fence comes and goes with the watch; a new watch is a new fence.
+    fn set_fences(&mut self, m: &Model, a: &Action) {
+        for slot in 0..SLOTS {
+            let watched = m.ports[slot]
+                .as_ref()
+                .is_some_and(|p| p.watch.is_some() && !p.gone);
+            let new = matches!(a, Action::Watch(s, _) | Action::Open(s, ..) if *s == slot);
+            if !watched {
+                self.fences[slot] = None;
+            } else if new && self.fences[slot].is_none() {
+                self.fences[slot] = Some(self.plugin.fence(&self.paths[slot]));
+            }
+        }
+    }
+
     fn check_invariants(&mut self, m: &Model, n: usize) {
         let open = |s: &usize| m.ports[*s].is_some();
         let mut managed: Vec<String> = (0..SLOTS)
@@ -872,7 +894,7 @@ impl Sut {
             .collect();
         managed.sort();
         assert_eq!(self.plugin.managed(), managed, "step {n}: managed ports");
-        for (path, port) in self.paths.iter().zip(&m.ports) {
+        for (slot, (path, port)) in self.paths.iter().zip(&m.ports).enumerate() {
             let Some(port) = port else { continue };
             if port.gone {
                 // The hub notices the loss on its next read.
@@ -883,7 +905,10 @@ impl Sut {
                 });
             } else {
                 self.check_settings(path, port, n);
-                self.plugin.settled(path, port.pending.len());
+                match port.watch {
+                    Some(c) => self.fences[slot].as_ref().unwrap().wait(m.chans[c].fed),
+                    None => self.plugin.settled(path, port.pending.len()),
+                }
             }
         }
         for (chan, model) in self.chans.iter_mut().zip(&m.chans) {
@@ -1005,6 +1030,7 @@ fn run_case(actions: &[Action]) {
         if let Some(result) = sut.apply(&model, &expect, a) {
             check(&format!("step {n}: {a:?}"), &expect, result);
         }
+        sut.set_fences(&model, a);
         sut.check_invariants(&model, n);
     }
     // Close everything: every tail has arrived by then and nothing more can.

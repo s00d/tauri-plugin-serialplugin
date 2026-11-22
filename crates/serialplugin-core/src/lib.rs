@@ -64,6 +64,11 @@ pub mod mock_serial;
 #[cfg(any(feature = "log", target_os = "android"))]
 pub use log as __log;
 
+/// The snippets of serialplugin-testing's README run here: one of them uses this crate.
+#[cfg(all(doctest, not(any(target_os = "android", target_os = "ios"))))]
+#[doc = include_str!("../../serialplugin-testing/README.md")]
+struct TestingReadme;
+
 pub use api::SerialManager;
 pub use error::{CoreError, Error, ErrorKind};
 pub use events::{CoreEvent, CoreSink, EventSink, PortListSink, SubscriptionId};

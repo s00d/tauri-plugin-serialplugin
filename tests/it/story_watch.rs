@@ -29,11 +29,13 @@ fn parsers_frame_the_stream() {
         let path = device.path.clone();
 
         let mut events = plugin.watch(&path, json!({ "parser": { "type": "readline" } }));
-        for part in [&b"fir"[..], b"st\nsec", b"ond\nrest"] {
+        let fence = plugin.fence(&path);
+        for (part, routed) in [(&b"fir"[..], 3), (b"st\nsec", 9), (b"ond\nrest", 17)] {
             device.send(part);
-            plugin.settled(&path, 0);
+            fence.wait(routed);
         }
         plugin.unwatch(&events);
+        drop(fence);
         for frame in [&b"first"[..], b"second", b"rest"] {
             assert_eq!(events.next(&path), Event::Data(frame.to_vec()));
         }
@@ -46,8 +48,9 @@ fn parsers_frame_the_stream() {
 
         let args = json!({ "options": { "routeUrc": true }, "parser": { "type": "readline" } });
         let mut events = plugin.watch(&path, args);
+        let fence = plugin.fence(&path);
         device.send(b"one\n+CREG: 1\ntwo\nla");
-        plugin.settled(&path, 0);
+        fence.wait(19);
         drop(device);
         for event in [
             Event::Data(b"one".to_vec()),
@@ -79,17 +82,20 @@ fn batches_flush_when_full_and_before_the_watch_ends() {
         let mut events = plugin.watch(&path, options.clone());
         device.send(b"12345678");
         assert_eq!(events.data_until(&path, |b| b.len() >= 8), b"12345678");
-        for part in [&b"ab"[..], b"cd", b"ef"] {
+        let fence = plugin.fence(&path);
+        for (part, routed) in [(&b"ab"[..], 2), (b"cd", 4), (b"ef", 6)] {
             device.send(part);
-            plugin.settled(&path, 0);
+            fence.wait(routed);
         }
         plugin.ok("close", json!({ "path": path }));
         assert_eq!(drain(&mut events, &path), b"abcdef");
 
         plugin.open_device(&mut device);
         let mut events = plugin.watch(&path, options.clone());
+        let fence = plugin.fence(&path);
         device.send(b"old");
-        plugin.settled(&path, 0);
+        fence.wait(3);
+        drop(fence);
         plugin.unwatch(&events);
         assert_eq!(drain(&mut events, &path), b"old");
         let mut next = plugin.watch(&path, options);

@@ -59,12 +59,7 @@ fn a_session_is_recorded_and_served() {
         ),
         (7, 3)
     );
-    let lines = Lines {
-        cts: false,
-        ring: true,
-        ..Lines::default()
-    };
-    device.set_lines(lines);
+    device.set_lines(Lines::default().cts(false).ring(true));
     assert!(!port.read_clear_to_send().unwrap() && port.read_ring_indicator().unwrap());
     assert!(port.read_data_set_ready().unwrap() && !port.read_carrier_detect().unwrap());
     assert_eq!(
@@ -112,16 +107,91 @@ fn held_calls_and_clones() {
     assert!(device.unclonable_port().try_clone().is_err());
 }
 
+/// Given a host whose read waits for data (and one that reads later)
+/// When the device holds reads, sends, and the test lets go, by a call or by dropping its
+/// last handle as a failing test does
+/// Then the waiting read is held too and gets nothing meanwhile, and no read stays blocked
+#[test]
+fn a_hold_stops_a_waiting_read_and_ends_with_the_test() {
+    let device = FakeDevice::new();
+    let mut port = device.port();
+    port.set_timeout(Duration::from_secs(60)).unwrap();
+    let mut writer = port.try_clone().unwrap();
+    let reading = std::thread::spawn(move || (read_some(&mut port), port));
+    // Nothing unread and a read in progress: it waits.
+    device.wait_handled();
+    device.hold_reads(true);
+    device.wait_held(1);
+    device.send(b"held back");
+    let other = device.clone();
+    drop(device);
+    assert_eq!(other.held(), 1, "another handle still holds");
+    assert_eq!(other.unread(), 9);
+    other.hold_reads(false);
+    let (got, mut port) = reading.join().unwrap();
+    assert_eq!(got.unwrap(), b"held back");
+
+    other.hold_reads(true);
+    other.hold_writes(true);
+    let reading = std::thread::spawn(move || read_some(&mut port));
+    let writing = std::thread::spawn(move || writer.write_all(b"x"));
+    other.wait_held(2);
+    other.send(b"!");
+    drop(other);
+    assert_eq!(reading.join().unwrap().unwrap(), b"!");
+    writing.join().unwrap().unwrap();
+}
+
+/// Given a host with two handles and a device that answers every write
+/// When the answer itself writes, the other handle writes meanwhile, the answer panics, and
+/// it sets a new one
+/// Then every write is answered, one at a time and in order, and no answer is lost
+#[test]
+fn every_write_is_answered_in_order() {
+    let device = FakeDevice::new();
+    let mut port = device.port();
+    let mut inside = port.try_clone().unwrap();
+    let mut outside = Some(port.try_clone().unwrap());
+    device.respond(move |_, bytes| {
+        if bytes == b"one" {
+            inside.write_all(b"two").unwrap();
+            let mut outside = outside.take().unwrap();
+            // Returns although the answer to "one" is not out yet.
+            std::thread::spawn(move || outside.write_all(b"three").unwrap())
+                .join()
+                .unwrap();
+        }
+        assert_ne!(bytes, b"bad", "expected by this test");
+        [b"<", bytes, b">"].concat()
+    });
+    port.write_all(b"one").unwrap();
+    assert_eq!(read_some(&mut port).unwrap(), b"<one><two><three>");
+    assert_eq!(device.written(), b"onetwothree");
+
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| port.write(b"bad")));
+    assert!(failed.is_err());
+    port.write_all(b"four").unwrap();
+    assert_eq!(read_some(&mut port).unwrap(), b"<four>");
+
+    device.respond(|device, bytes| {
+        device.respond(|_, bytes| [b"new ", bytes].concat());
+        [b"old ", bytes].concat()
+    });
+    port.write_all(b"a ").unwrap();
+    port.write_all(b"b").unwrap();
+    assert_eq!(read_some(&mut port).unwrap(), b"old a new b");
+}
+
 /// Given a device answering every write, itself sending to the host from the answer
-/// When it stalls, ends reads with EOF a few times, then fails for good
-/// Then writes time out, the EOFs are counted, data flows again, and the end is final
+/// When it stalls, ends reads with EOF a few times, fails, and recovers
+/// Then writes time out, the EOFs are counted, the failure lasts until the recovery, and data
+/// flows again
 #[test]
 fn faults_come_and_go() {
     let device = FakeDevice::new();
     let mut port = device.port();
-    let urc = device.clone();
-    device.respond(move |bytes| {
-        urc.send(b"urc ");
+    device.respond(|device, bytes| {
+        device.send(b"urc ");
         bytes.to_ascii_uppercase()
     });
     port.write_all(b"hi").unwrap();
@@ -147,4 +217,10 @@ fn faults_come_and_go() {
         ErrorKind::NotConnected
     );
     assert_eq!(device.written(), b"hi");
+
+    device.stall_writes(true);
+    device.fail_reads_times(5, ErrorKind::Other);
+    device.recover();
+    port.write_all(b"ok").unwrap();
+    assert_eq!(read_some(&mut port).unwrap(), b"urc OK");
 }

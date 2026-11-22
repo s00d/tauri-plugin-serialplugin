@@ -72,8 +72,7 @@ pub fn send_event(channel: &tauri::ipc::Channel<SerialEvent>, event: SerialEvent
 }
 
 pub fn send_event_to(channel: &EventSink, event: SerialEvent) {
-    if channel(event) {
-        return;
+    if crate::hub::stream::call_sink(channel, event) == Some(false) {
+        crate::log_warn!("Failed to send serial event: receiver is gone");
     }
-    crate::log_warn!("Failed to send serial event: receiver is gone");
 }

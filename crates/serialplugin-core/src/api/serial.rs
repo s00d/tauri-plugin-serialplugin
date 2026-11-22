@@ -13,6 +13,8 @@ use crate::events::{
     SubscriptionId, WatchOptions,
 };
 use crate::hub::delivery::CoreQueue;
+use crate::hub::shared::CoreWatchSlot;
+use crate::hub::stream::{EventStream, Target, WatchOwner};
 #[cfg(target_os = "android")]
 use crate::log_error;
 use crate::port::tx_queue::PortTxQueue;
@@ -355,7 +357,8 @@ fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error>
                 #[cfg(target_os = "android")]
                 crate::android::registry::global_registry().unregister(path);
                 // The hub flushes what it holds into the watches; no `Disconnect`.
-                hub.shared().mark_closing();
+                cp.tx_queue.cancel_all();
+                hub.shared().begin_close();
                 hub.stop_and_join();
             }
             #[cfg(target_os = "android")]
@@ -386,11 +389,42 @@ struct Writer {
     port: PortArc,
 }
 
+/// One old watch. It stays here until its tail is delivered, so whoever ends it (or closes
+/// its port) meanwhile waits for that too.
+struct OldWatch {
+    path: String,
+    /// `None` until attached (and for the late watch of a released port).
+    attached: Option<Attached>,
+    /// `unwatch` is at work.
+    stopping: bool,
+}
+
+/// How to end a watch without its port's record, which a close may have removed already.
+#[derive(Clone)]
+struct Attached {
+    owner: Weak<dyn WatchOwner>,
+    stream: Weak<EventStream>,
+}
+
+impl Attached {
+    /// Detach and settle. Whoever still has events to deliver keeps owner and stream alive.
+    fn stop(&self) {
+        let Some(stream) = self.stream.upgrade() else {
+            return;
+        };
+        match self.owner.upgrade() {
+            Some(owner) => owner.stop(&stream),
+            // The hub is gone, and with it everything it held.
+            None => stream.settle(),
+        }
+    }
+}
+
 /// Per-manager state of the 4.2 core (registries, write handles, subscriptions).
 #[derive(Default)]
 struct CoreState {
-    /// Old `watch` ids → path (one per port).
-    watches: Mutex<HashMap<u32, String>>,
+    /// Old `watch` ids (one per port).
+    watches: Mutex<HashMap<u32, OldWatch>>,
     /// `watch_core` ids → path (any number per port).
     core_watches: Mutex<HashMap<u64, String>>,
     writers: Mutex<HashMap<String, Writer>>,
@@ -543,9 +577,12 @@ impl SerialManager {
         Ok(())
     }
 
-    /// Close the specified serial port. What the hub still holds (the watch batch, a
-    /// parser's remainder) reaches the watches first, in order; no `Disconnect` is
-    /// sent. Succeeds once on a port the core already released after a disconnect.
+    /// Close the specified serial port. What waits on it (exchanges, reads, queued
+    /// commands) fails; what the hub still holds (the watch batch, a parser's remainder)
+    /// reaches the watches first, in order; no `Disconnect` is sent, and nothing reaches a
+    /// [`Self::watch`] sink after this returned. It waits for a sink call in progress, so do
+    /// not hold a lock that sink takes; called from a sink it waits for no other thread.
+    /// Succeeds once on a port the core already released after a disconnect.
     pub fn close(&self, path: String) -> Result<(), Error> {
         self.close_core(path).map_err(Error::from)
     }
@@ -554,20 +591,28 @@ impl SerialManager {
     pub fn close_core(&self, path: String) -> Result<(), CoreError> {
         log_debug!("close {}", path);
 
-        if crate::sync_util::lock_or_recover(&self.virtual_ports).contains_key(&path) {
-            for channel_id in self.watch_ids_for(&path) {
-                let _ = self.unwatch(channel_id);
+        let virtual_port = crate::sync_util::lock_or_recover(&self.virtual_ports)
+            .get(&path)
+            .cloned();
+        if let Some(vp) = virtual_port {
+            let session = self
+                .resolve_connected_port(&vp.physical_path)
+                .ok()
+                .and_then(|cp| crate::sync_util::lock_or_recover(&cp.mux).clone());
+            // First, so a sink that waits in an exchange does not hold up the rest.
+            vp.tx_queue.cancel_all();
+            if let Some(session) = &session {
+                session.begin_close(Some(vp.dlci));
             }
+            self.forget_old_watches(&path);
             for id in self.core_watch_ids_for(&path) {
                 let _ = self.unwatch_core(SubscriptionId(id));
             }
             let removed = crate::sync_util::lock_or_recover(&self.virtual_ports).remove(&path);
             if let Some(vp) = removed {
                 vp.tx_queue.cancel_all();
-                if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
-                    if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).clone() {
-                        session.unregister_dlci(vp.dlci);
-                    }
+                if let Some(session) = session {
+                    session.unregister_dlci(vp.dlci);
                 }
                 self.emit_port_state(&path, PortStatus::Closed);
                 return Ok(());
@@ -575,7 +620,8 @@ impl SerialManager {
         }
 
         // Physical port: its virtual channels and CMUX session go with it.
-        if self.resolve_connected_port(&path).is_ok() {
+        if let Ok(cp) = self.resolve_connected_port(&path) {
+            self.begin_close(&path, &cp);
             let _ = self.disable_mux(path.clone());
         }
 
@@ -610,6 +656,25 @@ impl SerialManager {
         }
     }
 
+    /// First step of a close: what waits on `path` or its channels fails, so a sink that
+    /// waits in an exchange does not hold up the rest.
+    fn begin_close(&self, path: &str, cp: &ConnectedPortHandle) {
+        let queues: Vec<_> = crate::sync_util::lock_or_recover(&self.virtual_ports)
+            .values()
+            .filter(|vp| vp.physical_path == path)
+            .map(|vp| vp.tx_queue.clone())
+            .collect();
+        for queue in queues.iter().chain([&cp.tx_queue]) {
+            queue.cancel_all();
+        }
+        if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).as_ref() {
+            session.begin_close(None);
+        }
+        if let Some(hub) = crate::sync_util::lock_or_recover(&cp.rx_hub).as_ref() {
+            hub.shared().begin_close();
+        }
+    }
+
     /// Close all open serial ports
     pub fn close_all(&self) -> Result<(), Error> {
         let paths = self.managed_ports()?;
@@ -633,8 +698,12 @@ impl SerialManager {
         if crate::sync_util::lock_or_recover(&self.virtual_ports).contains_key(&path) {
             return self.close(path);
         }
+        let connected = self.resolve_connected_port(&path);
+        if let Ok(cp) = &connected {
+            self.begin_close(&path, cp);
+        }
         self.close_virtual_channels_of(&path);
-        if let Ok(cp) = self.resolve_connected_port(&path) {
+        if let Ok(cp) = connected {
             if let Some(session) = crate::sync_util::lock_or_recover(&cp.mux).take() {
                 session.close_down();
             }
@@ -812,7 +881,7 @@ impl SerialManager {
         options: &WatchOptions,
         parser: Option<serial_codec::framing::FramerConfig>,
         sink: CoreSink,
-    ) -> Result<(u64, Arc<CoreQueue>, crate::hub::shared::CoreWatchSlot), CoreError> {
+    ) -> Result<(u64, Arc<CoreQueue>, CoreWatchSlot), CoreError> {
         let framer = parser
             .as_ref()
             .map(|p| p.build())
@@ -821,10 +890,9 @@ impl SerialManager {
         let (batch_timeout, read_size, route_urc) = watch_params(options);
         let id = next_subscription_id();
         let queue = CoreQueue::spawn(sink, self.core_queue_capacity());
-        let slot = crate::hub::shared::CoreWatchSlot::new(
+        let slot = CoreWatchSlot::new(
             id,
-            queue.event_sink(),
-            queue.alive_flag(),
+            core_target(&queue),
             batch_timeout,
             read_size,
             route_urc,
@@ -844,7 +912,7 @@ impl SerialManager {
         stop_bits: Option<StopBits>,
         timeout: Option<u64>,
         lines: crate::state::ModemLinesOnOpen,
-        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+        first_watch: Option<CoreWatchSlot>,
     ) -> Result<String, CoreError> {
         // Re-open (e.g. after a webview reload): tear the old session down the same
         // way `close` does, so its watches, CMUX channels and hub go with it.
@@ -981,7 +1049,7 @@ impl SerialManager {
         &self,
         path: String,
         port: Box<dyn SerialPortTrait>,
-        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+        first_watch: Option<CoreWatchSlot>,
     ) -> Result<(), CoreError> {
         let known = crate::sync_util::lock_or_recover(&self.serialports).contains_key(&path)
             || crate::sync_util::lock_or_recover(&self.core.disconnected).contains_key(&path);
@@ -1020,7 +1088,10 @@ impl SerialManager {
     /// thread, or the caller of `unwatch` / `close` for the tail they deliver. It never
     /// runs under a manager lock, but a slow sink holds up RX (keep it short, e.g.
     /// forward into a channel), and calling `at()` / `exchange` on the same port from
-    /// it waits for the RX it blocks. Nothing reaches it after `close()` returns.
+    /// it waits for the RX it blocks. Nothing reaches it after `unwatch()` or `close()`
+    /// returned (called from a sink they do not wait: what another thread delivers right
+    /// then, or the tail of the sink's own watch, follows). A panic in it is caught and
+    /// ends the watch.
     /// [`Self::watch_core`] has its own delivery thread instead.
     pub fn watch(
         &self,
@@ -1113,98 +1184,67 @@ impl SerialManager {
                     self.unregister_watch(channel_id);
                     return Err(e);
                 }
-                session.set_watch_with(vp.dlci, channel, batch_timeout, framer);
+                let attached = session.attach_stream(vp.dlci, channel, batch_timeout, framer);
+                if let Some((owner, stream)) = attached {
+                    self.bind_watch(channel_id, owner, &stream);
+                }
                 return Ok(channel_id);
             }
         }
 
-        // A replaced watch's remainder is queued under the locks, delivered after.
-        let mut replaced = None;
         let attached = self.with_connected_port(path.clone(), |cp| {
             if cp.virtual_dlci.is_some() {
                 return Err(Error::String("legacy virtual ConnectedPort".into()));
-            }
-            if let Some(shared) = cp
-                .rx_hub
-                .lock()
-                .ok()
-                .and_then(|g| g.as_ref().map(|h| h.shared()))
-                .filter(|s| s.has_watch())
-            {
-                shared.detach_watch_queued();
-                replaced = Some(shared);
             }
             self.ensure_rx_hub(&cp.handle(), &path)?;
             let guard = cp
                 .rx_hub
                 .lock()
                 .map_err(|e| Error::String(format!("Mutex lock failed: {}", e)))?;
-            let hub = guard
+            let shared = guard
                 .as_ref()
-                .ok_or_else(|| Error::String("RX hub missing after start".into()))?;
-            hub.attach_watch_with(channel, batch_timeout, read_size, route_urc, framer.take());
-            Ok(())
+                .ok_or_else(|| Error::String("RX hub missing after start".into()))?
+                .shared();
+            let stream =
+                shared.attach_stream(channel, batch_timeout, read_size, route_urc, framer.take());
+            Ok((shared, stream))
         });
-        if let Some(shared) = replaced {
-            shared.deliver_queued();
-        }
-        if let Err(e) = attached {
-            self.unregister_watch(channel_id);
-            return Err(e);
+        match attached {
+            Ok((shared, stream)) => self.bind_watch(channel_id, shared, &stream),
+            Err(e) => {
+                self.unregister_watch(channel_id);
+                return Err(e);
+            }
         }
 
         Ok(channel_id)
     }
 
+    /// Stop a [`Self::watch`]. What it still holds (its batch, an unfinished line, its
+    /// parser's remainder) is delivered first, in order, and nothing reaches its sink after
+    /// this returned. If the sink is running on another thread this waits for it, so do not
+    /// hold a lock the sink takes. Called from a sink it does not wait (two sinks may
+    /// unwatch each other): the delivery in progress goes on when that sink returns.
     pub fn unwatch(&self, channel_id: u32) -> Result<(), Error> {
-        let path = self
-            .unregister_watch(channel_id)
-            .ok_or_else(|| Error::new(format!("No active watch for channel {}", channel_id)))?;
+        let (path, attached) = {
+            let mut watches = crate::sync_util::lock_or_recover(&self.core.watches);
+            let watch = watches
+                .get_mut(&channel_id)
+                .filter(|w| !w.stopping)
+                .ok_or_else(|| Error::new(format!("No active watch for channel {}", channel_id)))?;
+            watch.stopping = true;
+            (watch.path.clone(), watch.attached.clone())
+        };
         log_debug!("Stopping watch on port: {} (channel {})", path, channel_id);
-        self.stop_watch_thread(&path)
-    }
-
-    /// Detach the watch of `path`. The remainder goes to the sink after every lock
-    /// here is released, so a sink calling back into the manager cannot deadlock.
-    fn stop_watch_thread(&self, path: &str) -> Result<(), Error> {
-        let virtual_port = self
-            .virtual_ports
-            .lock()
-            .ok()
-            .and_then(|v| v.get(path).cloned());
-        if let Some(vp) = virtual_port {
-            if let Ok(cp) = self.resolve_connected_port(&vp.physical_path) {
-                let session = crate::sync_util::lock_or_recover(&cp.mux).clone();
-                if let Some(session) = session {
-                    session.clear_watch(vp.dlci);
-                }
-            }
-            return Ok(());
+        // No lock held: the sink may run here.
+        if let Some(attached) = attached {
+            attached.stop();
         }
-        enum Detach {
-            Mux(Arc<CmuxSession>, u8),
-            Hub(Arc<crate::hub::RxHubShared>),
-            Nothing,
-        }
-        // A port the core already released (disconnect) has nothing left to detach.
-        let detach = self
-            .with_connected_port(path.to_string(), |cp| {
-                if let Some(dlci) = cp.virtual_dlci {
-                    let session = crate::sync_util::lock_or_recover(&cp.mux).clone();
-                    return Ok(session.map_or(Detach::Nothing, |s| Detach::Mux(s, dlci)));
-                }
-                let shared = cp
-                    .rx_hub
-                    .lock()
-                    .ok()
-                    .and_then(|g| g.as_ref().map(|h| h.shared()));
-                Ok(shared.map_or(Detach::Nothing, Detach::Hub))
-            })
-            .unwrap_or(Detach::Nothing);
-        match detach {
-            Detach::Mux(session, dlci) => session.clear_watch(dlci),
-            Detach::Hub(shared) => shared.detach_watch(),
-            Detach::Nothing => {}
+        let mut watches = crate::sync_util::lock_or_recover(&self.core.watches);
+        // Closed meanwhile, the id may be a new watch's.
+        if watches.get(&channel_id).is_some_and(|w| w.stopping) {
+            watches.remove(&channel_id);
+            crate::port::watch_registry::mirror_remove(channel_id);
         }
         Ok(())
     }
@@ -2025,6 +2065,13 @@ impl SerialManager {
     }
 }
 
+fn core_target(queue: &Arc<CoreQueue>) -> Target {
+    Target::Core {
+        sink: queue.event_sink(),
+        alive: queue.alive_flag(),
+    }
+}
+
 /// Batch window, read size and URC routing of a watch.
 fn watch_params(options: &WatchOptions) -> (u64, usize, bool) {
     let batch_timeout = options
@@ -2074,14 +2121,7 @@ impl SerialManager {
                 .clone()
                 .ok_or_else(|| Error::String("CMUX not enabled".into()))?;
             self.ensure_rx_hub(&cp, &vp.physical_path)?;
-            if !session.add_core_watch(
-                vp.dlci,
-                id,
-                queue.event_sink(),
-                queue.alive_flag(),
-                batch_timeout,
-                framer,
-            ) {
+            if !session.add_core_watch(vp.dlci, id, core_target(&queue), batch_timeout, framer) {
                 return Err(Error::String(format!("Port '{}' not found", path)).into());
             }
         } else {
@@ -2091,10 +2131,9 @@ impl SerialManager {
                 .as_ref()
                 .map(|h| h.shared())
                 .ok_or_else(|| Error::String("RX hub missing after start".into()))?;
-            shared.attach_core_watch(crate::hub::shared::CoreWatchSlot::new(
+            shared.attach_core_watch(CoreWatchSlot::new(
                 id,
-                queue.event_sink(),
-                queue.alive_flag(),
+                core_target(&queue),
                 batch_timeout,
                 read_size,
                 route_urc,
@@ -2207,7 +2246,7 @@ impl SerialManager {
         if watches.contains_key(&id) {
             return Err(Error::new(format!("watch id {} is already in use", id)));
         }
-        if watches.values().any(|p| p == path) {
+        if watches.values().any(|w| w.path == path) {
             return Err(Error::new(format!(
                 "A watch is already active for port {}",
                 path
@@ -2218,24 +2257,53 @@ impl SerialManager {
         if !crate::port::watch_registry::mirror_insert(id, path) {
             return Err(Error::new(format!("watch id {} is already in use", id)));
         }
-        watches.insert(id, path.to_string());
+        let watch = OldWatch {
+            path: path.to_string(),
+            attached: None,
+            stopping: false,
+        };
+        watches.insert(id, watch);
         Ok(())
     }
 
-    fn unregister_watch(&self, id: u32) -> Option<String> {
-        let path = crate::sync_util::lock_or_recover(&self.core.watches).remove(&id);
-        if path.is_some() {
-            crate::port::watch_registry::mirror_remove(id);
+    /// The watch `id` is attached to `owner`; ended meanwhile, it is stopped right away.
+    fn bind_watch(&self, id: u32, owner: Arc<dyn WatchOwner>, stream: &Arc<EventStream>) {
+        let attached = Attached {
+            owner: Arc::downgrade(&owner),
+            stream: Arc::downgrade(stream),
+        };
+        let mut watches = crate::sync_util::lock_or_recover(&self.core.watches);
+        match watches.get_mut(&id) {
+            Some(watch) if !watch.stopping => watch.attached = Some(attached),
+            _ => {
+                drop(watches);
+                attached.stop();
+            }
         }
-        path
     }
 
-    fn watch_ids_for(&self, path: &str) -> Vec<u32> {
-        crate::sync_util::lock_or_recover(&self.core.watches)
-            .iter()
-            .filter(|(_, p)| p.as_str() == path)
-            .map(|(id, _)| *id)
-            .collect()
+    fn unregister_watch(&self, id: u32) {
+        let watch = crate::sync_util::lock_or_recover(&self.core.watches).remove(&id);
+        if watch.is_some() {
+            crate::port::watch_registry::mirror_remove(id);
+        }
+    }
+
+    /// End the old watches of `path` (their tail is delivered) and drop their ids. Call with
+    /// no lock held.
+    fn forget_old_watches(&self, path: &str) {
+        let watches: Vec<(u32, Option<Attached>)> =
+            crate::sync_util::lock_or_recover(&self.core.watches)
+                .iter()
+                .filter(|(_, w)| w.path == path)
+                .map(|(id, w)| (*id, w.attached.clone()))
+                .collect();
+        for (id, attached) in watches {
+            if let Some(attached) = attached {
+                attached.stop();
+            }
+            self.unregister_watch(id);
+        }
     }
 
     fn core_watch_ids_for(&self, path: &str) -> Vec<u64> {
@@ -2247,10 +2315,9 @@ impl SerialManager {
     }
 
     /// Drop the registry entries of `path` (the port is gone; its hub ended the streams).
+    /// Call with no lock held.
     fn forget_watches(&self, path: &str) {
-        for id in self.watch_ids_for(path) {
-            self.unregister_watch(id);
-        }
+        self.forget_old_watches(path);
         crate::sync_util::lock_or_recover(&self.core.core_watches).retain(|_, p| p != path);
     }
 
@@ -2262,7 +2329,7 @@ impl SerialManager {
         path: &str,
         port: Box<dyn SerialPortTrait>,
         timeout: Duration,
-        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+        first_watch: Option<CoreWatchSlot>,
     ) -> (ConnectedPort, Result<(), Error>) {
         let writer = split_writer(path, port.as_ref(), timeout);
         let cp = ConnectedPort::new(port);
@@ -2306,7 +2373,7 @@ impl SerialManager {
         &self,
         cp: &ConnectedPortHandle,
         path: &str,
-        first_watch: Option<crate::hub::shared::CoreWatchSlot>,
+        first_watch: Option<CoreWatchSlot>,
     ) -> Result<(), Error> {
         let mut guard = cp
             .rx_hub

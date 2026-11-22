@@ -117,9 +117,10 @@ fn diff_listing(
     (added, removed)
 }
 
-/// Returns false when the receiver is gone.
+/// Returns false when the receiver is gone (a sink that panics is).
 fn send_event(channel: &PortListSink, event: PortListEvent) -> bool {
-    if channel(event) {
+    let sent = std::panic::AssertUnwindSafe(|| channel(event));
+    if std::panic::catch_unwind(sent).unwrap_or(false) {
         return true;
     }
     crate::log_warn!("Failed to send port list event: receiver is gone");

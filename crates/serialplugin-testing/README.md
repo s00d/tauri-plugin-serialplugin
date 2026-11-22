@@ -1,6 +1,6 @@
 # serialplugin-testing
 
-Fake serial devices for tests: no hardware, no sleeps. Works with anything that takes a
+Fake serial devices for tests: no hardware, no timing. Works with anything that takes a
 [`serialport::SerialPort`](https://docs.rs/serialport), with
 [`serialplugin-core`](https://docs.rs/serialplugin-core) and with
 [`tauri-plugin-serialplugin`](https://github.com/s00d/tauri-plugin-serialplugin).
@@ -34,7 +34,7 @@ fn read_id(port: &mut dyn serialport::SerialPort) -> std::io::Result<String> {
 }
 
 let device = FakeDevice::new();
-device.respond(|written| if written == b"ID?\n" { b"A-17".to_vec() } else { Vec::new() });
+device.respond(|_, written| if written == b"ID?\n" { b"A-17".to_vec() } else { Vec::new() });
 let mut port = device.port();
 assert_eq!(read_id(&mut port).unwrap(), "A-17");
 assert_eq!(device.calls(), [Call::Dtr(true)]);
@@ -42,6 +42,10 @@ assert_eq!(device.calls(), [Call::Dtr(true)]);
 // The device is unplugged.
 device.fail_reads(ErrorKind::BrokenPipe);
 assert_eq!(read_id(&mut port).unwrap_err().kind(), ErrorKind::BrokenPipe);
+
+// And plugged in again.
+device.recover();
+assert_eq!(read_id(&mut port).unwrap(), "A-17");
 ```
 
 ## An AT modem
@@ -70,18 +74,18 @@ device.send(b"\r\n+CMTI: \"SM\",1\r\n");
 
 ## With serialplugin-core
 
-```rust,ignore
+```rust
 use serialplugin_core::SerialManager;
 use serialplugin_testing::{FakeDevice, Modem};
 
 let device = FakeDevice::with_modem(Modem::new());
 let serial = SerialManager::new();
-serial.insert_port("modem".into(), Box::new(device.port()))?;
+serial.insert_port("modem".into(), Box::new(device.port())).unwrap();
 
-let reply = serial.at("modem".into(), "AT+CSQ".into(), None)?;
+let reply = serial.at("modem".into(), "AT+CSQ".into(), None).unwrap();
 assert_eq!(reply.solicited_body, ["+CSQ: 20,99"]);
 
-serial.close("modem".into())?;
+serial.close("modem".into()).unwrap();
 device.wait_closed();
 ```
 
@@ -90,10 +94,15 @@ With the Tauri plugin (through IPC, as a webview calls it) and with the multiple
 
 ## No timing
 
-Waits end on what they wait for (`wait_written`, `wait_read`, `wait_held`, `wait_closed`,
-`ModemLog::wait_command`, `eventually`); `WAIT` (10 s) only limits how long a failure takes.
-To test code that must not block, hold the device (`hold_reads`, `hold_writes`) instead of
-measuring time.
+No test depends on a delay. Waits end on what they wait for (`wait_written`, `wait_read`,
+`wait_handled`, `wait_held`, `wait_closed`, `ModemLog::wait_command`); `WAIT` (10 s) only
+limits how long a failure takes. `eventually` and the peers, whose state no event announces,
+poll (every millisecond, every 20 ms). To test code that must not block, hold the device
+(`hold_reads`, `hold_writes`) instead of measuring time; a hold lasts until the test lets go
+or drops its last `FakeDevice`, so a failing test does not hang.
+
+`wait_read` means that the host took the bytes, not that it handled them. `wait_handled` does,
+for a host with one reading thread: it asked for more.
 
 Desktop only (Linux, macOS, Windows).
 

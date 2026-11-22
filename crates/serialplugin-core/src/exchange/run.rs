@@ -7,6 +7,7 @@ use crate::events::{ExchangeOptions, RxPrepareMode};
 use crate::exchange::io::ExchangeIo;
 use crate::exchange::options::ReadUntilOutcome;
 use crate::hub::handle::RxHubHandle;
+use crate::hub::shared::PORT_CLOSED;
 use crate::hub::ExchangeWaiter;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -55,6 +56,11 @@ pub fn run_physical_exchange<H: RxHubHandle>(
     if cancel.load(Ordering::SeqCst) {
         hub.clear_exchange_waiter();
         return Err(Error::String("exchange cancelled".into()));
+    }
+    // Nothing is sent on a port that is being closed (the waiter has failed).
+    if hub_shared.is_closing() {
+        hub.clear_exchange_waiter();
+        return Err(Error::String(PORT_CLOSED.into()));
     }
 
     if let Err(e) = io.write_payload(&payload) {

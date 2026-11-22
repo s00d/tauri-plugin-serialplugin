@@ -1,5 +1,5 @@
 //! Stories: devices that die (at once, by error, by end of file, in the middle of a call),
-//! that only glitch, and a hub thread that dies.
+//! that only glitch, and a watch sink that panics.
 
 use crate::common::*;
 use serialplugin_core::error::ErrorKind;
@@ -22,7 +22,7 @@ fn disconnected(reason: &str) -> PortStatus {
 
 /// Given a watched port whose reads glitch,
 /// when they time out, are interrupted, or fail a few times and recover,
-/// then only the failures show, as one error event, and the port goes on;
+/// then only the failures show, as an error event, and the port goes on;
 /// when they keep failing (a Windows unplug is PermissionDenied for ever),
 /// then the watch gets one Disconnect and nothing after it, subscribers the Disconnected
 /// state, pending calls fail, and the path stays managed until it is closed.
@@ -207,35 +207,41 @@ fn the_first_read_is_not_lost() {
     }
 }
 
-/// Given a watch sink that panics and kills the hub thread,
-/// when reads come next,
-/// then a new hub starts and later bytes are read.
+/// Given a watch whose sink panics at its first event,
+/// when more bytes come, a read and a command,
+/// then only that watch ended: the bytes are the port's again, the command works, and the
+/// port is watched anew.
 #[test]
-fn a_dead_hub_is_restarted_by_the_next_read() {
-    let device = FakeDevice::new();
+fn a_panicking_sink_costs_only_its_own_watch() {
+    let device = FakeDevice::with_modem(Modem::new());
     let m = manager_with("phoenix", device.port());
     let (hit, hits) = sink::<()>();
-    m.watch(
-        "phoenix".into(),
-        watch_opts(0, false),
-        Arc::new(move |_| {
-            hit(());
-            panic!("sink panics (expected by this test)");
-        }),
-    )
-    .unwrap();
+    let dead = m
+        .watch(
+            "phoenix".into(),
+            watch_opts(0, false),
+            Arc::new(move |_| {
+                hit(());
+                panic!("sink panics (expected by this test)");
+            }),
+        )
+        .unwrap();
     device.send(b"x");
     next(&hits, "sink call");
     device.send(b"hello");
-    // Whether the dead thread has ended is not observable: a read fails until it has (its
-    // watch is still attached), then starts a new hub.
-    let mut got = Vec::new();
-    eventually("a new hub read the bytes", || {
-        if let Ok(d) = m.read_binary("phoenix".into(), Some(50), Some(5 - got.len())) {
-            got.extend(d);
-        }
-        got.len() >= 5
-    });
+    // Chunks come whole: the panicking sink took only what it was called with.
+    wait_idle(&m, &device, "phoenix", 5);
+    let got = m
+        .read_binary("phoenix".into(), Some(LONG_MS), Some(5))
+        .unwrap();
     assert_eq!(got, b"hello");
-    let _ = m.close("phoenix".into());
+    m.at("phoenix".into(), "AT".into(), None).unwrap();
+    m.unwatch(dead).unwrap();
+    let (events, rx) = sink::<SerialEvent>();
+    m.watch("phoenix".into(), watch_opts(0, false), events)
+        .unwrap();
+    device.send(b"again");
+    assert_eq!(collect(&rx, 5), b"again");
+    assert!(hits.try_recv().is_err(), "called again after its panic");
+    m.close("phoenix".into()).unwrap();
 }

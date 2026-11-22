@@ -32,7 +32,9 @@ use crate::cmux::CmuxSession;
 use crate::events::SerialEvent;
 use crate::hub::shared::{
     finish_drain, try_complete_drain, CoreWatchSlot, ExchangeWaiter, HubRoutingState, RxHubShared,
+    PORT_CLOSED,
 };
+use crate::hub::stream::in_sink;
 use serial_codec::framing::Framer;
 use serialport::SerialPort;
 use std::io::Read;
@@ -93,9 +95,9 @@ const EOF_MEANS_DISCONNECT: bool = !cfg!(target_os = "android");
 
 /// Track one read for EOF: `true` once enough `Ok(0)` reads came in a row. An `Ok(0)`
 /// that does not end the port waits like a read timeout (never spin on a dead fd).
-fn note_eof(read: &PollRead, buf_len: usize, eof_reads: &mut u32) -> bool {
+fn note_eof(read: &PollRead, eof_reads: &mut u32) -> bool {
     match read {
-        PollRead::Data(0) if buf_len > 0 && EOF_MEANS_DISCONNECT => {
+        PollRead::Data(0) if EOF_MEANS_DISCONNECT => {
             *eof_reads += 1;
             if *eof_reads >= MAX_CONSECUTIVE_EOF_READS {
                 return true;
@@ -108,14 +110,15 @@ fn note_eof(read: &PollRead, buf_len: usize, eof_reads: &mut u32) -> bool {
     false
 }
 
-/// A real disconnect (not a close): fail waiters, send `Disconnect` once, run the hook.
+/// A real disconnect (not a close): fail waiters, send `Disconnect` once, run the hook. No
+/// sink runs before everything that waits on the port or its CMUX channels has failed.
 fn report_disconnect(
     shared: &RxHubShared,
     path: &str,
     reason: &str,
     on_disconnect: &mut Option<DisconnectHook>,
 ) {
-    shared.fail_all_waiters(reason);
+    shared.fail_waiters(reason);
     shared.emit_disconnect(path, reason);
     // Android: clear mobile registry + USB adapter (harness expects
     // inject_bulk_read_error → on_usb_error → registry drop).
@@ -137,9 +140,9 @@ const EOF_REASON: &str = "Serial port disconnected: EOF";
 const MAX_CONSECUTIVE_READ_ERRORS: u32 = 5;
 
 fn shutdown_hub_state(shared: &RxHubShared, routing: &mut HubRoutingState) {
-    shared.fail_all_waiters("port closed");
+    shared.fail_waiters(PORT_CLOSED);
     shared.finish_watch_stream(routing);
-    shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+    shared.deliver_queued();
 }
 
 /// Called once on the hub thread after a real disconnect (not on close), with the
@@ -256,19 +259,20 @@ impl PortRxHub {
         let _ = self.stop_tx.send(());
     }
 
-    /// Stop and join the hub thread (not when called from it, e.g. a watch sink
-    /// closing its own port: then it only asks it to stop).
+    /// Stop and join the hub thread (not when called from a sink, e.g. one closing its own
+    /// port: then it only asks it to stop).
     pub fn stop(self) {
         self.stop_and_join();
     }
 
     /// [`Self::stop`] for a shared hub (an exchange in flight holds it too). No event
-    /// reaches a sink after this returns (unless a sink calls it).
+    /// reaches a sink after this returns (unless a sink calls it: it must not wait for
+    /// another thread, which may be waiting for it).
     pub(crate) fn stop_and_join(&self) {
         let _ = self.stop_tx.send(());
         let thread = crate::sync_util::lock_or_recover(&self.thread).take();
         if let Some(h) = thread {
-            if h.thread().id() != thread::current().id() {
+            if !in_sink() && h.thread().id() != thread::current().id() {
                 let _ = h.join();
             }
         }
@@ -347,15 +351,14 @@ fn hub_loop(
                 Ok(read) => read,
                 Err(e) => {
                     finish_drain(&shared, Err(format!("drain read failed: {}", e)));
+                    shared.deliver_queued();
                     continue;
                 }
             };
-            if note_eof(&read, buf.len(), &mut eof_reads) {
+            if note_eof(&read, &mut eof_reads) {
                 if shared.is_closing() {
                     shutdown_hub_state(&shared, &mut routing);
                 } else {
-                    shared.flush_watch_now(&mut routing);
-                    shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
                     report_disconnect(&shared, &path, EOF_REASON, &mut on_disconnect);
                 }
                 break;
@@ -369,12 +372,12 @@ fn hub_loop(
                 // feed_bytes retries drain then falls through to exchange/watch/idle
                 // if reclaim won during poll_read_port — never drop the chunk.
                 shared.feed_bytes(&buf[..n], &mut routing);
-                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+                shared.deliver_queued();
             }
             // Full tick (drain completion, read deadline, watch batch and parser timers):
             // a time-based parser frame must not wait for the drain to end.
             shared.tick(&path, &mut routing);
-            shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+            shared.deliver_queued();
             continue;
         }
 
@@ -397,9 +400,7 @@ fn hub_loop(
             consecutive_errors = 0;
         }
         if let Ok(read) = &read_result {
-            if note_eof(read, buf.len(), &mut eof_reads) {
-                shared.flush_watch_now(&mut routing);
-                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+            if note_eof(read, &mut eof_reads) {
                 if shared.is_closing() {
                     // Intentional close racing the EOF: no `Disconnect`.
                     shutdown_hub_state(&shared, &mut routing);
@@ -416,7 +417,7 @@ fn hub_loop(
             }
             Ok(PollRead::Data(n)) if n > 0 => {
                 shared.feed_bytes(&buf[..n], &mut routing);
-                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+                shared.deliver_queued();
             }
             // `Data(0)` that did not end the port: nothing to route.
             Ok(PollRead::Data(_)) => {}
@@ -425,8 +426,6 @@ fn hub_loop(
             }
             Err(e) => {
                 consecutive_errors += 1;
-                shared.flush_watch_now(&mut routing);
-                shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
                 if shared.is_closing() {
                     // Intentional close racing a read error: no `Disconnect`.
                     shutdown_hub_state(&shared, &mut routing);
@@ -438,6 +437,8 @@ fn hub_loop(
                     report_disconnect(&shared, &path, &reason, &mut on_disconnect);
                     break;
                 }
+                shared.flush_watch_now(&mut routing);
+                shared.deliver_queued();
                 if last_error_emit.elapsed() >= Duration::from_secs(1) {
                     last_error_emit = Instant::now();
                     shared.emit(SerialEvent::Error {
@@ -450,6 +451,6 @@ fn hub_loop(
         }
 
         shared.tick(&path, &mut routing);
-        shared.dispatch_queued_events(std::mem::take(&mut routing.pending_events));
+        shared.deliver_queued();
     }
 }
