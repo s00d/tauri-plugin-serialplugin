@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+No code or API changes since 4.2.2.
+
+### Internal
+
+* Releases are published from GitHub Actions with trusted publishing (OIDC) on crates.io and npm; release-it and the local publish script are gone (PUBLISHING.md).
+
 ## [4.2.2](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.1...v4.2.2) (2026-11-14)
 
 No API changes: Rust, JS, invoke payloads and permissions are as in 4.2.1 (and 4.0.0). serialplugin-core 0.2.2, android-usb-serial 0.1.5, serial-codec 0.1.1.
