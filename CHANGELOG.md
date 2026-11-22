@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [4.2.4](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.3...v4.2.4) (2026-11-22)
 
 JS, invoke payloads and permissions are as in 4.2.3; the Rust API only gains android-usb-serial's `FakeTransport::inject_interrupt_read_error` (feature `fake-transport`). serialplugin-core 0.2.4, android-usb-serial 0.1.7, serial-codec 0.1.2, new serialplugin-testing 0.1.0.
 
