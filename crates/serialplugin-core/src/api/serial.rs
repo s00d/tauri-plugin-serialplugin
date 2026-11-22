@@ -680,7 +680,9 @@ impl SerialManager {
         let paths = self.managed_ports()?;
         let mut errors = vec![];
 
-        for path in paths {
+        // Sorted: a port's CMUX channels (`path#dlci=N`) come after it, but close first, as
+        // closing the port closes them too.
+        for path in paths.into_iter().rev() {
             if let Err(e) = self.close(path) {
                 errors.push(e.to_string());
             }

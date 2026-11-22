@@ -30,9 +30,10 @@ fn muxed(path: &str, modem: Modem, options: MuxOptions) -> (SerialManager, FakeD
 /// Given a Quectel M26, which loses the first frame after its AT+CMUX OK and is slow to
 /// answer a CLD that overtakes a DISC,
 /// when an app starts the multiplexer, talks AT on one channel and raw on another, cancels
-/// a command that hangs, sets the channel's AT session and stops the multiplexer,
+/// a command that hangs, sets the channel's AT session, stops the multiplexer, starts it
+/// again and closes everything at once,
 /// then every step works, each channel keeps its own traffic, CLD waits for the DISC
-/// answer, and the port talks plain AT again.
+/// answer, and the port talks plain AT in between.
 #[test]
 fn a_session_on_an_m26() {
     let options = MuxOptions::default().lost_first_frames(1);
@@ -89,7 +90,12 @@ fn a_session_on_an_m26() {
     let m26 = m.at("m26".into(), "AT".into(), None).unwrap();
     assert_eq!(m26.status, AtParseStatus::Ok);
     assert_eq!(kind(bad().unwrap_err()), ErrorKind::NotFound);
-    m.close("m26".into()).unwrap();
+
+    m.enable_mux("m26".into(), "AT+CMUX=0,0,5,127,10,3,255".into(), LONG_MS)
+        .unwrap();
+    m.open_mux_channel("m26".into(), 1).unwrap();
+    m.close_all().unwrap();
+    assert!(m.managed_ports().unwrap().is_empty());
     device.wait_closed();
 }
 

@@ -13,6 +13,7 @@ JS, invoke payloads and permissions are as in 4.2.3; the Rust API only gains and
 * CMUX: on unplug, exchanges and flow-controlled writes waiting on a channel fail at once (kind `Disconnected`), before any sink runs, instead of at their timeout; a channel the modem had closed does not report `Disconnected` a second time.
 * CMUX: flow control (MSC) of a channel's previous life no longer holds the reopened channel; a write on a channel path left from an earlier multiplexer session is an error instead of `Ok`.
 * A `read()` that times out no longer ends another `read()` that started meanwhile (the same for drains).
+* `closeAll()` no longer fails on a port with CMUX channels (it closed them twice).
 * A watch with `size: 0` no longer stops the port's reads.
 * serial-codec: a bare `+CNMI:` line is not taken for a test response.
 
