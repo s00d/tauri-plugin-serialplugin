@@ -19,16 +19,3 @@ pub fn parse_mux_path(path: &str) -> Option<(&str, u8)> {
         .filter(|&d| is_data_dlci(d))
         .map(|dlci| (base, dlci))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn mux_path_roundtrip() {
-        let p = mux_path("/dev/ttyUSB0", 1);
-        assert_eq!(parse_mux_path(&p), Some(("/dev/ttyUSB0", 1)));
-        assert_eq!(parse_mux_path("/dev/ttyUSB0#dlci=0"), None);
-        assert_eq!(parse_mux_path("/dev/ttyUSB0#dlci=65"), None);
-    }
-}

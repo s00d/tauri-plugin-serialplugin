@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/android-usb-serial", "crates/serial-codec", "crates/serialplugin-core"]
+members = ["crates/android-usb-serial", "crates/serial-codec", "crates/serialplugin-core", "crates/serialplugin-testing"]
 exclude = [
     "examples/serialport-test/src-tauri",
     "examples/usb-driver-tester/rust",
@@ -29,7 +29,7 @@ exclude = [
     ".config/**",
     "docs/**",
     "banner.png",
-    # Rust (tests/integration/, one binary) and TS tests stay in git.
+    # Rust (tests/it/, one binary) and TS tests stay in git.
     "tests/**",
     "scripts/**",
     "crates/**",
@@ -50,6 +50,7 @@ exclude = [
     "vite.config.ts",
     "vitest.config.ts",
     "PUBLISHING.md",
+    "TESTING.md",
 ]
 
 [features]
@@ -94,14 +95,14 @@ log = { version = "0.4", features = ["std"] }
 [dev-dependencies]
 # `test` feature only for this crate's integration tests — keep it off the published dependency graph.
 tauri = { version = "2", features = ["test"] }
-# Model tests (tests/*_model.rs). One proptest 1.x per build: the workspace crates pin
+# Model tests (tests/it/model_*.rs). One proptest 1.x per build: the workspace crates pin
 # theirs below 1.12.
 proptest = "1.10"
-# The test harness gives the mock app the plugin's default permission set as its ACL.
-tauri-utils = "2"
-glob = "0.3"
+# The mock app's ACL is resolved from the plugin's permission files.
+toml = "1.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
+serialplugin-testing = { path = "crates/serialplugin-testing" }
 serialport = "4.10.1"
 
 [profile.release]

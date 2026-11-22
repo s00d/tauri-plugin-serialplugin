@@ -2,7 +2,7 @@
 
 `at_urc.json` and `at_responses.json` are subsets of vectors harvested from other projects' test
 assertions, keyed by command. Each entry keeps `source` (`project/path:line`), `license`, `input`,
-`expected` and `note`. They are run by `tests/urc_vectors.rs`.
+`expected` and `note`. They are run by `tests/it/corpus_urc.rs`.
 
 These files contain **data only** (modem lines and the decoded values those projects assert).
 No code, comments or test structure was copied.

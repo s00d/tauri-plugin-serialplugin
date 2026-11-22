@@ -17,20 +17,3 @@ impl SerialManager {
             || parse_mux_path(path).is_some())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::api::SerialManager;
-
-    #[test]
-    fn bridges_have_no_modem_lines() {
-        let serial = SerialManager::new();
-        assert!(!serial.supports_modem_lines("tcp://10.0.0.5:4000"));
-        assert!(!serial.supports_modem_lines("ble://AA:BB:CC:DD:EE:FF"));
-        assert!(!serial.supports_modem_lines("tcp://10.0.0.5:4000#dlci=2"));
-        // Line calls fail on CMUX channels (the lines belong to the physical port).
-        assert!(!serial.supports_modem_lines("/dev/ttyUSB0#dlci=2"));
-        assert!(serial.supports_modem_lines("/dev/ttyUSB0"));
-        assert!(serial.supports_modem_lines("COM3"));
-    }
-}

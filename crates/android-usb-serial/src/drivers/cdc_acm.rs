@@ -347,18 +347,3 @@ impl Driver for CdcAcmDriver {
         self.endpoints.as_mut()?.take_in(transport)
     }
 }
-
-// The driver model (tests/driver_model.rs) covers every frame rule it can feed
-// as a whole interrupt transfer. A transfer shorter than a frame cannot be fed
-// that way: the fake merges queued bytes into one read, so this rule stays here.
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_transfer_shorter_than_a_frame_is_skipped() {
-        let frame = [0xA1, 0x20, 0, 0, 0, 0, 2, 0, 0x0B, 0];
-        assert_eq!(parse_serial_state_notification(&frame, 0), Some(0x0B));
-        assert_eq!(parse_serial_state_notification(&frame[..9], 0), None);
-    }
-}

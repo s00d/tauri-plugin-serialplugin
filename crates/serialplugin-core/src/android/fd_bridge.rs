@@ -165,6 +165,7 @@ pub fn call_close_device_fd(device_name: &str) -> Result<(), Error> {
 
 #[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
 mod tests {
+    //! In `src/`: private Android code, checked on a desktop JVM.
     use super::*;
 
     #[test]

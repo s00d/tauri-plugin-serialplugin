@@ -1,0 +1,20 @@
+[package]
+name = "serialplugin-testing"
+version = "0.1.0"
+description = "Fake serial devices for tests: an in-memory serialport::SerialPort, a scriptable AT modem with a 3GPP 27.010 multiplexer, PTY and TCP peers"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0 OR MIT"
+readme = "README.md"
+repository = "https://github.com/s00d/tauri-plugin-serialplugin"
+homepage = "https://github.com/s00d/tauri-plugin-serialplugin/tree/main/crates/serialplugin-testing"
+documentation = "https://docs.rs/serialplugin-testing"
+authors = ["s00d"]
+keywords = ["serialport", "testing", "mock", "at-commands", "cmux"]
+categories = ["development-tools::testing", "hardware-support"]
+include = ["/src/**", "/tests/**", "/README.md", "/LICENSE-*"]
+
+# The fakes speak the protocols on their own (27.005 replies, 27.010 frames): no dependency
+# on the crates under test.
+[dependencies]
+serialport = "4.10.1"

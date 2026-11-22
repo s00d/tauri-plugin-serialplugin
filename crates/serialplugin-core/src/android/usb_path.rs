@@ -20,6 +20,7 @@ pub fn session_key(device_name: &str, port_index: usize, port_count: usize) -> S
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: private Android code.
     use super::*;
 
     #[test]

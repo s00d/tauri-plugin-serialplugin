@@ -275,37 +275,3 @@ impl Serialize for CoreError {
         serializer.serialize_str(&self.to_string())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn io_kinds_map_to_core_kinds() {
-        use io::ErrorKind as K;
-        for (io_kind, kind) in [
-            (K::NotFound, ErrorKind::NotFound),
-            (K::PermissionDenied, ErrorKind::PermissionDenied),
-            (K::TimedOut, ErrorKind::Timeout),
-            (K::WouldBlock, ErrorKind::Timeout),
-            (K::BrokenPipe, ErrorKind::Disconnected),
-            (K::UnexpectedEof, ErrorKind::Disconnected),
-            (K::AddrInUse, ErrorKind::Busy),
-            (K::ResourceBusy, ErrorKind::Busy),
-            (K::Interrupted, ErrorKind::Cancelled),
-            (K::InvalidData, ErrorKind::Other),
-        ] {
-            assert_eq!(ErrorKind::from_io(io_kind), kind, "{io_kind:?}");
-        }
-    }
-
-    #[test]
-    fn core_error_message_is_the_legacy_text() {
-        let e = CoreError::new(ErrorKind::Busy, Error::String("port busy".into()));
-        assert_eq!(e.message(), "port busy");
-        let io = CoreError::io("Failed to write".into(), io::Error::other("gone"));
-        assert_eq!(io.message(), "Failed to write: gone");
-        assert!(std::error::Error::source(&io).is_some());
-        assert!(std::error::Error::source(&Error::Io("x".into())).is_none());
-    }
-}

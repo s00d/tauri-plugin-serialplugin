@@ -21,6 +21,7 @@ exclude_globs = [
     # Dev tool that records golden fixtures, not library code.
     "crates/android-usb-serial/src/bin/**",
     # Test doubles.
+    "crates/serialplugin-testing/**",
     "crates/serialplugin-core/src/mock_serial.rs",
     "crates/android-usb-serial/src/fake.rs",
 ]
@@ -46,7 +47,7 @@ exclude_re = [
     "replace emit_urc with \\(\\)",
     "replace RxHubShared::dispatch_pending_events with",
     # Feature `usb-port-details` off: `usb_location` is always `None`, so this one is
-    # equivalent here (killed by `quectel_ports_differ_by_interface_number` with
+    # equivalent here (killed by `model_ports::info_and_details_say_the_same` with
     # `--features ble,usb-port-details`).
     "replace usb_location -> Option<String> with None",
     # Android-only remap: on desktop `platform_open` always returns the requested path.
@@ -88,9 +89,9 @@ exclude_re = [
 
 # Lib + integration tests (a subset of what the build phase compiles, so no rebuild);
 # doctests are slow to build for every mutant.
-additional_cargo_test_args = ["--lib", "--tests"]
+additional_cargo_test_args = ["--lib", "--tests", "--profile", "mutants"]
 
-# nextest enforces the per-test limit in .config/nextest.toml: a mutant that hangs one
+# nextest enforces the per-test limit of the `mutants` profile in .config/nextest.toml: a mutant that hangs one
 # test fails in seconds, not at the whole-suite watchdog.
 test_tool = "nextest"
 

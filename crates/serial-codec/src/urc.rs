@@ -1015,6 +1015,7 @@ pub struct CnmiSupport {
 impl CnmiSupport {
     pub fn parse(line: &str) -> Option<Self> {
         let a = body(line, "+CNMI")?;
+        a.first()?; // a bare `+CNMI:` is no test response
         let get = |i: usize| match a.get(i) {
             Some(g) if g.text.starts_with('(') => parse_values(&g.text),
             Some(_) => None,

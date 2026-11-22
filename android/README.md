@@ -44,7 +44,7 @@ Uses `FakeTransport` via `android-test-harness` (no Kotlin USB fakes). This is t
 ANDROID_INTEGRATION_NDK_ARCH=arm64-v8a ./scripts/android-integration-ci.sh all
 
 # Desktop Mac smoke against a real AT modem (e.g. Quectel on /dev/cu.wchusbserial*):
-SERIALPLUGIN_MODEM=/dev/cu.wchusbserial210 cargo nextest run -p tauri-plugin-serialplugin modem_live --no-capture
+SERIALPLUGIN_MODEM=/dev/cu.wchusbserial210 cargo nextest run -p tauri-plugin-serialplugin story_modem --no-capture
 ```
 
 Debug harness JNI (`test_harness.rs`): `testHarnessReset`, `testOpenFakePort`, `testFakeInjectRx`, `testFakeTakeTx`, `testFakeInjectError`, `testFakeEnableAtModem`, `testHubBufferedLen`, `testInvokeWrite`, `testRegistryHasPort`, `testEnumerateJsonFromWorkerThread`.
@@ -79,7 +79,7 @@ Rust drivers are verified against frozen JSON fixtures (`crates/android-usb-seri
 
 ```bash
 cargo run -p android-usb-serial --features fake-transport --bin golden_record
-cargo test -p android-usb-serial --features fake-transport --test golden_parity
+cargo test -p android-usb-serial --features fake-transport --test it corpus_golden
 ```
 
 See [`docs/golden-recorder-archive/README.md`](../docs/golden-recorder-archive/README.md) for the retired JVM recorder workflow.

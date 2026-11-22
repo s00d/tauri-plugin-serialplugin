@@ -105,63 +105,13 @@ impl PortTxQueue {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::atomic::Ordering;
-    use std::sync::Arc;
-    use std::thread;
-
-    // Ordering, cancels and hand-offs: see the `model` test below.
-
-    /// A cancel during one job stays visible for the rest of that job (later
-    /// phases) and is cleared only when the next job takes its turn.
-    #[test]
-    fn cancel_flag_survives_within_job_and_resets_for_next() {
-        let q = PortTxQueue::new();
-        let flag = q.cancel_flag();
-        q.run_serial(|| {
-            flag.store(true, Ordering::SeqCst);
-            assert!(flag.load(Ordering::SeqCst));
-            Ok(())
-        })
-        .unwrap();
-        assert!(flag.load(Ordering::SeqCst));
-        q.run_serial(|| {
-            assert!(!flag.load(Ordering::SeqCst));
-            Ok(())
-        })
-        .unwrap();
-    }
-
-    #[test]
-    fn error_or_panic_in_job_does_not_halt_queue() {
-        let q = Arc::new(PortTxQueue::new());
-        let r1: Result<i32, Error> = q.run_serial(|| Err(Error::String("boom".into())));
-        assert!(r1.is_err());
-        let q2 = q.clone();
-        let panicked = thread::spawn(move || q2.run_serial(|| -> Result<(), Error> { panic!() }));
-        assert!(panicked.join().is_err());
-        assert_eq!(q.run_serial(|| Ok(99)).unwrap(), 99);
-    }
-
-    #[test]
-    fn at_session_config_is_kept() {
-        let q = PortTxQueue::default();
-        assert_eq!(q.at_session().default_timeout_ms, None);
-        q.configure_at_session(AtSessionConfig {
-            default_timeout_ms: Some(1234),
-            ..AtSessionConfig::default()
-        });
-        assert_eq!(q.at_session().default_timeout_ms, Some(1234));
-    }
-}
-
-/// Model test: jobs from several callers, releases and cancels in random order, checked
-/// against a FIFO model after every step (no two jobs at once, a job queued after a cancel
-/// waits for the running one). In `src/`: it reads the private ticket counter to know a
-/// job is queued before the next step.
-#[cfg(test)]
 mod model {
+    //! In `src/`: it reads the private ticket counter to know a job is queued before the
+    //! next step.
+    //!
+    //! Model test: jobs from several callers that return, fail or panic, releases and cancels
+    //! in random order, checked against a FIFO model after every step (no two jobs at once, a
+    //! job queued after a cancel waits for the running one, the cancel flag lasts for its job).
     use super::*;
     use proptest::collection::vec;
     use proptest::prelude::*;
@@ -174,11 +124,20 @@ mod model {
 
     #[derive(Clone, Debug)]
     pub(super) enum Step {
-        /// A caller queues a job (it runs until released).
-        Submit,
+        /// A caller queues a job (it runs until released, then ends this way).
+        Submit(End),
         /// The running job returns.
         Release,
         CancelAll,
+        /// The port's cancel flag is set (`cancel_exchange`): it lasts for the running job.
+        SetFlag,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(super) enum End {
+        Ok,
+        Err,
+        Panic,
     }
 
     #[derive(Clone, Debug, Default)]
@@ -186,13 +145,21 @@ mod model {
         next: u32,
         running: Option<u32>,
         waiting: VecDeque<u32>,
+        ends: Vec<End>,
         started: Vec<u32>,
-        /// Job id and result (`None`: rejected by a cancel).
+        flag: bool,
+        /// Job id and result (`None`: rejected by a cancel, failed or panicked).
         done: Vec<(u32, Option<u32>)>,
     }
 
     fn step_strategy() -> impl Strategy<Value = Step> {
-        prop_oneof![3 => Just(Step::Submit), 2 => Just(Step::Release), 1 => Just(Step::CancelAll)]
+        let end = prop::sample::select(vec![End::Ok, End::Ok, End::Err, End::Panic]);
+        prop_oneof![
+            3 => end.prop_map(Step::Submit),
+            2 => Just(Step::Release),
+            1 => Just(Step::CancelAll),
+            1 => Just(Step::SetFlag),
+        ]
     }
 
     impl Model {
@@ -204,25 +171,32 @@ mod model {
         fn apply(&mut self, step: &Step) {
             let m = self;
             match step {
-                Step::Submit => {
+                Step::Submit(end) => {
                     m.next += 1;
+                    m.ends.push(*end);
                     if m.running.is_none() {
                         m.running = Some(m.next);
                         m.started.push(m.next);
+                        m.flag = false;
                     } else {
                         m.waiting.push_back(m.next);
                     }
                 }
                 Step::Release => {
                     let id = m.running.take().unwrap();
-                    m.done.push((id, Some(id)));
+                    let ok = matches!(m.ends[id as usize - 1], End::Ok);
+                    m.done.push((id, ok.then_some(id)));
                     m.running = m.waiting.pop_front();
                     m.started.extend(m.running);
+                    if m.running.is_some() {
+                        m.flag = false;
+                    }
                 }
                 Step::CancelAll => {
                     let rejected: Vec<_> = m.waiting.drain(..).map(|id| (id, None)).collect();
                     m.done.extend(rejected);
                 }
+                Step::SetFlag => m.flag = true,
             }
         }
     }
@@ -285,7 +259,7 @@ mod model {
         fn apply(&mut self, m: &Model, step: Step) {
             let sut = self;
             match step {
-                Step::Submit => {
+                Step::Submit(end) => {
                     let id = m.next;
                     let (gate, gate_rx) = mpsc::channel::<()>();
                     sut.gates.push(gate);
@@ -294,16 +268,22 @@ mod model {
                     let (active, overlap) = (sut.active.clone(), sut.overlap.clone());
                     let before = last_turn(&sut.q);
                     sut.threads.push(thread::spawn(move || {
-                        let r = q.run_serial(|| {
+                        let job = || {
                             if active.fetch_add(1, Ordering::SeqCst) != 0 {
                                 overlap.store(true, Ordering::SeqCst);
                             }
                             started.send(id).unwrap();
                             let _ = gate_rx.recv();
                             active.fetch_sub(1, Ordering::SeqCst);
-                            Ok(id)
-                        });
-                        done.send((id, r.ok())).unwrap();
+                            match end {
+                                End::Ok => Ok(id),
+                                End::Err => Err(Error::String("boom".into())),
+                                End::Panic => std::panic::panic_any("expected by this test"),
+                            }
+                        };
+                        let run = std::panic::AssertUnwindSafe(|| q.run_serial(job));
+                        let r = std::panic::catch_unwind(run);
+                        done.send((id, r.ok().and_then(Result::ok))).unwrap();
                     }));
                     // Registered before the next step, so FIFO order is the step order.
                     let deadline = Instant::now() + Duration::from_secs(3);
@@ -317,6 +297,7 @@ mod model {
                     sut.gates[id as usize - 1].send(()).unwrap();
                 }
                 Step::CancelAll => sut.q.cancel_all(),
+                Step::SetFlag => sut.q.cancel_flag().store(true, Ordering::SeqCst),
             }
             sut.collect(m);
         }
@@ -327,6 +308,7 @@ mod model {
             assert_eq!(sut.started_seen, m.started, "start order");
             // Rejections arrive from several threads: compare as sets.
             assert_eq!(sorted(&sut.done_seen), sorted(&m.done), "results");
+            assert_eq!(sut.q.cancel_flag().load(Ordering::SeqCst), m.flag, "flag");
         }
 
         fn teardown(mut self, mut m: Model) {

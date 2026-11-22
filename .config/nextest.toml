@@ -1,5 +1,10 @@
-# `cargo nextest run`: every test gets a hard limit, so a hang (or a mutant that makes
-# code spin) fails in seconds instead of waiting for an outer watchdog. The slowest
-# test takes ~1 s alone; the margin is for a loaded host.
+# Per-test timeouts live here, not in the tests (TESTING.md): a test slower than `period` is
+# reported as slow, one past `terminate-after` periods is killed and fails.
 [profile.default]
+slow-timeout = { period = "30s", terminate-after = 3 }
+fail-fast = false
+
+# cargo-mutants (.cargo/mutants.toml): a mutant that makes a test hang or wait fails fast.
+[profile.mutants]
 slow-timeout = { period = "3s", terminate-after = 2 }
+fail-fast = true

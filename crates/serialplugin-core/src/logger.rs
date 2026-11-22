@@ -94,28 +94,3 @@ macro_rules! log_debug {
         }
     };
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::state::{get_log_level, set_log_level, LogLevel};
-
-    /// One test: the level is global, parallel tests would race on it.
-    #[test]
-    fn log_level_is_set_and_read_back() {
-        for level in [
-            LogLevel::None,
-            LogLevel::Error,
-            LogLevel::Warn,
-            LogLevel::Debug,
-            LogLevel::Info,
-        ] {
-            set_log_level(level);
-            assert_eq!(get_log_level(), level);
-            // Must not panic at any level.
-            log_error!("error at {:?}", level);
-            log_warn!("warn at {:?}", level);
-            log_info!("info at {:?}", level);
-            log_debug!("debug at {:?}", level);
-        }
-    }
-}

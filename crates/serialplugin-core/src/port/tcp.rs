@@ -327,6 +327,7 @@ impl SerialPort for TcpSerialPort {
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: the socket is private, and a dead link takes the keepalive minutes.
     use super::*;
     use std::net::TcpListener;
 
@@ -399,44 +400,5 @@ mod tests {
         );
         assert_eq!(read_error_kind(Other, Some(10053), true), Other);
         assert_eq!(read_error_kind(Other, None, true), Other);
-    }
-
-    #[test]
-    fn socket_timeouts_are_never_zero() {
-        assert_eq!(
-            socket_timeout(Duration::ZERO),
-            Some(Duration::from_millis(1))
-        );
-        assert_eq!(
-            socket_timeout(Duration::from_millis(50)),
-            Some(Duration::from_millis(50))
-        );
-    }
-
-    /// The bridge going away ends the hub with `Disconnect`, not endless timeouts.
-    #[cfg(not(target_os = "android"))]
-    #[test]
-    fn bridge_gone_ends_in_disconnect_event() {
-        use crate::events::{EventSink, SerialEvent};
-        use std::sync::{mpsc, Arc, Mutex};
-
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = connect(&listener);
-        let (peer, _) = listener.accept().unwrap();
-        let (tx, rx) = mpsc::channel();
-        let tx = Mutex::new(tx);
-        let sink: EventSink = Arc::new(move |event: SerialEvent| {
-            if matches!(event, SerialEvent::Disconnect { .. }) {
-                let _ = tx.lock().unwrap().send(());
-            }
-            true
-        });
-        let port: Arc<Mutex<Box<dyn SerialPort>>> = Arc::new(Mutex::new(Box::new(port)));
-        let hub = crate::hub::PortRxHub::start(port, "tcp://bridge".into());
-        hub.attach_watch_with(sink, 10, 64, false, None);
-        drop(peer);
-        rx.recv_timeout(Duration::from_secs(3))
-            .expect("no Disconnect after the bridge closed");
-        hub.stop();
     }
 }

@@ -35,10 +35,12 @@ struct FakeState {
     recorded: Vec<RecordedControl>,
     recorded_bulk_out: Vec<RecordedBulkOut>,
     control_in_responses: VecDeque<Vec<u8>>,
-    interrupt_in_queue: VecDeque<u8>,
+    /// One entry per interrupt transfer.
+    interrupt_in_queue: VecDeque<Vec<u8>>,
     rx_queue: VecDeque<u8>,
     tx_log: Vec<u8>,
     bulk_read_error: Option<String>,
+    interrupt_read_error: Option<String>,
     claimed: Vec<u8>,
     /// Mimic nusb: endpoint address may only be opened once until dropped.
     open_endpoints: Vec<u8>,
@@ -560,9 +562,10 @@ impl FakeTransport {
         self.arrived.notify_all();
     }
 
+    /// Queue one interrupt transfer (read as a whole, like on the bus).
     pub fn push_interrupt_in(&self, data: &[u8]) {
         let mut s = self.inner.lock().unwrap();
-        s.interrupt_in_queue.extend(data);
+        s.interrupt_in_queue.push_back(data.to_vec());
         self.arrived.notify_all();
     }
 
@@ -596,8 +599,15 @@ impl FakeTransport {
             .push_back(data);
     }
 
+    /// The next bulk IN read fails.
     pub fn inject_bulk_read_error(&self, msg: impl Into<String>) {
         self.inner.lock().unwrap().bulk_read_error = Some(msg.into());
+        self.arrived.notify_all();
+    }
+
+    /// The next interrupt IN read fails.
+    pub fn inject_interrupt_read_error(&self, msg: impl Into<String>) {
+        self.inner.lock().unwrap().interrupt_read_error = Some(msg.into());
         self.arrived.notify_all();
     }
 
@@ -662,14 +672,13 @@ impl Drop for FakeBulkIn {
 impl BulkIn for FakeBulkIn {
     fn read(&mut self, buf: &mut [u8], timeout_ms: u32) -> Result<ReadOutcome> {
         let mut s = self.inner.lock().unwrap();
+        let interrupt = self.interrupt;
         let queued = |s: &FakeState| {
-            s.bulk_read_error.is_some()
-                || !(if self.interrupt {
-                    &s.interrupt_in_queue
-                } else {
-                    &s.rx_queue
-                })
-                .is_empty()
+            if interrupt {
+                s.interrupt_read_error.is_some() || !s.interrupt_in_queue.is_empty()
+            } else {
+                s.bulk_read_error.is_some() || !s.rx_queue.is_empty()
+            }
         };
         if timeout_ms > 0 && !queued(&s) {
             // Idle like a real pipe instead of spinning, but at most 1 ms whatever the
@@ -677,22 +686,32 @@ impl BulkIn for FakeBulkIn {
             let wait = Duration::from_millis(u64::from(timeout_ms.min(1)));
             s = self.arrived.wait_timeout(s, wait).unwrap().0;
         }
-        if let Some(err) = s.bulk_read_error.take() {
+        let error = if interrupt {
+            s.interrupt_read_error.take()
+        } else {
+            s.bulk_read_error.take()
+        };
+        if let Some(err) = error {
             return Err(UsbSerialError::Io(err));
         }
-        let queue = if self.interrupt {
-            &mut s.interrupt_in_queue
+        let data = if interrupt {
+            let Some(mut transfer) = s.interrupt_in_queue.pop_front() else {
+                return Ok(ReadOutcome::TimedOut);
+            };
+            if transfer.len() > buf.len() {
+                let rest = transfer.split_off(buf.len());
+                s.interrupt_in_queue.push_front(rest);
+            }
+            transfer
         } else {
-            &mut s.rx_queue
+            if s.rx_queue.is_empty() {
+                return Ok(ReadOutcome::TimedOut);
+            }
+            let n = buf.len().min(s.rx_queue.len());
+            s.rx_queue.drain(..n).collect()
         };
-        if queue.is_empty() {
-            return Ok(ReadOutcome::TimedOut);
-        }
-        let n = buf.len().min(queue.len());
-        for (i, byte) in queue.drain(..n).enumerate() {
-            buf[i] = byte;
-        }
-        Ok(ReadOutcome::Data(buf[..n].to_vec()))
+        buf[..data.len()].copy_from_slice(&data);
+        Ok(ReadOutcome::Data(data))
     }
 
     fn cancel_all(&mut self) {}

@@ -1,6 +1,6 @@
 # USSD fixtures
 
-`ussd.json` (51 entries, used by `tests/ussd_vectors.rs`): test vectors extracted from other
+`ussd.json` (51 entries, used by `tests/it/corpus_ussd.rs`): test vectors extracted from other
 projects' test suites, **data only** (no code, comments or test structure copied). Each entry
 keeps `source` (`project/path:line`) and `license`; `id` is ours (`us-NNN`, the index in the
 original extraction).

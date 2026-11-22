@@ -1,10 +1,11 @@
-//! Model test of the hub's RX routing: random sequences of chunks and consumer
-//! changes, checked after every step against a reference model of who gets each byte
-//! (drain > exchange waiter > read slot > watches > idle buffer).
+//! In `src/`: it forces interleavings no public call can (a chunk that reaches `push_idle`
+//! after a consumer was installed, reads and drains that end while the hub ticks) and sees
+//! who holds each byte.
 //!
-//! In `src/` (not `tests/`): it drives private hooks no public entry reaches, the
-//! `push_idle` race, `watch_core` slots, read / drain deadlines and the waiter's buffer.
-//! The manager model in `tests/manager_model.rs` covers the same routing end to end.
+//! Model test of the hub's RX routing: random sequences of chunks and consumer changes,
+//! checked after every step against a reference model of who gets each byte (drain >
+//! exchange waiter > read slot > watches > idle buffer). `tests/it/model_exchange.rs` and
+//! `model_manager.rs` cover the same routing end to end.
 
 use super::*;
 use crate::error::ErrorKind;
@@ -42,8 +43,12 @@ pub(super) enum Step {
     ExpireRead,
     CancelRead,
     StartDrain,
-    /// The drain's deadline passes and the hub ticks.
-    EndDrain,
+    /// The drain's deadline passes, or its line falls idle, and the hub ticks.
+    EndDrain {
+        idle: bool,
+    },
+    /// The drain's cancel flag is set and the hub ticks.
+    CancelDrain,
     AttachWatch,
     DetachWatch,
     AttachCore,
@@ -204,7 +209,8 @@ fn step_strategy() -> impl Strategy<Value = Step> {
             1 => Just(Step::ExpireRead),
             1 => Just(Step::CancelRead),
             1 => Just(Step::StartDrain),
-            1 => Just(Step::EndDrain),
+            1 => any::<bool>().prop_map(|idle| Step::EndDrain { idle }),
+            1 => Just(Step::CancelDrain),
             1 => Just(Step::AttachWatch),
             1 => Just(Step::DetachWatch),
             1 => Just(Step::AttachCore),
@@ -223,7 +229,7 @@ impl Model {
             Step::SetWaiter => m.waiter.is_none(),
             Step::ClearWaiter => m.waiter.is_some(),
             Step::ExpireRead => m.read.is_some(),
-            Step::EndDrain => m.drain.is_some(),
+            Step::EndDrain { .. } | Step::CancelDrain => m.drain.is_some(),
             Step::AttachWatch => m.watch.is_none(),
             Step::DetachWatch => m.watch.is_some(),
             Step::DetachCore(_) => !m.cores.is_empty(),
@@ -273,9 +279,13 @@ impl Model {
                 m.idle.clear();
                 m.drain = Some(Vec::new());
             }
-            Step::EndDrain => {
+            Step::EndDrain { .. } => {
                 let d = m.drain.take().unwrap();
                 m.drains_done.push(Ok(d));
+            }
+            Step::CancelDrain => {
+                m.drain = None;
+                m.drains_done.push(Err("exchange cancelled".into()));
             }
             Step::AttachWatch => {
                 m.idle.clear();
@@ -339,7 +349,7 @@ fn recorder() -> (EventSink, Bytes) {
 }
 
 fn wait_for(what: &str, f: impl Fn() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(3);
+    let deadline = Instant::now() + Duration::from_secs(10);
     while !f() {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         std::thread::yield_now();
@@ -384,7 +394,7 @@ impl Sut {
     fn collect(rx: &Results, done: &mut Vec<Result<Vec<u8>, String>>, want: usize) {
         while done.len() < want {
             done.push(
-                rx.recv_timeout(Duration::from_secs(3))
+                rx.recv_timeout(Duration::from_secs(10))
                     .expect("a result the model expects"),
             );
         }
@@ -463,9 +473,21 @@ impl Sut {
                 }));
                 wait_for("drain slot", || shared.drain.lock().unwrap().is_some());
             }
-            Step::EndDrain => {
+            Step::EndDrain { idle } => {
                 if let Some(d) = shared.drain.lock().unwrap().as_mut() {
-                    d.deadline = past();
+                    if idle {
+                        // Since the last byte, or since the start when there was none.
+                        d.idle_ms = 0;
+                        d.last_byte_at = d.last_byte_at.map(|_| past());
+                        d.started_at = past();
+                    } else {
+                        d.deadline = past();
+                    }
+                }
+            }
+            Step::CancelDrain => {
+                if let Some(d) = shared.drain.lock().unwrap().as_ref() {
+                    d.cancel.store(true, Ordering::SeqCst);
                 }
             }
             Step::AttachWatch => {

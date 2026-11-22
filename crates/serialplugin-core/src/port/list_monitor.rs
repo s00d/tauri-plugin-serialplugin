@@ -436,6 +436,7 @@ pub fn request_refresh() {
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: the tests inject the system's port list and poll by hand.
     use super::*;
 
     fn usb(vid: &str) -> PortInfoMap {
@@ -445,14 +446,14 @@ mod tests {
         ])
     }
 
-    /// Upper bound for something that happens at once (a hand-off between threads).
-    const PROMPT: Duration = Duration::from_secs(1);
+    /// Bound of every wait: it only limits how long a failure takes.
+    const PROMPT: Duration = Duration::from_secs(10);
 
     fn wait_until(what: &str, f: impl Fn() -> bool) {
-        let deadline = std::time::Instant::now() + 2 * PROMPT;
+        let deadline = std::time::Instant::now() + PROMPT;
         while !f() {
             assert!(std::time::Instant::now() < deadline, "timed out: {what}");
-            thread::sleep(Duration::from_millis(5));
+            thread::yield_now();
         }
     }
 
@@ -555,15 +556,19 @@ mod tests {
 
         // `unsubscribe` waits for a batch another thread is sending.
         let delivery = crate::sync_util::lock_or_recover(&DELIVERY);
+        let sending = Arc::new(AtomicBool::new(true));
         let (tx, rx) = std::sync::mpsc::channel();
+        let during = sending.clone();
         thread::spawn(move || {
+            tx.send(false).unwrap();
             unsubscribe(7_031);
-            tx.send(()).unwrap();
+            tx.send(during.load(Ordering::SeqCst)).unwrap();
         });
-        assert!(rx.recv_timeout(Duration::from_millis(50)).is_err());
+        rx.recv_timeout(PROMPT).expect("unsubscribe is called");
+        sending.store(false, Ordering::SeqCst);
         drop(delivery);
-        rx.recv_timeout(PROMPT)
-            .expect("unsubscribe returns after the batch");
+        let returned_early = rx.recv_timeout(PROMPT).expect("unsubscribe returns");
+        assert!(!returned_early, "before the batch was sent");
         assert!(!is_subscribed(7_031));
         assert!(
             wake.swap(false, Ordering::SeqCst),
@@ -663,12 +668,14 @@ mod tests {
         let count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let (tx, rx) = std::sync::mpsc::channel::<()>();
         let tx = Mutex::new(tx);
+        let (leave, left) = std::sync::mpsc::channel::<()>();
+        let left = Mutex::new(left);
         let seen = count.clone();
         let slow: PortListSink = Arc::new(move |event| {
             if let PortListEvent::Added { .. } = event {
                 seen.fetch_add(1, Ordering::SeqCst);
                 let _ = crate::sync_util::lock_or_recover(&tx).send(());
-                thread::sleep(Duration::from_millis(50));
+                let _ = crate::sync_util::lock_or_recover(&left).recv();
             }
             true
         });
@@ -681,7 +688,11 @@ mod tests {
         ])));
         let poller = thread::spawn(poll_once);
         rx.recv_timeout(PROMPT).expect("first added");
-        unsubscribe(7_010);
+        // Removed while the first event is being handled; the rest of the batch is not sent.
+        let unsubscribing = thread::spawn(|| unsubscribe(7_010));
+        wait_until("removed", || !is_subscribed(7_010));
+        drop(leave);
+        unsubscribing.join().unwrap();
         poller.join().unwrap();
         assert_eq!(count.load(Ordering::SeqCst), 1, "event after unsubscribe");
 
@@ -713,8 +724,6 @@ mod tests {
     }
 
     // ------------------------------------------------ properties and the monitor model
-    // In `src/`: the model injects the port list (`set_test_listing`) and polls by hand
-    // (`poll_once`), and the diff is a private function.
 
     use proptest::prelude::*;
     use proptest::test_runner::{Config, TestRunner};

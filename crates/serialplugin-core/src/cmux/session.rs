@@ -142,14 +142,12 @@ impl DlciChannel {
             Some(DlciWatchSlot::new(channel, batch_timeout_ms, framer, None));
     }
 
-    /// Stop the watch; a parser's buffered remainder is queued as a last `Data` event
-    /// (after the frames already queued). The session delivers it on its next RX, tick
+    /// Stop the watch; its batch and its parser's remainder are queued as the last `Data`
+    /// (after the frames already queued). The session delivers them on its next RX, tick
     /// or [`CmuxSession::clear_watch`] (which calls this and delivers).
     pub fn detach_watch(&self) {
         let mut guard = crate::sync_util::lock_or_recover(&self.watches);
         if let Some(mut slot) = guard.old.take() {
-            // 4.x: the unflushed batch is dropped, the parser remainder kept.
-            slot.buffer.clear();
             let rest = slot.finish();
             self.queue_frames(&slot.channel, rest);
         }
@@ -434,6 +432,10 @@ impl CmuxSession {
         let ch = Arc::new(DlciChannel::new(virtual_path, self.outbox.clone()));
         crate::sync_util::lock_or_recover(&self.channels).insert(dlci, ch.clone());
         crate::sync_util::lock_or_recover(&self.closed).remove(&dlci);
+        // An MSC FC of the channel's previous life does not hold the new one.
+        crate::sync_util::lock_or_recover(&self.tx)
+            .held_dlcis
+            .remove(&dlci);
         ch
     }
 
@@ -581,14 +583,19 @@ impl CmuxSession {
             .cloned()
     }
 
-    /// Physical link lost: every channel watch gets its remainder, then `Disconnect`
-    /// with the channel's virtual path.
+    /// Physical link lost: the session ends (writes waiting on flow control fail), an
+    /// exchange in flight on a channel fails, and every channel watch gets its remainder,
+    /// then `Disconnect` with the channel's virtual path.
     pub fn emit_disconnect(&self, reason: &str) {
+        self.end(reason);
         let channels: Vec<_> = crate::sync_util::lock_or_recover(&self.channels)
             .values()
             .cloned()
             .collect();
         for ch in channels {
+            if let Some(waiter) = crate::sync_util::lock_or_recover(&ch.exchange_waiter).as_ref() {
+                waiter.fail_with_reason(reason.to_string());
+            }
             ch.queue_disconnect(reason);
         }
         self.outbox.deliver();
@@ -622,13 +629,13 @@ impl CmuxSession {
         }
     }
 
-    /// Stop the channel watch; its parser remainder is the last `Data`. The sink runs
-    /// here, so call with no manager lock held.
+    /// Stop the channel watch; its batch and parser remainder are the last `Data`, before
+    /// this returns. The sink runs here, so call with no manager lock held.
     pub fn clear_watch(&self, dlci: u8) {
         if let Some(ch) = self.channel(dlci) {
             ch.detach_watch();
         }
-        self.outbox.deliver();
+        self.outbox.deliver_all();
     }
 
     /// Add a `watch_core` stream on `dlci` (its own batch / parser). `false`: no channel.
@@ -656,7 +663,7 @@ impl CmuxSession {
         let removed = self
             .channel(dlci)
             .is_some_and(|ch| ch.detach_core_watch(id));
-        self.outbox.deliver();
+        self.outbox.deliver_all();
         removed
     }
 
@@ -689,13 +696,12 @@ impl CmuxSession {
         let deadline = Instant::now() + self.io.write_timeout(frame.len());
         // Written under the gate lock: no data frame follows our FCoff response.
         let mut gate = crate::sync_util::lock_or_recover(&self.tx);
-        let mut waited = false;
         loop {
             self.check_alive()?;
             if crate::sync_util::lock_or_recover(&self.closed).contains(&dlci) {
                 return Err(format!("CMUX DLCI {dlci} closed by the modem"));
             }
-            if waited && !self.has_dlci(dlci) {
+            if !self.has_dlci(dlci) {
                 return Err(format!("CMUX DLCI {dlci} is closed"));
             }
             let held = if gate.fc_off {
@@ -714,7 +720,6 @@ impl CmuxSession {
                 .wait_timeout(gate, left)
                 .unwrap_or_else(|e| e.into_inner())
                 .0;
-            waited = true;
         }
         self.io.write_all(&frame)?;
         drop(gate);
@@ -824,762 +829,5 @@ impl CmuxSession {
             CLD_CMD => self.closed_by_modem(0),
             _ => {}
         }
-    }
-}
-
-// Two attributes: cargo-mutants skips modules marked plainly `#[cfg(test)]`.
-#[cfg(test)]
-#[cfg(not(target_os = "android"))]
-mod tests {
-    use super::*;
-    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
-    use crate::exchange::options::ResolvedExchangeOptions;
-    use crate::hub::ExchangeWaiter;
-    use std::sync::atomic::AtomicBool;
-
-    fn test_options() -> ResolvedExchangeOptions {
-        ResolvedExchangeOptions {
-            timeout_ms: 3000,
-            max_bytes: 4096,
-            terminators: vec![],
-            idle_ms: None,
-            rx_prepare: RxPrepareMode::None,
-            drain_idle_ms: 50,
-            drain_max_ms: 200,
-            completion_mode: ExchangeCompletionMode::AtFinalLine,
-            result_format: AtResultFormat::Verbose,
-            command: Some("AT".into()),
-            solicited_prefixes: vec![],
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn feed_physical_rx_routes_to_exchange_waiter() {
-        use crate::cmux::SerialPortIo;
-        use crate::sync_util::pty_pair_locked;
-        use serialport::SerialPort;
-        let (_pty, port, _master) = pty_pair_locked();
-        let session = CmuxSession::with_n1(
-            "pty".into(),
-            Arc::new(SerialPortIo(Arc::new(Mutex::new(
-                Box::new(port) as Box<dyn SerialPort>
-            )))),
-            31,
-        );
-        session.register_dlci(2, "pty#dlci=2".into());
-        let cancel = Arc::new(AtomicBool::new(false));
-        let waiter = ExchangeWaiter::new(test_options(), cancel);
-        session.set_exchange_waiter(2, waiter.clone());
-        let payload = b"AT\r\r\nOK\r\n";
-        let frame = encode_uih(2, payload);
-        session.feed_physical_rx(&frame);
-        let (raw, matched) = waiter.wait(1000).expect("complete");
-        assert!(String::from_utf8_lossy(&raw).contains("OK"));
-        assert!(matches!(matched, crate::at::parse::ExchangeMatch::Ok));
-    }
-
-    #[test]
-    fn cancel_active_exchange_fails_waiter_quickly() {
-        use crate::cmux::io::CmuxPhysicalIo;
-        struct NoopIo;
-        impl CmuxPhysicalIo for NoopIo {
-            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
-                Ok(())
-            }
-        }
-        let session = CmuxSession::with_n1("mock".into(), Arc::new(NoopIo), 31);
-        session.register_dlci(2, "mock#dlci=2".into());
-        let cancel = Arc::new(AtomicBool::new(false));
-        let waiter = ExchangeWaiter::new(test_options(), cancel);
-        session.set_exchange_waiter(2, waiter.clone());
-        let waiter_bg = waiter.clone();
-        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let done_bg = done.clone();
-        std::thread::spawn(move || {
-            let _ = waiter_bg.wait(5000);
-            done_bg.store(true, std::sync::atomic::Ordering::SeqCst);
-        });
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        let start = std::time::Instant::now();
-        session.cancel_active_exchange(2);
-        while !done.load(std::sync::atomic::Ordering::SeqCst)
-            && start.elapsed() < std::time::Duration::from_millis(500)
-        {
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        assert!(done.load(std::sync::atomic::Ordering::SeqCst));
-        assert!(start.elapsed() < std::time::Duration::from_millis(500));
-    }
-
-    #[test]
-    fn dlci_watch_parser_emits_one_event_per_frame() {
-        use crate::cmux::io::CmuxPhysicalIo;
-        use serial_codec::framing::FramerConfig;
-        struct NoopIo;
-        impl CmuxPhysicalIo for NoopIo {
-            fn write_all(&self, _data: &[u8]) -> Result<(), String> {
-                Ok(())
-            }
-        }
-        let session = CmuxSession::with_n1("mock".into(), Arc::new(NoopIo), 31);
-        session.register_dlci(2, "mock#dlci=2".into());
-        let frames = Arc::new(Mutex::new(Vec::new()));
-        let sink = frames.clone();
-        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
-            if let SerialEvent::Data { data, .. } = event {
-                sink.lock().unwrap().push(data);
-            }
-            true
-        });
-        let cfg: FramerConfig =
-            serde_json::from_value(serde_json::json!({"type": "readline"})).unwrap();
-        session.set_watch_with(2, channel, 10_000, Some(cfg.build().unwrap()));
-        session.feed_physical_rx(&encode_uih(2, b"one\ntw"));
-        session.feed_physical_rx(&encode_uih(2, b"o\nthr"));
-        assert_eq!(
-            *frames.lock().unwrap(),
-            vec![b"one".to_vec(), b"two".to_vec()]
-        );
-        session.clear_watch(2);
-        assert_eq!(frames.lock().unwrap().last().unwrap(), b"thr");
-    }
-
-    struct NoopIo;
-    impl crate::cmux::io::CmuxPhysicalIo for NoopIo {
-        fn write_all(&self, _data: &[u8]) -> Result<(), String> {
-            Ok(())
-        }
-    }
-
-    /// The remainder sink ran under the session's `channels` lock (and the manager's
-    /// `mux` lock), so a sink calling back into the session deadlocked.
-    #[test]
-    fn clear_watch_remainder_sink_may_call_back_into_session() {
-        use serial_codec::framing::FramerConfig;
-        let session = CmuxSession::with_n1("mock".into(), Arc::new(NoopIo), 31);
-        session.register_dlci(2, "mock#dlci=2".into());
-        let weak = Arc::downgrade(&session);
-        let (tx, rx) = mpsc::channel();
-        let tx = Mutex::new(tx);
-        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
-            if let SerialEvent::Data { data, .. } = event {
-                let known = weak.upgrade().is_some_and(|s| s.has_dlci(2));
-                let _ = tx.lock().unwrap().send((data, known));
-            }
-            true
-        });
-        let cfg: FramerConfig =
-            serde_json::from_value(serde_json::json!({"type": "readline"})).unwrap();
-        session.set_watch_with(2, channel, 10_000, Some(cfg.build().unwrap()));
-        session.feed_physical_rx(&encode_uih(2, b"partial"));
-        let bg = session.clone();
-        std::thread::spawn(move || bg.clear_watch(2));
-        let (data, known) = rx
-            .recv_timeout(Duration::from_secs(3))
-            .expect("clear_watch deadlocked: sink ran under the channels lock");
-        assert_eq!(data, b"partial");
-        assert!(known);
-    }
-
-    #[test]
-    fn n1_is_the_fourth_cmux_parameter() {
-        assert_eq!(cmux_n1("AT+CMUX=0,0,5,2048"), 2048);
-        assert_eq!(cmux_n1("at+cmux=0,0,5,127,10,3,30,10,2"), 127);
-        assert_eq!(cmux_n1("AT+CMUX=0"), 31);
-        assert_eq!(cmux_n1("AT+CMUX=0,0,,"), 31);
-        assert_eq!(cmux_n1("AT+CMUX=0,0,5, 1600 ,10"), 1600);
-        assert_eq!(cmux_n1("AT"), 31);
-    }
-
-    /// Audit p4: the session always used the 1509-byte default deframer, so with
-    /// `AT+CMUX=…,N1=2048` every larger modem frame was dropped as corrupt.
-    #[test]
-    fn session_accepts_frames_up_to_negotiated_n1() {
-        let n1 = cmux_n1("AT+CMUX=0,0,5,2048");
-        let session = CmuxSession::with_n1("mock".into(), Arc::new(NoopIo), n1);
-        session.register_dlci(1, "mock#dlci=1".into());
-        let got = Arc::new(Mutex::new(0usize));
-        let sink = got.clone();
-        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
-            if let SerialEvent::Data { size, .. } = event {
-                *sink.lock().unwrap() += size;
-            }
-            true
-        });
-        session.set_watch_with(1, channel, 0, None);
-        let frame = encode_frame(1, true, UIH, &[b'A'; 2000]);
-        session.feed_physical_rx(&frame);
-        assert_eq!(*got.lock().unwrap(), 2000, "2000-byte frame dropped");
-    }
-
-    // ------------------------------------------------ fake 27.010 modem (item 11)
-
-    type Log = Arc<Mutex<Vec<DecodedFrame>>>;
-    type HookLog = Arc<Mutex<Vec<(Vec<String>, bool)>>>;
-    type Events = Arc<Mutex<Vec<SerialEvent>>>;
-
-    struct FakeIo(Mutex<mpsc::Sender<Vec<u8>>>);
-    impl crate::cmux::io::CmuxPhysicalIo for FakeIo {
-        fn write_all(&self, data: &[u8]) -> Result<(), String> {
-            let _ = self.0.lock().unwrap().send(data.to_vec());
-            Ok(())
-        }
-        /// Short, so FCoff tests time out quickly.
-        fn write_timeout(&self, _len: usize) -> Duration {
-            Duration::from_millis(300)
-        }
-    }
-
-    /// Fake modem on its own thread: logs every frame the session writes, and feeds
-    /// `reply(frame)` back as physical RX.
-    fn fake_modem(
-        command: &str,
-        mut reply: impl FnMut(&DecodedFrame) -> Vec<u8> + Send + 'static,
-    ) -> (Arc<CmuxSession>, Log) {
-        let (tx, rx) = mpsc::channel::<Vec<u8>>();
-        let session =
-            CmuxSession::for_command("m".into(), Arc::new(FakeIo(Mutex::new(tx))), command);
-        let weak = Arc::downgrade(&session);
-        let log: Log = Arc::default();
-        let seen = log.clone();
-        std::thread::spawn(move || {
-            let mut deframer = Deframer::default();
-            for bytes in rx {
-                for f in deframer.feed(&bytes) {
-                    let out = reply(&f);
-                    seen.lock().unwrap().push(f);
-                    if let (false, Some(s)) = (out.is_empty(), weak.upgrade()) {
-                        s.feed_physical_rx(&out);
-                    }
-                }
-            }
-        });
-        (session, log)
-    }
-
-    fn ua_to_sabm(f: &DecodedFrame) -> Vec<u8> {
-        if f.kind == SABM {
-            encode_frame(f.dlci, true, UA | PF, &[])
-        } else {
-            Vec::new()
-        }
-    }
-
-    fn wait_log(
-        log: &Log,
-        what: &str,
-        pred: impl Fn(&[DecodedFrame]) -> bool,
-    ) -> Vec<DecodedFrame> {
-        let start = Instant::now();
-        loop {
-            let frames = log.lock().unwrap().clone();
-            if pred(&frames) {
-                return frames;
-            }
-            assert!(
-                start.elapsed() < Duration::from_secs(3),
-                "timed out: {what}: {frames:?}"
-            );
-            std::thread::sleep(Duration::from_millis(5));
-        }
-    }
-
-    fn count(frames: &[DecodedFrame], pred: impl Fn(&DecodedFrame) -> bool) -> usize {
-        frames.iter().filter(|f| pred(f)).count()
-    }
-
-    fn event_sink() -> (crate::events::EventSink, Events) {
-        let events: Events = Arc::default();
-        let sink = events.clone();
-        let channel: crate::events::EventSink = Arc::new(move |event: SerialEvent| {
-            sink.lock().unwrap().push(event);
-            true
-        });
-        (channel, events)
-    }
-
-    fn disconnects(events: &Events) -> Vec<String> {
-        events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter_map(|e| match e {
-                SerialEvent::Disconnect { path, .. } => Some(path.clone()),
-                _ => None,
-            })
-            .collect()
-    }
-
-    #[test]
-    fn cmux_timers_from_command_parameters() {
-        let ms = Duration::from_millis;
-        let default = CmuxTimers::default();
-        assert_eq!((default.t1, default.n2, default.t2), (ms(100), 3, ms(300)));
-        // No T1 / N2 in the command: one SABM, as in 4.x.
-        let single = CmuxTimers { n2: 0, ..default };
-        assert_eq!(CmuxTimers::from_command("AT+CMUX=0"), single);
-        assert_eq!(CmuxTimers::from_command("AT"), single);
-        let t = CmuxTimers::from_command("AT+CMUX=0,0,5,31,10,2");
-        assert_eq!((t.t1, t.n2, t.t2), (ms(100), 2, ms(300)));
-        let t = CmuxTimers::from_command("at+cmux=0,0,5,127,25, 5 ,40,10,2");
-        assert_eq!((t.t1, t.n2, t.t2), (ms(250), 5, ms(400)));
-        // Out of the 27.007 ranges (T1 1..=255, N2 0..=100, T2 2..=255): the default.
-        let t = CmuxTimers::from_command("AT+CMUX=0,0,5,31,0,101,1");
-        assert_eq!(t, default);
-        assert_eq!(CmuxTimers::from_command("AT+CMUX=0,0,5,31,,0").n2, 0);
-        // T1 alone turns retransmission on with the default N2.
-        assert_eq!(CmuxTimers::from_command("AT+CMUX=0,0,5,31,10").n2, 3);
-        // `new` / `with_n1`: one SABM per open (4.x).
-        let s = CmuxSession::new("p".into(), Arc::new(NoopIo));
-        assert_eq!(s.timers.n2, 0);
-        assert_eq!(s.timers.t1, default.t1);
-        assert_eq!(s.physical_path(), "p");
-    }
-
-    fn data_of(events: &Events) -> Vec<Vec<u8>> {
-        events
-            .lock()
-            .unwrap()
-            .iter()
-            .filter_map(|e| match e {
-                SerialEvent::Data { data, .. } => Some(data.clone()),
-                _ => None,
-            })
-            .collect()
-    }
-
-    #[test]
-    fn batch_waits_for_its_window_and_empty_ticks_send_nothing() {
-        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
-        s.register_dlci(1, "m#dlci=1".into());
-        s.register_dlci(2, "m#dlci=2".into());
-        let (slow, slow_ev) = event_sink();
-        let (fast, fast_ev) = event_sink();
-        s.set_watch_with(1, slow, 10_000, None);
-        s.set_watch_with(2, fast, 0, None);
-        s.tick();
-        assert!(fast_ev.lock().unwrap().is_empty(), "empty batch sent");
-        s.feed_physical_rx(&encode_uih(1, b"held"));
-        s.feed_physical_rx(&encode_uih(2, b"now"));
-        s.tick();
-        assert!(
-            slow_ev.lock().unwrap().is_empty(),
-            "batch sent before its window"
-        );
-        assert_eq!(data_of(&fast_ev), vec![b"now".to_vec()]);
-    }
-
-    #[test]
-    fn dead_core_watch_gets_nothing() {
-        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
-        s.register_dlci(1, "m#dlci=1".into());
-        let (sink, events) = event_sink();
-        assert!(s.add_core_watch(1, 3, sink, Arc::new(AtomicBool::new(false)), 0, None));
-        s.feed_physical_rx(&encode_uih(1, b"x"));
-        s.tick();
-        assert!(events.lock().unwrap().is_empty());
-    }
-
-    #[test]
-    fn remove_core_watch_takes_only_that_stream() {
-        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
-        s.register_dlci(1, "m#dlci=1".into());
-        let (a, a_ev) = event_sink();
-        let (b, b_ev) = event_sink();
-        let alive = || Arc::new(AtomicBool::new(true));
-        assert!(s.add_core_watch(1, 7, a, alive(), 10_000, None));
-        assert!(s.add_core_watch(1, 8, b, alive(), 10_000, None));
-        s.feed_physical_rx(&encode_uih(1, b"abc"));
-        assert!(s.remove_core_watch(1, 8));
-        assert_eq!(data_of(&b_ev), vec![b"abc".to_vec()], "remainder of 8");
-        assert!(a_ev.lock().unwrap().is_empty(), "7 is still running");
-        assert!(s.remove_core_watch(1, 7));
-        assert_eq!(data_of(&a_ev), vec![b"abc".to_vec()]);
-        assert!(!s.remove_core_watch(1, 7));
-        assert!(!s.remove_core_watch(5, 7));
-        assert!(!s.add_core_watch(5, 9, event_sink().0, alive(), 0, None));
-    }
-
-    #[test]
-    fn cleared_waiter_leaves_data_to_the_watch() {
-        let s = CmuxSession::with_n1("m".into(), Arc::new(NoopIo), 31);
-        s.register_dlci(2, "m#dlci=2".into());
-        let (sink, events) = event_sink();
-        s.set_watch_with(2, sink, 0, None);
-        let waiter = ExchangeWaiter::new(test_options(), Arc::new(AtomicBool::new(false)));
-        s.set_exchange_waiter(2, waiter.clone());
-        s.clear_exchange_waiter(2);
-        s.feed_physical_rx(&encode_uih(2, b"AT\r\r\nOK\r\n"));
-        assert_eq!(data_of(&events), vec![b"AT\r\r\nOK\r\n".to_vec()]);
-        assert!(waiter.wait(10).is_err(), "the cleared waiter got the reply");
-    }
-
-    #[test]
-    fn unregister_sends_disc_and_forgets_the_channel() {
-        let (s, log) = fake_modem("AT+CMUX=0", |f| {
-            if f.kind == DISC {
-                encode_frame(f.dlci, true, UA | PF, &[])
-            } else {
-                Vec::new()
-            }
-        });
-        s.register_dlci(1, "m#dlci=1".into());
-        s.unregister_dlci(1);
-        assert!(!s.has_dlci(1));
-        wait_log(&log, "DISC", |f| {
-            count(f, |f| f.dlci == 1 && f.kind == DISC) == 1
-        });
-    }
-
-    #[test]
-    fn closed_hook_names_the_channel_or_the_multiplexer() {
-        let (s, _log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        let reasons: Arc<Mutex<Vec<(String, bool)>>> = Arc::default();
-        let seen = reasons.clone();
-        s.set_on_closed(Box::new(
-            move |_paths: &[String], reason: &str, whole: bool| {
-                seen.lock().unwrap().push((reason.to_string(), whole));
-            },
-        ));
-        s.register_dlci(1, "m#dlci=1".into());
-        s.feed_physical_rx(&encode_frame(1, true, DISC | PF, &[]));
-        s.feed_physical_rx(&encode_frame(0, true, DISC | PF, &[]));
-        assert_eq!(
-            reasons.lock().unwrap().as_slice(),
-            [
-                ("CMUX DLCI 1 closed by the modem".to_string(), false),
-                ("CMUX multiplexer closed by the modem".to_string(), true),
-            ]
-        );
-    }
-
-    #[test]
-    fn msc_follows_ua_on_each_data_dlci() {
-        let (s, log) = fake_modem("AT+CMUX=0", ua_to_sabm);
-        s.open_dlci(0, Duration::from_secs(1)).unwrap();
-        s.register_dlci(1, "m#dlci=1".into());
-        s.open_dlci(1, Duration::from_secs(1)).unwrap();
-        let ctrl = |f: &DecodedFrame| f.dlci == 0 && f.kind == UIH;
-        let frames = wait_log(&log, "MSC", |f| count(f, ctrl) >= 1);
-        let msc: Vec<_> = frames.iter().filter(|f| ctrl(f)).collect();
-        // MSC command, length 2, DLCI 1 address octet, V.24: EA|RTC|RTR|DV.
-        assert_eq!(msc[0].payload, vec![0xE3, 0x05, 0x07, 0x8D]);
-        assert!(msc[0].cr, "MSC is our command");
-        let sabm1 = frames
-            .iter()
-            .position(|f| f.dlci == 1 && f.kind == SABM)
-            .unwrap();
-        let msc_at = frames.iter().position(ctrl).unwrap();
-        assert!(sabm1 < msc_at, "MSC after the DLC is established");
-
-        // The modem's MSC command is answered (C/R cleared); its response to ours is not.
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xE3, 0x05, 0x07, 0x8D]));
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xE1, 0x05, 0x07, 0x8D]));
-        wait_log(&log, "MSC response", |f| count(f, ctrl) >= 2);
-        std::thread::sleep(Duration::from_millis(50));
-        let frames = log.lock().unwrap().clone();
-        let ctrl_payloads: Vec<_> = frames
-            .iter()
-            .filter(|f| ctrl(f))
-            .map(|f| f.payload.clone())
-            .collect();
-        assert_eq!(
-            ctrl_payloads,
-            vec![vec![0xE3, 0x05, 0x07, 0x8D], vec![0xE1, 0x05, 0x07, 0x8D]],
-            "one MSC of ours (none for DLCI 0), one response to the modem's"
-        );
-    }
-
-    #[test]
-    fn sabm_retried_n2_times_with_t1_then_error() {
-        // T1 = 2 (20 ms), N2 = 2: three SABMs in all, then the error.
-        let (s, log) = fake_modem("AT+CMUX=0,0,5,31,2,2", |_| Vec::new());
-        s.register_dlci(1, "m#dlci=1".into());
-        let start = Instant::now();
-        let err = s.open_dlci(1, Duration::from_millis(1)).unwrap_err();
-        let took = start.elapsed();
-        assert!(err.starts_with("no UA for CMUX DLCI 1 within"), "{err}");
-        assert!(took >= Duration::from_millis(60), "{took:?}");
-        assert!(took < Duration::from_secs(1), "{took:?}");
-        let sabm = |f: &DecodedFrame| f.dlci == 1 && f.kind == SABM;
-        wait_log(&log, "3 SABM", |f| count(f, sabm) == 3);
-        std::thread::sleep(Duration::from_millis(60));
-        assert_eq!(
-            count(&log.lock().unwrap(), sabm),
-            3,
-            "no retransmission after the error"
-        );
-
-        // A modem that only answers the second SABM: open succeeds after one retry.
-        let mut seen = 0;
-        let (s, log) = fake_modem("AT+CMUX=0,0,5,31,2,2", move |f| {
-            if f.kind != SABM {
-                return Vec::new();
-            }
-            seen += 1;
-            if seen == 2 {
-                encode_frame(f.dlci, true, UA | PF, &[])
-            } else {
-                Vec::new()
-            }
-        });
-        s.register_dlci(1, "m#dlci=1".into());
-        s.open_dlci(1, Duration::from_millis(1)).unwrap();
-        std::thread::sleep(Duration::from_millis(60));
-        assert_eq!(count(&log.lock().unwrap(), sabm), 2);
-
-        // Without T1/N2 in the command the 4.x wait (the caller's timeout) still holds.
-        let (s, _log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        let start = Instant::now();
-        let err = s.open_dlci(0, Duration::from_millis(200)).unwrap_err();
-        assert_eq!(err, "no UA for CMUX DLCI 0 within 200 ms");
-        assert!(start.elapsed() >= Duration::from_millis(200));
-    }
-
-    #[test]
-    fn modem_disc_closes_only_that_channel() {
-        let (s, log) = fake_modem("AT+CMUX=0", ua_to_sabm);
-        s.register_dlci(1, "m#dlci=1".into());
-        s.register_dlci(2, "m#dlci=2".into());
-        let (old1, ev_old1) = event_sink();
-        let (core1, ev_core1) = event_sink();
-        let (old2, ev_old2) = event_sink();
-        s.set_watch_with(1, old1, 0, None);
-        assert!(s.add_core_watch(1, 7, core1, Arc::new(AtomicBool::new(true)), 0, None));
-        s.set_watch_with(2, old2, 0, None);
-
-        s.feed_physical_rx(&encode_frame(1, true, DISC | PF, &[]));
-        let frames = wait_log(&log, "UA to DISC", |f| {
-            count(f, |f| f.dlci == 1 && f.kind == UA) == 1
-        });
-        let ua = frames.iter().find(|f| f.dlci == 1 && f.kind == UA).unwrap();
-        assert!(!ua.cr, "UA is our response");
-        assert_eq!(disconnects(&ev_old1), vec!["m#dlci=1".to_string()]);
-        assert_eq!(disconnects(&ev_core1), vec!["m#dlci=1".to_string()]);
-        assert!(disconnects(&ev_old2).is_empty());
-        assert!(!s.has_dlci(1));
-        assert!(s.has_dlci(2));
-        assert_eq!(
-            s.send_uih(1, b"x").unwrap_err(),
-            "CMUX DLCI 1 closed by the modem"
-        );
-        assert_eq!(s.send_uih(2, b"x"), Ok(1));
-        // Data for the closed channel goes nowhere.
-        s.feed_physical_rx(&encode_uih(1, b"late"));
-        assert!(!ev_old1
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|e| matches!(e, SerialEvent::Data { .. })));
-
-        // DM on an open DLC: closed too, but no UA.
-        s.feed_physical_rx(&encode_frame(2, true, DM | PF, &[]));
-        assert_eq!(disconnects(&ev_old2), vec!["m#dlci=2".to_string()]);
-        assert!(!s.has_dlci(2));
-        // DISC on a DLC that is not open is answered with DM.
-        s.feed_physical_rx(&encode_frame(5, true, DISC | PF, &[]));
-        let frames = wait_log(&log, "DM to DISC", |f| {
-            count(f, |f| f.dlci == 5 && f.kind == DM) == 1
-        });
-        assert_eq!(count(&frames, |f| f.kind == UA), 1, "{frames:?}");
-
-        // Re-opening the channel clears the closed state.
-        s.register_dlci(1, "m#dlci=1".into());
-        s.open_dlci(1, Duration::from_secs(1)).unwrap();
-        assert_eq!(s.send_uih(1, b"x"), Ok(1));
-    }
-
-    #[test]
-    fn fcoff_blocks_writes_until_fcon() {
-        let (s, log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        s.register_dlci(1, "m#dlci=1".into());
-        let data = |f: &DecodedFrame| f.dlci != 0 && f.kind == UIH;
-        let ctrl = |f: &DecodedFrame, p: &[u8]| f.dlci == 0 && f.kind == UIH && f.payload == p;
-
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0x63, 0x01])); // FCoff
-        wait_log(&log, "FCoff response", |f| {
-            count(f, |f| ctrl(f, &[0x61, 0x01])) == 1
-        });
-        let bg = s.clone();
-        let writer = std::thread::spawn(move || bg.send_uih(1, b"a"));
-        std::thread::sleep(Duration::from_millis(100));
-        assert!(!writer.is_finished(), "write returned during FCoff");
-        assert_eq!(
-            count(&log.lock().unwrap(), data),
-            0,
-            "data sent during FCoff"
-        );
-
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xA3, 0x01])); // FCon
-        assert_eq!(writer.join().unwrap(), Ok(1));
-        let frames = wait_log(&log, "data after FCon", |f| count(f, data) == 1);
-        let fcon = frames.iter().position(|f| ctrl(f, &[0xA1, 0x01])).unwrap();
-        let first = frames.iter().position(data).unwrap();
-        assert!(fcon < first, "FCon answered first");
-    }
-
-    /// FCoff for longer than the write timeout: the write fails, and nothing stale
-    /// goes out on a later FCon (27.010 §5.4.6.3.5/6: the sender stops).
-    #[test]
-    fn fcoff_write_times_out_and_is_not_sent_later() {
-        let (s, log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        s.register_dlci(1, "m#dlci=1".into());
-        let data = |f: &DecodedFrame| f.dlci != 0 && f.kind == UIH;
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0x63, 0x01])); // FCoff
-        let t = Instant::now();
-        let err = s.send_uih(1, b"ATD+123;\r").unwrap_err();
-        assert_eq!(err, "CMUX flow control off (FCoff)");
-        assert!(
-            t.elapsed() >= Duration::from_millis(300),
-            "{:?}",
-            t.elapsed()
-        );
-        assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xA3, 0x01])); // FCon
-        std::thread::sleep(Duration::from_millis(100));
-        assert_eq!(
-            count(&log.lock().unwrap(), data),
-            0,
-            "stale data after FCon"
-        );
-    }
-
-    /// A write waiting on FCoff fails as soon as its channel goes away.
-    #[test]
-    fn fcoff_waiter_fails_when_the_channel_closes() {
-        let (s, _log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        s.register_dlci(1, "m#dlci=1".into());
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0x63, 0x01])); // FCoff
-        let bg = s.clone();
-        let t = Instant::now();
-        let writer = std::thread::spawn(move || bg.send_uih(1, b"a"));
-        std::thread::sleep(Duration::from_millis(50));
-        s.feed_physical_rx(&encode_frame(1, true, DISC | PF, &[]));
-        assert_eq!(
-            writer.join().unwrap().unwrap_err(),
-            "CMUX DLCI 1 closed by the modem"
-        );
-        assert!(
-            t.elapsed() < Duration::from_millis(250),
-            "{:?}",
-            t.elapsed()
-        );
-    }
-
-    /// MSC with FC=1 from the modem holds only that DLC; FC=0 releases it.
-    #[test]
-    fn msc_fc_bit_holds_only_that_channel() {
-        let (s, log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        s.register_dlci(1, "m#dlci=1".into());
-        s.register_dlci(2, "m#dlci=2".into());
-        // MSC command: DLCI 1, V.24 EA|FC|RTC|RTR|DV.
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xE3, 0x05, 0x07, 0x8F]));
-        assert_eq!(s.send_uih(2, b"b"), Ok(1));
-        let bg = s.clone();
-        let held = std::thread::spawn(move || bg.send_uih(1, b"a"));
-        std::thread::sleep(Duration::from_millis(100));
-        assert!(!held.is_finished(), "DLCI 1 not held by MSC FC");
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xE3, 0x05, 0x07, 0x8D]));
-        assert_eq!(held.join().unwrap(), Ok(1));
-        let data = |f: &DecodedFrame| f.dlci != 0 && f.kind == UIH;
-        wait_log(&log, "both data frames", |f| count(f, data) == 2);
-    }
-
-    /// 27.010 §5.4.6.3.8: an unknown control command is answered with NSC; the known
-    /// ones are still echoed.
-    #[test]
-    fn unknown_control_command_gets_nsc() {
-        let (s, log) = fake_modem("AT+CMUX=0", |_| Vec::new());
-        let ctrl = |f: &DecodedFrame, p: &[u8]| f.dlci == 0 && f.kind == UIH && f.payload == p;
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0xF3, 0x01]));
-        wait_log(&log, "NSC", |f| {
-            count(f, |f| ctrl(f, &[0x11, 0x03, 0xF3])) == 1
-        });
-        s.feed_physical_rx(&encode_frame(0, true, UIH, &[0x23, 0x03, 0x55]));
-        wait_log(&log, "TEST echo", |f| {
-            count(f, |f| ctrl(f, &[0x21, 0x03, 0x55])) == 1
-        });
-    }
-
-    /// DISC on DLCI 0, CLD or an unsolicited DM on DLCI 0: the modem left multiplexer
-    /// mode. Writes and opens fail, channels get `Disconnect`, the manager hook runs.
-    #[test]
-    fn modem_leaving_mux_kills_the_session() {
-        for leave in [
-            encode_frame(0, true, DISC | PF, &[]),
-            encode_frame(0, true, UIH, &[CLD_CMD, 0x01]),
-            encode_frame(0, true, DM | PF, &[]),
-        ] {
-            let (s, _log) = fake_modem("AT+CMUX=0", ua_to_sabm);
-            let hook: HookLog = Arc::default();
-            let seen = hook.clone();
-            s.set_on_closed(Box::new(
-                move |paths: &[String], _reason: &str, whole: bool| {
-                    seen.lock().unwrap().push((paths.to_vec(), whole));
-                },
-            ));
-            s.register_dlci(1, "m#dlci=1".into());
-            let (old, events) = event_sink();
-            s.set_watch_with(1, old, 0, None);
-            s.feed_physical_rx(&leave);
-            assert_eq!(disconnects(&events), vec!["m#dlci=1".to_string()]);
-            assert_eq!(
-                hook.lock().unwrap().as_slice(),
-                [(vec!["m#dlci=1".to_string()], true)]
-            );
-            s.register_dlci(2, "m#dlci=2".into());
-            assert!(s.send_uih(2, b"AT\r").is_err(), "write on a dead mux");
-            assert!(s.open_dlci(2, Duration::from_millis(100)).is_err());
-        }
-    }
-
-    /// `AT+CMUX` without T1 / N2: one SABM, the whole timeout for its UA (4.x).
-    #[test]
-    fn default_command_sends_a_single_sabm() {
-        let (s, log) = fake_modem("AT+CMUX=0", |f| {
-            if f.kind == SABM {
-                std::thread::sleep(Duration::from_millis(250));
-            }
-            ua_to_sabm(f)
-        });
-        s.register_dlci(1, "m#dlci=1".into());
-        s.open_dlci(1, Duration::from_secs(2)).unwrap();
-        std::thread::sleep(Duration::from_millis(100));
-        assert_eq!(count(&log.lock().unwrap(), |f| f.kind == SABM), 1);
-    }
-
-    #[test]
-    fn close_down_waits_for_the_cld_response() {
-        let cld = |f: &DecodedFrame| f.dlci == 0 && f.kind == UIH && f.payload == [0xC3, 0x01];
-        // T2 = 50 (500 ms); the modem answers after 100 ms.
-        let (s, _log) = fake_modem("AT+CMUX=0,0,5,31,10,3,50", move |f| {
-            if cld(f) {
-                std::thread::sleep(Duration::from_millis(100));
-                encode_frame(0, true, UIH, &[0xC1, 0x01])
-            } else {
-                Vec::new()
-            }
-        });
-        let start = Instant::now();
-        s.close_down();
-        let took = start.elapsed();
-        assert!(
-            took >= Duration::from_millis(100),
-            "returned before the response: {took:?}"
-        );
-        assert!(
-            took < Duration::from_millis(450),
-            "missed the response: {took:?}"
-        );
-
-        // No response: close_down gives up after T2 (5 = 50 ms).
-        let (s, log) = fake_modem("AT+CMUX=0,0,5,31,10,3,5", |_| Vec::new());
-        let start = Instant::now();
-        s.close_down();
-        let took = start.elapsed();
-        assert!(took >= Duration::from_millis(50), "{took:?}");
-        assert!(took < Duration::from_secs(1), "{took:?}");
-        wait_log(&log, "CLD", |f| count(f, cld) == 1);
     }
 }

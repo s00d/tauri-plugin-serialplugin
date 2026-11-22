@@ -99,13 +99,14 @@ jobs:
           cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target aarch64-linux-android --all-targets --features android-test-harness -- -D warnings
           cargo clippy -p tauri-plugin-serialplugin -p serialplugin-core --target aarch64-linux-android --all-targets --features android-test-harness,ble -- -D warnings
 
-      - name: MSRV (plugin + serialplugin-core 1.90, android-usb-serial + serial-codec 1.85)
+      - name: MSRV (plugin + serialplugin-core 1.90, android-usb-serial + serial-codec + serialplugin-testing 1.85)
         if: runner.os == 'Linux'
         run: |
           rustup toolchain install 1.90 1.85 --profile minimal
           cargo +1.90 check --workspace --all-targets
           cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
           cargo +1.85 test -p serial-codec
+          cargo +1.85 check -p serialplugin-testing --all-targets
 
       - uses: actions/setup-java@v6
         if: runner.os == 'Linux'

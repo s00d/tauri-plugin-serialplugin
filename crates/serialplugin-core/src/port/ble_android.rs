@@ -261,6 +261,7 @@ impl SerialPort for AndroidBleSerialPort {
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: Android only; the platform's GATT calls are replaced by a private table.
     use super::*;
 
     /// What the fake platform saw: (op, handle, payload).

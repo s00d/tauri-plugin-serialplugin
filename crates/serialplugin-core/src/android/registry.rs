@@ -345,9 +345,8 @@ pub mod test_harness {
 
 #[cfg(all(test, target_os = "android"))]
 mod fail_port_tests {
+    //! In `src/`: private Android registry.
     use super::*;
-    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
-    use crate::exchange::options::ResolvedExchangeOptions;
     use crate::hub::ExchangeWaiter;
     use crate::hub::PortRxHub;
     use crate::mock_serial::MockSerialPort;
@@ -356,7 +355,6 @@ mod fail_port_tests {
     use serialport::SerialPort;
     use std::sync::atomic::AtomicBool;
     use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
 
     fn test_handle(_path: &str, port: Arc<Mutex<Box<dyn SerialPort>>>) -> ConnectedPortHandle {
         ConnectedPortHandle {
@@ -371,115 +369,18 @@ mod fail_port_tests {
     }
 
     #[test]
-    fn fail_port_releases_exchange_waiter_quickly() {
+    fn fail_port_fails_the_exchange_and_frees_the_queue() {
         let registry = MobilePortRegistry::new();
         let port: Arc<Mutex<Box<dyn SerialPort>>> =
             Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
         let hub = Arc::new(PortRxHub::start(port.clone(), "dev".into()));
         let handle = test_handle("dev", port);
         registry.register("dev", hub.clone(), handle.clone());
-
-        let cancel = Arc::new(AtomicBool::new(false));
-        let options = ResolvedExchangeOptions {
-            timeout_ms: 5000,
-            max_bytes: 4096,
-            terminators: vec![],
-            idle_ms: None,
-            rx_prepare: RxPrepareMode::Drain,
-            drain_idle_ms: 50,
-            drain_max_ms: 200,
-            completion_mode: ExchangeCompletionMode::AtFinalLine,
-            result_format: AtResultFormat::Verbose,
-            command: Some("AT".into()),
-            solicited_prefixes: vec![],
-        };
-        let waiter = ExchangeWaiter::new(options, cancel);
+        let options = crate::events::ExchangeOptions::default().resolve();
+        let waiter = ExchangeWaiter::new(options, Arc::new(AtomicBool::new(false)));
         hub.shared().set_exchange_waiter(waiter.clone());
-
-        let gate = Arc::new(AtomicBool::new(false));
-        let gate_bg = gate.clone();
-        let q = handle.tx_queue.clone();
-        let t = std::thread::spawn(move || {
-            gate_bg.store(true, std::sync::atomic::Ordering::SeqCst);
-            q.run_serial(|| {
-                std::thread::sleep(Duration::from_secs(30));
-                Ok(())
-            })
-        });
-        while !gate.load(std::sync::atomic::Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_millis(2));
-        }
-
-        let start = Instant::now();
         registry.fail_port("dev", "usb error");
-        let wait_result = waiter.wait(100);
-        assert!(wait_result.is_err());
-        assert!(start.elapsed() < Duration::from_millis(50));
-        let join = t.join().unwrap();
-        assert!(join.is_err());
-    }
-
-    #[test]
-    fn fail_port_allows_next_tx_job() {
-        let registry = MobilePortRegistry::new();
-        let port: Arc<Mutex<Box<dyn SerialPort>>> =
-            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
-        let hub = Arc::new(PortRxHub::start(port.clone(), "dev2".into()));
-        let handle = test_handle("dev2", port);
-        registry.register("dev2", hub, handle.clone());
-        registry.fail_port("dev2", "reset");
-        let result = handle.tx_queue.run_serial(|| Ok(7));
-        assert_eq!(result.unwrap(), 7);
-    }
-}
-
-#[cfg(test)]
-#[cfg(target_os = "android")]
-mod hub_cancel_tests {
-    use crate::events::{AtResultFormat, ExchangeCompletionMode, RxPrepareMode};
-    use crate::exchange::options::ResolvedExchangeOptions;
-    use crate::hub::ExchangeWaiter;
-    use crate::hub::PortRxHub;
-    use crate::mock_serial::MockSerialPort;
-    use serialport::SerialPort;
-    use std::sync::atomic::AtomicBool;
-    use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
-
-    #[test]
-    fn cancel_active_exchange_wakes_waiter_quickly() {
-        let port: Arc<Mutex<Box<dyn SerialPort>>> =
-            Arc::new(Mutex::new(Box::new(MockSerialPort::new())));
-        let hub = Arc::new(PortRxHub::start(port, "dev-cancel".into()));
-        let cancel = Arc::new(AtomicBool::new(false));
-        let options = ResolvedExchangeOptions {
-            timeout_ms: 5000,
-            max_bytes: 4096,
-            terminators: vec![],
-            idle_ms: None,
-            rx_prepare: RxPrepareMode::None,
-            drain_idle_ms: 50,
-            drain_max_ms: 200,
-            completion_mode: ExchangeCompletionMode::AtFinalLine,
-            result_format: AtResultFormat::Verbose,
-            command: Some("AT".into()),
-            solicited_prefixes: vec![],
-        };
-        let waiter = ExchangeWaiter::new(options, cancel.clone());
-        hub.set_exchange_waiter(waiter.clone());
-
-        cancel.store(true, std::sync::atomic::Ordering::SeqCst);
-        hub.cancel_active_exchange();
-
-        let start = Instant::now();
-        let result = waiter.wait(5000);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("cancel"), "expected cancel error, got {err}");
-        assert!(
-            start.elapsed() < Duration::from_millis(500),
-            "cancel took too long: {:?}",
-            start.elapsed()
-        );
+        assert_eq!(waiter.wait(60_000).unwrap_err(), "usb error");
+        assert_eq!(handle.tx_queue.run_serial(|| Ok(7)).unwrap(), 7);
     }
 }

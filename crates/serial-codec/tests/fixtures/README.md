@@ -6,10 +6,10 @@ projects. Every entry keeps `source` (`project/path:line`) and `license`.
 
 | file | used by | sources |
 |---|---|---|
-| `cmux.json` | `tests/cmux_vectors.rs` | zephyr `tests/subsys/modem/modem_cmux` (Apache-2.0), oFono `unit/test-mux.c` (GPL-2.0-only) |
-| `at_replies.json` | `tests/at_vectors.rs` | ModemManager `src/tests/test-modem-helpers.c`, `test-at-serial-port.c` (GPL-2.0-or-later), gammu `tests/` (GPL-2.0-only), chan_dongle `test/parse.c` (GPL-2.0-only), python-gsmmodem `test/` (LGPL-3.0-or-later) |
-| `at_urc.json` | `tests/at_vectors.rs` | ModemManager (GPL-2.0-or-later), chan_dongle (GPL-2.0-only), python-gsmmodem (LGPL-3.0-or-later) |
-| `cme_cms.json` | `tests/at_vectors.rs` | ModemManager `include/ModemManager-errors.h` (LGPL-2.0-or-later), `src/tests/test-error-helpers.c`, `src/mm-error-helpers.c` (GPL-2.0-or-later), gammu (GPL-2.0-only), python-gsmmodem (LGPL-3.0-or-later) |
+| `cmux.json` | `tests/it/corpus_cmux.rs` | zephyr `tests/subsys/modem/modem_cmux` (Apache-2.0), oFono `unit/test-mux.c` (GPL-2.0-only) |
+| `at_replies.json` | `tests/it/corpus_at.rs` | ModemManager `src/tests/test-modem-helpers.c`, `test-at-serial-port.c` (GPL-2.0-or-later), gammu `tests/` (GPL-2.0-only), chan_dongle `test/parse.c` (GPL-2.0-only), python-gsmmodem `test/` (LGPL-3.0-or-later) |
+| `at_urc.json` | `tests/it/corpus_at.rs` | ModemManager (GPL-2.0-or-later), chan_dongle (GPL-2.0-only), python-gsmmodem (LGPL-3.0-or-later) |
+| `cme_cms.json` | `tests/it/corpus_at.rs` | ModemManager `include/ModemManager-errors.h` (LGPL-2.0-or-later), `src/tests/test-error-helpers.c`, `src/mm-error-helpers.c` (GPL-2.0-or-later), gammu (GPL-2.0-only), python-gsmmodem (LGPL-3.0-or-later) |
 
 ## Fields
 
@@ -44,7 +44,7 @@ field-parsing format were left out, or re-encoded with a fake number of the same
 
 ## Not included
 
-Advanced-option CMUX vectors (0x7E framing) are in `cmux.json`, and their tests are
-`#[ignore]`d. Zephyr session tests (retries, power save, flow-control state) and
+Advanced-option CMUX vectors (0x7E framing) are in `cmux.json`; the test pins that the
+basic-option deframer decodes nothing from them. Zephyr session tests (retries, power save, flow-control state) and
 MTU-64-specific transmit sizes are left out. SMS PDU, GSM 7-bit, USSD and typed URC /
 response vectors live in `sms/`, `ussd/` and `urc/`, each with its own README.

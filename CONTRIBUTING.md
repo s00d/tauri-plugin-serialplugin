@@ -24,10 +24,8 @@ Faster local gate (no Android cross / Robolectric):
 ./scripts/ci-fast.sh
 ```
 
-Tests are scenarios, not one test per function: proptest models drive each crate through
-its public entry (the plugin through IPC) with random action sequences checked against a
-small reference model, plus Given/When/Then stories for timing and transport cases. Run
-them with `cargo nextest run` (`.config/nextest.toml` kills a hung test after 6 s).
+Tests are models and stories, not one test per function: [TESTING.md](./TESTING.md). Run them
+with `cargo nextest run`.
 
 Mutation testing ([cargo-mutants](https://mutants.rs), config in `.cargo/mutants.toml`).
 A surviving ("missed") mutant means no scenario notices that change; extend a model or a
@@ -68,6 +66,7 @@ pnpm playground
 | `permissions/` | Tauri ACL permission TOMLs |
 | `android/` | Kotlin / Gradle Android module |
 | `crates/android-usb-serial/` | Pure-Rust USB serial drivers |
+| `crates/serialplugin-testing/` | Fake serial devices for tests (published) |
 | `examples/serialport-test/` | Demo / playground |
 | `tests/` | vitest suites for guest-js |
 

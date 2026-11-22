@@ -7,10 +7,10 @@ ours (`dec-NNN`, `enc-NNN`, `g7-NNN`, where NNN is the index in the original ext
 
 | file | content | used by |
 |---|---|---|
-| `pdu_decode.json` | PDU and field decoding, multipart assembly (99 entries) | `tests/sms_vectors.rs` |
-| `pdu_encode.json` | SMS-SUBMIT and field encoding (108 entries) | `tests/sms_vectors.rs` |
-| `gsm7.json` | GSM 7-bit / national tables / packing / UCS2 (126 entries) | `tests/gsm7_vectors.rs` |
-| `gateway_*.json` | the owner's `gateway-soft-rs` `gs-pdu` corpus | `tests/sms_vectors.rs` |
+| `pdu_decode.json` | PDU and field decoding, multipart assembly (99 entries) | `tests/it/corpus_sms.rs` |
+| `pdu_encode.json` | SMS-SUBMIT and field encoding (108 entries) | `tests/it/corpus_sms.rs` |
+| `gsm7.json` | GSM 7-bit / national tables / packing / UCS2 (126 entries) | `tests/it/corpus_gsm7.rs` |
+| `gateway_*.json` | the owner's `gateway-soft-rs` `gs-pdu` corpus | `tests/it/corpus_sms.rs` |
 
 ## Sources and licenses
 

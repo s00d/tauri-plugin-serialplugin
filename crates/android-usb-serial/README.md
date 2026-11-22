@@ -307,7 +307,7 @@ JSON, and example apps. Kotlin owns USB policy; Rust owns protocol + bulk I/O.
 
 ```bash
 # Full parity gate (Java-sourced controls + bulkOut + rx_filter + probe)
-cargo test -p android-usb-serial --features fake-transport --test integration golden_parity
+cargo test -p android-usb-serial --features fake-transport --test it corpus_golden
 
 # All crate tests
 cargo test -p android-usb-serial --features fake-transport
@@ -322,7 +322,7 @@ Breakdown: **560** Java control sequences, **6** RX-filter pairs, **1** probe ta
 
 ```bash
 # On device: ANDROID_USB_SPIKE_FD=<UsbDeviceConnection fd>
-cargo test -p android-usb-serial --features fake-transport spike_fd_hardware -- --ignored
+cargo test -p android-usb-serial --features fake-transport story_hardware -- --ignored
 ```
 
 ## License

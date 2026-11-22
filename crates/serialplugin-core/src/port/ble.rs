@@ -588,20 +588,8 @@ impl SerialPort for BleSerialPort {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn write_chunks_follow_mtu() {
-        assert_eq!(chunk_size(247), 244);
-        assert_eq!(chunk_size(517), 512);
-        assert_eq!(ble_target("ble://AA:BB"), Some("AA:BB"));
-        assert_eq!(ble_target("/dev/ttyUSB0"), None);
-    }
-}
-
-#[cfg(test)]
 mod adapter_tests {
+    //! In `src/`: pure rules of the scan and the adapter, reached only with Bluetooth hardware.
     use super::*;
 
     #[test]
@@ -656,6 +644,7 @@ mod adapter_tests {
 
 #[cfg(test)]
 mod selection_tests {
+    //! In `src/`: pure rules of device selection and writes, reached only with Bluetooth hardware.
     use super::*;
 
     fn dev(id: &str, mac: &str, name: Option<&str>) -> Candidate {
@@ -701,19 +690,17 @@ mod selection_tests {
 
     #[test]
     fn a_stuck_write_times_out_and_drops_the_link() {
-        let started = Instant::now();
         let dropped = std::cell::Cell::new(0);
         let err = block_on_write(
             std::future::pending::<btleplug::Result<()>>(),
-            Duration::from_millis(50),
+            Duration::from_millis(5),
             || dropped.set(dropped.get() + 1),
         )
         .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::TimedOut);
-        assert!(started.elapsed() < Duration::from_secs(2));
         assert_eq!(dropped.get(), 1, "a timed-out write must reset the link");
         assert!(
-            block_on_write(async { Ok(()) }, Duration::from_millis(50), || {
+            block_on_write(async { Ok(()) }, Duration::from_secs(10), || {
                 dropped.set(dropped.get() + 1)
             })
             .is_ok()

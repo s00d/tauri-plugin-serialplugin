@@ -242,177 +242,33 @@ fn filter_macos_single_port_per_device(
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: the Windows registry helpers are private (and pure), and the locations are
+    //! only read by the port-list monitor.
     use super::*;
 
-    fn info(type_: &str) -> HashMap<String, String> {
-        HashMap::from([("type".to_string(), type_.to_string())])
-    }
-
+    /// Several device instances can map to one COM name (a phantom one included): the one
+    /// that extends the truncated serial wins, as in 4.x; an unrelated or equal one is none.
     #[test]
-    fn no_op_when_disabled() {
-        let ports = HashMap::from([
-            ("/dev/cu.usbmodem1".to_string(), info("USB")),
-            ("/dev/tty.usbmodem1".to_string(), info("USB")),
-        ]);
-        let out = apply_single_port_per_device(ports.clone(), false);
-        assert_eq!(out.len(), 2);
-        assert_eq!(out, ports);
-    }
-
-    #[test]
-    fn prefers_callout_over_dialin_for_same_suffix() {
-        let ports = HashMap::from([
-            ("/dev/tty.usbmodem1421".to_string(), info("USB")),
-            ("/dev/cu.usbmodem1421".to_string(), info("USB")),
-            (
-                "/dev/cu.Bluetooth-Incoming-Port".to_string(),
-                info("Bluetooth"),
-            ),
-            (
-                "/dev/tty.Bluetooth-Incoming-Port".to_string(),
-                info("Bluetooth"),
-            ),
-        ]);
-        let out = apply_single_port_per_device(ports, true);
-        assert_eq!(out.len(), 2);
-        assert!(out.contains_key("/dev/cu.usbmodem1421"));
-        assert!(out.contains_key("/dev/cu.Bluetooth-Incoming-Port"));
-        assert!(!out.contains_key("/dev/tty.usbmodem1421"));
-    }
-
-    #[test]
-    fn keeps_dialin_when_callout_missing() {
-        let ports = HashMap::from([("/dev/tty.usbserial-ABC".to_string(), info("USB"))]);
-        let out = apply_single_port_per_device(ports, true);
-        assert_eq!(out.len(), 1);
-        assert!(out.contains_key("/dev/tty.usbserial-ABC"));
-    }
-
-    #[test]
-    fn preserves_non_macos_style_paths() {
-        let ports = HashMap::from([
-            ("COM3".to_string(), info("USB")),
-            ("/dev/ttyUSB0".to_string(), info("USB")),
-        ]);
-        let out = apply_single_port_per_device(ports.clone(), true);
-        assert_eq!(out, ports);
-    }
-
-    #[test]
-    fn extends_only_truncated_serials() {
-        assert!(extends_serial("A1B2", "A1B2-C3"));
-        assert!(!extends_serial("", "6&2f3c&0&0000"));
-        assert!(!extends_serial("A1B2", "6&2f3c&0&0000"));
-        assert!(!extends_serial("A1B2", "A1B2"));
-    }
-
-    /// Several device instances can map to one COM name (a phantom one included):
-    /// the one that extends the truncated serial wins, as in 4.x.
-    #[test]
-    fn full_serial_is_picked_from_every_instance() {
-        let instances = vec![
-            "6&2f3c&0&0000".to_string(),
-            "A1B2-C3".to_string(),
-            "ZZZ".to_string(),
-        ];
+    fn a_truncated_serial_is_completed_from_its_instances() {
+        for (current, full, extends) in [
+            ("A1B2", "A1B2-C3", true),
+            ("", "6&2f3c&0&0000", false),
+            ("A1B2", "6&2f3c&0&0000", false),
+            ("A1B2", "A1B2", false),
+        ] {
+            assert_eq!(extends_serial(current, full), extends, "{current} {full}");
+        }
+        let instances = ["6&2f3c&0&0000", "A1B2-C3", "ZZZ"].map(String::from);
         assert_eq!(pick_full_serial("A1B2", &instances), Some("A1B2-C3"));
         assert_eq!(pick_full_serial("Q9", &instances), None);
     }
 
-    #[test]
-    fn android_keeps_lowest_port_index_per_device() {
-        let ports = HashMap::from([
-            ("/dev/bus/usb/001/002#1".to_string(), info("USB")),
-            ("/dev/bus/usb/001/002#0".to_string(), info("USB")),
-            ("/dev/bus/usb/001/003".to_string(), info("USB")),
-        ]);
-        let out = apply_android_single_port_per_device(ports, true);
-        assert_eq!(out.len(), 2);
-        assert!(out.contains_key("/dev/bus/usb/001/002#0"));
-        assert!(out.contains_key("/dev/bus/usb/001/003"));
-    }
-
-    /// Whatever order the map yields the ports in (each new map has its own hash
-    /// seed), the lowest index wins.
-    #[test]
-    fn android_lowest_index_wins_in_any_order() {
-        for _ in 0..64 {
-            let ports: HashMap<String, HashMap<String, String>> = ["#2", "#0", "#1", "#3"]
-                .iter()
-                .map(|i| (format!("/dev/bus/usb/001/002{i}"), info("USB")))
-                .collect();
-            let out = apply_android_single_port_per_device(ports, true);
-            assert_eq!(
-                out.keys().collect::<Vec<_>>(),
-                vec!["/dev/bus/usb/001/002#0"]
-            );
-        }
-    }
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    fn usb_type(serial: Option<&str>) -> SerialPortType {
-        SerialPortType::UsbPort(serialport::UsbPortInfo {
-            vid: 0x1a86,
-            pid: 0x7523,
-            serial_number: serial.map(Into::into),
-            manufacturer: serial.map(|_| "QinHeng".into()),
-            product: serial.map(|_| "CH340".into()),
-            #[cfg(feature = "usb-port-details")]
-            location: None,
-            #[cfg(feature = "usb-port-details")]
-            interface: None,
-        })
-    }
-
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[test]
-    fn port_info_map_per_type() {
-        let get = |m: &HashMap<String, String>, k: &str| m.get(k).cloned().unwrap();
-        let usb = port_info_from_type(usb_type(Some("A1")));
-        assert_eq!(get(&usb, "type"), USB);
-        assert_eq!(get(&usb, "vid"), "6790");
-        assert_eq!(get(&usb, "pid"), "29987");
-        assert_eq!(get(&usb, "serial_number"), "A1");
-        assert_eq!(get(&usb, "manufacturer"), "QinHeng");
-        assert_eq!(get(&usb, "product"), "CH340");
-        let bare = port_info_from_type(usb_type(None));
-        for k in ["serial_number", "manufacturer", "product"] {
-            assert_eq!(get(&bare, k), UNKNOWN, "{k}");
-        }
-        for (t, name) in [
-            (SerialPortType::BluetoothPort, BLUETOOTH),
-            (SerialPortType::PciPort, PCI),
-            (SerialPortType::Unknown, UNKNOWN),
-        ] {
-            let m = port_info_from_type(t);
-            assert_eq!(get(&m, "type"), name);
-            assert_eq!(get(&m, "vid"), UNKNOWN);
-            assert_eq!(m.len(), 6);
-        }
-    }
-
-    /// The 4.x map lists exactly what serialport enumerates.
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    #[test]
-    fn enumeration_lists_the_system_ports() {
-        let mut raw: Vec<String> = raw_ports()
-            .unwrap()
-            .into_iter()
-            .map(|p| p.port_name)
-            .collect();
-        raw.sort();
-        let keys = |m: &HashMap<String, HashMap<String, String>>| {
-            let mut k: Vec<String> = m.keys().cloned().collect();
-            k.sort();
-            k
-        };
-        assert_eq!(keys(&enumerate_available_ports(false).unwrap()), raw);
+    fn locations_belong_to_listed_ports() {
         let (map, locations) = enumerate_with_locations(false).unwrap();
-        assert_eq!(keys(&map), raw);
-        assert!(map.values().all(|info| info.len() == 6));
+        assert!(locations.keys().all(|k| map.contains_key(k)));
         #[cfg(not(feature = "usb-port-details"))]
         assert!(locations.is_empty());
-        #[cfg(feature = "usb-port-details")]
-        assert!(locations.keys().all(|k| raw.contains(k)));
     }
 }

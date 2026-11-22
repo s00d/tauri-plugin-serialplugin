@@ -8,7 +8,7 @@ after Java fixtures were frozen under `crates/android-usb-serial/tests/fixtures/
 
 ```bash
 cargo run -p android-usb-serial --features fake-transport --bin golden_record
-cargo test -p android-usb-serial --features fake-transport --test golden_parity
+cargo test -p android-usb-serial --features fake-transport --test it corpus_golden
 ./scripts/verify-android-usb-migration.sh
 ```
 

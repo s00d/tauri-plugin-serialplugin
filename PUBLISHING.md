@@ -7,12 +7,12 @@ token is stored anywhere.
 |-----------|---------------------------------|------------------------------------------------------|
 | npm       | `tauri-plugin-serialplugin-api` | the release version                                  |
 | crates.io | `tauri-plugin-serialplugin`     | the release version                                  |
-| crates.io | `serialplugin-core`, `android-usb-serial`, `serial-codec` | their own, bumped by hand  |
+| crates.io | `serialplugin-core`, `android-usb-serial`, `serial-codec`, `serialplugin-testing` | their own, bumped by hand  |
 
 ## Release
 
 1. Write the notes under `## Unreleased` at the top of `CHANGELOG.md`.
-2. If `serialplugin-core`, `android-usb-serial` or `serial-codec` changed, bump its version in
+2. If `serialplugin-core`, `android-usb-serial`, `serial-codec` or `serialplugin-testing` changed, bump its version in
    `crates/<name>/Cargo.toml` and the `version` requirement of every workspace crate that
    depends on it.
 3. Push and wait for green CI on `main`.
@@ -40,6 +40,7 @@ token is stored anywhere.
    - <https://crates.io/crates/serialplugin-core/settings>
    - <https://crates.io/crates/android-usb-serial/settings>
    - <https://crates.io/crates/serial-codec/settings>
+   - <https://crates.io/crates/serialplugin-testing/settings> (after its first publish by hand)
 2. **npm**: <https://www.npmjs.com/package/tauri-plugin-serialplugin-api/access> -> Trusted
    Publisher -> GitHub Actions. User `s00d`, repository `tauri-plugin-serialplugin`, workflow
    filename `ci.yml`, environment `crates-io`.

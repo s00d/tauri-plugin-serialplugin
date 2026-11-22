@@ -181,6 +181,7 @@ impl RxQueue {
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: the link's queue and write rules are private; the port needs Bluetooth hardware.
     use super::*;
     use std::sync::mpsc;
 

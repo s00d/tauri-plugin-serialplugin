@@ -3129,12 +3129,20 @@ dependencies = [
  "serde",
  "serde_json",
  "serial-codec",
+ "serialplugin-testing",
  "serialport",
  "socket2",
  "tauri",
  "tokio",
  "uuid",
  "winreg",
+]
+
+[[package]]
+name = "serialplugin-testing"
+version = "0.1.0"
+dependencies = [
+ "serialport",
 ]
 
 [[package]]
@@ -3596,17 +3604,17 @@ dependencies = [
 name = "tauri-plugin-serialplugin"
 version = "4.2.2"
 dependencies = [
- "glob",
  "log",
  "proptest",
  "serde",
  "serde_json",
  "serial-codec",
  "serialplugin-core",
+ "serialplugin-testing",
  "serialport",
  "tauri",
  "tauri-plugin",
- "tauri-utils",
+ "toml 1.2.1+spec-1.1.0",
 ]
 
 [[package]]

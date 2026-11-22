@@ -421,28 +421,26 @@ fn endpoint_interface(endpoints: &HashMap<u8, Vec<EndpointInfo>>, ep_addr: u8) -
     )))
 }
 
-// `parse_control` is private and only runs against a real nusb device, which no
-// public-API test on the fake transport can reach.
 #[cfg(test)]
 mod tests {
+    //! `parse_control` is private and only runs against a real nusb device, which no test
+    //! through the public API can reach.
+
     use super::*;
-    use crate::transport::USB_RECIP_DEVICE;
 
     #[test]
-    fn parse_vendor_device_out() {
-        let req = ControlRequest::vendor_out(0x01, 0, 0, vec![]);
-        let (_, recipient, dir_in) = parse_control(&req);
-        assert!(!dir_in);
-        assert_eq!(recipient, Recipient::Device);
-        assert_eq!(req.request_type & USB_RECIP_DEVICE, 0);
-    }
-
-    #[test]
-    fn parse_class_interface_in() {
-        let req = ControlRequest::class_in(0x20, 0, 0, 7);
-        let (ty, recipient, dir_in) = parse_control(&req);
-        assert!(dir_in);
-        assert_eq!(recipient, Recipient::Interface);
-        assert_eq!(ty, ControlType::Class);
+    fn setup_fields_map_to_nusb() {
+        for (req, want) in [
+            (
+                ControlRequest::vendor_out(0x01, 0, 0, vec![]),
+                (ControlType::Vendor, Recipient::Device, false),
+            ),
+            (
+                ControlRequest::class_in(0x20, 0, 0, 7),
+                (ControlType::Class, Recipient::Interface, true),
+            ),
+        ] {
+            assert_eq!(parse_control(&req), want);
+        }
     }
 }

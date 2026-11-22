@@ -23,30 +23,39 @@ pub(crate) fn jni_not_ready_message(
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: the module is private and only Android uses it.
     use super::jni_not_ready_message;
 
     #[test]
-    fn message_when_bind_never_called() {
-        assert_eq!(
-            jni_not_ready_message(false, false, None),
-            "JNI not initialized (UsbNative.bind not called)"
-        );
-    }
-
-    #[test]
-    fn message_when_global_ref_failed() {
-        let msg = jni_not_ready_message(true, false, Some("out of memory"));
-        assert!(msg.contains("class cache unavailable"));
-        assert!(msg.contains("out of memory"));
-    }
-
-    #[test]
-    fn message_when_jvm_set_but_class_missing() {
-        assert!(jni_not_ready_message(true, false, None).contains("class not cached"));
-    }
-
-    #[test]
-    fn message_when_class_set_but_jvm_missing() {
-        assert!(jni_not_ready_message(false, true, None).contains("JavaVM not cached"));
+    fn the_message_names_what_is_missing() {
+        for (jvm, class, error, want) in [
+            (
+                false,
+                false,
+                None,
+                "JNI not initialized (UsbNative.bind not called)",
+            ),
+            (
+                true,
+                false,
+                Some("out of memory"),
+                "UsbNative JNI class cache unavailable: out of memory",
+            ),
+            (
+                true,
+                false,
+                None,
+                "UsbNative JNI class not cached (nativeInit global ref failed or skipped)",
+            ),
+            (
+                false,
+                true,
+                None,
+                "JavaVM not cached (nativeInit get_java_vm failed)",
+            ),
+            (true, true, None, "JNI ready"),
+        ] {
+            assert_eq!(jni_not_ready_message(jvm, class, error), want);
+        }
     }
 }

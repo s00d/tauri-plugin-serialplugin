@@ -92,6 +92,7 @@ pub(crate) fn expand_devices(
 
 #[cfg(test)]
 mod tests {
+    //! In `src/`: private Android code.
     use super::*;
 
     fn ftdi_dual() -> DeviceEntry {

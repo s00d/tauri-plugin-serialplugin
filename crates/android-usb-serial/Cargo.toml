@@ -68,6 +68,6 @@ required-features = ["fake-transport"]
 # The tests drive the drivers through FakeTransport: `cargo test --features fake-transport`
 # (add `serialport-compat` for the adapter model). Without the feature cargo skips this target.
 [[test]]
-name = "integration"
-path = "tests/integration/main.rs"
+name = "it"
+path = "tests/it/main.rs"
 required-features = ["fake-transport"]

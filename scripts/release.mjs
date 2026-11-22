@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PLUGIN = 'tauri-plugin-serialplugin';
 /** Dependency order. The plugin's version is the release version; the others are bumped by hand. */
-const CRATES = ['serial-codec', 'android-usb-serial', 'serialplugin-core', PLUGIN];
+const CRATES = ['serial-codec', 'android-usb-serial', 'serialplugin-testing', 'serialplugin-core', PLUGIN];
 
 const read = (file) => readFileSync(join(root, file), 'utf8');
 const write = (file, text) => writeFileSync(join(root, file), text);
@@ -49,7 +49,7 @@ async function checkCrates() {
         fail(`${pkg.name} ${pkg.version} is on crates.io but changed since ${lastTag}, bump it: ${changed.replaceAll('\n', ' ')}`);
       }
     }
-    for (const dep of pkg.dependencies.filter((d) => d.path)) {
+    for (const dep of pkg.dependencies.filter((d) => d.path && d.kind !== 'dev')) {
       const { version } = pkgs.find((p) => p.name === dep.name);
       if (dep.req !== `^${version}`) fail(`${pkg.name} requires ${dep.name} ${dep.req}, must be ${version}`);
     }

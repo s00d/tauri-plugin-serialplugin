@@ -349,17 +349,14 @@ fn finish_serialport_info(path: &str, info: SerialportInfo) -> Result<(), Error>
     let _ = path;
     match info.state {
         PortState::Connected(cp) => {
-            if let Ok(mut hub_guard) = cp.rx_hub.lock() {
-                if let Some(hub) = hub_guard.take() {
-                    #[cfg(target_os = "android")]
-                    crate::android::registry::global_registry().unregister(path);
-                    // The hub flushes what it holds into the watches; no `Disconnect`.
-                    hub.shared().mark_closing();
-                    match Arc::try_unwrap(hub) {
-                        Ok(hub) => hub.stop(),
-                        Err(hub) => hub.request_stop(),
-                    }
-                }
+            // Joined with the slot unlocked: a sink may still be asking for it.
+            let hub = crate::sync_util::lock_or_recover(&cp.rx_hub).take();
+            if let Some(hub) = hub {
+                #[cfg(target_os = "android")]
+                crate::android::registry::global_registry().unregister(path);
+                // The hub flushes what it holds into the watches; no `Disconnect`.
+                hub.shared().mark_closing();
+                hub.stop_and_join();
             }
             #[cfg(target_os = "android")]
             {
@@ -2384,6 +2381,10 @@ impl SerialManager {
     /// removes it), and send `PortState::Disconnected`. The physical path's tombstone
     /// is not added here. Watches stay registered until `close` / `unwatch`.
     fn release(&self, path: &str, info: SerialportInfo, reason: &str) {
+        let session = match &info.state {
+            PortState::Connected(cp) => crate::sync_util::lock_or_recover(&cp.mux).clone(),
+            _ => None,
+        };
         let channels: Vec<String> = {
             let mut virtuals = crate::sync_util::lock_or_recover(&self.virtual_ports);
             let keys: Vec<String> = virtuals
@@ -2397,13 +2398,18 @@ impl SerialManager {
             // went in with the record's removal; adding it again would revive it after
             // a racing `close`.
             let mut released = crate::sync_util::lock_or_recover(&self.core.disconnected);
-            for k in &keys {
-                if let Some(vp) = virtuals.remove(k) {
+            // A channel the modem closed has reported its `Disconnected` already.
+            let mut open = Vec::new();
+            for k in keys {
+                if let Some(vp) = virtuals.remove(&k) {
                     released.insert(k.clone(), reason.to_string());
                     vp.tx_queue.cancel_all();
+                    if session.as_ref().is_some_and(|s| s.has_dlci(vp.dlci)) {
+                        open.push(k);
+                    }
                 }
             }
-            keys
+            open
         };
         self.drop_writer(path);
         if let PortState::Connected(cp) = info.state {
@@ -2438,22 +2444,11 @@ impl crate::at::commands::ExchangeRunner for SerialManager {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
 mod tests {
+    //! In `src/`: needs the system to list a port it then fails to open.
     use super::*;
-    use crate::mock_serial::MockSerialPort;
 
-    #[test]
-    fn wire_time_is_eleven_bits_a_byte() {
-        let mut port = MockSerialPort::new();
-        port.baud_rate = 9_600;
-        assert_eq!(wire_ms(&port, 96), 110);
-        assert_eq!(wire_ms(&port, 0), 0);
-        port.baud_rate = 0;
-        assert_eq!(wire_ms(&port, 1), 11_000, "baud 0 counts as 1");
-    }
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     #[test]
     fn listed_but_not_found_is_busy() {
         assert_eq!(
@@ -2468,25 +2463,5 @@ mod tests {
             open_error_kind(ErrorKind::Other, || panic!("only asked for NotFound")),
             ErrorKind::Other
         );
-    }
-
-    /// `open` hands back the path it opened and the port is managed under it.
-    #[cfg(not(target_os = "android"))]
-    #[test]
-    fn open_returns_the_managed_path() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let path = format!("tcp://{}", listener.local_addr().unwrap());
-        let m = SerialManager::new();
-        assert!(
-            m.set_stop_bits(path.clone(), StopBits::Two).is_err(),
-            "not open yet"
-        );
-        let opened = m
-            .open(path.clone(), 115_200, None, None, None, None, None)
-            .unwrap();
-        assert_eq!(opened, path);
-        assert_eq!(m.managed_ports().unwrap(), vec![path.clone()]);
-        m.set_stop_bits(path.clone(), StopBits::Two).unwrap();
-        m.close(path).unwrap();
     }
 }

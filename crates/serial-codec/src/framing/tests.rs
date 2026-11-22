@@ -1,5 +1,5 @@
 //! Only what the public API cannot observe: the regex framer's rescan bookkeeping.
-//! Everything else is tested through `FramerConfig` in `tests/framing*.rs`.
+//! Everything else is tested through `FramerConfig` in `tests/it/*_framing.rs`.
 
 use super::*;
 

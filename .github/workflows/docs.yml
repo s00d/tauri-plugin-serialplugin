@@ -1,34 +1,18 @@
 name: docs
 
+# Builds the documentation site (docs/, Nuxt) and publishes it to GitHub Pages
+# (https://s00d.github.io/tauri-plugin-serialplugin/, branch gh-pages). Started by the CI
+# `release` job after a release, or by hand: Actions -> docs -> Run workflow
+# (`gh workflow run docs.yml`). Never runs on push or pull requests.
+
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      # Reference pages are generated from these at build time.
-      - 'guest-js/**'
-      - 'src/commands.rs'
-      - 'permissions/**'
-      - '.github/workflows/docs.yml'
-  # Build only (no deploy) so a broken reference parse or dead link fails the PR.
-  pull_request:
-    paths:
-      - 'docs/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'guest-js/**'
-      - 'src/commands.rs'
-      - 'permissions/**'
-      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: docs-${{ github.ref }}
+  group: docs
   cancel-in-progress: true
 
 jobs:
@@ -59,11 +43,9 @@ jobs:
         run: pnpm generate
 
       - name: Add .nojekyll
-        if: github.event_name != 'pull_request'
         run: touch .output/public/.nojekyll
 
       - name: Deploy to GitHub Pages
-        if: github.event_name != 'pull_request'
         uses: crazy-max/ghaction-github-pages@v5
         with:
           target_branch: gh-pages
