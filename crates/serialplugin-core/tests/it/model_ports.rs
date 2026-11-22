@@ -140,6 +140,30 @@ proptest! {
         prop_assert_eq!(d.vid, None);
     }
 
+    /// Android's map of a device without USB permission: type `Usb`, empty strings. The details
+    /// are a USB port's, and the strings that come with the permission are no other device.
+    #[test]
+    fn android_map_before_and_after_the_permission(serial in "[A-Z0-9]{1,8}") {
+        let android = |serial: &str| -> Info {
+            [("type", "Usb"), ("vid", "0x1A86"), ("pid", "0x7523"), ("manufacturer", ""),
+             ("product", "USB Serial"), ("serial_number", serial)]
+                .into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        };
+        let path = "/dev/bus/usb/001/002";
+        let d = details_from_info_map(path.into(), &android(""));
+        prop_assert_eq!(d.port_type, PortType::Usb);
+        prop_assert_eq!((d.vid, d.pid), (Some(0x1A86), Some(0x7523)));
+        prop_assert_eq!((d.manufacturer, d.serial_number), (None, None));
+        prop_assert_eq!(d.product.as_deref(), Some("USB Serial"));
+
+        let list = |serial: &str| HashMap::from([(path.to_string(), android(serial))]);
+        use serialplugin_core::port::list_monitor::diff_ports;
+        let (added, removed) = diff_ports(&list(""), &list(&serial));
+        prop_assert!(added.is_empty() && removed.is_empty());
+        let other = format!("{serial}X");
+        prop_assert_eq!(diff_ports(&list(&serial), &list(&other)).1, vec![path.to_string()]);
+    }
+
     /// One port per device: of a macOS pair the callout (`cu.`) one, a lone dial-in one
     /// stays, other systems' paths stay. Off, nothing changes.
     #[test]

@@ -20,8 +20,9 @@ use std::os::fd::{FromRawFd, OwnedFd, RawFd};
 use std::sync::Mutex;
 use std::time::Duration;
 
-/// Fewer in-flight bulk IN URBs on Android OTG reduces EPROTO/detach on weak ports (CH340).
-const IN_FLIGHT_TRANSFERS: usize = 2;
+/// Packets that bulk IN takes while the reader thread is not scheduled (one transfer each).
+const BULK_IN_FLIGHT: usize = 8;
+const INTERRUPT_IN_FLIGHT: usize = 2;
 
 /// Duplicate an Android `UsbDeviceConnection` fd and open via nusb.
 ///
@@ -113,18 +114,25 @@ impl NusbTransport {
 struct NusbPipelinedIn<EpType: nusb::transfer::BulkOrInterrupt> {
     reader: Mutex<Option<EndpointRead<EpType>>>,
     bufsize: usize,
+    in_flight: usize,
     default_timeout_ms: u32,
 }
 
 impl<EpType: nusb::transfer::BulkOrInterrupt> NusbPipelinedIn<EpType> {
-    fn new(endpoint: nusb::Endpoint<EpType, In>, bufsize: usize, timeout_ms: u32) -> Self {
+    fn new(
+        endpoint: nusb::Endpoint<EpType, In>,
+        bufsize: usize,
+        in_flight: usize,
+        timeout_ms: u32,
+    ) -> Self {
         let reader = endpoint
             .reader(bufsize)
-            .with_num_transfers(IN_FLIGHT_TRANSFERS)
+            .with_num_transfers(in_flight)
             .with_read_timeout(Duration::from_millis(timeout_ms as u64));
         Self {
             reader: Mutex::new(Some(reader)),
             bufsize,
+            in_flight,
             default_timeout_ms: timeout_ms,
         }
     }
@@ -162,7 +170,7 @@ impl<EpType: nusb::transfer::BulkOrInterrupt> NusbPipelinedIn<EpType> {
             .map_err(|e| UsbSerialError::Io(e.to_string()))?;
         let new_reader = ep
             .reader(self.bufsize)
-            .with_num_transfers(IN_FLIGHT_TRANSFERS)
+            .with_num_transfers(self.in_flight)
             .with_read_timeout(Duration::from_millis(self.default_timeout_ms as u64));
         *guard = Some(new_reader);
         Ok(())
@@ -382,9 +390,12 @@ impl Transport for NusbTransport {
         let ep = iface
             .endpoint::<Bulk, In>(endpoint)
             .map_err(|e| UsbSerialError::Io(e.to_string()))?;
-        let bufsize = (max_packet_size as usize).saturating_mul(4).max(64);
+        // One packet per transfer: a larger one ends only with a short packet, and CH34x sends
+        // no zero-length packet after data that fills its last packet (the bytes would wait
+        // for the next ones).
+        let bufsize = max_packet_size as usize;
         Ok(Box::new(NusbBulkIn {
-            inner: NusbPipelinedIn::new(ep, bufsize, 200),
+            inner: NusbPipelinedIn::new(ep, bufsize, BULK_IN_FLIGHT, 200),
         }))
     }
 
@@ -405,7 +416,7 @@ impl Transport for NusbTransport {
             .map_err(|e| UsbSerialError::Io(e.to_string()))?;
         let bufsize = (max_packet_size as usize).max(8);
         Ok(Box::new(NusbInterruptIn {
-            inner: NusbPipelinedIn::new(ep, bufsize, 200),
+            inner: NusbPipelinedIn::new(ep, bufsize, INTERRUPT_IN_FLIGHT, 200),
         }))
     }
 }

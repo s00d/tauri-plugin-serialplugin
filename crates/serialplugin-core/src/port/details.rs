@@ -106,15 +106,15 @@ pub fn details_from_type(path: String, port: serialport::SerialPortType) -> Port
     }
 }
 
-/// Convert a 4.x string map (Android, iOS): `"Unknown"` -> `None`, vid/pid hex
-/// (`0x1A86`) or decimal. No interface / location there.
+/// Convert a 4.x string map (Android, iOS): `"Unknown"` and empty -> `None`, vid/pid hex
+/// (`0x1A86`) or decimal; Android's type is `Usb`. No interface / location there.
 pub fn details_from_info_map(
     path: String,
     info: &std::collections::HashMap<String, String>,
 ) -> PortDetails {
     let text = |k: &str| {
         info.get(k)
-            .filter(|v| v.as_str() != crate::state::UNKNOWN)
+            .filter(|v| !v.is_empty() && v.as_str() != crate::state::UNKNOWN)
             .cloned()
     };
     let id = |k: &str| {
@@ -125,7 +125,7 @@ pub fn details_from_info_map(
         }
     };
     let port_type = match info.get("type").map(String::as_str) {
-        Some(crate::state::USB) => PortType::Usb,
+        Some(t) if t.eq_ignore_ascii_case(crate::state::USB) => PortType::Usb,
         Some(crate::state::BLUETOOTH) => PortType::Bluetooth,
         Some(crate::state::PCI) => PortType::Pci,
         _ => PortType::Unknown,

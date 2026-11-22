@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+JS, invoke payloads, permissions and the Rust API are as in 4.2.4. serialplugin-core 0.2.5, android-usb-serial 0.1.8; serial-codec and serialplugin-testing are unchanged.
+
+### Fixes
+
+* Android: a reply that exactly fills a USB packet (32 bytes on CH340, for example `+CME ERROR` after a 12-character command) is delivered at once. It waited for the next bytes, so an exchange ran into its timeout.
+* Android: `SerialManager::available_ports_detailed()` gives a USB device `PortType::Usb` (it was `Unknown`) and `None` for strings not read without USB permission (they were empty).
+* Android: `watchPorts()` no longer reports a device as removed and added when its serial number becomes readable with the USB permission.
+
 ## [4.2.4](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.3...v4.2.4) (2026-11-22)
 
 JS, invoke payloads and permissions are as in 4.2.3; the Rust API only gains android-usb-serial's `FakeTransport::inject_interrupt_read_error` (feature `fake-transport`). serialplugin-core 0.2.4, android-usb-serial 0.1.7, serial-codec 0.1.2, new serialplugin-testing 0.1.0.

@@ -1,4 +1,4 @@
-//! Background bulk-IN reader (2–4 in-flight transfers + RX filter chain).
+//! Background bulk-IN reader (in-flight transfers + RX filter chain).
 //!
 //! Started via [`crate::SerialPortHandle::start_reader`]. Owns the driver's bulk IN endpoint
 //! for the lifetime of the reader; [`SerialPortHandle::write`] must not reopen that IN.

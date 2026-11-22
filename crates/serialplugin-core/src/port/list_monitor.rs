@@ -74,9 +74,10 @@ pub fn diff_ports(old: &PortListMap, new: &PortListMap) -> PortDiff {
 /// The keys that tell one device from another in the 4.x map.
 const IDENTITY: [&str; 4] = ["type", "vid", "pid", "serial_number"];
 
-/// An identity value; "Unknown" (not read) is none.
+/// An identity value; "Unknown" (not read; Android: empty, without USB permission) is none.
 fn known<'a>(info: &'a PortInfoMap, key: &str) -> Option<&'a String> {
-    info.get(key).filter(|v| *v != crate::state::UNKNOWN)
+    info.get(key)
+        .filter(|v| !v.is_empty() && *v != crate::state::UNKNOWN)
 }
 
 /// Device identity in the 4.x map; "Unknown" (not read yet) matches anything.
