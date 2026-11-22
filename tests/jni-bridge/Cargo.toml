@@ -10,4 +10,4 @@ publish = false
 [dev-dependencies]
 jni = { version = "0.21", features = ["invocation"] }
 serde = "1.0"
-serialport = { version = "4.10", default-features = false }
+serialport = { version = "4.10.1", default-features = false }

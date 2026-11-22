@@ -71,13 +71,19 @@ pub fn diff_ports(old: &PortListMap, new: &PortListMap) -> PortDiff {
     diff_listing(old, new, &HashMap::new(), &HashMap::new())
 }
 
+/// The keys that tell one device from another in the 4.x map.
+const IDENTITY: [&str; 4] = ["type", "vid", "pid", "serial_number"];
+
+/// An identity value; "Unknown" (not read) is none.
+fn known<'a>(info: &'a PortInfoMap, key: &str) -> Option<&'a String> {
+    info.get(key).filter(|v| *v != crate::state::UNKNOWN)
+}
+
 /// Device identity in the 4.x map; "Unknown" (not read yet) matches anything.
 fn other_device(old: &PortInfoMap, new: &PortInfoMap) -> bool {
-    const IDENTITY: [&str; 4] = ["type", "vid", "pid", "serial_number"];
-    let known = |v: Option<&String>| v.filter(|v| v.as_str() != crate::state::UNKNOWN).cloned();
     IDENTITY
         .iter()
-        .any(|k| matches!((known(old.get(*k)), known(new.get(*k))), (Some(a), Some(b)) if a != b))
+        .any(|k| matches!((known(old, k), known(new, k)), (Some(a), Some(b)) if a != b))
 }
 
 /// [`diff_ports`], also treating a changed USB location on the same path as a re-plug
@@ -192,12 +198,31 @@ where
     let _ = ANDROID_ENUM.set(Box::new(f));
 }
 
+/// Make `current` the subscriber's last view. A device that stayed keeps the identity
+/// and location this poll could not read: they still tell it from the next one.
+fn remember(sub: &mut Subscriber, current: &Listing, removed: &[String]) {
+    let old = std::mem::replace(&mut sub.last, current.0.clone());
+    let mut old_locations = std::mem::replace(&mut sub.last_locations, current.1.clone());
+    for (path, old_info) in &old {
+        let Some(info) = sub.last.get_mut(path).filter(|_| !removed.contains(path)) else {
+            continue;
+        };
+        for key in IDENTITY {
+            if let (None, Some(v)) = (known(info, key), known(old_info, key)) {
+                info.insert(key.to_string(), v.clone());
+            }
+        }
+        if let Some(location) = old_locations.remove(path) {
+            sub.last_locations.entry(path.clone()).or_insert(location);
+        }
+    }
+}
+
 /// Diff `current` against the subscriber's last view, store it, return the events
 /// (removals first, so a re-plug on one path reads removed + added).
 fn take_events(sub: &mut Subscriber, current: &Listing) -> Vec<PortListEvent> {
     let (added, removed) = diff_listing(&sub.last, &current.0, &sub.last_locations, &current.1);
-    sub.last = current.0.clone();
-    sub.last_locations = current.1.clone();
+    remember(sub, current, &removed);
     let counts = (added.len(), removed.len());
     let events: Vec<PortListEvent> = removed
         .into_iter()
@@ -935,14 +960,63 @@ mod tests {
                 }
             }
         }
+    }
 
-        fn teardown(self) {
-            let sut = self;
+    /// Also on a failed case: the next one (shrinking) starts without subscribers.
+    impl Drop for MonitorSut {
+        fn drop(&mut self) {
             for id in MODEL_IDS {
                 unsubscribe(id);
             }
             set_test_listing(None);
-            drop(sut);
+        }
+    }
+
+    /// Given a subscriber that knows the device on a path by one value (an identity key
+    /// or the USB location)
+    /// When a poll cannot read that value and the next one reads another value
+    /// Then the path is removed and added (another device); reading the same value
+    /// again sends nothing
+    #[test]
+    fn a_replug_behind_an_unread_value_is_seen() {
+        // The values read for `key` in one poll each; `None` is not read.
+        let events_for = |key: &str, reads: [Option<&str>; 3]| {
+            let list = |value: Option<&str>| {
+                let mut info = usb("1");
+                let mut locations = LocationMap::new();
+                match (key, value) {
+                    ("location", Some(v)) => {
+                        locations.insert("/dev/a".to_string(), v.to_string());
+                    }
+                    ("location", None) => {}
+                    (k, v) => {
+                        let v = v.unwrap_or(crate::state::UNKNOWN);
+                        info.insert(k.to_string(), v.to_string());
+                    }
+                }
+                (HashMap::from([("/dev/a".to_string(), info)]), locations)
+            };
+            let (sink, _) = recording_sink();
+            let mut sub = subscriber(sink, MAX_POLL_MS);
+            (sub.last, sub.last_locations) = list(reads[0]);
+            reads[1..]
+                .iter()
+                .flat_map(|v| take_events(&mut sub, &list(*v)))
+                .collect::<Vec<_>>()
+        };
+        for key in ["type", "vid", "pid", "serial_number", "location"] {
+            let replug = events_for(key, [Some("A"), None, Some("B")]);
+            assert!(
+                matches!(
+                    replug.as_slice(),
+                    [PortListEvent::Removed { .. }, PortListEvent::Added { .. }]
+                ),
+                "{key}: {replug:?}"
+            );
+            let same = events_for(key, [Some("A"), None, Some("A")]);
+            assert!(same.is_empty(), "{key}: {same:?}");
+            let late = events_for(key, [None, Some("A"), None]);
+            assert!(late.is_empty(), "{key}: {late:?}");
         }
     }
 
@@ -966,7 +1040,6 @@ mod tests {
                 sut.apply(&model, step);
                 sut.check(&model);
             }
-            sut.teardown();
             Ok(())
         });
         if let Err(e) = result {

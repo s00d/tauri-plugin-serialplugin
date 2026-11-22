@@ -85,7 +85,7 @@ serial-codec = { path = "crates/serial-codec", version = "0.1.1" }
 # Everything that is not Tauri glue lives here (usable from plain Rust).
 # `tauri`: the 4.0.0 API of the re-exported core modules (Tauri `Channel` helpers,
 # `From<PluginInvokeError>` on Android).
-serialplugin-core = { path = "crates/serialplugin-core", version = "0.2.2", features = ["tauri"] }
+serialplugin-core = { path = "crates/serialplugin-core", version = "0.2.3", features = ["tauri"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 # The core's log_* macros expand to `::log::…` on Android; android_log.rs installs the logcat sink.
@@ -102,7 +102,7 @@ tauri-utils = "2"
 glob = "0.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dev-dependencies]
-serialport = "4.10"
+serialport = "4.10.1"
 
 [profile.release]
 codegen-units = 1

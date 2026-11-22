@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No code or API changes since 4.2.2.
+No API changes since 4.2.2. serialplugin-core 0.2.3, android-usb-serial 0.1.6.
+
+### Fixes
+
+* `watchPorts`: a device swapped on the same path is reported (`removed` + `added`) also when the poll in between could not read its identity ("Unknown" VID, PID or serial number, missing USB location); it was missed.
+* Requires serialport 4.10.1: 4.10.0 does not compile on Linux / PowerPC ([serialport-rs#375](https://github.com/serialport/serialport-rs/issues/375)), and `serialport = "4.10"` still allowed it.
 
 ### Internal
 

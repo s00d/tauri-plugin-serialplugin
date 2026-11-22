@@ -1,6 +1,6 @@
 [package]
 name = "serialplugin-core"
-version = "0.2.2"
+version = "0.2.3"
 description = "Serial port core of tauri-plugin-serialplugin without Tauri: RX hub, watch streams with native parsers, AT exchange, CMUX, TCP and BLE transports"
 edition = "2021"
 rust-version = "1.90"
@@ -64,13 +64,13 @@ winreg = "0.56"
 jni = "0.21"
 # Parses the Kotlin side's port list (JSON over JNI).
 serde_json = "1.0"
-android-usb-serial = { path = "../android-usb-serial", version = "0.1.5" }
-serialport = "4.10"
+android-usb-serial = { path = "../android-usb-serial", version = "0.1.6" }
+serialport = "4.10.1"
 log = { version = "0.4", features = ["std"] }
 
 # Not on iOS: the crate links IOKit there; src/serialport_ios.rs stands in for it.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-serialport = "4.10"
+serialport = "4.10.1"
 
 [dev-dependencies]
 # Property and model tests (`TestRunner::run` over an action enum and a reference model).

@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "android-usb-serial"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "base64 0.23.1",
  "libc",
@@ -3118,7 +3118,7 @@ dependencies = [
 
 [[package]]
 name = "serialplugin-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "android-usb-serial",
  "btleplug",
