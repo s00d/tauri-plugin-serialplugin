@@ -4,12 +4,19 @@ on:
   push:
     branches: [main]
   pull_request:
+  # By hand (Actions -> CI -> Run workflow): the release, see PUBLISHING.md.
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Version to release, e.g. 4.2.3 (no leading v)"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -18,6 +25,7 @@ env:
 jobs:
   test:
     name: test (${{ matrix.os }})
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -133,3 +141,116 @@ jobs:
         run: pnpm build
       - name: guest-js tests
         run: pnpm test
+
+  # Release X.Y.Z (the plugin and the npm package share the version; the other crates keep
+  # their own, bumped by hand when they change). Re-running with the same version resumes
+  # once the tag exists: it publishes only what is missing.
+  release:
+    name: release v${{ inputs.release }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # crates.io and npm trusted publishers name workflow `ci.yml`, environment `crates-io`.
+    environment: crates-io
+    permissions:
+      contents: write
+      id-token: write
+      # reads the CI runs, starts the docs workflow (a push from GITHUB_TOKEN starts nothing)
+      actions: write
+    env:
+      VERSION: ${{ inputs.release }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Version and state
+        id: state
+        run: |
+          [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "::error::'${VERSION}' is not a version like 4.2.3"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "tag v${VERSION} exists: resuming (publish + GitHub release only)"
+            git checkout -q "v${VERSION}"
+            echo "resume=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The newest `main` commit with a green CI run; only docs / *.md may differ from it.
+          green=""
+          for c in $(git rev-list --first-parent -n 50 HEAD); do
+            status="$(gh run list --workflow ci.yml --commit "${c}" --event push --json conclusion --jq '.[0].conclusion // "none"')"
+            if [[ "${status}" == success ]]; then green="${c}"; break; fi
+          done
+          [[ -n "${green}" ]] || { echo "::error::no green CI run among the last 50 main commits"; exit 1; }
+          code="$(git diff --name-only "${green}" HEAD | grep -vE '^docs/|\.md$' || true)"
+          if [[ -n "${code}" ]]; then
+            echo "::error::CI is not green for these changes since ${green:0:7}: ${code//$'\n'/ }; wait for CI on main"
+            exit 1
+          fi
+          echo "resume=false" >> "$GITHUB_OUTPUT"
+
+      - name: Linux system deps (webkit for tauri, udev for serialport/nusb)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev libdbus-1-dev pkg-config
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks
+      - uses: Swatinem/rust-cache@v2
+      # pnpm version comes from package.json `packageManager`.
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+
+      - name: Versions, changelog, package contents, semver
+        if: steps.state.outputs.resume != 'true'
+        run: |
+          node scripts/release.mjs prep "${VERSION}"
+          bash scripts/check-publish-surface.sh
+          pending="$(node scripts/release.mjs pending)"
+          packages="$(printf -- '-p %s ' ${pending})"
+          cargo semver-checks ${packages}
+          cargo publish --dry-run --allow-dirty ${packages}
+      - name: Commit and tag
+        if: steps.state.outputs.resume != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): ${VERSION}"
+          git tag -a "v${VERSION}" -m "v${VERSION}"
+          git push --atomic origin HEAD:main "v${VERSION}"
+
+      - id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          pending="$(node scripts/release.mjs pending)"
+          for c in ${pending}; do
+            cargo publish -p "${c}" --locked
+          done
+      - name: Publish to npm
+        run: |
+          if npm view "tauri-plugin-serialplugin-api@${VERSION}" version >/dev/null 2>&1; then
+            echo "tauri-plugin-serialplugin-api ${VERSION} already on npm"; exit 0
+          fi
+          # trusted publishing (OIDC, no token) needs npm 11.5.1+
+          npm install -g npm@latest
+          npm publish --access public
+      - name: GitHub release from the changelog
+        run: |
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then echo "GitHub release v${VERSION} exists"; exit 0; fi
+          node scripts/release.mjs notes "${VERSION}" > "${RUNNER_TEMP}/notes.md"
+          gh release create "v${VERSION}" --title "v${VERSION}" --latest --notes-file "${RUNNER_TEMP}/notes.md"
+          gh release view "v${VERSION}" --json body --jq .body
+      - name: Rebuild the documentation site
+        run: gh workflow run docs.yml --ref main

@@ -46,8 +46,6 @@ exclude = [
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
-    ".npmrc",
-    ".release-it.json",
     "tsconfig*.json",
     "vite.config.ts",
     "vitest.config.ts",

@@ -81,18 +81,17 @@ for bad in \
   '^vite\.config\.ts$' \
   '^vitest\.config\.ts$' \
   '^package\.json$' \
-  '^\.npmrc$' \
   '^guest-js/' \
   '^src/tests/'
 do
-  if rg -q "$bad" "$LIST"; then
+  if grep -qE "$bad" "$LIST"; then
     echo "error: cargo package still includes: $bad" >&2
-    rg "$bad" "$LIST" >&2 || true
+    grep -E "$bad" "$LIST" >&2 || true
     exit 1
   fi
 done
 for need in '^permissions/default.toml$' '^android/src/main/AndroidManifest.xml$' '^README.md$' '^src/lib.rs$' '^SECURITY.md$' '^CONTRIBUTING.md$'; do
-  if ! rg -q "$need" "$LIST"; then
+  if ! grep -qE "$need" "$LIST"; then
     echo "error: cargo package missing: $need" >&2
     exit 1
   fi

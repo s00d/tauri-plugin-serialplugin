@@ -75,7 +75,7 @@ pnpm playground
 
 1. Keep changes focused; prefer small PRs.
 2. Match existing style; run fmt / clippy / tests before pushing.
-3. Update `CHANGELOG.md` for user-visible changes (or rely on `pnpm release:patch` / `release:minor` / `release:major`, which write it via release-it).
+3. Write user-visible changes under `## Unreleased` at the top of `CHANGELOG.md` (add the section when it is missing).
 4. Do **not** add new top-level CI workflows unless an existing job cannot cover the need.
 5. Public API changes (Rust or JS) need a clear migration note for the next semver bump.
 
@@ -89,32 +89,7 @@ Deprecated Rust items (e.g. `PortBackend`) stay until the next major.
 
 ## Publishing (maintainers)
 
-Full checklist: **[PUBLISHING.md](./PUBLISHING.md)**.
-
-Bump (pick one):
-
-```bash
-pnpm release:patch
-pnpm release:minor
-pnpm release:major
-```
-
-Auth + publish:
-
-```bash
-pnpm whoami
-# if logged out:
-pnpm login
-cargo login
-
-pnpm release:publish
-```
-
-Dry-run: `./scripts/publish.sh --dry-run`  
-Surface check: `pnpm publish:check`
-
-`release-it` bumps `package.json` + `Cargo.toml` (via `scripts/sync-cargo-version.cjs`), writes `CHANGELOG.md`, tags, and opens a GitHub Release.  
-`scripts/publish.sh` publishes with **pnpm** first, then `cargo publish`.
+From GitHub Actions: **[PUBLISHING.md](./PUBLISHING.md)**. Package contents check: `pnpm publish:check`.
 
 ## Security
 

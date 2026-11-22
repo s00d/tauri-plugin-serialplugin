@@ -45,11 +45,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "pnpm build",
-    "release": "release-it",
-    "release:patch": "release-it patch",
-    "release:minor": "release-it minor",
-    "release:major": "release-it major",
-    "release:publish": "bash scripts/publish.sh",
     "publish:check": "bash scripts/check-publish-surface.sh",
     "playground": "pnpm --dir examples/serialport-test run tauri dev",
     "tauri": "tauri"
@@ -70,11 +65,9 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
-    "@release-it/conventional-changelog": "^12.0.2",
     "@types/node": "^22.19.0",
     "jsdom": "^31.0.0",
     "publint": "^0.3.25",
-    "release-it": "^21.1.2",
     "typescript": "^6.0.3",
     "vite": "^8.3.6",
     "vitest": "^5.1.0"

@@ -1,82 +1,51 @@
 # Publishing
 
-Maintainer checklist. Everything registry-side uses **pnpm** (not mixed with `npm` CLI).
+Released from GitHub Actions: nothing is published from a laptop and no crates.io or npm
+token is stored anywhere.
 
-## 1. Bump version
+| Registry  | Package                         | Version                                              |
+|-----------|---------------------------------|------------------------------------------------------|
+| npm       | `tauri-plugin-serialplugin-api` | the release version                                  |
+| crates.io | `tauri-plugin-serialplugin`     | the release version                                  |
+| crates.io | `serialplugin-core`, `android-usb-serial`, `serial-codec` | their own, bumped by hand  |
 
-Pick **one**:
+## Release
 
-```bash
-pnpm release:patch
-pnpm release:minor
-pnpm release:major
-```
+1. Write the notes under `## Unreleased` at the top of `CHANGELOG.md`.
+2. If `serialplugin-core`, `android-usb-serial` or `serial-codec` changed, bump its version in
+   `crates/<name>/Cargo.toml` and the `version` requirement of every workspace crate that
+   depends on it.
+3. Push and wait for green CI on `main`.
+4. Actions -> **CI** -> **Run workflow** -> `release`: the version (e.g. `4.2.3`, no `v`). The
+   `release` job:
+   - stops unless CI is green on `main` HEAD, or on an earlier commit with only `docs/` and
+     `*.md` files changed since;
+   - `scripts/release.mjs prep`: sets the version (Cargo.toml, package.json, lockfiles), renames
+     `## Unreleased`, stops when it is empty or a changed crate was not bumped;
+   - checks the package contents (`pnpm publish:check`), runs `cargo semver-checks` against
+     crates.io and a publish dry run;
+   - commits `chore(release): X.Y.Z` to `main` and tags `vX.Y.Z`;
+   - publishes the crates that are not on crates.io yet, in dependency order, then the npm
+     package, both with trusted publishing;
+   - creates the GitHub release from the changelog section and rebuilds the docs site.
 
-Each runs release-it: bumps `package.json` + `Cargo.toml`, updates `CHANGELOG.md`, commits, tags `v*`, pushes, creates a GitHub Release.
+   If it fails after tagging (network, crates.io, npm), run it again with the same version: it
+   publishes only what is missing.
 
-## 2. Auth
+## Setup (once)
 
-npm registry sessions expire often. Check and fix with pnpm only:
+1. **crates.io**, for each crate: page -> Settings -> Trusted Publishing -> Add -> GitHub.
+   Owner `s00d`, repository `tauri-plugin-serialplugin`, workflow `ci.yml`, environment `crates-io`.
+   - <https://crates.io/crates/tauri-plugin-serialplugin/settings>
+   - <https://crates.io/crates/serialplugin-core/settings>
+   - <https://crates.io/crates/android-usb-serial/settings>
+   - <https://crates.io/crates/serial-codec/settings>
+2. **npm**: <https://www.npmjs.com/package/tauri-plugin-serialplugin-api/access> -> Trusted
+   Publisher -> GitHub Actions. User `s00d`, repository `tauri-plugin-serialplugin`, workflow
+   filename `ci.yml`, environment `crates-io`.
+3. **GitHub** (optional): <https://github.com/s00d/tauri-plugin-serialplugin/settings/environments>
+   -> environment `crates-io` (created on the first run) -> required reviewers.
 
-```bash
-pnpm whoami
-# if that fails:
-pnpm login
-```
-
-crates.io — either interactive login **or** a token env var:
-
-```bash
-cargo login
-# writes ~/.cargo/credentials.toml
-
-# CI / non-interactive alternative:
-export CARGO_REGISTRY_TOKEN=...   # from https://crates.io/settings/tokens
-```
-
-`scripts/publish.sh` accepts either the credentials file or `CARGO_REGISTRY_TOKEN`.
-
-## 3. Publish
-
-```bash
-pnpm release:publish
-```
-
-What it does, in order:
-
-1. `pnpm whoami` — abort if logged out  
-2. cargo auth (`CARGO_REGISTRY_TOKEN` or `~/.cargo/credentials.toml`)  
-3. `pnpm install --frozen-lockfile`  
-4. build + pack surface check  
-5. `pnpm publish` → `tauri-plugin-serialplugin-api`  
-6. `cargo publish` → `tauri-plugin-serialplugin`
-
-Dry-run:
-
-```bash
-./scripts/publish.sh --dry-run
-```
-
-Surface check only:
-
-```bash
-pnpm publish:check
-```
-
-## android-usb-serial
-
-If you changed that crate’s version, publish it **before** the plugin crate:
-
-```bash
-cargo publish -p android-usb-serial
-# wait for crates.io index, then:
-pnpm release:publish
-```
-
-## Packages
-
-| Registry  | Package                         | Version file                                      |
-|-----------|---------------------------------|---------------------------------------------------|
-| npm       | `tauri-plugin-serialplugin-api` | `package.json`                                    |
-| crates.io | `tauri-plugin-serialplugin`     | `Cargo.toml` (synced on bump)                     |
-| crates.io | `android-usb-serial`            | `crates/android-usb-serial/Cargo.toml` (manual) |
+The environment must match the `environment:` of the `release` job, otherwise the token
+exchange is refused. A new crate cannot be created through trusted publishing: publish it by
+hand once, then add its publisher.
