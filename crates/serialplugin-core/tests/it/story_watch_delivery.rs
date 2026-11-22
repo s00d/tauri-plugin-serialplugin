@@ -321,46 +321,52 @@ fn reads_are_as_big_as_the_biggest_stream_or_the_old_watch() {
 }
 
 /// Given a command draining the port, with a `route_urc` stream and a plain one,
-/// when a two-line URC arrives in the drain and the command is cancelled,
-/// then the `route_urc` stream gets both lines (outside a drain only the first is a URC),
-/// the plain one neither.
+/// when a two-line URC arrives before the command, then in its drain, and the command is
+/// cancelled,
+/// then the `route_urc` stream gets the first line as a URC, then both lines, the plain
+/// stream gets no URC.
 #[test]
 fn urcs_of_a_drain_reach_a_stream() {
     let device = FakeDevice::new();
     let m = manager_with("drain", device.port());
+    // Small reads: a drain shows by its own, bigger ones.
+    let small = |batch, route_urc| WatchOptions {
+        size: Some(64),
+        ..watch_opts(batch, route_urc)
+    };
     let (urcs, urcs_rx) = sink::<CoreEvent>();
-    m.watch_core("drain".into(), watch_opts(NEVER, true), None, urcs)
+    m.watch_core("drain".into(), small(NEVER, true), None, urcs)
         .unwrap();
     let (plain, plain_rx) = sink::<CoreEvent>();
-    m.watch_core("drain".into(), watch_opts(0, false), None, plain)
+    m.watch_core("drain".into(), small(0, false), None, plain)
         .unwrap();
     let pdu = "0791447758100650";
-    // Nothing shows that the drain has begun: until the URC falls into one.
-    eventually("the URC came in a drain", || {
-        let command = background(&m, |m| {
-            let options = ExchangeOptions {
-                drain_idle_ms: Some(LONG_MS),
-                drain_max_ms: Some(LONG_MS),
-                ..Default::default()
-            };
-            m.exchange("drain".into(), "AT\r".into(), options)
-        });
-        device.send(format!("\r\n+CMT: ,23\r\n{pdu}\r\n").as_bytes());
-        device.wait_read();
-        eventually("the command was cancelled", || {
-            m.cancel_exchange("drain".into()).unwrap();
-            command.is_finished()
-        });
-        assert!(command.join().unwrap().is_err());
-        // Whatever the drain held is queued by now; this URC comes after it.
-        device.send(b"RING\r\n");
-        let mut lines = Vec::new();
-        while lines.last().is_none_or(|l| l != "RING") {
-            lines.push(next_urc(&urcs_rx));
-        }
-        assert_eq!(lines[0], "+CMT: ,23");
-        lines.contains(&pdu.to_string())
+    // Outside a drain only the first line is a URC.
+    let urc = format!("\r\n+CMT: ,23\r\n{pdu}\r\n");
+    device.send(urc.as_bytes());
+    device.send(b"RING\r\n");
+    assert_eq!(
+        [next_urc(&urcs_rx), next_urc(&urcs_rx)],
+        ["+CMT: ,23", "RING"]
+    );
+
+    let command = background(&m, |m| {
+        let options = ExchangeOptions {
+            drain_idle_ms: Some(LONG_MS),
+            drain_max_ms: Some(LONG_MS),
+            ..Default::default()
+        };
+        m.exchange("drain".into(), "AT\r".into(), options)
     });
+    device.wait_asked(1024);
+    device.send(urc.as_bytes());
+    device.wait_handled();
+    eventually("the command was cancelled", || {
+        m.cancel_exchange("drain".into()).unwrap();
+        command.is_finished()
+    });
+    assert!(command.join().unwrap().is_err());
+    assert_eq!([next_urc(&urcs_rx), next_urc(&urcs_rx)], ["+CMT: ,23", pdu]);
     m.close("drain".into()).unwrap();
     let any_urc = rest(plain_rx)
         .iter()

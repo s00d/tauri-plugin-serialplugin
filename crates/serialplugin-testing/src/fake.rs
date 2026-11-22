@@ -123,8 +123,8 @@ struct State {
     hold_writes: bool,
     hold_reads: bool,
     held: usize,
-    /// Read calls in progress.
-    reading: usize,
+    /// Buffer sizes of the read calls in progress.
+    reading: Vec<usize>,
     driver_pending: Option<u32>,
     out_pending: u32,
     /// Handles of the host.
@@ -328,7 +328,7 @@ impl FakeDevice {
             hold_writes: false,
             hold_reads: false,
             held: 0,
-            reading: 0,
+            reading: Vec::new(),
             driver_pending: None,
             out_pending: 0,
             ports: 0,
@@ -392,8 +392,16 @@ impl FakeDevice {
     /// handles the bytes on one thread has handled them by then.
     pub fn wait_handled(&self) {
         self.0.wait("the host handled every byte", |s| {
-            s.rx.is_empty() && s.reading > 0
+            s.rx.is_empty() && !s.reading.is_empty()
         });
+    }
+
+    /// Wait until a read of the host asks for `size` bytes.
+    pub fn wait_asked(&self, size: usize) {
+        self.0
+            .wait(&format!("the host asks for {size} bytes"), |s| {
+                s.reading.contains(&size)
+            });
     }
 
     /// Everything the host wrote so far.
@@ -619,10 +627,11 @@ impl Read for FakePort {
             return Ok(0);
         }
         let mut state = self.shared.lock();
-        state.reading += 1;
+        state.reading.push(buf.len());
         self.shared.notify();
         let (mut state, result) = self.read_locked(state, buf);
-        state.reading -= 1;
+        let asked = state.reading.iter().position(|n| *n == buf.len());
+        asked.map(|i| state.reading.swap_remove(i));
         drop(state);
         self.shared.notify();
         result
