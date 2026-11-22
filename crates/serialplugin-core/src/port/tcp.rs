@@ -152,6 +152,11 @@ impl Read for TcpSerialPort {
         if buf.is_empty() {
             return Ok(0);
         }
+        // A recv that times out on Windows may take bytes with it (about one in 100 000
+        // timeouts with plain std, and the hub's reads time out all the time). A peek takes
+        // none, and after it the read has its bytes.
+        #[cfg(windows)]
+        self.stream.peek(&mut [0]).map_err(map_read_error)?;
         match self.stream.read(buf) {
             // A closed socket is an unplugged device, not an empty read.
             Ok(0) => Err(io::Error::new(
