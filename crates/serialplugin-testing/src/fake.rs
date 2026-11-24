@@ -1,13 +1,73 @@
 //! An in-memory serial device.
 
+use crate::clock::{Clock, SystemClock};
 use crate::{Modem, WAIT};
 use serialport::{ClearBuffer, DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::{mpsc, Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
 
 type Responder = Box<dyn FnMut(&FakeDevice, &[u8], usize) -> Vec<u8> + Send>;
+
+/// Gets the bytes of each write; `false` once nobody listens any more.
+type Subscriber = Box<dyn FnMut(&[u8]) -> bool + Send>;
+
+/// Faults of a port, for what the device answers ([`FakeDevice::respond`],
+/// [`FakeDevice::modem`]) and how the host reads it. Set with [`FakeDevice::faults`]; the
+/// default has none.
+///
+/// ```
+/// use serialplugin_testing::Faults;
+/// use std::time::Duration;
+///
+/// let faults = Faults::default()
+///     .burst(b"\r\n+CSQ: 20,99\r\n", 3)
+///     .chunk(5)
+///     .delay(Duration::from_millis(200));
+/// assert_eq!(faults.chunk, Some(5));
+/// assert!(!faults.silent);
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Faults {
+    /// Answers are dropped: the host's commands hang (the modem still sees them).
+    pub silent: bool,
+    /// These bytes, that many times, after every answer that is not empty (a burst of
+    /// unsolicited lines).
+    pub burst: Option<(Vec<u8>, usize)>,
+    /// Every read returns at most this many bytes: lines split across reads.
+    pub chunk: Option<usize>,
+    /// Answers arrive this late, on the device's [clock](FakeDevice::clock), and in order: an
+    /// answer never comes before one given earlier, also when the delay was cut meanwhile.
+    pub delay: Duration,
+}
+
+impl Faults {
+    /// Set [`silent`](field@Self::silent).
+    pub fn silent(mut self, on: bool) -> Self {
+        self.silent = on;
+        self
+    }
+
+    /// Set [`burst`](field@Self::burst).
+    pub fn burst(mut self, bytes: &[u8], times: usize) -> Self {
+        self.burst = Some((bytes.to_vec(), times));
+        self
+    }
+
+    /// Set [`chunk`](field@Self::chunk); 0 is taken as 1.
+    pub fn chunk(mut self, max: usize) -> Self {
+        self.chunk = Some(max.max(1));
+        self
+    }
+
+    /// Set [`delay`](field@Self::delay).
+    pub fn delay(mut self, delay: Duration) -> Self {
+        self.delay = delay;
+        self
+    }
+}
 
 /// Modem status lines a [`FakeDevice`] reports.
 ///
@@ -136,6 +196,43 @@ struct State {
     unanswered: VecDeque<Vec<u8>>,
     /// A writer runs the responder (without the lock): it answers the writes of others too.
     answering: bool,
+    faults: Faults,
+    /// Set by the test: port timeouts run on it too.
+    clock: Option<Arc<dyn Clock>>,
+    /// For delays when the test set no clock; made on first use.
+    system_clock: Option<Arc<dyn Clock>>,
+    subscribers: Vec<Subscriber>,
+    /// Answers in the order they were given, from the first that still waits for its delay:
+    /// one is handed to the host once it and all before it are due.
+    late: VecDeque<Late>,
+    late_seq: u64,
+}
+
+/// An answer behind its delay.
+struct Late {
+    id: u64,
+    bytes: Vec<u8>,
+    due: bool,
+}
+
+impl State {
+    /// Hand the host the due answers at the front of the queue.
+    fn flush_late(&mut self) {
+        while self.late.front().is_some_and(|l| l.due) {
+            let late = self.late.pop_front().expect("front");
+            self.rx.extend(late.bytes);
+        }
+    }
+
+    /// The clock delays run on.
+    fn delay_clock(&mut self) -> Arc<dyn Clock> {
+        if let Some(clock) = &self.clock {
+            return clock.clone();
+        }
+        self.system_clock
+            .get_or_insert_with(|| Arc::new(SystemClock::new()))
+            .clone()
+    }
 }
 
 #[derive(Clone)]
@@ -154,6 +251,71 @@ impl Shared {
 
     fn notify(&self) {
         self.0 .1.notify_all();
+    }
+
+    /// Bytes for the host after `after` on the delay clock (at once when zero).
+    fn send_after(&self, after: Duration, bytes: Vec<u8>) {
+        if after.is_zero() {
+            self.change(|s| s.rx.extend(bytes));
+            return;
+        }
+        let clock = self.lock().delay_clock();
+        // Held weakly: a dropped device gets nothing.
+        let shared: Weak<(Mutex<State>, Condvar)> = Arc::downgrade(&self.0);
+        clock.at(
+            clock.now() + after,
+            Box::new(move || {
+                if let Some(shared) = shared.upgrade() {
+                    Shared(shared).change(|s| s.rx.extend(bytes));
+                }
+            }),
+        );
+    }
+
+    /// An answer of the responder, through the faults, after the answers before it.
+    fn deliver(&self, mut reply: Vec<u8>) {
+        let mut state = self.lock();
+        if state.faults.silent || reply.is_empty() {
+            return;
+        }
+        if let Some((bytes, times)) = &state.faults.burst {
+            for _ in 0..*times {
+                reply.extend(bytes);
+            }
+        }
+        let delay = state.faults.delay;
+        if delay.is_zero() && state.late.is_empty() {
+            state.rx.extend(reply);
+            drop(state);
+            self.notify();
+            return;
+        }
+        state.late_seq += 1;
+        let id = state.late_seq;
+        state.late.push_back(Late {
+            id,
+            bytes: reply,
+            due: delay.is_zero(),
+        });
+        if delay.is_zero() {
+            return;
+        }
+        let clock = state.delay_clock();
+        drop(state);
+        let shared: Weak<(Mutex<State>, Condvar)> = Arc::downgrade(&self.0);
+        clock.at(
+            clock.now() + delay,
+            Box::new(move || {
+                if let Some(shared) = shared.upgrade() {
+                    Shared(shared).change(|s| {
+                        if let Some(late) = s.late.iter_mut().find(|l| l.id == id) {
+                            late.due = true;
+                        }
+                        s.flush_late();
+                    });
+                }
+            }),
+        );
     }
 
     /// Block while `gate` holds, counted as a held call.
@@ -242,7 +404,7 @@ impl Shared {
             drop(replaced);
             if let (Some(bytes), Some(responder)) = (next, &mut out.responder) {
                 let reply = responder(&device, &bytes, unread);
-                self.change(|s| s.rx.extend(reply));
+                self.deliver(reply);
             }
         }
     }
@@ -336,6 +498,12 @@ impl FakeDevice {
             responder: None,
             unanswered: VecDeque::new(),
             answering: false,
+            faults: Faults::default(),
+            clock: None,
+            system_clock: None,
+            subscribers: Vec::new(),
+            late: VecDeque::new(),
+            late_seq: 0,
         };
         Self::handle(Shared(Arc::new((Mutex::new(state), Condvar::new()))))
     }
@@ -446,6 +614,57 @@ impl FakeDevice {
         let _old = self.0.change(|s| s.responder.replace(responder));
     }
 
+    /// The clock of the device: [`Faults::delay`], [`send_after`](Self::send_after) and the
+    /// port timeout of every read that starts afterwards run on it. A read that waits for data ends when this clock
+    /// reaches its timeout (a [`ManualClock`](crate::ManualClock) that is advanced, a paused
+    /// tokio clock that skips ahead). A clock that does not get there within [`WAIT`] of real
+    /// time fails the read with `ErrorKind::Other`: that bounds a failing test. A paused tokio
+    /// clock does not skip ahead while a `spawn_blocking` task runs: read on a thread of your
+    /// own. Without a clock: real time, as a port has.
+    ///
+    /// Answers still waiting for their delay on the clock before are handed to the host now:
+    /// their clock is gone, and the answers after them would wait for them for ever.
+    pub fn clock(&self, clock: Arc<dyn Clock>) {
+        self.0.change(|s| {
+            s.clock = Some(clock);
+            s.late.iter_mut().for_each(|l| l.due = true);
+            s.flush_late();
+        });
+    }
+
+    /// Faults from now on; [`Faults::default`] ends them.
+    pub fn faults(&self, faults: Faults) {
+        self.0.change(|s| s.faults = faults);
+    }
+
+    /// Send bytes to the host once `after` has passed on the device's [clock](Self::clock).
+    pub fn send_after(&self, after: Duration, bytes: &[u8]) {
+        self.0.send_after(after, bytes.to_vec());
+    }
+
+    /// The bytes of every write of the host that the device takes from now on, in order, one
+    /// message per write call (a failed or stalled write sends none; a held one, when it is
+    /// let go). No polling: `recv` wakes on the write.
+    pub fn subscribe_writes(&self) -> mpsc::Receiver<Vec<u8>> {
+        let (tx, rx) = mpsc::channel();
+        self.0.change(|s| {
+            s.subscribers
+                .push(Box::new(move |bytes| tx.send(bytes.to_vec()).is_ok()))
+        });
+        rx
+    }
+
+    /// [`subscribe_writes`](Self::subscribe_writes) for async tests (feature `tokio`).
+    #[cfg(feature = "tokio")]
+    pub fn subscribe_writes_async(&self) -> tokio::sync::mpsc::UnboundedReceiver<Vec<u8>> {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        self.0.change(|s| {
+            s.subscribers
+                .push(Box::new(move |bytes| tx.send(bytes.to_vec()).is_ok()))
+        });
+        rx
+    }
+
     /// Every read fails with `kind` from now on (an unplugged device).
     pub fn fail_reads(&self, kind: io::ErrorKind) {
         self.0.change(|s| s.read_error = Some(kind));
@@ -543,6 +762,55 @@ impl FakeDevice {
     }
 }
 
+/// The end of a read's wait.
+enum Deadline {
+    Real(Instant),
+    /// On the device clock; `bound` (real time) only ends a test whose clock never gets there.
+    Clock {
+        clock: Arc<dyn Clock>,
+        at: Duration,
+        bound: Instant,
+        /// Its wake job is scheduled.
+        armed: bool,
+    },
+}
+
+impl Deadline {
+    /// The wake job to schedule before the first wait, once.
+    fn arm(&mut self) -> Option<(Arc<dyn Clock>, Duration)> {
+        match self {
+            Self::Clock {
+                clock, at, armed, ..
+            } if !*armed => {
+                *armed = true;
+                Some((clock.clone(), *at))
+            }
+            _ => None,
+        }
+    }
+
+    /// Real time to wait at most before looking again; zero once it passed. A clock that
+    /// never got there within [`WAIT`] is an error of the test, not a timeout of the port.
+    fn left(&self) -> io::Result<Duration> {
+        match self {
+            Self::Real(end) => Ok(end.saturating_duration_since(Instant::now())),
+            Self::Clock {
+                clock, at, bound, ..
+            } => {
+                if clock.now() >= *at {
+                    return Ok(Duration::ZERO);
+                }
+                match bound.saturating_duration_since(Instant::now()) {
+                    left if left.is_zero() => Err(io::Error::other(
+                        "fake device: the clock never reached the port timeout",
+                    )),
+                    left => Ok(left),
+                }
+            }
+        }
+    }
+}
+
 /// The host side of a [`FakeDevice`].
 pub struct FakePort {
     shared: Shared,
@@ -576,12 +844,12 @@ impl FakePort {
         mut state: MutexGuard<'a, State>,
         buf: &mut [u8],
     ) -> (MutexGuard<'a, State>, io::Result<usize>) {
-        let mut deadline = Instant::now() + self.timeout;
+        let mut deadline = self.deadline(&state);
         let fails = |kind| Err(io::Error::new(kind, "fake device: read error"));
         loop {
             if state.hold_reads {
                 state = self.shared.pass(state, |s| s.hold_reads);
-                deadline = Instant::now() + self.timeout;
+                deadline = self.deadline(&state);
             }
             if let Some(kind) = state.read_error {
                 return (state, fails(kind));
@@ -598,19 +866,57 @@ impl FakePort {
                 return (state, Ok(0));
             }
             if !state.rx.is_empty() {
-                let n = buf.len().min(state.rx.len());
+                let max = state.faults.chunk.unwrap_or(usize::MAX).max(1);
+                let n = buf.len().min(state.rx.len()).min(max);
                 for (slot, byte) in buf.iter_mut().zip(state.rx.drain(..n)) {
                     *slot = byte;
                 }
                 return (state, Ok(n));
             }
-            let left = deadline.saturating_duration_since(Instant::now());
+            let left = match deadline.left() {
+                Ok(left) => left,
+                Err(e) => return (state, Err(e)),
+            };
             if left.is_zero() {
                 let e = io::Error::new(io::ErrorKind::TimedOut, "fake device: no data");
                 return (state, Err(e));
             }
+            if let Some((clock, at)) = deadline.arm() {
+                // Scheduled without the device lock: a clock may run a due job at once. The
+                // loop looks at the clock again before it waits, so a job that ran meanwhile
+                // is not missed.
+                drop(state);
+                let shared = Arc::downgrade(&self.shared.0);
+                clock.at(
+                    at,
+                    Box::new(move || {
+                        if let Some(shared) = shared.upgrade() {
+                            // Taking the lock orders the wakeup after the read began to wait.
+                            drop(shared.0.lock());
+                            shared.1.notify_all();
+                        }
+                    }),
+                );
+                state = self.shared.lock();
+                continue;
+            }
             let woken = self.shared.0 .1.wait_timeout(state, left);
             state = woken.unwrap_or_else(|e| e.into_inner()).0;
+        }
+    }
+
+    /// When a read that starts now times out. On the device clock, a job wakes the read then;
+    /// it is scheduled only once the read has to wait ([`Deadline::arm`]).
+    fn deadline(&self, state: &State) -> Deadline {
+        let Some(clock) = state.clock.clone() else {
+            return Deadline::Real(Instant::now() + self.timeout);
+        };
+        let at = clock.now() + self.timeout;
+        Deadline::Clock {
+            clock,
+            at,
+            bound: Instant::now() + WAIT,
+            armed: false,
         }
     }
 }
@@ -653,6 +959,7 @@ impl Write for FakePort {
             ));
         }
         state.written.extend(buf);
+        state.subscribers.retain_mut(|send| send(buf));
         if state.responder.is_some() || state.answering {
             state.unanswered.push_back(buf.to_vec());
         }

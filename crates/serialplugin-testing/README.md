@@ -10,12 +10,15 @@ Fake serial devices for tests: no hardware, no timing. Works with anything that 
 - `Modem`: an AT modem. Your replies, echo, numeric result codes, the SMS prompt, a 27.010
   multiplexer with the faults real modems have.
 - `mux`: 27.010 frames for hand-written multiplexer tests.
+- `Faults`, `Clock`: answers dropped, late, followed by a burst or cut into small reads; time
+  that moves when the test says (`ManualClock`) or with `tokio::time` (`TokioClock`, feature
+  `tokio`); an event per write (`subscribe_writes`).
 - `peer`: the device side of a TCP serial bridge or (unix) a PTY, for tests that need a real
   file descriptor.
 
 ```toml
 [dev-dependencies]
-serialplugin-testing = "0.1"
+serialplugin-testing = "0.2"  # features = ["tokio"] for TokioClock
 ```
 
 ## A port without hardware
@@ -92,9 +95,45 @@ device.wait_closed();
 With the Tauri plugin (through IPC, as a webview calls it) and with the multiplexer: the
 [testing guide](https://s00d.github.io/tauri-plugin-serialplugin/guides/testing).
 
+## Faults and time
+
+`Faults` act on what the device answers and on how the host reads it; a `Clock` runs the
+delays and the port timeout. `ManualClock` moves only on `advance`, `TokioClock` (feature
+`tokio`) follows `tokio::time`, so a test with a paused clock waits for nothing.
+
+```rust
+use serialplugin_testing::{FakeDevice, Faults, ManualClock, Modem};
+use std::io::Write;
+use std::sync::Arc;
+use std::time::Duration;
+
+let device = FakeDevice::with_modem(Modem::new());
+let clock = ManualClock::new();
+device.clock(Arc::new(clock.clone()));
+device.faults(
+    Faults::default()
+        .delay(Duration::from_secs(2)) // answers come 2 s late
+        .burst(b"\r\n+CREG: 1\r\n", 3) // followed by three lines
+        .chunk(4), // in reads of at most 4 bytes
+);
+let writes = device.subscribe_writes(); // one message per write, no polling
+let mut port = device.port();
+
+port.write_all(b"AT\r").unwrap();
+assert_eq!(writes.recv().unwrap(), b"AT\r");
+assert_eq!(device.unread(), 0);
+clock.advance(Duration::from_secs(2));
+assert_eq!(device.unread(), 6 + 3 * 12);
+```
+
+`Faults::default().silent(true)` drops the answers (the modem still sees the commands);
+`device.send_after(d, bytes)` sends on the clock. With a clock set, a read that waits for data
+times out when the clock reaches the port timeout. A paused tokio clock does not skip ahead
+while a `spawn_blocking` task runs: read on a thread of your own, as a port reader does.
+
 ## No timing
 
-No test depends on a delay. Waits end on what they wait for (`wait_written`, `wait_read`,
+No test depends on a delay: delays run on a test clock. Waits end on what they wait for (`wait_written`, `wait_read`,
 `wait_handled`, `wait_held`, `wait_closed`, `ModemLog::wait_command`); `WAIT` (10 s) only
 limits how long a failure takes. `eventually` and the peers, whose state no event announces,
 poll (every millisecond, every 20 ms). To test code that must not block, hold the device

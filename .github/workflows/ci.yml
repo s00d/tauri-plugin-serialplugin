@@ -58,7 +58,7 @@ jobs:
         if: runner.os == 'Linux'
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps --features serialplugin-core/ble,android-usb-serial/fake-transport,android-usb-serial/serialport-compat
+        run: cargo doc --workspace --no-deps --features serialplugin-core/ble,android-usb-serial/fake-transport,android-usb-serial/serialport-compat,serialplugin-testing/tokio
 
       # `--target all` also covers the Android / iOS-only dependencies.
       - name: serialplugin-core has no Tauri dependency
@@ -87,6 +87,11 @@ jobs:
       - name: Rust tests (plugin + android-usb-serial host tests)
         run: cargo test --workspace
 
+      - name: serialplugin-testing with its tokio clock (`tokio` feature)
+        run: |
+          cargo clippy -p serialplugin-testing --all-targets --features tokio -- -D warnings
+          cargo test -p serialplugin-testing --features tokio
+
       - name: android-usb-serial driver tests (fake USB transport)
         run: cargo test -p android-usb-serial --features fake-transport,serialport-compat
 
@@ -112,7 +117,7 @@ jobs:
           cargo +1.90 check --workspace --all-targets
           cargo +1.85 check -p android-usb-serial --all-targets --features fake-transport,serialport-compat
           cargo +1.85 test -p serial-codec
-          cargo +1.85 check -p serialplugin-testing --all-targets
+          cargo +1.85 check -p serialplugin-testing --all-targets --features tokio
 
       - uses: actions/setup-java@v6
         if: runner.os == 'Linux'

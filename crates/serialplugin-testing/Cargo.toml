@@ -1,6 +1,6 @@
 [package]
 name = "serialplugin-testing"
-version = "0.1.0"
+version = "0.2.0"
 description = "Fake serial devices for tests: an in-memory serialport::SerialPort, a scriptable AT modem with a 3GPP 27.010 multiplexer, PTY and TCP peers"
 edition = "2021"
 rust-version = "1.85"
@@ -18,3 +18,14 @@ include = ["/src/**", "/tests/**", "/README.md", "/LICENSE-*"]
 # on the crates under test.
 [dependencies]
 serialport = "4.10.1"
+tokio = { version = "1", features = ["rt", "time", "sync"], optional = true }
+
+[features]
+# TokioClock and FakeDevice::subscribe_writes_async.
+tokio = ["dep:tokio"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "time", "sync", "macros", "test-util"] }
+
+[package.metadata.docs.rs]
+all-features = true

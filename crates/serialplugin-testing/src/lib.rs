@@ -7,12 +7,16 @@
 //! Written from the protocol descriptions, not with the codecs under test, so a codec bug
 //! cannot hide behind the same bug in its test peer.
 
+mod clock;
 mod fake;
 mod modem;
 pub mod mux;
 pub mod peer;
 
-pub use fake::{Call, FakeDevice, FakePort, Lines};
+#[cfg(feature = "tokio")]
+pub use clock::TokioClock;
+pub use clock::{Clock, Job, ManualClock, SystemClock};
+pub use fake::{Call, FakeDevice, FakePort, Faults, Lines};
 pub use modem::{Command, Modem, ModemLog, MuxOptions};
 
 use std::time::{Duration, Instant};

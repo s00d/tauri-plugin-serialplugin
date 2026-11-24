@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+JS, invoke payloads, permissions and the plugin's Rust API are as in 4.2.5. serialplugin-testing 0.2.0; serialplugin-core, android-usb-serial and serial-codec are unchanged.
+
+### Features
+
+* serialplugin-testing: port faults. `FakeDevice::faults(Faults)` drops the answers of the device (`silent`), follows each with a burst of lines (`burst`), delivers them late (`delay`) or hands every read at most N bytes (`chunk`).
+* serialplugin-testing: clocks. `FakeDevice::clock` runs the delays, `send_after` and the port timeout of reads on a `ManualClock` (moves on `advance`), a `SystemClock` or, with the feature `tokio`, a `TokioClock`: under `#[tokio::test(start_paused = true)]` nothing waits in real time.
+* serialplugin-testing: `FakeDevice::subscribe_writes()` (and `subscribe_writes_async()` with `tokio`): the bytes of every write as an event, no polling.
+
 ## [4.2.5](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.4...v4.2.5) (2026-11-22)
 
 JS, invoke payloads, permissions and the Rust API are as in 4.2.4. serialplugin-core 0.2.5, android-usb-serial 0.1.8; serial-codec and serialplugin-testing are unchanged.
