@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [4.2.6](https://github.com/s00d/tauri-plugin-serialplugin/compare/v4.2.5...v4.2.6) (2026-11-24)
 
 JS, invoke payloads, permissions and the plugin's Rust API are as in 4.2.5. serialplugin-testing 0.2.0; serialplugin-core, android-usb-serial and serial-codec are unchanged.
 
